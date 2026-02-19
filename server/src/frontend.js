@@ -121,7 +121,18 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 </head>
 <body>
 
-<div class="app">
+<div id="loginScreen" style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg)">
+  <div style="background:white;padding:32px;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.1);width:340px">
+    <h2 style="margin-bottom:4px">IndParkDocs</h2>
+    <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px">Документы и связи</p>
+    <div class="form-group"><label>Логин</label><input id="loginUser" placeholder="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
+    <div class="form-group"><label>Пароль</label><input id="loginPass" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div id="loginError" style="color:var(--red);font-size:12px;margin-bottom:8px"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Войти</button>
+  </div>
+</div>
+
+<div class="app" style="display:none">
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <h1>IndParkDocs</h1>
@@ -136,6 +147,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
         <span class="icon">⚙️</span> Типы и поля
+      </div>
+      <div class="nav-item" onclick="logout()" style="margin-top:auto;color:rgba(255,255,255,0.4)">
+        <span class="icon">🚪</span> Выход
       </div>
     </div>
   </div>
@@ -162,18 +176,95 @@ let relationTypes = [];
 let currentView = 'dashboard';
 let currentTypeFilter = null;
 let currentEntityId = null;
+let TOKEN = localStorage.getItem('accessToken');
+let REFRESH = localStorage.getItem('refreshToken');
+let CURRENT_USER = null;
 
-async function api(url, opts) {
-  const r = await fetch(API + url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+async function api(url, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  const r = await fetch(API + url, { ...opts, headers });
+  if (r.status === 401 && REFRESH) {
+    const ref = await fetch(API + '/auth/refresh', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: REFRESH })
+    });
+    if (ref.ok) {
+      const data = await ref.json();
+      TOKEN = data.accessToken;
+      localStorage.setItem('accessToken', TOKEN);
+      headers['Authorization'] = 'Bearer ' + TOKEN;
+      const r2 = await fetch(API + url, { ...opts, headers });
+      return r2.json();
+    } else {
+      logout();
+      return {};
+    }
+  }
+  if (r.status === 401) { logout(); return {}; }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: 'Ошибка сервера' }));
+    alert(err.error || 'Ошибка');
+    throw new Error(err.error);
+  }
   return r.json();
 }
 
-async function init() {
+function logout() {
+  TOKEN = null; REFRESH = null; CURRENT_USER = null;
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  showLogin();
+}
+
+function showLogin() {
+  document.getElementById('sidebar').style.display = 'none';
+  document.querySelector('.main').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try {
+    const r = await fetch(API + '/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await r.json();
+    if (!r.ok) { errEl.textContent = data.error || 'Ошибка'; return; }
+    TOKEN = data.accessToken;
+    REFRESH = data.refreshToken;
+    CURRENT_USER = data.user;
+    localStorage.setItem('accessToken', TOKEN);
+    localStorage.setItem('refreshToken', REFRESH);
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('sidebar').style.display = '';
+    document.querySelector('.main').style.display = '';
+    startApp();
+  } catch (e) { errEl.textContent = 'Ошибка подключения'; }
+}
+
+async function startApp() {
+  if (!CURRENT_USER) {
+    try { CURRENT_USER = await api('/auth/me'); } catch { logout(); return; }
+  }
   entityTypes = await api('/entity-types');
-  relationTypes = await api('/relation-types');
+  relationTypes = await api('/relations/types');
   renderTypeNav();
   showDashboard();
   if (window.innerWidth <= 768) document.getElementById('menuBtn').style.display = '';
+}
+
+async function init() {
+  if (TOKEN) {
+    document.getElementById('loginScreen').style.display = 'none';
+    startApp();
+  } else {
+    showLogin();
+  }
 }
 
 function renderTypeNav() {
