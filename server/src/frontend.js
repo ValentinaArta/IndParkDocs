@@ -180,6 +180,88 @@ let TOKEN = localStorage.getItem('accessToken');
 let REFRESH = localStorage.getItem('refreshToken');
 let CURRENT_USER = null;
 
+// Conditional fields shown when contract_type matches
+const CONTRACT_TYPE_FIELDS = {
+  'Подряда': [
+    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
+    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: ['Корпус 1','Корпус 2','Корпус 3','Корпус 4','Корпус 5'] },
+    { name: 'equipment', name_ru: 'Оборудование', field_type: 'select_or_custom', options: ['Кран мостовой 10т','Кран мостовой 5т','Кран козловой','Компрессор'] },
+    { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: ['ООО Альфа','ООО Бета','ИП Сидоров'] },
+    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number' },
+    { name: 'advance_amount', name_ru: 'Аванс сумма', field_type: 'number' },
+    { name: 'payment_date', name_ru: 'Дата оплаты', field_type: 'date' },
+    { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'date' },
+  ]
+};
+
+function renderFieldInput(f, value) {
+  const val = value || '';
+  const id = 'f_' + f.name;
+  if (f.field_type === 'select_or_custom') {
+    const opts = f.options || [];
+    const isCustom = val && !opts.includes(val);
+    let h = '<div style="display:flex;gap:6px;align-items:center">';
+    h += '<select id="' + id + '" onchange="toggleCustomInput(this)" style="flex:1"><option value="">—</option>';
+    opts.forEach(function(o) { h += '<option value="' + escapeHtml(o) + '"' + (o === val ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
+    h += '<option value="__custom__"' + (isCustom ? ' selected' : '') + '>Другое...</option></select>';
+    h += '<input id="' + id + '_custom" placeholder="Введите значение" value="' + (isCustom ? escapeHtml(String(val)) : '') + '" style="flex:1;' + (isCustom ? '' : 'display:none') + '">';
+    h += '</div>';
+    return h;
+  } else if (f.field_type === 'select') {
+    const opts = f.options || [];
+    let h = '<select id="' + id + '"><option value="">—</option>';
+    opts.forEach(function(o) { h += '<option' + (o === val ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
+    h += '</select>';
+    return h;
+  } else if (f.field_type === 'date') {
+    return '<input type="date" id="' + id + '" value="' + val + '">';
+  } else if (f.field_type === 'number') {
+    return '<input type="number" id="' + id + '" value="' + val + '">';
+  } else {
+    return '<input id="' + id + '" value="' + escapeHtml(String(val)) + '">';
+  }
+}
+
+function toggleCustomInput(sel) {
+  const customInput = document.getElementById(sel.id + '_custom');
+  if (customInput) customInput.style.display = sel.value === '__custom__' ? '' : 'none';
+}
+
+function getFieldValue(f) {
+  const el = document.getElementById('f_' + f.name);
+  if (!el) return null;
+  if (f.field_type === 'select_or_custom') {
+    if (el.value === '__custom__') {
+      const customEl = document.getElementById('f_' + f.name + '_custom');
+      return customEl ? customEl.value || null : null;
+    }
+    return el.value || null;
+  }
+  return el.value || null;
+}
+
+function renderDynamicFields(contractType, props) {
+  const container = document.getElementById('dynamicFieldsContainer');
+  if (!container) return;
+  const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
+  if (extraFields.length === 0) { container.innerHTML = ''; return; }
+  let html = '';
+  extraFields.forEach(function(f) {
+    const val = props ? (props[f.name] || '') : '';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
+  });
+  container.innerHTML = html;
+}
+
+function collectDynamicFieldValues(contractType) {
+  const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
+  const result = {};
+  extraFields.forEach(function(f) {
+    result[f.name] = getFieldValue(f);
+  });
+  return result;
+}
+
 async function api(url, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
@@ -271,7 +353,8 @@ async function init() {
 
 function renderTypeNav() {
   const nav = document.getElementById('typeNav');
-  nav.innerHTML = entityTypes.map(t =>
+  const visibleTypes = entityTypes.filter(t => t.name === 'contract' || t.name === 'supplement');
+  nav.innerHTML = visibleTypes.map(t =>
     '<div class="nav-item" data-type="' + t.name + '" onclick="showEntityList(\\'' + t.name + '\\')">' +
     '<span class="icon">' + t.icon + '</span> ' + t.name_ru +
     '<span class="count" id="count_' + t.name + '">-</span></div>'
@@ -403,7 +486,36 @@ async function showEntity(id) {
       html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
         '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });
+    // Show dynamic contract-type fields in detail
+    if ((e.type_name === 'contract' || e.type_name === 'supplement') && props.contract_type) {
+      const extraFields = CONTRACT_TYPE_FIELDS[props.contract_type] || [];
+      extraFields.forEach(function(f) {
+        const val = props[f.name];
+        html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
+          '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
+      });
+    }
     html += '</div></div>';
+  }
+
+  // Supplements section for contracts
+  if (e.type_name === 'contract') {
+    const allEntities = await api('/entities?type=supplement');
+    const supplements = allEntities.filter(function(s) { return s.parent_id === e.id; });
+    html += '<div class="detail-section"><h3>Доп. соглашения</h3>';
+    if (supplements.length > 0) {
+      html += '<div class="children-grid">';
+      supplements.forEach(function(s) {
+        const sp = s.properties || {};
+        html += '<div class="child-card" onclick="showEntity(' + s.id + ')">' +
+          '<span style="font-size:18px">📎</span>' +
+          '<div><div style="font-weight:500;font-size:13px">' + escapeHtml(s.name) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted)">' + (sp.number || '') + (sp.contract_date ? ' от ' + sp.contract_date : '') + '</div></div></div>';
+      });
+      html += '</div>';
+    }
+    html += '<button class="btn btn-sm btn-primary" onclick="openCreateSupplementModal(' + e.id + ')" style="margin-top:8px">+ Доп. соглашение</button>';
+    html += '</div>';
   }
 
   // Children
@@ -463,22 +575,14 @@ async function openCreateModal(typeName) {
   });
   html += '</select></div>';
 
+  const isContractLike = (typeName === 'contract' || typeName === 'supplement');
   fields.forEach(f => {
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
-    if (f.field_type === 'select') {
-      const opts = f.options || [];
-      html += '<select id="f_' + f.name + '"><option value="">—</option>';
-      opts.forEach(o => { html += '<option>' + o + '</option>'; });
-      html += '</select>';
-    } else if (f.field_type === 'date') {
-      html += '<input type="date" id="f_' + f.name + '">';
-    } else if (f.field_type === 'number') {
-      html += '<input type="number" id="f_' + f.name + '">';
-    } else {
-      html += '<input id="f_' + f.name + '">';
-    }
-    html += '</div>';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, '') + '</div>';
   });
+
+  if (isContractLike) {
+    html += '<div id="dynamicFieldsContainer"></div>';
+  }
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreate(\\'' + typeName + '\\')">Создать</button></div>';
@@ -486,6 +590,16 @@ async function openCreateModal(typeName) {
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
   document.getElementById('f_name').focus();
+
+  if (isContractLike) {
+    const ctEl = document.getElementById('f_contract_type');
+    if (ctEl) {
+      ctEl.addEventListener('change', function() {
+        const val = this.value === '__custom__' ? '' : this.value;
+        renderDynamicFields(val, {});
+      });
+    }
+  }
 }
 
 async function submitCreate(typeName) {
@@ -496,10 +610,13 @@ async function submitCreate(typeName) {
 
   const parent_id = document.getElementById('f_parent').value || null;
   const properties = {};
-  fields.forEach(f => {
-    const el = document.getElementById('f_' + f.name);
-    if (el && el.value) properties[f.name] = el.value;
-  });
+  fields.forEach(f => { const v = getFieldValue(f); if (v) properties[f.name] = v; });
+
+  // Collect dynamic contract-type fields
+  const isContractLike = (typeName === 'contract' || typeName === 'supplement');
+  if (isContractLike && properties.contract_type) {
+    Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
+  }
 
   await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: type.id, name, properties, parent_id }) });
   closeModal();
@@ -521,29 +638,40 @@ async function openEditModal(id) {
   html += '</select></div>';
 
   const props = e.properties || {};
+  const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
   fields.forEach(f => {
     const val = props[f.name] || '';
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
-    if (f.field_type === 'select') {
-      const opts = f.options || [];
-      html += '<select id="f_' + f.name + '"><option value="">—</option>';
-      opts.forEach(o => { html += '<option' + (o === val ? ' selected' : '') + '>' + o + '</option>'; });
-      html += '</select>';
-    } else if (f.field_type === 'date') {
-      html += '<input type="date" id="f_' + f.name + '" value="' + val + '">';
-    } else if (f.field_type === 'number') {
-      html += '<input type="number" id="f_' + f.name + '" value="' + val + '">';
-    } else {
-      html += '<input id="f_' + f.name + '" value="' + escapeHtml(String(val)) + '">';
-    }
-    html += '</div>';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
   });
+
+  if (isContractLike) {
+    html += '<div id="dynamicFieldsContainer"></div>';
+  }
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
 
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
+
+  if (isContractLike && props.contract_type) {
+    renderDynamicFields(props.contract_type, props);
+    const ctEl = document.getElementById('f_contract_type');
+    if (ctEl) {
+      ctEl.addEventListener('change', function() {
+        const val = this.value === '__custom__' ? '' : this.value;
+        renderDynamicFields(val, props);
+      });
+    }
+  } else if (isContractLike) {
+    const ctEl = document.getElementById('f_contract_type');
+    if (ctEl) {
+      ctEl.addEventListener('change', function() {
+        const val = this.value === '__custom__' ? '' : this.value;
+        renderDynamicFields(val, props);
+      });
+    }
+  }
 }
 
 async function submitEdit(id) {
@@ -552,10 +680,14 @@ async function submitEdit(id) {
   const name = document.getElementById('f_name').value.trim();
   const parent_id = document.getElementById('f_parent').value || null;
   const properties = {};
-  fields.forEach(f => {
-    const el = document.getElementById('f_' + f.name);
-    if (el) properties[f.name] = el.value || null;
-  });
+  fields.forEach(f => { properties[f.name] = getFieldValue(f); });
+
+  // Collect dynamic contract-type fields
+  const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
+  if (isContractLike && properties.contract_type) {
+    Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
+  }
+
   await api('/entities/' + id, { method: 'PUT', body: JSON.stringify({ name, properties, parent_id }) });
   closeModal();
   showEntity(id);
@@ -566,6 +698,64 @@ async function deleteEntity(id) {
   await api('/entities/' + id, { method: 'DELETE' });
   if (currentTypeFilter) showEntityList(currentTypeFilter);
   else showDashboard();
+}
+
+// ============ SUPPLEMENTS ============
+
+async function openCreateSupplementModal(parentContractId) {
+  const parentEntity = await api('/entities/' + parentContractId);
+  const parentProps = parentEntity.properties || {};
+  const suppType = entityTypes.find(t => t.name === 'supplement');
+  if (!suppType) return alert('Тип "Доп. соглашение" не найден');
+  const fields = await api('/entity-types/' + suppType.id + '/fields');
+
+  let html = '<h3>Новое доп. соглашение</h3>';
+  html += '<div class="form-group"><label>Название</label><input id="f_name" value="Доп. соглашение к ' + escapeHtml(parentProps.number || '') + '"></div>';
+  html += '<input type="hidden" id="f_parent" value="' + parentContractId + '">';
+
+  fields.forEach(function(f) {
+    const prefill = parentProps[f.name] || '';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, prefill) + '</div>';
+  });
+
+  html += '<div id="dynamicFieldsContainer"></div>';
+
+  html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
+    '<button class="btn btn-primary" onclick="submitCreateSupplement(' + parentContractId + ')">Создать</button></div>';
+
+  document.getElementById('modal').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+
+  // Render dynamic fields if contract_type is pre-filled
+  if (parentProps.contract_type) {
+    renderDynamicFields(parentProps.contract_type, parentProps);
+  }
+
+  const ctEl = document.getElementById('f_contract_type');
+  if (ctEl) {
+    ctEl.addEventListener('change', function() {
+      const val = this.value === '__custom__' ? '' : this.value;
+      renderDynamicFields(val, {});
+    });
+  }
+}
+
+async function submitCreateSupplement(parentContractId) {
+  const suppType = entityTypes.find(t => t.name === 'supplement');
+  const fields = await api('/entity-types/' + suppType.id + '/fields');
+  const name = document.getElementById('f_name').value.trim();
+  if (!name) return alert('Введите название');
+
+  const properties = {};
+  fields.forEach(f => { const v = getFieldValue(f); if (v) properties[f.name] = v; });
+
+  if (properties.contract_type) {
+    Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
+  }
+
+  await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: suppType.id, name, properties, parent_id: parentContractId }) });
+  closeModal();
+  showEntity(parentContractId);
 }
 
 // ============ RELATIONS ============

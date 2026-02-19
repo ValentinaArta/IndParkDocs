@@ -12,6 +12,7 @@ const TYPES = [
   { name: 'equipment', name_ru: 'Оборудование', icon: '⚙️', color: '#F59E0B', sort_order: 6 },
   { name: 'document', name_ru: 'Документ', icon: '📋', color: '#10B981', sort_order: 7 },
   { name: 'crane_track', name_ru: 'Подкрановый путь', icon: '🛤', color: '#F97316', sort_order: 8 },
+  { name: 'supplement', name_ru: 'Доп. соглашение', icon: '📎', color: '#8B5CF6', sort_order: 9 },
 ];
 
 const FIELDS = {
@@ -35,12 +36,18 @@ const FIELDS = {
     { name: 'email', name_ru: 'Email', field_type: 'text' },
   ],
   contract: [
-    { name: 'number', name_ru: 'Номер договора', field_type: 'text', required: true },
-    { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select', options: JSON.stringify(['Аренда','Поставка','Подряд','Обслуживание','Эксплуатация','Прочее']) },
-    { name: 'date_start', name_ru: 'Дата начала', field_type: 'date' },
-    { name: 'date_end', name_ru: 'Дата окончания', field_type: 'date' },
-    { name: 'amount', name_ru: 'Сумма', field_type: 'number' },
-    { name: 'status', name_ru: 'Статус', field_type: 'select', options: JSON.stringify(['Действующий','Завершён','Расторгнут','Приостановлен']) },
+    { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify(['ООО ПромПарк','ООО УК ПромПарк','ИП Иванов']) },
+    { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Услуг','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
+    { name: 'contractor_name', name_ru: 'Наименование контрагента', field_type: 'text' },
+    { name: 'number', name_ru: '№ договора', field_type: 'text', required: true },
+    { name: 'contract_date', name_ru: 'Дата договора', field_type: 'date' },
+  ],
+  supplement: [
+    { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify(['ООО ПромПарк','ООО УК ПромПарк','ИП Иванов']) },
+    { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Услуг','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
+    { name: 'contractor_name', name_ru: 'Наименование контрагента', field_type: 'text' },
+    { name: 'number', name_ru: '№ доп. соглашения', field_type: 'text', required: true },
+    { name: 'contract_date', name_ru: 'Дата доп. соглашения', field_type: 'date' },
   ],
   equipment: [
     { name: 'inv_number', name_ru: 'Инв. номер', field_type: 'text' },
