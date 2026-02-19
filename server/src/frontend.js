@@ -360,7 +360,7 @@ async function doLogin() {
 
 async function startApp() {
   if (!CURRENT_USER) {
-    try { CURRENT_USER = await api('/auth/me'); } catch { logout(); return; }
+    try { CURRENT_USER = await api('/auth/me'); } catch (e) { logout(); return; }
   }
   entityTypes = await api('/entity-types');
   relationTypes = await api('/relations/types');
