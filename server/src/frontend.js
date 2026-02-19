@@ -222,7 +222,7 @@ function enrichFieldOptions(f) {
   return f;
 }
 
-function renderFieldInput(enrichFieldOptions(f), value) {
+function renderFieldInput(f, value) {
   const val = value || '';
   const id = 'f_' + f.name;
   if (f.field_type === 'select_or_custom') {
