@@ -2,11 +2,11 @@
 
 _Learn about the person you're helping. Update this as you go._
 
-- **Name:**
-- **What to call them:**
-- **Pronouns:** _(optional)_
-- **Timezone:**
-- **Notes:**
+- **Name:** Valentina (ValentinaArta)
+- **What to call them:** Валентина
+- **Pronouns:** she/her
+- **Timezone:** ~UTC+3 (предположительно, по вечернему времени общения)
+- **Notes:** Проект IndParkDocs — система документов для индустриального парка. Деплой на Render. Общение на русском.
 
 ## Context
 
