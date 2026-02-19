@@ -241,6 +241,7 @@ async function doLogin() {
     localStorage.setItem('accessToken', TOKEN);
     localStorage.setItem('refreshToken', REFRESH);
     document.getElementById('loginScreen').style.display = 'none';
+    document.querySelector('.app').style.display = 'flex';
     document.getElementById('sidebar').style.display = '';
     document.querySelector('.main').style.display = '';
     startApp();
@@ -261,6 +262,7 @@ async function startApp() {
 async function init() {
   if (TOKEN) {
     document.getElementById('loginScreen').style.display = 'none';
+    document.querySelector('.app').style.display = 'flex';
     startApp();
   } else {
     showLogin();
