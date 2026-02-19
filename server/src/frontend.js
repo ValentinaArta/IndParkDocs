@@ -190,7 +190,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number' },
     { name: 'advance_amount', name_ru: 'Аванс сумма', field_type: 'number' },
     { name: 'payment_date', name_ru: 'Дата оплаты', field_type: 'date' },
-    { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'date' },
+    { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
   ]
 };
 
