@@ -565,17 +565,22 @@ async function openCreateModal(typeName) {
   const fields = await api('/entity-types/' + type.id + '/fields');
   const allEntities = await api('/entities');
 
-  let html = '<h3>Новый: ' + type.name_ru + '</h3>';
-  html += '<div class="form-group"><label>Название</label><input id="f_name" required></div>';
-
-  // Parent selector
-  html += '<div class="form-group"><label>Родитель (вложен в)</label><select id="f_parent"><option value="">— нет —</option>';
-  allEntities.forEach(e => {
-    html += '<option value="' + e.id + '">' + e.icon + ' ' + escapeHtml(e.name) + ' (' + e.type_name_ru + ')</option>';
-  });
-  html += '</select></div>';
-
   const isContractLike = (typeName === 'contract' || typeName === 'supplement');
+  let html = '<h3>Новый: ' + type.name_ru + '</h3>';
+  if (isContractLike) {
+    html += '<input type="hidden" id="f_name" value="">';
+  } else {
+    html += '<div class="form-group"><label>Название</label><input id="f_name" required></div>';
+  }
+
+  // Parent selector (hide for contracts)
+  if (!isContractLike) {
+    html += '<div class="form-group"><label>Родитель (вложен в)</label><select id="f_parent"><option value="">— нет —</option>';
+    allEntities.forEach(e => {
+      html += '<option value="' + e.id + '">' + e.icon + ' ' + escapeHtml(e.name) + ' (' + e.type_name_ru + ')</option>';
+    });
+    html += '</select></div>';
+  }
   fields.forEach(f => {
     html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, '') + '</div>';
   });
@@ -589,7 +594,7 @@ async function openCreateModal(typeName) {
 
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
-  document.getElementById('f_name').focus();
+  if (!isContractLike) document.getElementById('f_name').focus();
 
   if (isContractLike) {
     const ctEl = document.getElementById('f_contract_type');
@@ -605,18 +610,24 @@ async function openCreateModal(typeName) {
 async function submitCreate(typeName) {
   const type = entityTypes.find(t => t.name === typeName);
   const fields = await api('/entity-types/' + type.id + '/fields');
-  const name = document.getElementById('f_name').value.trim();
-  if (!name) return alert('Введите название');
-
-  const parent_id = document.getElementById('f_parent').value || null;
+  const isContractLike = (typeName === 'contract' || typeName === 'supplement');
+  const parent_id = isContractLike ? null : (document.getElementById('f_parent') ? document.getElementById('f_parent').value || null : null);
   const properties = {};
   fields.forEach(f => { const v = getFieldValue(f); if (v) properties[f.name] = v; });
 
   // Collect dynamic contract-type fields
-  const isContractLike = (typeName === 'contract' || typeName === 'supplement');
   if (isContractLike && properties.contract_type) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
   }
+
+  // Auto-generate name for contracts
+  let name = document.getElementById('f_name').value.trim();
+  if (isContractLike) {
+    const num = properties.number || '?';
+    const contractor = properties.contractor_name || '';
+    name = (typeName === 'supplement' ? 'ДС' : 'Договор') + ' №' + num + (contractor ? ' — ' + contractor : '');
+  }
+  if (!name) return alert('Введите название');
 
   await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: type.id, name, properties, parent_id }) });
   closeModal();
@@ -628,17 +639,22 @@ async function openEditModal(id) {
   const fields = e.fields || [];
   const allEntities = await api('/entities');
 
-  let html = '<h3>Редактировать: ' + escapeHtml(e.name) + '</h3>';
-  html += '<div class="form-group"><label>Название</label><input id="f_name" value="' + escapeHtml(e.name) + '"></div>';
-
-  html += '<div class="form-group"><label>Родитель</label><select id="f_parent"><option value="">— нет —</option>';
-  allEntities.filter(x => x.id !== id).forEach(x => {
-    html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + '</option>';
-  });
-  html += '</select></div>';
-
   const props = e.properties || {};
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
+  let html = '<h3>Редактировать: ' + escapeHtml(e.name) + '</h3>';
+  if (isContractLike) {
+    html += '<input type="hidden" id="f_name" value="' + escapeHtml(e.name) + '">';
+  } else {
+    html += '<div class="form-group"><label>Название</label><input id="f_name" value="' + escapeHtml(e.name) + '"></div>';
+  }
+
+  if (!isContractLike) {
+    html += '<div class="form-group"><label>Родитель</label><select id="f_parent"><option value="">— нет —</option>';
+    allEntities.filter(x => x.id !== id).forEach(x => {
+      html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + '</option>';
+    });
+    html += '</select></div>';
+  }
   fields.forEach(f => {
     const val = props[f.name] || '';
     html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
@@ -677,15 +693,22 @@ async function openEditModal(id) {
 async function submitEdit(id) {
   const e = await api('/entities/' + id);
   const fields = e.fields || [];
-  const name = document.getElementById('f_name').value.trim();
-  const parent_id = document.getElementById('f_parent').value || null;
+  const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
+  const parent_id = isContractLike ? (e.parent_id || null) : (document.getElementById('f_parent') ? document.getElementById('f_parent').value || null : null);
   const properties = {};
   fields.forEach(f => { properties[f.name] = getFieldValue(f); });
 
   // Collect dynamic contract-type fields
-  const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
   if (isContractLike && properties.contract_type) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
+  }
+
+  // Auto-generate name for contracts
+  let name = document.getElementById('f_name').value.trim();
+  if (isContractLike) {
+    const num = properties.number || '?';
+    const contractor = properties.contractor_name || '';
+    name = (e.type_name === 'supplement' ? 'ДС' : 'Договор') + ' №' + num + (contractor ? ' — ' + contractor : '');
   }
 
   await api('/entities/' + id, { method: 'PUT', body: JSON.stringify({ name, properties, parent_id }) });
@@ -710,7 +733,7 @@ async function openCreateSupplementModal(parentContractId) {
   const fields = await api('/entity-types/' + suppType.id + '/fields');
 
   let html = '<h3>Новое доп. соглашение</h3>';
-  html += '<div class="form-group"><label>Название</label><input id="f_name" value="Доп. соглашение к ' + escapeHtml(parentProps.number || '') + '"></div>';
+  html += '<input type="hidden" id="f_name" value="">';
   html += '<input type="hidden" id="f_parent" value="' + parentContractId + '">';
 
   fields.forEach(function(f) {
@@ -743,15 +766,16 @@ async function openCreateSupplementModal(parentContractId) {
 async function submitCreateSupplement(parentContractId) {
   const suppType = entityTypes.find(t => t.name === 'supplement');
   const fields = await api('/entity-types/' + suppType.id + '/fields');
-  const name = document.getElementById('f_name').value.trim();
-  if (!name) return alert('Введите название');
-
   const properties = {};
   fields.forEach(f => { const v = getFieldValue(f); if (v) properties[f.name] = v; });
 
   if (properties.contract_type) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
   }
+
+  const num = properties.number || '?';
+  const contractor = properties.contractor_name || '';
+  const name = 'ДС №' + num + (contractor ? ' — ' + contractor : '');
 
   await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: suppType.id, name, properties, parent_id: parentContractId }) });
   closeModal();
