@@ -36,14 +36,14 @@ const FIELDS = {
     { name: 'email', name_ru: 'Email', field_type: 'text' },
   ],
   contract: [
-    { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify(['ООО ПромПарк','ООО УК ПромПарк','ИП Иванов']) },
+    { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify([]) },
     { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Услуг','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
     { name: 'contractor_name', name_ru: 'Наименование контрагента', field_type: 'text' },
     { name: 'number', name_ru: '№ договора', field_type: 'text', required: true },
     { name: 'contract_date', name_ru: 'Дата договора', field_type: 'date' },
   ],
   supplement: [
-    { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify(['ООО ПромПарк','ООО УК ПромПарк','ИП Иванов']) },
+    { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify([]) },
     { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Услуг','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
     { name: 'contractor_name', name_ru: 'Наименование контрагента', field_type: 'text' },
     { name: 'number', name_ru: '№ доп. соглашения', field_type: 'text', required: true },

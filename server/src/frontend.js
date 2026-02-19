@@ -184,9 +184,9 @@ let CURRENT_USER = null;
 const CONTRACT_TYPE_FIELDS = {
   'Подряда': [
     { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: ['Корпус 1','Корпус 2','Корпус 3','Корпус 4','Корпус 5'] },
-    { name: 'equipment', name_ru: 'Оборудование', field_type: 'select_or_custom', options: ['Кран мостовой 10т','Кран мостовой 5т','Кран козловой','Компрессор'] },
-    { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: ['ООО Альфа','ООО Бета','ИП Сидоров'] },
+    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
+    { name: 'equipment', name_ru: 'Оборудование', field_type: 'select_or_custom', options: [] },
+    { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number' },
     { name: 'advance_amount', name_ru: 'Аванс сумма', field_type: 'number' },
     { name: 'payment_date', name_ru: 'Дата оплаты', field_type: 'date' },
@@ -194,7 +194,35 @@ const CONTRACT_TYPE_FIELDS = {
   ]
 };
 
-function renderFieldInput(f, value) {
+// Cache of all contract/supplement entities for extracting used values
+let _allContractEntities = [];
+
+async function loadContractEntities() {
+  const contracts = await api('/entities?type=contract');
+  const supplements = await api('/entities?type=supplement');
+  _allContractEntities = contracts.concat(supplements);
+}
+
+function getUsedValues(fieldName) {
+  const vals = new Set();
+  _allContractEntities.forEach(function(e) {
+    const v = (e.properties || {})[fieldName];
+    if (v && v.trim()) vals.add(v.trim());
+  });
+  return Array.from(vals).sort();
+}
+
+function enrichFieldOptions(f) {
+  if (f.field_type === 'select_or_custom') {
+    const used = getUsedValues(f.name);
+    const existing = f.options || [];
+    const merged = Array.from(new Set(existing.concat(used))).sort();
+    return Object.assign({}, f, { options: merged });
+  }
+  return f;
+}
+
+function renderFieldInput(enrichFieldOptions(f), value) {
   const val = value || '';
   const id = 'f_' + f.name;
   if (f.field_type === 'select_or_custom') {
@@ -248,7 +276,7 @@ function renderDynamicFields(contractType, props) {
   let html = '';
   extraFields.forEach(function(f) {
     const val = props ? (props[f.name] || '') : '';
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
   });
   container.innerHTML = html;
 }
@@ -564,6 +592,7 @@ async function openCreateModal(typeName) {
   const type = entityTypes.find(t => t.name === typeName);
   const fields = await api('/entity-types/' + type.id + '/fields');
   const allEntities = await api('/entities');
+  await loadContractEntities();
 
   const isContractLike = (typeName === 'contract' || typeName === 'supplement');
   let html = '<h3>Новый: ' + type.name_ru + '</h3>';
@@ -582,7 +611,7 @@ async function openCreateModal(typeName) {
     html += '</select></div>';
   }
   fields.forEach(f => {
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, '') + '</div>';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), '') + '</div>';
   });
 
   if (isContractLike) {
@@ -638,6 +667,7 @@ async function openEditModal(id) {
   const e = await api('/entities/' + id);
   const fields = e.fields || [];
   const allEntities = await api('/entities');
+  await loadContractEntities();
 
   const props = e.properties || {};
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
@@ -657,7 +687,7 @@ async function openEditModal(id) {
   }
   fields.forEach(f => {
     const val = props[f.name] || '';
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
   });
 
   if (isContractLike) {
@@ -726,6 +756,7 @@ async function deleteEntity(id) {
 // ============ SUPPLEMENTS ============
 
 async function openCreateSupplementModal(parentContractId) {
+  await loadContractEntities();
   const parentEntity = await api('/entities/' + parentContractId);
   const parentProps = parentEntity.properties || {};
   const suppType = entityTypes.find(t => t.name === 'supplement');
@@ -738,7 +769,7 @@ async function openCreateSupplementModal(parentContractId) {
 
   fields.forEach(function(f) {
     const prefill = parentProps[f.name] || '';
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, prefill) + '</div>';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), prefill) + '</div>';
   });
 
   html += '<div id="dynamicFieldsContainer"></div>';
