@@ -543,13 +543,13 @@ function renderContractFormFields(fields, props, headerHtml) {
     if (f.name === 'our_role_label') {
       var defaultRole = roles.our;
       html += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
-        '<input id="f_our_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+        '<input id="f_our_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" data-auto-set="true" data-auto-set="true" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
       return;
     }
     if (f.name === 'contractor_role_label') {
       var defaultRole = roles.contractor;
       html += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
-        '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+        '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" data-auto-set="true" data-auto-set="true" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
       return;
     }
 
@@ -599,43 +599,46 @@ function renderContractFormFields(fields, props, headerHtml) {
     if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
   }
 
+  // Attach manual edit handlers on role labels
+  var ourRoleEl = document.getElementById('f_our_role_label');
+  if (ourRoleEl) ourRoleEl.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
+  var contrRoleEl = document.getElementById('f_contractor_role_label');
+  if (contrRoleEl) contrRoleEl.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
+
   // Render dynamic fields if contract_type already set
   if (contractType) {
     renderDynamicFields(contractType, props);
   }
 }
 
-function onContractTypeChange() {
+function getSelectedContractType() {
   var ctEl = document.getElementById('f_contract_type');
-  var contractType = '';
-  if (ctEl) {
-    contractType = ctEl.value === '__custom__' ? '' : ctEl.value;
-    if (ctEl.value === '__custom__') {
-      var ctCustom = document.getElementById('f_contract_type_custom');
-      contractType = ctCustom ? ctCustom.value : '';
-    }
+  if (!ctEl) return '';
+  if (ctEl.value === '__custom__') {
+    var ctCustom = document.getElementById('f_contract_type_custom');
+    return ctCustom ? ctCustom.value : '';
   }
+  return ctEl.value || '';
+}
 
+function onContractTypeChange() {
+  var contractType = getSelectedContractType();
   var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
 
-  // Update role label inputs
+  // Update role label inputs (only if auto-set, not manually edited)
   var ourRoleEl = document.getElementById('f_our_role_label');
-  if (ourRoleEl && (!ourRoleEl.value || ourRoleEl.dataset.autoSet === 'true')) {
+  if (ourRoleEl && ourRoleEl.getAttribute('data-auto-set') !== 'false') {
     ourRoleEl.value = roles.our;
-    ourRoleEl.dataset.autoSet = 'true';
     ourRoleEl.placeholder = roles.our;
   }
-  ourRoleEl && ourRoleEl.addEventListener('input', function() { this.dataset.autoSet = 'false'; updatePartyLabels(); });
 
   var contrRoleEl = document.getElementById('f_contractor_role_label');
-  if (contrRoleEl && (!contrRoleEl.value || contrRoleEl.dataset.autoSet === 'true')) {
+  if (contrRoleEl && contrRoleEl.getAttribute('data-auto-set') !== 'false') {
     contrRoleEl.value = roles.contractor;
-    contrRoleEl.dataset.autoSet = 'true';
     contrRoleEl.placeholder = roles.contractor;
   }
-  contrRoleEl && contrRoleEl.addEventListener('input', function() { this.dataset.autoSet = 'false'; updatePartyLabels(); });
 
-  // Update labels
+  // Update labels on the entity fields
   updatePartyLabels();
 
   // Show/hide subtenant
@@ -1123,11 +1126,11 @@ async function openEditModal(id) {
       } else if (f.name === 'our_role_label') {
         var defaultRole = roles.our;
         editHtml += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
-          '<input id="f_our_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+          '<input id="f_our_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" data-auto-set="true" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
       } else if (f.name === 'contractor_role_label') {
         var defaultRole = roles.contractor;
         editHtml += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
-          '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+          '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" data-auto-set="true" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
       } else if (f.name === 'our_legal_entity') {
         var label = (props.our_role_label || roles.our);
         editHtml += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
@@ -1155,6 +1158,10 @@ async function openEditModal(id) {
       var ctCustom = document.getElementById('f_contract_type_custom');
       if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
     }
+    var ourRE = document.getElementById('f_our_role_label');
+    if (ourRE) ourRE.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
+    var contrRE = document.getElementById('f_contractor_role_label');
+    if (contrRE) contrRE.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
     if (contractType) renderDynamicFields(contractType, props);
 
     return;
@@ -1244,10 +1251,10 @@ async function openCreateSupplementModal(parentContractId) {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
     } else if (f.name === 'our_role_label') {
       html += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
-        '<input id="f_our_role_label" value="' + escapeHtml(val || roles.our) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+        '<input id="f_our_role_label" value="' + escapeHtml(val || roles.our) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
     } else if (f.name === 'contractor_role_label') {
       html += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
-        '<input id="f_contractor_role_label" value="' + escapeHtml(val || roles.contractor) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+        '<input id="f_contractor_role_label" value="' + escapeHtml(val || roles.contractor) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
     } else if (f.name === 'our_legal_entity') {
       var label = (parentProps.our_role_label || roles.our);
       html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
@@ -1275,6 +1282,10 @@ async function openCreateSupplementModal(parentContractId) {
     var ctCustom = document.getElementById('f_contract_type_custom');
     if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
   }
+  var ourRE2 = document.getElementById('f_our_role_label');
+  if (ourRE2) ourRE2.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
+  var contrRE2 = document.getElementById('f_contractor_role_label');
+  if (contrRE2) contrRE2.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
   if (contractType) renderDynamicFields(contractType, parentProps);
 }
 
