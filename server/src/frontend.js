@@ -191,6 +191,25 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
     { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
   ],
+  'Субаренды': [
+    { name: 'object_type', name_ru: 'Тип объекта', field_type: 'select_or_custom', options: ['Производство класс B', 'Производство класс С', 'Офис', 'Административно-бытовые', 'Земельный участок'] },
+    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [], _group: 'not_land' },
+    { name: 'room', name_ru: 'Помещение', field_type: 'select_or_custom', options: [], _group: 'not_land' },
+    { name: 'rent_scope', name_ru: 'Часть/Целиком', field_type: 'select', options: ['Целиком', 'Часть'], _group: 'not_land' },
+    { name: 'area', name_ru: 'Площадь', field_type: 'number', _group: 'not_land' },
+    { name: 'rent_rate', name_ru: 'Арендная ставка', field_type: 'number', _group: 'not_land' },
+    { name: 'land_area', name_ru: 'Площадь ЗУ', field_type: 'number', _group: 'land' },
+    { name: 'land_location', name_ru: 'Местоположение ЗУ', field_type: 'text', _group: 'land' },
+    { name: 'land_rent_rate', name_ru: 'Арендная ставка', field_type: 'number', _group: 'land' },
+    { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all' },
+    { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
+    { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
+    { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
+    { name: 'extra_services_cost', name_ru: 'Стоимость в месяц', field_type: 'number', _group: 'extra' },
+    { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
+    { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
+    { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
+  ],
   'Аренды': [
     { name: 'object_type', name_ru: 'Тип объекта', field_type: 'select_or_custom', options: ['Производство класс B', 'Производство класс С', 'Офис', 'Административно-бытовые', 'Земельный участок'] },
     // Conditional fields rendered by custom logic in renderRentFields()
@@ -313,6 +332,9 @@ function renderFieldInput(f, value) {
     opts.forEach(function(o) { h += '<option' + (o === val ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
     h += '</select>';
     return h;
+  } else if (f.field_type === 'boolean') {
+    var checked = (val === 'true' || val === true) ? ' checked' : '';
+    return '<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="' + id + '"' + checked + '> Да</label>';
   } else if (f.field_type === 'date') {
     return '<input type="date" id="' + id + '" value="' + val + '">';
   } else if (f.field_type === 'number') {
@@ -332,7 +354,7 @@ function getFieldValue(f) {
     const adv = collectAdvances();
     return adv.length > 0 ? JSON.stringify(adv) : null;
   }
-  if (f.field_type === 'checkbox') {
+  if (f.field_type === 'checkbox' || f.field_type === 'boolean') {
     const cb = document.getElementById('f_' + f.name);
     return cb ? String(cb.checked) : 'false';
   }
@@ -480,6 +502,159 @@ function updateVatDisplay() {
   } else {
     display.textContent = '';
   }
+}
+
+// ============ CONTRACT PARTY ROLES ============
+
+var CONTRACT_ROLES = {
+  'Подряда':     { our: 'Заказчик',      contractor: 'Подрядчик' },
+  'Аренды':      { our: 'Арендодатель',   contractor: 'Арендатор' },
+  'Субаренды':   { our: 'Арендодатель',   contractor: 'Арендатор', hasSubtenant: true },
+  'Услуг':       { our: 'Заказчик',      contractor: 'Исполнитель' },
+  'Поставки':    { our: 'Покупатель',    contractor: 'Поставщик' },
+  'Эксплуатации':{ our: 'Заказчик',      contractor: 'Исполнитель' },
+  'Купли-продажи':{ our: 'Покупатель',   contractor: 'Продавец' },
+  'Цессии':      { our: 'Цедент',        contractor: 'Цессионарий' },
+};
+
+var _contractFormTypeName = '';
+var _contractFormFields = [];
+var _contractFormProps = {};
+
+function renderContractFormFields(fields, props, headerHtml) {
+  _contractFormFields = fields;
+  _contractFormProps = props || {};
+  var contractType = props.contract_type || '';
+  var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
+
+  var html = headerHtml || '';
+
+  fields.forEach(function(f) {
+    var val = props[f.name] || '';
+    var ef = enrichFieldOptions(f);
+
+    // contract_type — first, with onchange
+    if (f.name === 'contract_type') {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      return;
+    }
+
+    // Role label fields — small editable input with default
+    if (f.name === 'our_role_label') {
+      var defaultRole = roles.our;
+      html += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
+        '<input id="f_our_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+      return;
+    }
+    if (f.name === 'contractor_role_label') {
+      var defaultRole = roles.contractor;
+      html += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
+        '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+      return;
+    }
+
+    // our_legal_entity — label from role
+    if (f.name === 'our_legal_entity') {
+      var label = (props.our_role_label || roles.our);
+      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      return;
+    }
+
+    // contractor_name — label from role
+    if (f.name === 'contractor_name') {
+      var label = (props.contractor_role_label || roles.contractor);
+      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      return;
+    }
+
+    // subtenant — only for Субаренды
+    if (f.name === 'subtenant_name') {
+      var show = (contractType === 'Субаренды') || (roles.hasSubtenant);
+      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' + renderFieldInput(ef, val) + '</div>';
+      return;
+    }
+
+    // Regular fields
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+  });
+
+  html += '<div id="dynamicFieldsContainer"></div>';
+
+  // Determine typeName for submit button
+  var isSupp = fields.some(function(f) { return f.name === 'changes_description'; });
+  var typeName = isSupp ? 'supplement' : 'contract';
+  if (_contractFormTypeName) typeName = _contractFormTypeName;
+
+  html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
+    '<button class="btn btn-primary" onclick="submitCreate(\\''+typeName+'\\')">Создать</button></div>';
+
+  document.getElementById('modal').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+
+  // Attach contract_type change handler
+  var ctEl = document.getElementById('f_contract_type');
+  if (ctEl) {
+    ctEl.addEventListener('change', function() { onContractTypeChange(); });
+    var ctCustom = document.getElementById('f_contract_type_custom');
+    if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
+  }
+
+  // Render dynamic fields if contract_type already set
+  if (contractType) {
+    renderDynamicFields(contractType, props);
+  }
+}
+
+function onContractTypeChange() {
+  var ctEl = document.getElementById('f_contract_type');
+  var contractType = '';
+  if (ctEl) {
+    contractType = ctEl.value === '__custom__' ? '' : ctEl.value;
+    if (ctEl.value === '__custom__') {
+      var ctCustom = document.getElementById('f_contract_type_custom');
+      contractType = ctCustom ? ctCustom.value : '';
+    }
+  }
+
+  var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
+
+  // Update role label inputs
+  var ourRoleEl = document.getElementById('f_our_role_label');
+  if (ourRoleEl && (!ourRoleEl.value || ourRoleEl.dataset.autoSet === 'true')) {
+    ourRoleEl.value = roles.our;
+    ourRoleEl.dataset.autoSet = 'true';
+    ourRoleEl.placeholder = roles.our;
+  }
+  ourRoleEl && ourRoleEl.addEventListener('input', function() { this.dataset.autoSet = 'false'; updatePartyLabels(); });
+
+  var contrRoleEl = document.getElementById('f_contractor_role_label');
+  if (contrRoleEl && (!contrRoleEl.value || contrRoleEl.dataset.autoSet === 'true')) {
+    contrRoleEl.value = roles.contractor;
+    contrRoleEl.dataset.autoSet = 'true';
+    contrRoleEl.placeholder = roles.contractor;
+  }
+  contrRoleEl && contrRoleEl.addEventListener('input', function() { this.dataset.autoSet = 'false'; updatePartyLabels(); });
+
+  // Update labels
+  updatePartyLabels();
+
+  // Show/hide subtenant
+  var subWrap = document.getElementById('wrap_subtenant_name');
+  if (subWrap) {
+    subWrap.style.display = (contractType === 'Субаренды') ? '' : 'none';
+  }
+
+  // Render dynamic fields
+  renderDynamicFields(contractType, {});
+}
+
+function updatePartyLabels() {
+  var ourRoleEl = document.getElementById('f_our_role_label');
+  var contrRoleEl = document.getElementById('f_contractor_role_label');
+  var ourLabel = document.getElementById('label_our_legal_entity');
+  var contrLabel = document.getElementById('label_contractor_name');
+  if (ourLabel && ourRoleEl) ourLabel.textContent = ourRoleEl.value || 'Наше юр. лицо';
+  if (contrLabel && contrRoleEl) contrLabel.textContent = contrRoleEl.value || 'Контрагент';
 }
 
 function collectDynamicFieldValues(contractType) {
@@ -710,9 +885,24 @@ async function showEntity(id) {
   const fields = e.fields || [];
   if (fields.length > 0) {
     html += '<div class="detail-section"><h3>Свойства</h3><div class="props-grid">';
+    var detailRoles = CONTRACT_ROLES[props.contract_type] || {};
     fields.forEach(f => {
       const val = props[f.name];
-      html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
+      // Skip internal role fields in display
+      if (f.name === 'our_role_label' || f.name === 'contractor_role_label') return;
+      // Hide subtenant if not Субаренды
+      if (f.name === 'subtenant_name' && props.contract_type !== 'Субаренды') return;
+      // Custom labels for parties
+      var label = f.name_ru || f.name;
+      if (f.name === 'our_legal_entity') label = props.our_role_label || detailRoles.our || label;
+      if (f.name === 'contractor_name') label = props.contractor_role_label || detailRoles.contractor || label;
+      // Boolean display
+      if (f.field_type === 'boolean') {
+        html += '<div class="prop-item"><div class="prop-label">' + label + '</div>' +
+          '<div class="prop-value">' + (val === 'true' ? '✅ Да' : '—') + '</div></div>';
+        return;
+      }
+      html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
         '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });
     // Show dynamic contract-type fields in detail
@@ -825,6 +1015,7 @@ function closeModal() {
 }
 
 async function openCreateModal(typeName) {
+  _contractFormTypeName = typeName;
   const type = entityTypes.find(t => t.name === typeName);
   const fields = await api('/entity-types/' + type.id + '/fields');
   const allEntities = await api('/entities');
@@ -846,30 +1037,21 @@ async function openCreateModal(typeName) {
     });
     html += '</select></div>';
   }
+  if (isContractLike) {
+    renderContractFormFields(fields, {}, html);
+    return;
+  }
+
   fields.forEach(f => {
     html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), '') + '</div>';
   });
-
-  if (isContractLike) {
-    html += '<div id="dynamicFieldsContainer"></div>';
-  }
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreate(\\'' + typeName + '\\')">Создать</button></div>';
 
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
-  if (!isContractLike) document.getElementById('f_name').focus();
-
-  if (isContractLike) {
-    const ctEl = document.getElementById('f_contract_type');
-    if (ctEl) {
-      ctEl.addEventListener('change', function() {
-        const val = this.value === '__custom__' ? '' : this.value;
-        renderDynamicFields(val, {});
-      });
-    }
-  }
+  document.getElementById('f_name').focus();
 }
 
 let _submitting = false;
@@ -915,6 +1097,8 @@ async function openEditModal(id) {
 
   const props = e.properties || {};
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
+  _contractFormTypeName = e.type_name;
+
   let html = '<h3>Редактировать: ' + escapeHtml(e.name) + '</h3>';
   if (isContractLike) {
     html += '<input type="hidden" id="f_name" value="' + escapeHtml(e.name) + '">';
@@ -922,46 +1106,76 @@ async function openEditModal(id) {
     html += '<div class="form-group"><label>Название</label><input id="f_name" value="' + escapeHtml(e.name) + '"></div>';
   }
 
-  if (!isContractLike) {
-    html += '<div class="form-group"><label>Родитель</label><select id="f_parent"><option value="">— нет —</option>';
-    allEntities.filter(x => x.id !== id).forEach(x => {
-      html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + '</option>';
+  if (isContractLike) {
+    // Use renderContractFormFields but with edit button
+    var editHtml = html;
+    _contractFormFields = fields;
+    _contractFormProps = props;
+    var contractType = props.contract_type || '';
+    var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
+
+    fields.forEach(function(f) {
+      var val = props[f.name] || '';
+      var ef = enrichFieldOptions(f);
+
+      if (f.name === 'contract_type') {
+        editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      } else if (f.name === 'our_role_label') {
+        var defaultRole = roles.our;
+        editHtml += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
+          '<input id="f_our_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+      } else if (f.name === 'contractor_role_label') {
+        var defaultRole = roles.contractor;
+        editHtml += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
+          '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+      } else if (f.name === 'our_legal_entity') {
+        var label = (props.our_role_label || roles.our);
+        editHtml += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      } else if (f.name === 'contractor_name') {
+        var label = (props.contractor_role_label || roles.contractor);
+        editHtml += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      } else if (f.name === 'subtenant_name') {
+        var show = (contractType === 'Субаренды');
+        editHtml += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' + renderFieldInput(ef, val) + '</div>';
+      } else {
+        editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      }
     });
-    html += '</select></div>';
+
+    editHtml += '<div id="dynamicFieldsContainer"></div>';
+    editHtml += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
+      '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
+
+    document.getElementById('modal').innerHTML = editHtml;
+    document.getElementById('modalOverlay').classList.add('show');
+
+    var ctEl = document.getElementById('f_contract_type');
+    if (ctEl) {
+      ctEl.addEventListener('change', function() { onContractTypeChange(); });
+      var ctCustom = document.getElementById('f_contract_type_custom');
+      if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
+    }
+    if (contractType) renderDynamicFields(contractType, props);
+
+    return;
   }
+
+  // Non-contract edit
+  html += '<div class="form-group"><label>Родитель</label><select id="f_parent"><option value="">— нет —</option>';
+  allEntities.filter(x => x.id !== id).forEach(x => {
+    html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + '</option>';
+  });
+  html += '</select></div>';
   fields.forEach(f => {
     const val = props[f.name] || '';
     html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
   });
-
-  if (isContractLike) {
-    html += '<div id="dynamicFieldsContainer"></div>';
-  }
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
 
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
-
-  if (isContractLike && props.contract_type) {
-    renderDynamicFields(props.contract_type, props);
-    const ctEl = document.getElementById('f_contract_type');
-    if (ctEl) {
-      ctEl.addEventListener('change', function() {
-        const val = this.value === '__custom__' ? '' : this.value;
-        renderDynamicFields(val, props);
-      });
-    }
-  } else if (isContractLike) {
-    const ctEl = document.getElementById('f_contract_type');
-    if (ctEl) {
-      ctEl.addEventListener('change', function() {
-        const val = this.value === '__custom__' ? '' : this.value;
-        renderDynamicFields(val, props);
-      });
-    }
-  }
 }
 
 async function submitEdit(id) {
@@ -1006,6 +1220,7 @@ async function deleteEntity(id) {
 // ============ SUPPLEMENTS ============
 
 async function openCreateSupplementModal(parentContractId) {
+  _contractFormTypeName = 'supplement';
   await loadContractEntities();
   const parentEntity = await api('/entities/' + parentContractId);
   const parentProps = parentEntity.properties || {};
@@ -1013,35 +1228,54 @@ async function openCreateSupplementModal(parentContractId) {
   if (!suppType) return alert('Тип "Доп. соглашение" не найден');
   const fields = await api('/entity-types/' + suppType.id + '/fields');
 
-  let html = '<h3>Новое доп. соглашение</h3>';
+  var html = '<h3>Новое доп. соглашение</h3>';
   html += '<input type="hidden" id="f_name" value="">';
   html += '<input type="hidden" id="f_parent" value="' + parentContractId + '">';
 
+  // Use the same contract form with role labels
+  var contractType = parentProps.contract_type || '';
+  var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
+
   fields.forEach(function(f) {
-    const prefill = parentProps[f.name] || '';
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), prefill) + '</div>';
+    var val = parentProps[f.name] || '';
+    var ef = enrichFieldOptions(f);
+
+    if (f.name === 'contract_type') {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+    } else if (f.name === 'our_role_label') {
+      html += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
+        '<input id="f_our_role_label" value="' + escapeHtml(val || roles.our) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+    } else if (f.name === 'contractor_role_label') {
+      html += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
+        '<input id="f_contractor_role_label" value="' + escapeHtml(val || roles.contractor) + '" style="font-size:12px;color:var(--text-secondary)"></div>';
+    } else if (f.name === 'our_legal_entity') {
+      var label = (parentProps.our_role_label || roles.our);
+      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+    } else if (f.name === 'contractor_name') {
+      var label = (parentProps.contractor_role_label || roles.contractor);
+      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+    } else if (f.name === 'subtenant_name') {
+      var show = (contractType === 'Субаренды');
+      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' + renderFieldInput(ef, val) + '</div>';
+    } else {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+    }
   });
 
   html += '<div id="dynamicFieldsContainer"></div>';
-
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreateSupplement(' + parentContractId + ')">Создать</button></div>';
 
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
 
-  // Render dynamic fields if contract_type is pre-filled
-  if (parentProps.contract_type) {
-    renderDynamicFields(parentProps.contract_type, parentProps);
-  }
-
-  const ctEl = document.getElementById('f_contract_type');
+  var ctEl = document.getElementById('f_contract_type');
   if (ctEl) {
-    ctEl.addEventListener('change', function() {
-      const val = this.value === '__custom__' ? '' : this.value;
-      renderDynamicFields(val, {});
-    });
+    ctEl.addEventListener('change', function() { onContractTypeChange(); });
+    var ctCustom = document.getElementById('f_contract_type_custom');
+    if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
   }
+  if (contractType) renderDynamicFields(contractType, parentProps);
 }
 
 async function submitCreateSupplement(parentContractId) {
