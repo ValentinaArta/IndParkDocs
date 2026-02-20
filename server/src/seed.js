@@ -48,6 +48,7 @@ const FIELDS = {
     { name: 'contractor_name', name_ru: 'Наименование контрагента', field_type: 'select_or_custom', options: JSON.stringify([]) },
     { name: 'number', name_ru: '№ доп. соглашения', field_type: 'text', required: true },
     { name: 'contract_date', name_ru: 'Дата доп. соглашения', field_type: 'date' },
+    { name: 'changes_description', name_ru: 'Что поменялось', field_type: 'text' },
   ],
   equipment: [
     { name: 'inv_number', name_ru: 'Инв. номер', field_type: 'text' },

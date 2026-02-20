@@ -29,7 +29,18 @@ async function run(client) {
     }
   }
 
-  console.log('Migration 003: contractor_name -> select_or_custom, added Аренды');
+  // Add changes_description field to supplements
+  const suppType = await client.query("SELECT id FROM entity_types WHERE name = 'supplement'");
+  if (suppType.rows.length > 0) {
+    const tid = suppType.rows[0].id;
+    await client.query(`
+      INSERT INTO field_definitions (entity_type_id, name, name_ru, field_type, sort_order)
+      VALUES ($1, 'changes_description', 'Что поменялось', 'text', 5)
+      ON CONFLICT (entity_type_id, name) DO NOTHING
+    `, [tid]);
+  }
+
+  console.log('Migration 003: contractor_name -> select_or_custom, added Аренды, changes_description');
 }
 
 migrate().catch(e => { console.error(e); process.exit(1); });
