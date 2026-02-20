@@ -192,14 +192,24 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
   ],
   'Аренды': [
-    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
-    { name: 'room', name_ru: 'Помещение', field_type: 'select_or_custom', options: [] },
-    { name: 'area', name_ru: 'Площадь (м²)', field_type: 'number' },
-    { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
-    { name: 'rent_amount', name_ru: 'Сумма аренды', field_type: 'number' },
-    { name: 'rent_period', name_ru: 'Период аренды', field_type: 'text' },
-    { name: 'payment_date', name_ru: 'Дата оплаты', field_type: 'date' },
+    { name: 'object_type', name_ru: 'Тип объекта', field_type: 'select_or_custom', options: ['Производство класс B', 'Производство класс С', 'Офис', 'Административно-бытовые', 'Земельный участок'] },
+    // Conditional fields rendered by custom logic in renderRentFields()
+    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [], _group: 'not_land' },
+    { name: 'room', name_ru: 'Помещение', field_type: 'select_or_custom', options: [], _group: 'not_land' },
+    { name: 'rent_scope', name_ru: 'Часть/Целиком', field_type: 'select', options: ['Целиком', 'Часть'], _group: 'not_land' },
+    { name: 'area', name_ru: 'Площадь', field_type: 'number', _group: 'not_land' },
+    { name: 'rent_rate', name_ru: 'Арендная ставка', field_type: 'number', _group: 'not_land' },
+    { name: 'land_area', name_ru: 'Площадь ЗУ', field_type: 'number', _group: 'land' },
+    { name: 'land_location', name_ru: 'Местоположение ЗУ', field_type: 'text', _group: 'land' },
+    { name: 'land_rent_rate', name_ru: 'Арендная ставка', field_type: 'number', _group: 'land' },
+    { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all' },
+    { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
+    { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
+    { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
+    { name: 'extra_services_cost', name_ru: 'Стоимость в месяц', field_type: 'number', _group: 'extra' },
+    { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
+    { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
+    { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
   ]
 };
 
@@ -322,6 +332,10 @@ function getFieldValue(f) {
     const adv = collectAdvances();
     return adv.length > 0 ? JSON.stringify(adv) : null;
   }
+  if (f.field_type === 'checkbox') {
+    const cb = document.getElementById('f_' + f.name);
+    return cb ? String(cb.checked) : 'false';
+  }
   const el = document.getElementById('f_' + f.name);
   if (!el) return null;
   if (f.field_type === 'select_or_custom') {
@@ -339,12 +353,133 @@ function renderDynamicFields(contractType, props) {
   if (!container) return;
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
   if (extraFields.length === 0) { container.innerHTML = ''; return; }
+
+  if (contractType === 'Аренды') {
+    renderRentFields(container, extraFields, props);
+    return;
+  }
+
   let html = '';
   extraFields.forEach(function(f) {
     const val = props ? (props[f.name] || '') : '';
     html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
   });
   container.innerHTML = html;
+}
+
+function renderRentFields(container, allFields, props) {
+  props = props || {};
+  var objectType = props.object_type || '';
+  var isLand = (objectType === 'Земельный участок');
+  var hasExtra = props.extra_services === 'true' || props.extra_services === true;
+  var durationType = props.duration_type || '';
+
+  var html = '<div style="border-left:3px solid var(--accent);padding-left:12px;margin-bottom:12px"><strong>Объект</strong>';
+
+  allFields.forEach(function(f) {
+    var val = props[f.name] || '';
+    var group = f._group || '';
+
+    // Show/hide based on group
+    var visible = false;
+    if (!group) visible = true; // object_type — always visible
+    else if (group === 'not_land' && !isLand && objectType) visible = true;
+    else if (group === 'land' && isLand) visible = true;
+    else if (group === 'all') visible = true;
+    else if (group === 'extra' && hasExtra) visible = true;
+    else if (group === 'duration_date' && durationType === 'Дата') visible = true;
+    else if (group === 'duration_text' && durationType === 'Текст') visible = true;
+
+    if (!visible) return;
+
+    // Close object section before rent_monthly
+    if (f.name === 'rent_monthly') html += '</div>';
+
+    // Checkbox rendering
+    if (f.field_type === 'checkbox') {
+      html += '<div class="form-group"><label style="display:flex;align-items:center;gap:8px">' +
+        '<input type="checkbox" id="f_' + f.name + '"' + (val === 'true' || val === true ? ' checked' : '') +
+        ' onchange="onRentFieldChange()"> ' + (f.name_ru || f.name) + '</label></div>';
+      return;
+    }
+
+    // VAT auto-line after rent_monthly
+    if (f.name === 'vat_rate') {
+      html += '<div class="form-group"><label>' + f.name_ru + '</label>' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+        '<input type="number" id="f_vat_rate" value="' + (val || '20') + '" style="width:80px" onchange="updateVatDisplay()">' +
+        '<span id="vat_display" style="font-size:12px;color:var(--text-secondary)"></span>' +
+        '</div></div>';
+      return;
+    }
+
+    // Duration type — select that toggles date/text
+    if (f.name === 'duration_type') {
+      html += '<div class="form-group"><label>' + f.name_ru + '</label>' +
+        '<select id="f_duration_type" onchange="onRentFieldChange()">' +
+        '<option value="">—</option>' +
+        '<option value="Дата"' + (val === 'Дата' ? ' selected' : '') + '>Дата</option>' +
+        '<option value="Текст"' + (val === 'Текст' ? ' selected' : '') + '>Свободный ввод</option>' +
+        '</select></div>';
+      return;
+    }
+
+    // Regular field
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
+
+    // After object_type — add onchange handler
+    if (f.name === 'object_type') {
+      // We'll add the handler after innerHTML is set
+    }
+  });
+
+  container.innerHTML = html;
+
+  // Attach onchange to object_type
+  var otEl = document.getElementById('f_object_type');
+  if (otEl) {
+    otEl.addEventListener('change', function() { onRentFieldChange(); });
+    var otCustom = document.getElementById('f_object_type_custom');
+    if (otCustom) otCustom.addEventListener('input', function() { onRentFieldChange(); });
+  }
+
+  // Attach onchange to rent_monthly for VAT calc
+  var rmEl = document.getElementById('f_rent_monthly');
+  if (rmEl) rmEl.addEventListener('input', function() { updateVatDisplay(); });
+
+  updateVatDisplay();
+}
+
+function onRentFieldChange() {
+  // Re-render rent fields with current values
+  var container = document.getElementById('dynamicFieldsContainer');
+  if (!container) return;
+  var allFields = CONTRACT_TYPE_FIELDS['Аренды'] || [];
+  var currentProps = {};
+  allFields.forEach(function(f) {
+    if (f.field_type === 'checkbox') {
+      var cb = document.getElementById('f_' + f.name);
+      currentProps[f.name] = cb ? String(cb.checked) : 'false';
+    } else {
+      currentProps[f.name] = getFieldValue(f) || '';
+    }
+  });
+  renderRentFields(container, allFields, currentProps);
+}
+
+function updateVatDisplay() {
+  var rentEl = document.getElementById('f_rent_monthly');
+  var vatEl = document.getElementById('f_vat_rate');
+  var display = document.getElementById('vat_display');
+  if (!display) return;
+  var rent = parseFloat(rentEl ? rentEl.value : 0) || 0;
+  var vat = parseFloat(vatEl ? vatEl.value : 20) || 0;
+  if (rent > 0 && vat > 0) {
+    var vatAmount = (rent * vat / (100 + vat)).toFixed(2);
+    display.textContent = 'в т.ч. НДС (' + vat + '%) = ' + vatAmount + ' руб.';
+  } else {
+    display.textContent = '';
+  }
 }
 
 function collectDynamicFieldValues(contractType) {
@@ -583,8 +718,21 @@ async function showEntity(id) {
     // Show dynamic contract-type fields in detail
     if ((e.type_name === 'contract' || e.type_name === 'supplement') && props.contract_type) {
       const extraFields = CONTRACT_TYPE_FIELDS[props.contract_type] || [];
+      var isLand = (props.object_type === 'Земельный участок');
+      var hasExtra = (props.extra_services === 'true');
+      var durType = props.duration_type || '';
       extraFields.forEach(function(f) {
-        const val = props[f.name];
+        var val = props[f.name];
+        var group = f._group || '';
+        // Filter conditional groups for display
+        if (group === 'not_land' && isLand) return;
+        if (group === 'land' && !isLand) return;
+        if (group === 'extra' && !hasExtra) return;
+        if (group === 'duration_date' && durType !== 'Дата') return;
+        if (group === 'duration_text' && durType !== 'Текст') return;
+        // Skip internal fields
+        if (f.name === 'extra_services' || f.name === 'duration_type') return;
+
         if (f.field_type === 'advances') {
           var advances = [];
           try { if (typeof val === 'string' && val) advances = JSON.parse(val); else if (Array.isArray(val)) advances = val; } catch(ex) {}
@@ -595,6 +743,16 @@ async function showEntity(id) {
             });
           } else { html += '—'; }
           html += '</div></div>';
+        } else if (f.name === 'vat_rate' && props.rent_monthly) {
+          var rent = parseFloat(props.rent_monthly) || 0;
+          var vat = parseFloat(val) || 0;
+          var vatAmount = rent > 0 && vat > 0 ? (rent * vat / (100 + vat)).toFixed(2) : '—';
+          html += '<div class="prop-item"><div class="prop-label">Арендная плата</div>' +
+            '<div class="prop-value">' + escapeHtml(String(props.rent_monthly)) + ' руб./мес.' +
+            (vat > 0 ? '<br><span style="font-size:12px;color:var(--text-secondary)">в т.ч. НДС (' + vat + '%) = ' + vatAmount + ' руб.</span>' : '') +
+            '</div></div>';
+        } else if (f.name === 'rent_monthly') {
+          return; // shown together with vat_rate above
         } else {
           html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
             '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
