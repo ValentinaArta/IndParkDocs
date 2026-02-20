@@ -188,9 +188,18 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'equipment', name_ru: 'Оборудование', field_type: 'select_or_custom', options: [] },
     { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number' },
-    { name: 'advance_amount', name_ru: 'Аванс сумма', field_type: 'number' },
-    { name: 'payment_date', name_ru: 'Дата оплаты', field_type: 'date' },
+    { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
     { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
+  ],
+  'Аренды': [
+    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
+    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
+    { name: 'room', name_ru: 'Помещение', field_type: 'select_or_custom', options: [] },
+    { name: 'area', name_ru: 'Площадь (м²)', field_type: 'number' },
+    { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
+    { name: 'rent_amount', name_ru: 'Сумма аренды', field_type: 'number' },
+    { name: 'rent_period', name_ru: 'Период аренды', field_type: 'text' },
+    { name: 'payment_date', name_ru: 'Дата оплаты', field_type: 'date' },
   ]
 };
 
@@ -222,10 +231,63 @@ function enrichFieldOptions(f) {
   return f;
 }
 
+let _advanceCounter = 0;
+
+function renderAdvancesBlock(existingAdvances) {
+  const advances = existingAdvances || [];
+  _advanceCounter = advances.length;
+  let h = '<div id="advances_container">';
+  advances.forEach(function(adv, i) {
+    h += renderAdvanceRow(i, adv.amount || '', adv.date || '');
+  });
+  h += '</div>';
+  h += '<button type="button" class="btn btn-sm" onclick="addAdvanceRow()" style="margin-top:6px">+ Добавить аванс</button>';
+  return h;
+}
+
+function renderAdvanceRow(index, amount, date) {
+  return '<div class="advance-row" id="advance_row_' + index + '" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
+    '<input type="number" placeholder="Сумма" value="' + (amount || '') + '" class="advance-amount" style="flex:1">' +
+    '<input type="date" value="' + (date || '') + '" class="advance-date" style="flex:1">' +
+    '<button type="button" class="btn btn-sm btn-danger" onclick="removeAdvanceRow(' + index + ')" style="padding:4px 8px;font-size:11px">✕</button>' +
+    '</div>';
+}
+
+function addAdvanceRow() {
+  const container = document.getElementById('advances_container');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.innerHTML = renderAdvanceRow(_advanceCounter, '', '');
+  container.appendChild(div.firstChild);
+  _advanceCounter++;
+}
+
+function removeAdvanceRow(index) {
+  const row = document.getElementById('advance_row_' + index);
+  if (row) row.remove();
+}
+
+function collectAdvances() {
+  const container = document.getElementById('advances_container');
+  if (!container) return [];
+  const rows = container.querySelectorAll('.advance-row');
+  const result = [];
+  rows.forEach(function(row) {
+    const amount = row.querySelector('.advance-amount').value;
+    const date = row.querySelector('.advance-date').value;
+    if (amount || date) result.push({ amount: amount || '', date: date || '' });
+  });
+  return result;
+}
+
 function renderFieldInput(f, value) {
   const val = value || '';
   const id = 'f_' + f.name;
-  if (f.field_type === 'select_or_custom') {
+  if (f.field_type === 'advances') {
+    var advances = [];
+    try { if (typeof val === 'string' && val) advances = JSON.parse(val); else if (Array.isArray(val)) advances = val; } catch(e) {}
+    return renderAdvancesBlock(advances);
+  } else if (f.field_type === 'select_or_custom') {
     const opts = f.options || [];
     const isCustom = val && !opts.includes(val);
     let h = '<div style="display:flex;gap:6px;align-items:center">';
@@ -256,6 +318,10 @@ function toggleCustomInput(sel) {
 }
 
 function getFieldValue(f) {
+  if (f.field_type === 'advances') {
+    const adv = collectAdvances();
+    return adv.length > 0 ? JSON.stringify(adv) : null;
+  }
   const el = document.getElementById('f_' + f.name);
   if (!el) return null;
   if (f.field_type === 'select_or_custom') {
@@ -519,8 +585,20 @@ async function showEntity(id) {
       const extraFields = CONTRACT_TYPE_FIELDS[props.contract_type] || [];
       extraFields.forEach(function(f) {
         const val = props[f.name];
-        html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
-          '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
+        if (f.field_type === 'advances') {
+          var advances = [];
+          try { if (typeof val === 'string' && val) advances = JSON.parse(val); else if (Array.isArray(val)) advances = val; } catch(ex) {}
+          html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div><div class="prop-value">';
+          if (advances.length > 0) {
+            advances.forEach(function(adv, i) {
+              html += (i > 0 ? '<br>' : '') + (adv.amount ? escapeHtml(String(adv.amount)) + ' руб.' : '—') + (adv.date ? ' от ' + escapeHtml(adv.date) : '');
+            });
+          } else { html += '—'; }
+          html += '</div></div>';
+        } else {
+          html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
+            '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
+        }
       });
     }
     html += '</div></div>';
@@ -636,7 +714,15 @@ async function openCreateModal(typeName) {
   }
 }
 
+let _submitting = false;
+
 async function submitCreate(typeName) {
+  if (_submitting) return;
+  _submitting = true;
+  try { await _doSubmitCreate(typeName); } finally { _submitting = false; }
+}
+
+async function _doSubmitCreate(typeName) {
   const type = entityTypes.find(t => t.name === typeName);
   const fields = await api('/entity-types/' + type.id + '/fields');
   const isContractLike = (typeName === 'contract' || typeName === 'supplement');
@@ -721,6 +807,12 @@ async function openEditModal(id) {
 }
 
 async function submitEdit(id) {
+  if (_submitting) return;
+  _submitting = true;
+  try { await _doSubmitEdit(id); } finally { _submitting = false; }
+}
+
+async function _doSubmitEdit(id) {
   const e = await api('/entities/' + id);
   const fields = e.fields || [];
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
@@ -795,6 +887,12 @@ async function openCreateSupplementModal(parentContractId) {
 }
 
 async function submitCreateSupplement(parentContractId) {
+  if (_submitting) return;
+  _submitting = true;
+  try { await _doSubmitCreateSupplement(parentContractId); } finally { _submitting = false; }
+}
+
+async function _doSubmitCreateSupplement(parentContractId) {
   const suppType = entityTypes.find(t => t.name === 'supplement');
   const fields = await api('/entity-types/' + suppType.id + '/fields');
   const properties = {};
