@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Check syntax
+        run: |
+          node --check server/src/index.js
+          node --check server/src/frontend.js
+          node --check server/src/db.js
+          for f in server/src/routes/*.js; do node --check "$f"; done
+          for f in server/src/middleware/*.js; do node --check "$f"; done
+          echo "✅ All syntax checks passed"
+
+      - name: Validate frontend JS
+        run: |
+          node -e "
+            const fe = require('./server/src/frontend');
+            const m = fe.match(/<script>([\s\S]*?)<\/script>/);
+            try { new Function('async function __t(){' + m[1] + '}'); console.log('✅ Frontend JS valid'); }
+            catch(e) { console.error('❌ Frontend JS error:', e.message); process.exit(1); }
+          "
