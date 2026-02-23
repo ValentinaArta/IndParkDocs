@@ -97,4 +97,111 @@ router.get('/fields', authenticate, asyncHandler(async (req, res) => {
   res.json(Array.from(allFields.values()));
 }));
 
+// GET /api/reports/linked?type=equipment_by_location|equipment_by_tenant
+router.get('/linked', authenticate, asyncHandler(async (req, res) => {
+  const { type } = req.query;
+
+  if (type === 'equipment_by_location') {
+    // Equipment grouped by where it's installed (parent_id OR located_in relation)
+    const { rows } = await pool.query(`
+      SELECT
+        loc.id      AS loc_id,
+        loc.name    AS loc_name,
+        lot.icon    AS loc_icon,
+        lot.name_ru AS loc_type,
+        e.id        AS eq_id,
+        e.name      AS eq_name,
+        et.icon     AS eq_icon,
+        e.properties AS eq_props,
+        'parent'    AS link_type
+      FROM entities e
+      JOIN entity_types et  ON et.id  = e.entity_type_id AND et.name IN ('equipment','crane_track')
+      JOIN entities loc     ON loc.id = e.parent_id
+      JOIN entity_types lot ON lot.id = loc.entity_type_id AND lot.name IN ('building','room','workshop','land_plot')
+      WHERE e.deleted_at IS NULL AND loc.deleted_at IS NULL
+
+      UNION
+
+      SELECT
+        loc.id      AS loc_id,
+        loc.name    AS loc_name,
+        lot.icon    AS loc_icon,
+        lot.name_ru AS loc_type,
+        e.id        AS eq_id,
+        e.name      AS eq_name,
+        et.icon     AS eq_icon,
+        e.properties AS eq_props,
+        'relation'  AS link_type
+      FROM entities e
+      JOIN entity_types et  ON et.id = e.entity_type_id AND et.name IN ('equipment','crane_track')
+      JOIN relations r      ON r.from_entity_id = e.id AND r.relation_type = 'located_in'
+      JOIN entities loc     ON loc.id = r.to_entity_id
+      JOIN entity_types lot ON lot.id = loc.entity_type_id AND lot.name IN ('building','room','workshop','land_plot')
+      WHERE e.deleted_at IS NULL AND loc.deleted_at IS NULL
+
+      ORDER BY loc_name, eq_name
+    `);
+
+    const groups = {};
+    rows.forEach(row => {
+      const key = row.loc_id;
+      if (!groups[key]) groups[key] = { id: row.loc_id, name: row.loc_name, icon: row.loc_icon, type: row.loc_type, items: [] };
+      if (row.eq_id && !groups[key].items.find(i => i.id === row.eq_id)) {
+        groups[key].items.push({ id: row.eq_id, name: row.eq_name, icon: row.eq_icon, props: row.eq_props });
+      }
+    });
+    return res.json({ type, groups: Object.values(groups).sort((a, b) => a.name.localeCompare(b.name, 'ru')) });
+  }
+
+  if (type === 'equipment_by_tenant') {
+    // Tenant companies → their rental contracts → buildings → equipment in those buildings
+    const { rows } = await pool.query(`
+      SELECT DISTINCT
+        comp.id     AS tenant_id,
+        comp.name   AS tenant_name,
+        c.id        AS contract_id,
+        c.name      AS contract_name,
+        b.id        AS building_id,
+        b.name      AS building_name,
+        bt.icon     AS building_icon,
+        e.id        AS eq_id,
+        e.name      AS eq_name,
+        et.icon     AS eq_icon,
+        e.properties AS eq_props
+      FROM entities comp
+      JOIN entity_types ct     ON ct.id = comp.entity_type_id AND ct.name = 'company'
+      JOIN relations r_party   ON r_party.to_entity_id = comp.id AND r_party.relation_type = 'party_to'
+      JOIN entities c          ON c.id = r_party.from_entity_id
+      JOIN entity_types ctype  ON ctype.id = c.entity_type_id AND ctype.name IN ('contract','supplement')
+      JOIN relations r_loc     ON r_loc.from_entity_id = c.id AND r_loc.relation_type = 'located_in'
+      JOIN entities b          ON b.id = r_loc.to_entity_id
+      JOIN entity_types bt     ON bt.id = b.entity_type_id AND bt.name IN ('building','room','workshop','land_plot')
+      LEFT JOIN entities e     ON e.parent_id = b.id AND e.deleted_at IS NULL
+      LEFT JOIN entity_types et ON et.id = e.entity_type_id AND et.name IN ('equipment','crane_track')
+      LEFT JOIN relations r_eq ON r_eq.from_entity_id = e.id AND r_eq.to_entity_id = b.id AND r_eq.relation_type = 'located_in'
+      WHERE comp.deleted_at IS NULL
+        AND (c.properties->>'contract_type' ILIKE '%Аренд%' OR c.properties->>'contract_type' ILIKE '%Субаренд%')
+      ORDER BY comp.name, b.name, e.name
+    `);
+
+    const groups = {};
+    rows.forEach(row => {
+      const key = row.tenant_id;
+      if (!groups[key]) groups[key] = { id: row.tenant_id, name: row.tenant_name, contracts: {}, items: [] };
+      if (row.contract_id) groups[key].contracts[row.contract_id] = { id: row.contract_id, name: row.contract_name };
+      if (row.eq_id && !groups[key].items.find(i => i.id === row.eq_id)) {
+        groups[key].items.push({ id: row.eq_id, name: row.eq_name, icon: row.eq_icon, props: row.eq_props,
+          building_id: row.building_id, building_name: row.building_name });
+      }
+    });
+    return res.json({
+      type,
+      groups: Object.values(groups).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+        .map(g => ({ ...g, contracts: Object.values(g.contracts) }))
+    });
+  }
+
+  res.status(400).json({ error: 'Unknown report type. Use: equipment_by_location, equipment_by_tenant' });
+}));
+
 module.exports = router;

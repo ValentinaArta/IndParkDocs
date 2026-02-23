@@ -1541,25 +1541,28 @@ async function showReports() {
   document.getElementById('breadcrumb').textContent = '';
   document.getElementById('topActions').innerHTML = '';
 
-  // Load available fields
   _reportFields = await api('/reports/fields');
 
   var content = document.getElementById('content');
   var html = '<div style="max-width:900px;margin:0 auto">';
-  html += '<div class="detail-section"><h3>Построить отчёт</h3>';
+
+  // Tabs
+  html += '<div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border)">';
+  html += '<button id="tabPivot" class="btn" data-tab="pivot" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Сводная таблица</button>';
+  html += '<button id="tabLinked" class="btn btn-primary" data-tab="linked" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">По связям</button>';
+  html += '</div>';
+
+  // Pivot section
+  html += '<div id="sectionPivot" style="display:none">';
+  html += '<div class="detail-section"><h3>Сводная таблица</h3>';
   html += '<div class="form-group"><label>Группировать по</label>';
   html += '<select id="reportGroupBy" onchange="onGroupByChange()">';
   html += '<option value="">— выберите поле —</option>';
-
-  // Prioritize useful fields
   var priority = ['building', 'contractor_name', 'our_legal_entity', 'contract_type', 'object_type', 'room', 'tenant', 'equipment'];
   var shown = new Set();
   priority.forEach(function(key) {
     var f = _reportFields.find(function(r) { return r.name === key; });
-    if (f) {
-      html += '<option value="' + f.name + '">' + (_reportFieldLabels[f.name] || f.name_ru || f.name) + '</option>';
-      shown.add(f.name);
-    }
+    if (f) { html += '<option value="' + f.name + '">' + (_reportFieldLabels[f.name] || f.name_ru || f.name) + '</option>'; shown.add(f.name); }
   });
   html += '<optgroup label="Все поля">';
   _reportFields.forEach(function(f) {
@@ -1568,19 +1571,126 @@ async function showReports() {
     html += '<option value="' + f.name + '">' + (f.name_ru || f.name) + '</option>';
   });
   html += '</optgroup></select></div>';
-
-  html += '<div class="form-group"><label>Фильтр по типу сущности</label>';
-  html += '<select id="reportFilterType" onchange="runReport()">';
-  html += '<option value="">Все</option>';
-  entityTypes.forEach(function(t) {
-    html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>';
-  });
-  html += '</select></div>';
-
-  html += '</div>';
+  html += '<div class="form-group"><label>Фильтр по типу</label>';
+  html += '<select id="reportFilterType" onchange="runReport()"><option value="">Все</option>';
+  entityTypes.forEach(function(t) { html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>'; });
+  html += '</select></div></div>';
   html += '<div id="reportResults"></div>';
   html += '</div>';
+
+  // Linked reports section
+  html += '<div id="sectionLinked">';
+  html += '<div class="detail-section"><h3>Отчёты по связям</h3>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:16px">';
+  var linkedReports = [
+    { type: 'equipment_by_location', icon: '🏢', title: 'Оборудование по корпусам', desc: 'Где установлено каждое оборудование' },
+    { type: 'equipment_by_tenant',   icon: '🏛', title: 'Оборудование у арендаторов', desc: 'Какое оборудование в арендуемых помещениях' },
+  ];
+  linkedReports.forEach(function(r) {
+    html += '<div class="child-card" onclick="runLinkedReport(&quot;' + r.type + '&quot;)" style="cursor:pointer;padding:14px">';
+    html += '<div style="font-size:24px;margin-bottom:6px">' + r.icon + '</div>';
+    html += '<div style="font-weight:600;margin-bottom:4px">' + r.title + '</div>';
+    html += '<div style="font-size:12px;color:var(--text-muted)">' + r.desc + '</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  html += '<div id="linkedResults"></div>';
+  html += '</div>';
+
+  html += '</div>';
   content.innerHTML = html;
+  switchReportTab('linked'); // default to linked tab
+}
+
+function switchReportTab(tab) {
+  var isPivot = (tab === 'pivot');
+  document.getElementById('sectionPivot').style.display = isPivot ? '' : 'none';
+  document.getElementById('sectionLinked').style.display = isPivot ? 'none' : '';
+  document.getElementById('tabPivot').className = isPivot ? 'btn btn-primary' : 'btn';
+  document.getElementById('tabLinked').className = isPivot ? 'btn' : 'btn btn-primary';
+  document.getElementById('tabPivot').style.cssText = 'border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px';
+  document.getElementById('tabLinked').style.cssText = 'border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px';
+}
+
+async function runLinkedReport(type) {
+  var resultsEl = document.getElementById('linkedResults');
+  resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Загрузка...</div>';
+  var data = await api('/reports/linked?type=' + type);
+  var groups = data.groups || [];
+
+  if (groups.length === 0) {
+    resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Нет данных. Добавьте оборудование и назначьте расположение через "Входит в".</div>';
+    return;
+  }
+
+  var titles = { equipment_by_location: 'Оборудование по корпусам', equipment_by_tenant: 'Оборудование у арендаторов' };
+  var html = '<div class="detail-section"><h3>' + (titles[type] || type) + '</h3>';
+
+  if (type === 'equipment_by_location') {
+    groups.forEach(function(g) {
+      html += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">';
+      html += '<div style="background:var(--bg-hover);padding:10px 14px;font-weight:600;display:flex;justify-content:space-between">';
+      html += '<span>' + escapeHtml(g.icon || '🏢') + ' ' + escapeHtml(g.name) + ' <span style="font-size:11px;color:var(--text-muted);font-weight:400">(' + (g.type || '') + ')</span></span>';
+      html += '<span style="font-size:12px;color:var(--text-muted)">' + g.items.length + ' ед.</span></div>';
+      html += '<div style="padding:8px 14px">';
+      if (g.items.length === 0) {
+        html += '<div style="color:var(--text-muted);font-size:13px;padding:4px 0">Оборудование не указано</div>';
+      } else {
+        g.items.forEach(function(item) {
+          var p = item.props || {};
+          var tags = [];
+          if (p.equipment_category) tags.push(p.equipment_category);
+          if (p.equipment_kind) tags.push(p.equipment_kind);
+          if (p.inv_number) tags.push('инв. ' + p.inv_number);
+          if (p.status && p.status !== 'В работе') tags.push(p.status);
+          html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px">';
+          html += '<span>' + (item.icon || '⚙️') + '</span>';
+          html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(item.name) + '</span>';
+          if (tags.length) html += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(tags.join(' · ')) + '</span>';
+          html += '</div>';
+        });
+      }
+      html += '</div></div>';
+    });
+  }
+
+  if (type === 'equipment_by_tenant') {
+    groups.forEach(function(g) {
+      html += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">';
+      html += '<div style="background:var(--bg-hover);padding:10px 14px;font-weight:600;display:flex;justify-content:space-between">';
+      html += '<span>🏛 ' + escapeHtml(g.name) + '</span>';
+      html += '<span style="font-size:12px;color:var(--text-muted)">' + g.items.length + ' ед. оборудования · ' + (g.contracts || []).length + ' договоров</span></div>';
+      html += '<div style="padding:8px 14px">';
+      // Show contracts
+      if (g.contracts && g.contracts.length > 0) {
+        html += '<div style="margin-bottom:8px">';
+        g.contracts.forEach(function(c) {
+          html += '<div style="font-size:12px;color:var(--text-secondary);padding:2px 0">📄 <a href="#" onclick="showEntity(' + c.id + ');return false" style="color:var(--accent)">' + escapeHtml(c.name) + '</a></div>';
+        });
+        html += '</div>';
+      }
+      if (g.items.length === 0) {
+        html += '<div style="color:var(--text-muted);font-size:13px;padding:4px 0">Оборудование в арендуемых помещениях не найдено</div>';
+      } else {
+        g.items.forEach(function(item) {
+          var p = item.props || {};
+          var tags = [];
+          if (p.equipment_category) tags.push(p.equipment_category);
+          if (item.building_name) tags.push(item.building_name);
+          if (p.status && p.status !== 'В работе') tags.push(p.status);
+          html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px">';
+          html += '<span>' + (item.icon || '⚙️') + '</span>';
+          html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(item.name) + '</span>';
+          if (tags.length) html += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(tags.join(' · ')) + '</span>';
+          html += '</div>';
+        });
+      }
+      html += '</div></div>';
+    });
+  }
+
+  html += '</div>';
+  resultsEl.innerHTML = html;
 }
 
 // Which entity type owns each groupBy field (fields inside contract props/rent_objects)
