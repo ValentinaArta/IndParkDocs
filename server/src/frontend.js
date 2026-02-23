@@ -243,15 +243,24 @@ function clearEntityCache() { _entityCache = {}; }
 
 function renderEntitySelect(id, entities, selectedId, selectedName, placeholder, onchangeAttr) {
   var selId = parseInt(selectedId) || 0;
-  var h = '<div style="display:flex;gap:6px;align-items:center">';
+  var h = '<div>';
+  h += '<div style="display:flex;gap:6px;align-items:center">';
   h += '<select id="' + id + '"' + (onchangeAttr ? ' onchange="' + onchangeAttr + '"' : '') + ' style="flex:1">';
-  h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
-  entities.forEach(function(e) {
-    var sel = (e.id === selId) ? ' selected' : '';
-    h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
-  });
+  if (entities.length === 0) {
+    h += '<option value="">— нет записей —</option>';
+  } else {
+    h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
+    entities.forEach(function(e) {
+      var sel = (e.id === selId) ? ' selected' : '';
+      h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
+    });
+  }
   h += '<option value="__new__">➕ Создать новый...</option>';
   h += '</select></div>';
+  if (entities.length === 0) {
+    h += '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Список пуст — используйте «➕ Создать новый» прямо здесь</div>';
+  }
+  h += '</div>';
   return h;
 }
 
