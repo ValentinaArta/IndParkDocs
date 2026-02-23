@@ -1667,9 +1667,9 @@ async function showReports() {
 
   // Step 1: entity type (required)
   html += '<div style="margin-bottom:16px">';
-  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Шаг 1 — Тип данных</div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Шаг 1 — Тип документа</div>';
   html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
-  var pivotTypes = ['contract','supplement','equipment','company','building','room','workshop','land_plot','order','document','crane_track'];
+  var pivotTypes = ['contract','supplement','order','document'];
   pivotTypes.forEach(function(tn) {
     var t = entityTypes.find(function(x) { return x.name === tn; });
     if (!t) return;
@@ -1773,6 +1773,10 @@ var _pivotFieldLabels = {
   area: 'Площадь', purpose: 'Назначение', cadastral_number: 'Кадастровый №',
   // Order fields
   order_type: 'Тип приказа', order_number: 'Номер приказа', order_date: 'Дата приказа',
+  // Virtual equipment fields (available through contract rent_objects)
+  eq_name: 'Оборудование', eq_category: 'Категория оборудования',
+  eq_kind: 'Вид оборудования', eq_status: 'Статус оборудования',
+  eq_inv_number: 'Инв. № оборудования', eq_manufacturer: 'Производитель оборудования',
 };
 
 function updatePivotFieldPool() {
@@ -1802,6 +1806,11 @@ function updatePivotFieldPool() {
     contractExtra.forEach(function(name) {
       if (!fields.find(function(f) { return f.name === name; }))
         extraFields.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract' });
+    });
+    // Virtual fields from linked equipment (via rent_objects.equipment_id)
+    var eqVirtual = ['eq_name','eq_category','eq_kind','eq_status','eq_inv_number','eq_manufacturer'];
+    eqVirtual.forEach(function(name) {
+      extraFields.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract', _virtual: true });
     });
   }
   var allFields = fields.concat(extraFields);
@@ -1960,7 +1969,23 @@ async function buildPivotTable() {
       try { ros = typeof props.rent_objects === 'string' ? JSON.parse(props.rent_objects) : props.rent_objects; } catch(ex) {}
     }
     if (ros && Array.isArray(ros) && ros.length > 0) {
-      ros.forEach(function(ro) { rows.push({ props: Object.assign({}, props, ro), entity: e }); });
+      ros.forEach(function(ro) {
+        var merged = Object.assign({}, props, ro);
+        // Enrich with equipment entity fields (virtual eq_* fields)
+        if (ro.equipment_id) {
+          var eq = _equipment.find(function(x) { return x.id === parseInt(ro.equipment_id); });
+          if (eq) {
+            merged.eq_name = eq.name || '';
+            var ep = eq.properties || {};
+            merged.eq_category = ep.equipment_category || '';
+            merged.eq_kind     = ep.equipment_kind || '';
+            merged.eq_status   = ep.status || '';
+            merged.eq_inv_number  = ep.inv_number || '';
+            merged.eq_manufacturer = ep.manufacturer || '';
+          }
+        }
+        rows.push({ props: merged, entity: e });
+      });
     } else {
       rows.push({ props: props, entity: e });
     }
