@@ -1851,10 +1851,32 @@ function _getPivotVal(props, field) {
 
 var _pivotCellData = {}; // stored for drill-down clicks
 
+// Numeric fields — show sum instead of count when used as columns
+var _numericFieldNames = new Set(['contract_amount','advance_amount','rent_monthly','extra_services_cost','total_area','area','vat_rate','payment_date']);
+
+function _isNumericField(name) {
+  if (_numericFieldNames.has(name)) return true;
+  var f = _reportFields.find(function(r) { return r.name === name; });
+  return f && f.field_type === 'number';
+}
+
+function _fmtNum(v) {
+  if (!v && v !== 0) return '—';
+  var n = parseFloat(v);
+  if (isNaN(n)) return String(v);
+  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+}
+
+var _pivotCellData = {}; // stored for drill-down clicks
+
 async function buildPivotTable() {
   var rowFields = _pivotRowFields;
   var colFields = _pivotColFields;
   if (rowFields.length === 0) { alert('Перетащите хотя бы одно поле в Строки'); return; }
+
+  // Split columns: categorical (cross-tab) vs numeric (sum)
+  var catCols = colFields.filter(function(f) { return !_isNumericField(f.name); });
+  var numCols = colFields.filter(function(f) { return _isNumericField(f.name); });
 
   var entityType = (document.getElementById('pivotEntityType') || {}).value || '';
   var typeObj = entityTypes.find(function(t) { return t.name === entityType; });
@@ -1867,7 +1889,7 @@ async function buildPivotTable() {
   var entities = await api(url);
 
   // Expand rent_objects — keep original entity reference per row
-  var rows = []; // { props, entity }
+  var rows = [];
   entities.forEach(function(e) {
     var props = Object.assign({}, e.properties || {});
     var ros = null;
@@ -1887,71 +1909,100 @@ async function buildPivotTable() {
   }
 
   var rowKeyMap = new Map();
-  var colKeyMap = new Map();
-  var cells = {}; // cells[rk][ck] = [entity, ...]
+  var catColKeyMap = new Map();
+  var cells = {};  // cells[rk][catKey] = [entities...]
+  var sums = {};   // sums[rk][fieldName] = total sum
 
   rows.forEach(function(row) {
     var rk = rowFields.map(function(f) { return _getPivotVal(row.props, f.name); }).join(' / ');
-    var ck = colFields.length > 0 ? colFields.map(function(f) { return _getPivotVal(row.props, f.name); }).join(' / ') : '__total__';
+    var catKey = catCols.length > 0
+      ? catCols.map(function(f) { return _getPivotVal(row.props, f.name); }).join(' / ')
+      : '__total__';
     rowKeyMap.set(rk, rk);
-    if (colFields.length > 0) colKeyMap.set(ck, ck);
+    if (catCols.length > 0) catColKeyMap.set(catKey, catKey);
+
     if (!cells[rk]) cells[rk] = {};
-    if (!cells[rk][ck]) cells[rk][ck] = [];
-    // Avoid duplicate entities in same cell (from rent_objects expansion)
-    if (!cells[rk][ck].find(function(x) { return x.id === row.entity.id; })) {
-      cells[rk][ck].push(row.entity);
-    }
+    if (!cells[rk][catKey]) cells[rk][catKey] = [];
+    if (!cells[rk][catKey].find(function(x) { return x.id === row.entity.id; }))
+      cells[rk][catKey].push(row.entity);
+
+    // Accumulate numeric sums
+    if (!sums[rk]) sums[rk] = {};
+    numCols.forEach(function(f) {
+      var v = parseFloat((row.props[f.name] || '').toString().replace(/\s/g,'').replace(',','.')) || 0;
+      sums[rk][f.name] = (sums[rk][f.name] || 0) + v;
+    });
   });
 
   var sortedRows = Array.from(rowKeyMap.keys()).sort(function(a, b) { return a.localeCompare(b, 'ru'); });
-  var sortedCols = colFields.length > 0 ? Array.from(colKeyMap.keys()).sort(function(a, b) { return a.localeCompare(b, 'ru'); }) : [];
+  var sortedCatCols = catCols.length > 0 ? Array.from(catColKeyMap.keys()).sort(function(a, b) { return a.localeCompare(b, 'ru'); }) : [];
 
-  // Store for drill-down
-  _pivotCellData = { rows: sortedRows, cols: sortedCols, cells: cells };
+  _pivotCellData = { rows: sortedRows, cols: sortedCatCols, cells: cells };
 
   var rowLabel = rowFields.map(function(f) { return f.label; }).join(' / ');
   var totalEntities = entities.length;
+  var hasNum = numCols.length > 0;
+  var hasCat = catCols.length > 0;
 
   var html = '<div class="detail-section" style="overflow-x:auto">';
   html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">' +
     totalEntities + ' ' + unitLabel.toLowerCase() + ' · ' + sortedRows.length + ' строк' +
-    (sortedCols.length > 0 ? ' · ' + sortedCols.length + ' столбцов' : '') +
-    ' <span style="opacity:0.6">— нажмите на цифру чтобы увидеть список</span></div>';
+    (sortedCatCols.length > 0 ? ' · ' + sortedCatCols.length + ' столбцов' : '') +
+    (hasNum ? '' : ' <span style="opacity:0.6">— нажмите на цифру чтобы увидеть список</span>') + '</div>';
   html += '<table class="pivot-table">';
 
-  html += '<thead><tr>';
-  html += '<th>' + escapeHtml(rowLabel) + '</th>';
-  sortedCols.forEach(function(ck) { html += '<th>' + escapeHtml(ck) + '</th>'; });
-  html += '<th>Итого, ' + escapeHtml(unitLabel.toLowerCase()) + '</th>';
+  // Header
+  html += '<thead><tr><th>' + escapeHtml(rowLabel) + '</th>';
+  sortedCatCols.forEach(function(ck) { html += '<th>' + escapeHtml(ck) + '</th>'; });
+  numCols.forEach(function(f) { html += '<th>' + escapeHtml(f.label) + ', руб.</th>'; });
+  if (!hasNum || hasCat) html += '<th>Итого, ' + escapeHtml(unitLabel.toLowerCase()) + '</th>';
   html += '</tr></thead>';
 
-  var grandTotal = 0;
-  var colTotals = {};
+  // Body
+  var grandCount = 0;
+  var catColTotals = {};
+  var numColTotals = {};
   html += '<tbody>';
   sortedRows.forEach(function(rk, ri) {
     var rowCells = cells[rk] || {};
-    var rowTotal = Object.values(rowCells).reduce(function(s, arr) { return s + arr.length; }, 0);
-    grandTotal += rowTotal;
-    html += '<tr>';
-    html += '<td><strong>' + escapeHtml(rk) + '</strong></td>';
-    if (sortedCols.length > 0) {
-      sortedCols.forEach(function(ck, ci) {
-        var arr = (rowCells[ck] || []);
-        var v = arr.length;
-        colTotals[ck] = (colTotals[ck] || 0) + v;
-        html += v > 0
-          ? '<td class="cell-value" data-ri="' + ri + '" data-ci="' + ci + '" onclick="showPivotCellDetail(this)">' + v + '</td>'
-          : '<td class="cell-empty">—</td>';
-      });
+    var rowCount = Object.values(rowCells).reduce(function(s, arr) { return s + arr.length; }, 0);
+    grandCount += rowCount;
+    html += '<tr><td><strong>' + escapeHtml(rk) + '</strong></td>';
+
+    // Categorical columns (count)
+    sortedCatCols.forEach(function(ck, ci) {
+      var arr = rowCells[ck] || [];
+      var v = arr.length;
+      catColTotals[ck] = (catColTotals[ck] || 0) + v;
+      html += v > 0
+        ? '<td class="cell-value" data-ri="' + ri + '" data-ci="' + ci + '" onclick="showPivotCellDetail(this)">' + v + '</td>'
+        : '<td class="cell-empty">—</td>';
+    });
+
+    // Numeric columns (sum)
+    numCols.forEach(function(f) {
+      var s = sums[rk] ? (sums[rk][f.name] || 0) : 0;
+      numColTotals[f.name] = (numColTotals[f.name] || 0) + s;
+      html += s > 0
+        ? '<td style="text-align:right;font-weight:600;color:var(--accent)">' + _fmtNum(s) + '</td>'
+        : '<td class="cell-empty">—</td>';
+    });
+
+    if (!hasNum || hasCat) {
+      html += '<td class="row-total" data-ri="' + ri + '" data-ci="-1" onclick="showPivotCellDetail(this)" style="cursor:pointer">' + rowCount + '</td>';
     }
-    html += '<td class="row-total" data-ri="' + ri + '" data-ci="-1" onclick="showPivotCellDetail(this)" style="cursor:pointer">' + rowTotal + '</td>';
     html += '</tr>';
   });
   html += '</tbody>';
 
+  // Footer
   html += '<tfoot><tr><th>Итого</th>';
-  sortedCols.forEach(function(ck) { html += '<th>' + (colTotals[ck] || 0) + '</th>'; });
-  html += '<th>' + grandTotal + '</th></tr></tfoot>';
+  sortedCatCols.forEach(function(ck) { html += '<th>' + (catColTotals[ck] || 0) + '</th>'; });
+  numCols.forEach(function(f) {
+    html += '<th style="text-align:right">' + _fmtNum(numColTotals[f.name] || 0) + '</th>';
+  });
+  if (!hasNum || hasCat) html += '<th>' + grandCount + '</th>';
+  html += '</tr></tfoot>';
 
   html += '</table></div>';
   html += '<div id="pivotDrillDown" style="margin-top:8px"></div>';
