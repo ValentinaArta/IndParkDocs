@@ -413,9 +413,10 @@ function _renderEqListItem(item, rowId) {
   h += '<div class="eq-list-create-panel" id="eq_create_' + rowId + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
   h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новое оборудование</div>';
   h += '<div class="form-group"><label>Название *</label><input class="eq-create-name" data-row="' + rowId + '" placeholder="Введите название" style="width:100%"></div>';
-  h += '<div class="form-group"><label>Категория</label><select class="eq-create-cat" data-row="' + rowId + '"><option value="">—</option>';
+  h += '<div class="form-group"><label>Категория</label><select class="eq-create-cat" data-row="' + rowId + '" onchange="onEqCatChange(this)"><option value="">—</option>';
   EQUIPMENT_CATEGORIES.forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
-  h += '</select></div>';
+  h += '<option value="__custom__">Другое...</option></select>';
+  h += '<input class="eq-create-cat-custom" data-row="' + rowId + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
   h += '<div class="form-group"><label>Вид оборудования</label><input class="eq-create-kind" data-row="' + rowId + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
   h += '<div style="display:flex;gap:8px;margin-top:4px">';
   h += '<button type="button" class="btn btn-primary btn-sm" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateSubmit(this)">Создать и выбрать</button>';
@@ -461,6 +462,13 @@ function eqListRemove(btn) {
   if (item) item.remove();
 }
 
+function onEqCatChange(sel) {
+  var parent = sel.parentElement;
+  if (!parent) return;
+  var custom = parent.querySelector('.eq-create-cat-custom, .ro-eq-cat-custom');
+  if (custom) custom.style.display = sel.value === '__custom__' ? '' : 'none';
+}
+
 function eqListCreateShow(btn) {
   var rowId = btn.getAttribute('data-row');
   var panel = document.getElementById('eq_create_' + rowId);
@@ -475,7 +483,14 @@ async function eqListCreateSubmit(btn) {
   var kindEl = document.querySelector('.eq-create-kind[data-row="' + rowId + '"]');
   if (!nameEl || !nameEl.value.trim()) { alert('Введите название оборудования'); return; }
   var props = {};
-  if (catEl  && catEl.value)  props.equipment_category = catEl.value;
+  if (catEl && catEl.value) {
+    if (catEl.value === '__custom__') {
+      var catCustomEl = document.querySelector('.eq-create-cat-custom[data-row="' + rowId + '"]');
+      if (catCustomEl && catCustomEl.value.trim()) props.equipment_category = catCustomEl.value.trim();
+    } else {
+      props.equipment_category = catEl.value;
+    }
+  }
   if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
   function selectNewEq(ent) {
     if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
@@ -802,9 +817,10 @@ function renderRentObjectBlock(index, obj) {
       h += '<div id="ro_eq_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
       h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новая единица оборудования</div>';
       h += '<div class="form-group"><label>Название *</label><input class="ro-eq-name" data-idx="' + index + '" placeholder="Название оборудования" style="width:100%"></div>';
-      h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '"><option value="">—</option>';
+      h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '" onchange="onEqCatChange(this)"><option value="">—</option>';
       EQUIPMENT_CATEGORIES.forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
-      h += '</select></div>';
+      h += '<option value="__custom__">Другое...</option></select>';
+      h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
       h += '<div class="form-group"><label>Вид</label><input class="ro-eq-kind" data-idx="' + index + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
       h += '<div style="display:flex;gap:8px">';
       h += '<button type="button" class="btn btn-primary btn-sm" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="submitRentEquipmentCreate(this)">Создать и выбрать</button>';
@@ -901,7 +917,14 @@ async function submitRentEquipmentCreate(el) {
   var kindEl = document.querySelector('.ro-eq-kind[data-idx="' + idx + '"]');
   if (!nameEl || !nameEl.value.trim()) { alert('Введите название оборудования'); return; }
   var props = {};
-  if (catEl  && catEl.value)  props.equipment_category = catEl.value;
+  if (catEl && catEl.value) {
+    if (catEl.value === '__custom__') {
+      var catCustomEl = document.querySelector('.ro-eq-cat-custom[data-idx="' + idx + '"]');
+      if (catCustomEl && catCustomEl.value.trim()) props.equipment_category = catCustomEl.value.trim();
+    } else {
+      props.equipment_category = catEl.value;
+    }
+  }
   if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
   function selectEquipment(ent) {
     if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
