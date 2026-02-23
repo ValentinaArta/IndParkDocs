@@ -1685,7 +1685,7 @@ var _pivotFieldLabels = {
   status: 'Статус', inv_number: 'Инв. номер', balance_owner: 'Балансодержатель',
   serial_number: 'Серийный номер', year: 'Год выпуска', manufacturer: 'Производитель',
   // Company fields
-  is_own: 'Наше юрлицо', inn: 'ИНН',
+  is_own: 'Наша / чужая орг.', inn: 'ИНН',
   // Location fields
   area: 'Площадь', purpose: 'Назначение', cadastral_number: 'Кадастровый №',
   // Order fields
@@ -1844,9 +1844,14 @@ function updatePivotZones() {
 }
 
 function _getPivotVal(props, field) {
-  // Handle rent_objects flattened fields
-  if (props[field] !== undefined && props[field] !== null && props[field] !== '') return String(props[field]);
-  return '—';
+  var v = props[field];
+  if (v === undefined || v === null || v === '') return '—';
+  // Boolean fields — render as human-readable
+  if (field === 'is_own') {
+    var bv = String(v).toLowerCase();
+    return bv === 'true' ? 'Наша организация' : 'Контрагент';
+  }
+  return String(v);
 }
 
 var _pivotCellData = {}; // stored for drill-down clicks
