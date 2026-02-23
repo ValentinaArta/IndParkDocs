@@ -194,6 +194,7 @@ const CONTRACT_TYPE_FIELDS = {
   'Субаренды': [
     { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },
     { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
+    { name: 'rent_comments', name_ru: 'Комментарии', field_type: 'multi_comments', _group: 'all' },
     { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
     { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
     { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
@@ -205,6 +206,7 @@ const CONTRACT_TYPE_FIELDS = {
   'Аренды': [
     { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },
     { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
+    { name: 'rent_comments', name_ru: 'Комментарии', field_type: 'multi_comments', _group: 'all' },
     { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
     { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
     { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
@@ -296,7 +298,9 @@ function renderFieldInput(f, value) {
   const val = value || '';
   const id = 'f_' + f.name;
   if (f.field_type === 'rent_objects') {
-    return ''; // Rendered by renderRentFields
+    return '';
+  } else if (f.field_type === 'multi_comments') {
+    return renderCommentsBlock(val);
   } else if (f.field_type === 'advances') {
     var advances = [];
     try { if (typeof val === 'string' && val) advances = JSON.parse(val); else if (Array.isArray(val)) advances = val; } catch(e) {}
@@ -342,6 +346,10 @@ function getFieldValue(f) {
   if (f.field_type === 'rent_objects') {
     var objs = collectAllRentObjects();
     return objs.length > 0 ? JSON.stringify(objs) : null;
+  }
+  if (f.field_type === 'multi_comments') {
+    var cmts = collectComments();
+    return cmts.length > 0 ? JSON.stringify(cmts) : null;
   }
   if (f.field_type === 'checkbox' || f.field_type === 'boolean') {
     const cb = document.getElementById('f_' + f.name);
@@ -411,7 +419,7 @@ function renderRentFields(container, allFields, props) {
     '</div>';
 
   // VAT
-  var vatVal = props.vat_rate || '20';
+  var vatVal = props.vat_rate || '22';
   html += '<div class="form-group"><label>НДС (%)</label>' +
     '<div style="display:flex;gap:6px;align-items:center">' +
     '<input type="number" id="f_vat_rate" value="' + vatVal + '" style="width:80px" oninput="updateVatDisplay()">' +
@@ -429,6 +437,9 @@ function renderRentFields(container, allFields, props) {
     html += '<div class="form-group"><label>Стоимость в месяц</label>' +
       '<input type="number" id="f_extra_services_cost" value="' + (props.extra_services_cost || '') + '" oninput="recalcRentMonthly()"></div>';
   }
+
+  // Comments
+  html += '<div class="form-group"><label>Комментарии</label>' + renderCommentsBlock(props.rent_comments) + '</div>';
 
   // Duration
   html += '<div class="form-group"><label>Срок действия</label>' +
@@ -470,6 +481,54 @@ function renderRoSelectOrCustom(index, fieldName, label, value, options) {
 function toggleRoCustom(sel, index, fieldName) {
   var customEl = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="' + fieldName + '_custom"]');
   if (customEl) customEl.style.display = sel.value === '__custom__' ? '' : 'none';
+}
+
+// ============ MULTI COMMENTS ============
+var _commentCounter = 0;
+
+function renderCommentsBlock(existingComments) {
+  var comments = [];
+  try {
+    if (typeof existingComments === 'string' && existingComments) comments = JSON.parse(existingComments);
+    else if (Array.isArray(existingComments)) comments = existingComments;
+  } catch(e) {}
+  _commentCounter = comments.length;
+  var h = '<div id="comments_container">';
+  comments.forEach(function(c, i) { h += renderCommentRow(i, c); });
+  h += '</div>';
+  h += '<button type="button" class="btn btn-sm" onclick="addCommentRow()" style="margin-top:4px">+ Добавить комментарий</button>';
+  return h;
+}
+
+function renderCommentRow(index, text) {
+  return '<div class="comment-row" id="comment_row_' + index + '" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
+    '<input class="comment-text" value="' + escapeHtml(text || '') + '" placeholder="Комментарий" style="flex:1">' +
+    '<button type="button" class="btn btn-sm btn-danger" onclick="removeCommentRow(' + index + ')" style="padding:4px 8px;font-size:11px">✕</button>' +
+    '</div>';
+}
+
+function addCommentRow() {
+  var container = document.getElementById('comments_container');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.innerHTML = renderCommentRow(_commentCounter, '');
+  container.appendChild(div.firstChild);
+  _commentCounter++;
+}
+
+function removeCommentRow(index) {
+  var row = document.getElementById('comment_row_' + index);
+  if (row) row.remove();
+}
+
+function collectComments() {
+  var container = document.getElementById('comments_container');
+  if (!container) return [];
+  var result = [];
+  container.querySelectorAll('.comment-text').forEach(function(el) {
+    if (el.value.trim()) result.push(el.value.trim());
+  });
+  return result;
 }
 
 function renderRentObjectBlock(index, obj) {
@@ -629,12 +688,13 @@ function onRentFieldChange() {
   var allFields = CONTRACT_TYPE_FIELDS[contractType] || CONTRACT_TYPE_FIELDS['Аренды'] || [];
   var currentProps = {};
 
-  // Collect rent objects
+  // Collect rent objects and comments
   currentProps.rent_objects = collectAllRentObjects();
+  currentProps.rent_comments = collectComments();
 
   // Collect other fields
   allFields.forEach(function(f) {
-    if (f.name === 'rent_objects') return;
+    if (f.name === 'rent_objects' || f.name === 'rent_comments') return;
     if (f.field_type === 'checkbox') {
       var cb = document.getElementById('f_' + f.name);
       currentProps[f.name] = cb ? String(cb.checked) : 'false';
@@ -652,7 +712,7 @@ function updateVatDisplay() {
   var display = document.getElementById('vat_display');
   if (!display) return;
   var rent = parseFloat(rentEl ? rentEl.value : 0) || 0;
-  var vat = parseFloat(vatEl ? vatEl.value : 20) || 0;
+  var vat = parseFloat(vatEl ? vatEl.value : 22) || 0;
   if (rent > 0 && vat > 0) {
     var vatAmount = (rent * vat / (100 + vat)).toFixed(2);
     display.textContent = 'в т.ч. НДС (' + vat + '%) = ' + vatAmount + ' руб.';
@@ -1083,7 +1143,16 @@ async function showEntity(id) {
         // Skip internal fields
         if (f.name === 'extra_services' || f.name === 'duration_type') return;
 
-        if (f.field_type === 'rent_objects') {
+        if (f.field_type === 'multi_comments') {
+          var cmts = [];
+          try { if (typeof val === 'string' && val) cmts = JSON.parse(val); else if (Array.isArray(val)) cmts = val; } catch(ex) {}
+          if (cmts.length > 0) {
+            html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div><div class="prop-value">';
+            cmts.forEach(function(c, ci) { html += (ci > 0 ? '<br>' : '') + '• ' + escapeHtml(c); });
+            html += '</div></div>';
+          }
+          return;
+        } else if (f.field_type === 'rent_objects') {
           var robjs = [];
           try { if (typeof val === 'string' && val) robjs = JSON.parse(val); else if (Array.isArray(val)) robjs = val; } catch(ex) {}
           if (robjs.length > 0) {
