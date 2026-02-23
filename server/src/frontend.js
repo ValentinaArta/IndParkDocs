@@ -1588,14 +1588,14 @@ async function showReports() {
   html += '<div class="detail-section">';
   html += '<h3>Сводная таблица</h3>';
 
-  // Entity type selector
-  html += '<div class="form-group" style="margin-bottom:12px"><label>Тип данных</label>';
-  html += '<select id="pivotEntityType" style="max-width:240px" onchange="updatePivotFieldPool()">';
+  // Entity type selector (collapsed by default)
+  html += '<details style="margin-bottom:12px"><summary style="font-size:12px;color:var(--text-muted);cursor:pointer">⚙ Фильтр по типу данных (необязательно)</summary>';
+  html += '<div style="margin-top:8px"><select id="pivotEntityType" style="max-width:240px" onchange="updatePivotFieldPool()">';
+  html += '<option value="">— Все типы —</option>';
   entityTypes.forEach(function(t) {
-    var sel = (t.name === 'contract') ? ' selected' : '';
-    html += '<option value="' + t.name + '"' + sel + '>' + t.icon + ' ' + t.name_ru + '</option>';
+    html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>';
   });
-  html += '</select></div>';
+  html += '</select></div></details>';
 
   // Field pool (filled dynamically by updatePivotFieldPool)
   html += '<div style="margin-bottom:16px">';
@@ -1696,45 +1696,72 @@ function updatePivotFieldPool() {
   var pool = document.getElementById('pivotFieldPool');
   if (!pool) return;
   var entityType = (document.getElementById('pivotEntityType') || {}).value || '';
-  // Related types: contracts and supplements share the same fields
-  var relatedTypes = { contract: ['contract','supplement'], supplement: ['contract','supplement'] };
-  var allowedTypes = relatedTypes[entityType] || (entityType ? [entityType] : null);
+  var inZones = _pivotRowFields.concat(_pivotColFields).map(function(f) { return f.name; });
 
-  // Decide which fields to show
+  function makeChip(f) {
+    var label = _pivotFieldLabels[f.name] || f.name_ru || f.name;
+    if (inZones.indexOf(f.name) >= 0) return ''; // already in a zone
+    return '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + label.replace(/"/g, '&quot;') + '" ondragstart="onPivotDragStart(event,this)" title="' + (f.entity_type || '') + '">' + label + '</div>';
+  }
+
+  if (!entityType) {
+    // Show ALL fields grouped by entity type
+    var contractExtra = ['subject','contract_amount','rent_monthly','payment_date','duration_date','duration_text','advances','advance_amount','vat_rate','completion_deadline','extra_services_desc','extra_services_cost','building','room','object_type','tenant','equipment'];
+    var contractExtraFields = contractExtra.map(function(name) {
+      return { name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract' };
+    });
+    // Group by entity type
+    var byType = {};
+    _reportFields.forEach(function(f) {
+      if (_pivotSkipFields.indexOf(f.name) >= 0) return;
+      if (f.name.charAt(0) === '_') return;
+      var t = f.entity_type || 'other';
+      if (!byType[t]) byType[t] = [];
+      if (!byType[t].find(function(x) { return x.name === f.name; })) byType[t].push(f);
+    });
+    // Add contract extra fields
+    contractExtraFields.forEach(function(f) {
+      var t = 'contract';
+      if (!byType[t]) byType[t] = [];
+      if (!byType[t].find(function(x) { return x.name === f.name; })) byType[t].push(f);
+    });
+    var html = '';
+    var typeOrder = ['contract','supplement','equipment','company','building','room','workshop','land_plot','order','document','crane_track'];
+    typeOrder.forEach(function(t) {
+      var tObj = entityTypes.find(function(et) { return et.name === t; });
+      var tFields = byType[t] || [];
+      if (tFields.length === 0) return;
+      var chips = tFields.map(makeChip).join('');
+      if (!chips.trim()) return;
+      html += '<div style="margin-bottom:6px"><span style="font-size:10px;color:var(--text-muted);margin-right:4px">' + (tObj ? tObj.icon + ' ' + tObj.name_ru : t) + ':</span>' + chips + '</div>';
+    });
+    pool.innerHTML = html || '<div style="color:var(--text-muted);font-size:12px;padding:4px">Нет полей</div>';
+    return;
+  }
+
+  // Filtered by specific entity type
+  var relatedTypes = { contract: ['contract','supplement'], supplement: ['contract','supplement'] };
+  var allowedTypes = relatedTypes[entityType] || [entityType];
   var fields = _reportFields.filter(function(f) {
     if (_pivotSkipFields.indexOf(f.name) >= 0) return false;
     if (f.name.charAt(0) === '_') return false;
-    // Match by entity type (null entity_type = dynamic field, always include)
-    if (allowedTypes && f.entity_type && allowedTypes.indexOf(f.entity_type) < 0) return false;
+    if (f.entity_type && allowedTypes.indexOf(f.entity_type) < 0) return false;
     return true;
   });
-
-  // For contracts: also include dynamic/rent_objects fields
   var extraFields = [];
-  if (entityType === 'contract' || entityType === 'supplement') {
-    var contractExtra = ['building','room','object_type','rent_monthly','contract_amount','advances','completion_deadline','subject','duration_date','duration_text','tenant','equipment','vat_rate'];
-    contractExtra.forEach(function(name) {
-      if (!fields.find(function(f) { return f.name === name; })) {
+  if (allowedTypes.indexOf('contract') >= 0) {
+    var contractExtra2 = ['building','room','object_type','rent_monthly','contract_amount','advances','completion_deadline','subject','duration_date','duration_text','tenant','equipment','vat_rate'];
+    contractExtra2.forEach(function(name) {
+      if (!fields.find(function(f) { return f.name === name; }))
         extraFields.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: entityType });
-      }
     });
   }
-
   var allFields = fields.concat(extraFields);
-  // Remove fields already in zones
-  var inZones = _pivotRowFields.concat(_pivotColFields).map(function(f) { return f.name; });
-
   if (allFields.length === 0) {
     pool.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:4px">Нет полей для этого типа</div>';
     return;
   }
-
-  pool.innerHTML = allFields.filter(function(f) {
-    return inZones.indexOf(f.name) < 0;
-  }).map(function(f) {
-    var label = _pivotFieldLabels[f.name] || f.name_ru || f.name;
-    return '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + label.replace(/"/g, '&quot;') + '" ondragstart="onPivotDragStart(event,this)">' + label + '</div>';
-  }).join('');
+  pool.innerHTML = allFields.map(makeChip).join('');
 }
 
 function onPivotDragStart(event, el) {
@@ -1829,7 +1856,7 @@ async function buildPivotTable() {
   var colFields = _pivotColFields;
   if (rowFields.length === 0) { alert('Перетащите хотя бы одно поле в Строки'); return; }
 
-  var entityType = document.getElementById('pivotEntityType').value;
+  var entityType = (document.getElementById('pivotEntityType') || {}).value || '';
   var typeObj = entityTypes.find(function(t) { return t.name === entityType; });
   var unitLabel = typeObj ? typeObj.name_ru : 'записей';
 
