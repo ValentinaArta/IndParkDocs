@@ -159,6 +159,13 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
             [entityId, parseInt(obj.room_id), 'located_in']
           ).catch(() => {});
         }
+        if (obj.equipment_id) {
+          // equipment → subject_of → contract
+          await pool.query(
+            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+            [parseInt(obj.equipment_id), entityId, 'subject_of']
+          ).catch(() => {});
+        }
       }
     }
   }
@@ -222,6 +229,8 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
     if (typeInfo) {
       // Clear old auto-relations, then re-create
       await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type IN ('party_to','located_in')", [id]);
+      // Clear equipment subject_of relations pointing to this contract
+      await pool.query("DELETE FROM relations WHERE to_entity_id=$1 AND relation_type='subject_of'", [id]);
       await autoLinkEntities(id, typeInfo.name, cleanProps);
     }
   }
