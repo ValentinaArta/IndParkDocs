@@ -219,7 +219,7 @@ const CONTRACT_TYPE_FIELDS = {
   'Подряда': [
     { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
     { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
-    { name: 'equipment', name_ru: 'Оборудование', field_type: 'select_or_custom', options: [] },
+    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number' },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
@@ -393,10 +393,75 @@ function collectAdvances() {
   return result;
 }
 
+function renderEquipmentListField(items) {
+  if (!Array.isArray(items) || items.length === 0) items = [{ equipment_id: '', equipment_name: '' }];
+  var h = '<div id="f_equipment_list">';
+  items.forEach(function(item) {
+    h += '<div class="eq-list-item" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+    h += '<select class="eq-list-sel" style="flex:1"><option value="">— выберите оборудование —</option>';
+    _equipment.forEach(function(e) {
+      var sel = (e.id === parseInt(item.equipment_id)) ? ' selected' : '';
+      h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
+    });
+    h += '</select>';
+    h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
+    h += '</div>';
+  });
+  h += '<button type="button" class="btn btn-sm" style="margin-top:4px" onclick="eqListAdd()">+ Добавить оборудование</button>';
+  h += '</div>';
+  return h;
+}
+
+function eqListAdd() {
+  var container = document.getElementById('f_equipment_list');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.className = 'eq-list-item';
+  div.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
+  var h = '<select class="eq-list-sel" style="flex:1"><option value="">— выберите оборудование —</option>';
+  _equipment.forEach(function(e) { h += '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>'; });
+  h += '</select>';
+  h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
+  div.innerHTML = h;
+  var addBtn = container.querySelector('button:last-child');
+  container.insertBefore(div, addBtn);
+}
+
+function eqListRemove(btn) {
+  var container = document.getElementById('f_equipment_list');
+  if (!container) return;
+  var items = container.querySelectorAll('.eq-list-item');
+  if (items.length <= 1) {
+    var sel = btn.parentElement.querySelector('select');
+    if (sel) sel.value = '';
+    return;
+  }
+  btn.parentElement.remove();
+}
+
+function getEqListValue() {
+  var container = document.getElementById('f_equipment_list');
+  if (!container) return [];
+  var result = [];
+  container.querySelectorAll('.eq-list-item').forEach(function(item) {
+    var sel = item.querySelector('select');
+    if (sel && sel.value) {
+      var eqId = parseInt(sel.value);
+      var eqEntity = _equipment.find(function(e) { return e.id === eqId; });
+      result.push({ equipment_id: eqId, equipment_name: eqEntity ? eqEntity.name : '' });
+    }
+  });
+  return result;
+}
+
 function renderFieldInput(f, value) {
   const val = value || '';
   const id = 'f_' + f.name;
-  if (f.field_type === 'rent_objects') {
+  if (f.field_type === 'equipment_list') {
+    var eqItems = [];
+    try { if (typeof val === 'string' && val) eqItems = JSON.parse(val); else if (Array.isArray(val)) eqItems = val; } catch(e) {}
+    return renderEquipmentListField(eqItems);
+  } else if (f.field_type === 'rent_objects') {
     return '';
   } else if (f.field_type === 'multi_comments') {
     return renderCommentsBlock(val);
@@ -438,6 +503,10 @@ function toggleCustomInput(sel) {
 }
 
 function getFieldValue(f) {
+  if (f.field_type === 'equipment_list') {
+    var eqItems = getEqListValue();
+    return eqItems.length > 0 ? JSON.stringify(eqItems) : null;
+  }
   if (f.field_type === 'advances') {
     const adv = collectAdvances();
     return adv.length > 0 ? JSON.stringify(adv) : null;
@@ -1513,6 +1582,24 @@ async function showEntity(id) {
             });
           }
           return;
+        } else if (f.field_type === 'equipment_list') {
+          var eqView = [];
+          try { if (typeof val === 'string' && val) eqView = JSON.parse(val); else if (Array.isArray(val)) eqView = val; } catch(ex) {}
+          // Fallback: show old plain-text equipment value if no equipment_list
+          var oldEqText = props.equipment || '';
+          html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div><div class="prop-value">';
+          if (eqView.length > 0) {
+            eqView.forEach(function(eq, i) {
+              if (i > 0) html += '<br>';
+              html += '⚙️ <a href="#" onclick="showEntity(' + eq.equipment_id + ');return false" style="color:var(--accent);text-decoration:underline">' + escapeHtml(eq.equipment_name || ('ID:' + eq.equipment_id)) + '</a>';
+            });
+          } else if (oldEqText) {
+            html += '<span style="color:var(--text-muted);font-size:12px">' + escapeHtml(oldEqText) + ' <em>(текст, не связан с реестром)</em></span>';
+          } else {
+            html += '—';
+          }
+          html += '</div></div>';
+          return;
         } else if (f.field_type === 'advances') {
           var advances = [];
           try { if (typeof val === 'string' && val) advances = JSON.parse(val); else if (Array.isArray(val)) advances = val; } catch(ex) {}
@@ -1949,7 +2036,7 @@ function aggToggle(id) {
 // ============ PIVOT TABLE (drag-and-drop) ============
 
 var _pivotSkipFields = [
-  'rent_objects','rent_comments',
+  'rent_objects','rent_comments','equipment_list',
   'our_legal_entity_id','contractor_id','subtenant_id','balance_owner_id','balance_owner_name',
   'extra_services','duration_type', // internal flags — not useful for pivot
 ];

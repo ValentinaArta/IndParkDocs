@@ -141,7 +141,7 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
     ).catch(() => {}); // Ignore if entity doesn't exist
   }
 
-  // Link rent objects (buildings/rooms)
+  // Link rent objects (buildings/rooms/equipment from rental contracts)
   if (properties.rent_objects) {
     let objs = [];
     try { objs = typeof properties.rent_objects === 'string' ? JSON.parse(properties.rent_objects) : properties.rent_objects; } catch(e) {}
@@ -164,6 +164,22 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
           await pool.query(
             'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
             [parseInt(obj.equipment_id), entityId, 'subject_of']
+          ).catch(() => {});
+        }
+      }
+    }
+  }
+
+  // Link equipment_list (from Подряда and other non-rental contracts)
+  if (properties.equipment_list) {
+    let eqItems = [];
+    try { eqItems = typeof properties.equipment_list === 'string' ? JSON.parse(properties.equipment_list) : properties.equipment_list; } catch(e) {}
+    if (Array.isArray(eqItems)) {
+      for (const item of eqItems) {
+        if (item.equipment_id) {
+          await pool.query(
+            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+            [parseInt(item.equipment_id), entityId, 'subject_of']
           ).catch(() => {});
         }
       }
