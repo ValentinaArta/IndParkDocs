@@ -414,7 +414,7 @@ function _renderEqListItem(item, rowId) {
   h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новое оборудование</div>';
   h += '<div class="form-group"><label>Название *</label><input class="eq-create-name" data-row="' + rowId + '" placeholder="Введите название" style="width:100%"></div>';
   h += '<div class="form-group"><label>Категория</label><select class="eq-create-cat" data-row="' + rowId + '" onchange="onEqCatChange(this)"><option value="">—</option>';
-  EQUIPMENT_CATEGORIES.forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+  getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
   h += '<option value="__custom__">Другое...</option></select>';
   h += '<input class="eq-create-cat-custom" data-row="' + rowId + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
   h += '<div class="form-group"><label>Вид оборудования</label><input class="eq-create-kind" data-row="' + rowId + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
@@ -638,6 +638,16 @@ var _rentObjectCounter = 0;
 var OBJECT_TYPES = ['Производство класс B', 'Производство класс С', 'Офис', 'Административно-бытовые', 'Земельный участок', 'Оборудование'];
 var EQUIPMENT_CATEGORIES = ['Электрооборудование','Газовое','Тепловое','Крановое хозяйство','Машины и механизмы','ИК оборудование'];
 
+// Returns base categories + any custom ones already saved in the registry
+function getEquipmentCategories() {
+  var extra = [];
+  _equipment.forEach(function(e) {
+    var cat = (e.properties || {}).equipment_category;
+    if (cat && EQUIPMENT_CATEGORIES.indexOf(cat) < 0 && extra.indexOf(cat) < 0) extra.push(cat);
+  });
+  return EQUIPMENT_CATEGORIES.concat(extra.sort());
+}
+
 function renderRentFields(container, allFields, props) {
   props = props || {};
   var hasExtra = props.extra_services === 'true' || props.extra_services === true;
@@ -818,7 +828,7 @@ function renderRentObjectBlock(index, obj) {
       h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новая единица оборудования</div>';
       h += '<div class="form-group"><label>Название *</label><input class="ro-eq-name" data-idx="' + index + '" placeholder="Название оборудования" style="width:100%"></div>';
       h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '" onchange="onEqCatChange(this)"><option value="">—</option>';
-      EQUIPMENT_CATEGORIES.forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+      getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
       h += '<option value="__custom__">Другое...</option></select>';
       h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
       h += '<div class="form-group"><label>Вид</label><input class="ro-eq-kind" data-idx="' + index + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
