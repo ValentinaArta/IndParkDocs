@@ -1932,7 +1932,10 @@ async function buildPivotTable() {
   var catCols = colFields.filter(function(f) { return !_isNumericField(f.name); });
   var numCols = colFields.filter(function(f) { return _isNumericField(f.name); });
 
-  var unitLabel = 'документов';
+  // Equipment mode: if any row/col field is equipment-related, show equipment items not documents
+  var _eqFields = new Set(['eq_name','eq_category','eq_kind','eq_status','eq_inv_number','eq_manufacturer','equipment']);
+  var equipmentMode = rowFields.concat(colFields).some(function(f) { return _eqFields.has(f.name); });
+  var unitLabel = equipmentMode ? 'единиц оборудования' : 'документов';
 
   var resultsEl = document.getElementById('pivotResults');
   resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Загрузка данных...</div>';
@@ -1994,8 +1997,18 @@ async function buildPivotTable() {
 
     if (!cells[rk]) cells[rk] = {};
     if (!cells[rk][catKey]) cells[rk][catKey] = [];
-    if (!cells[rk][catKey].find(function(x) { return x.id === row.entity.id; }))
-      cells[rk][catKey].push(row.entity);
+    if (equipmentMode) {
+      // In equipment mode: store the equipment entity, not the document
+      var eqId = parseInt(row.props.equipment_id);
+      if (eqId) {
+        var eqEnt = _equipment.find(function(x) { return x.id === eqId; });
+        if (eqEnt && !cells[rk][catKey].find(function(x) { return x.id === eqEnt.id; }))
+          cells[rk][catKey].push(eqEnt);
+      }
+    } else {
+      if (!cells[rk][catKey].find(function(x) { return x.id === row.entity.id; }))
+        cells[rk][catKey].push(row.entity);
+    }
 
     // Accumulate numeric sums
     if (!sums[rk]) sums[rk] = {};
