@@ -1169,6 +1169,24 @@ async function showDashboard() {
   content.innerHTML = html;
 }
 
+function toggleParentEdit(entityId) {
+  var block = document.getElementById('parentEditBlock');
+  if (!block) return;
+  block.style.display = block.style.display === 'none' ? 'block' : 'none';
+}
+
+async function saveParent(entityId) {
+  var sel = document.getElementById('parentSelectInline');
+  if (!sel) return;
+  var newParentId = sel.value ? parseInt(sel.value) : null;
+  try {
+    await api('/entities/' + entityId, { method: 'PUT', body: JSON.stringify({ parent_id: newParentId }) });
+    await showEntity(entityId);
+  } catch(ex) {
+    alert('Ошибка сохранения: ' + (ex.message || ex));
+  }
+}
+
 // ============ ENTITY LIST ============
 
 async function showEntityList(typeName) {
@@ -1224,16 +1242,29 @@ async function searchEntities(q) {
 
 // ============ ENTITY DETAIL ============
 
+var _allEntitiesForParent = [];
+
 async function showEntity(id) {
   currentView = 'detail';
   currentEntityId = id;
   const e = await api('/entities/' + id);
+  // Load all non-contract entities for parent selector
+  if (e.type_name !== 'contract' && e.type_name !== 'supplement') {
+    try {
+      var allForParent = await api('/entities?limit=200');
+      _allEntitiesForParent = allForParent.filter(function(x) {
+        return x.type_name !== 'contract' && x.type_name !== 'supplement' && x.id !== id;
+      });
+    } catch(ex) { _allEntitiesForParent = []; }
+  }
 
   setActive('[data-type="' + e.type_name + '"]');
   document.getElementById('pageTitle').textContent = '';
-  document.getElementById('breadcrumb').innerHTML =
-    (e.parent ? '<a href="#" onclick="showEntity(' + e.parent.id + ');return false" style="color:var(--accent)">' + e.parent.icon + ' ' + escapeHtml(e.parent.name) + '</a> → ' : '') +
-    e.icon + ' ' + escapeHtml(e.name);
+  var bcParts = (e.ancestry || []).map(function(a) {
+    return '<a href="#" onclick="showEntity(' + a.id + ');return false" style="color:var(--accent)">' + a.icon + ' ' + escapeHtml(a.name) + '</a>';
+  });
+  bcParts.push(e.icon + ' ' + escapeHtml(e.name));
+  document.getElementById('breadcrumb').innerHTML = bcParts.join(' › ');
   document.getElementById('topActions').innerHTML =
     '<button class="btn btn-sm" onclick="openEditModal(' + id + ')">Редактировать</button>' +
     '<button class="btn btn-sm" onclick="openRelationModal(' + id + ')">+ Связь</button>' +
@@ -1365,9 +1396,41 @@ async function showEntity(id) {
     html += '</div>';
   }
 
+  // Location block (for non-contract entities)
+  if (e.type_name !== 'contract' && e.type_name !== 'supplement') {
+    html += '<div class="detail-section" id="locationBlock">';
+    html += '<h3 style="display:flex;justify-content:space-between;align-items:center">Расположение';
+    html += '<button class="btn btn-sm" onclick="toggleParentEdit(' + e.id + ')">✏️ Изменить</button></h3>';
+    if (e.ancestry && e.ancestry.length > 0) {
+      html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+      e.ancestry.forEach(function(a, i) {
+        if (i > 0) html += '<span style="color:var(--text-muted)">›</span>';
+        html += '<a href="#" onclick="showEntity(' + a.id + ');return false" style="display:flex;align-items:center;gap:4px;color:var(--accent);text-decoration:none">' +
+          '<span>' + a.icon + '</span><span>' + escapeHtml(a.name) + '</span></a>';
+      });
+      html += '<span style="color:var(--text-muted)">›</span><strong>' + e.icon + ' ' + escapeHtml(e.name) + '</strong>';
+      html += '</div>';
+    } else {
+      html += '<span style="color:var(--text-muted);font-size:13px">Не привязано ни к какому объекту</span>';
+    }
+    html += '<div id="parentEditBlock" style="display:none;margin-top:12px">';
+    html += '<div class="form-group"><label>Входит в</label>';
+    html += '<select id="parentSelectInline" style="width:100%"><option value="">— нет (корневой объект) —</option>';
+    (_allEntitiesForParent || []).forEach(function(x) {
+      if (x.id === e.id) return; // can't be own parent
+      html += '<option value="' + x.id + '"' + (e.parent_id === x.id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
+    });
+    html += '</select></div>';
+    html += '<div style="display:flex;gap:8px">';
+    html += '<button class="btn btn-primary btn-sm" onclick="saveParent(' + e.id + ')">Сохранить</button>';
+    html += '<button class="btn btn-sm" onclick="toggleParentEdit(' + e.id + ')">Отмена</button>';
+    html += '</div></div>';
+    html += '</div>';
+  }
+
   // Children
   if (e.children && e.children.length > 0) {
-    html += '<div class="detail-section"><h3>Содержит</h3><div class="children-grid">';
+    html += '<div class="detail-section"><h3>Содержит (' + e.children.length + ')</h3><div class="children-grid">';
     e.children.forEach(c => {
       html += '<div class="child-card" onclick="showEntity(' + c.id + ')">' +
         '<span style="font-size:18px">' + c.icon + '</span>' +
@@ -1567,9 +1630,9 @@ async function openCreateModal(typeName) {
 
   // Parent selector (hide for contracts)
   if (!isContractLike) {
-    html += '<div class="form-group"><label>Родитель (вложен в)</label><select id="f_parent"><option value="">— нет —</option>';
-    allEntities.forEach(e => {
-      html += '<option value="' + e.id + '">' + e.icon + ' ' + escapeHtml(e.name) + ' (' + e.type_name_ru + ')</option>';
+    html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
+    allEntities.filter(function(x) { return x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
+      html += '<option value="' + x.id + '">' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
     });
     html += '</select></div>';
   }
@@ -1711,9 +1774,9 @@ async function openEditModal(id) {
   }
 
   // Non-contract edit
-  html += '<div class="form-group"><label>Родитель</label><select id="f_parent"><option value="">— нет —</option>';
-  allEntities.filter(x => x.id !== id).forEach(x => {
-    html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + '</option>';
+  html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
+  allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
+    html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
   });
   html += '</select></div>';
   fields.forEach(f => {

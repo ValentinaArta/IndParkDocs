@@ -89,21 +89,33 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
     ORDER BY r.created_at DESC`, [id]
   );
 
-  let parent = null;
+  // Full ancestry chain via recursive CTE (root → ... → direct parent)
+  let ancestry = [];
   if (entity.parent_id) {
-    const { rows: [p] } = await pool.query(
-      `SELECT e.*, et.icon, et.name_ru as type_name_ru FROM entities e JOIN entity_types et ON e.entity_type_id = et.id WHERE e.id=$1`,
+    const { rows: ancestryRows } = await pool.query(
+      `WITH RECURSIVE anc AS (
+        SELECT e.id, e.name, e.parent_id, et.icon, et.name_ru as type_name_ru, 0 as depth
+        FROM entities e JOIN entity_types et ON e.entity_type_id = et.id
+        WHERE e.id = $1 AND e.deleted_at IS NULL
+        UNION ALL
+        SELECT e.id, e.name, e.parent_id, et.icon, et.name_ru as type_name_ru, a.depth + 1
+        FROM entities e JOIN entity_types et ON e.entity_type_id = et.id
+        JOIN anc a ON a.parent_id = e.id
+        WHERE e.deleted_at IS NULL AND a.depth < 20
+      )
+      SELECT * FROM anc ORDER BY depth DESC`,
       [entity.parent_id]
     );
-    parent = p;
+    ancestry = ancestryRows; // ordered root-first
   }
+  const parent = ancestry.length > 0 ? ancestry[ancestry.length - 1] : null;
 
   const { rows: fields } = await pool.query(
     'SELECT * FROM field_definitions WHERE entity_type_id=$1 ORDER BY sort_order',
     [entity.entity_type_id]
   );
 
-  res.json({ ...entity, children, relations, parent, fields });
+  res.json({ ...entity, children, relations, parent, ancestry, fields });
 }));
 
 // Auto-create relations from entity properties (contract → company, building, etc.)
