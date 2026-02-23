@@ -1666,15 +1666,16 @@ function updatePivotFieldPool() {
   var pool = document.getElementById('pivotFieldPool');
   if (!pool) return;
   var entityType = (document.getElementById('pivotEntityType') || {}).value || '';
-  // Get fields for selected entity type
-  var type = entityTypes.find(function(t) { return t.name === entityType; });
+  // Related types: contracts and supplements share the same fields
+  var relatedTypes = { contract: ['contract','supplement'], supplement: ['contract','supplement'] };
+  var allowedTypes = relatedTypes[entityType] || (entityType ? [entityType] : null);
 
   // Decide which fields to show
   var fields = _reportFields.filter(function(f) {
     if (_pivotSkipFields.indexOf(f.name) >= 0) return false;
     if (f.name.charAt(0) === '_') return false;
-    // Match by entity type
-    if (entityType && f.entity_type && f.entity_type !== entityType) return false;
+    // Match by entity type (null entity_type = dynamic field, always include)
+    if (allowedTypes && f.entity_type && allowedTypes.indexOf(f.entity_type) < 0) return false;
     return true;
   });
 
