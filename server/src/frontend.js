@@ -1659,8 +1659,38 @@ function switchReportTab(tab) {
 
 // ============ PIVOT TABLE (drag-and-drop) ============
 
-var _pivotSkipFields = ['rent_objects','rent_comments','our_legal_entity_id','contractor_id','subtenant_id','balance_owner_id','balance_owner_name'];
-var _pivotFieldLabels = { building:'Корпус', contractor_name:'Контрагент', our_legal_entity:'Наше юр. лицо', contract_type:'Тип договора', room:'Помещение', object_type:'Тип объекта', tenant:'Арендатор', equipment_category:'Категория обор.', equipment_kind:'Вид обор.', status:'Статус', inv_number:'Инв. номер', balance_owner:'Балансодержатель', number:'Номер', contract_date:'Дата', order_type:'Тип приказа', is_own:'Наше юрлицо', inn:'ИНН', area:'Площадь', purpose:'Назначение', cadastral_number:'Кадастровый №' };
+var _pivotSkipFields = [
+  'rent_objects','rent_comments',
+  'our_legal_entity_id','contractor_id','subtenant_id','balance_owner_id','balance_owner_name',
+  'extra_services','duration_type', // internal flags — not useful for pivot
+];
+var _pivotFieldLabels = {
+  // Contract / supplement main fields
+  contract_type: 'Тип договора', our_legal_entity: 'Наше юр. лицо', contractor_name: 'Контрагент',
+  subtenant_name: 'Субарендатор', number: 'Номер', contract_date: 'Дата',
+  our_role_label: 'Роль нашей стороны', contractor_role_label: 'Роль контрагента',
+  changes_description: 'Что поменялось',
+  // Dynamic contract fields
+  subject: 'Предмет договора', contract_amount: 'Сумма договора',
+  rent_monthly: 'Аренда в месяц', payment_date: 'Дата оплаты',
+  duration_date: 'Дата окончания', duration_text: 'Срок действия',
+  advances: 'Авансы', advance_amount: 'Сумма аванса',
+  vat_rate: 'НДС', completion_deadline: 'Срок выполнения',
+  extra_services_desc: 'Доп. услуги', extra_services_cost: 'Стоимость доп. услуг',
+  // Rent object fields
+  building: 'Корпус', room: 'Помещение', object_type: 'Тип объекта', tenant: 'Арендатор',
+  equipment: 'Вид оборудования',
+  // Equipment entity fields
+  equipment_category: 'Категория обор.', equipment_kind: 'Вид обор.',
+  status: 'Статус', inv_number: 'Инв. номер', balance_owner: 'Балансодержатель',
+  serial_number: 'Серийный номер', year: 'Год выпуска', manufacturer: 'Производитель',
+  // Company fields
+  is_own: 'Наше юрлицо', inn: 'ИНН',
+  // Location fields
+  area: 'Площадь', purpose: 'Назначение', cadastral_number: 'Кадастровый №',
+  // Order fields
+  order_type: 'Тип приказа', order_number: 'Номер приказа', order_date: 'Дата приказа',
+};
 
 function updatePivotFieldPool() {
   var pool = document.getElementById('pivotFieldPool');
