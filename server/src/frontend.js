@@ -105,6 +105,28 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 
 /* Children list */
 .children-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.pivot-field-pool { display: flex; flex-wrap: wrap; gap: 6px; min-height: 44px; padding: 8px; background: var(--bg-secondary); border-radius: var(--radius); border: 2px dashed var(--border); }
+.pivot-zone { min-height: 60px; padding: 8px; background: var(--bg-secondary); border-radius: var(--radius); border: 2px dashed var(--border); display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; transition: border-color 0.15s, background 0.15s; }
+.pivot-zone.drag-over { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+.pivot-chip { background: var(--bg-hover); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: grab; user-select: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.pivot-chip:active { cursor: grabbing; opacity: 0.7; }
+.pivot-chip-row { background: #4ade80; color: #14532d; border-color: #16a34a; }
+.pivot-chip-col { background: #60a5fa; color: #1e3a5f; border-color: #2563eb; }
+.pivot-chip-remove { font-size: 14px; line-height: 1; cursor: pointer; opacity: 0.7; margin-left: 2px; }
+.pivot-chip-remove:hover { opacity: 1; }
+.pivot-zone-hint { color: var(--text-muted); font-size: 12px; padding: 4px; width: 100%; text-align: center; }
+.pivot-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+.pivot-table th, .pivot-table td { border: 1px solid var(--border); padding: 7px 12px; }
+.pivot-table thead th { background: var(--bg-hover); font-weight: 600; text-align: left; }
+.pivot-table thead th:not(:first-child) { text-align: center; }
+.pivot-table tfoot th { background: var(--bg-hover); font-weight: 600; text-align: center; }
+.pivot-table tfoot th:first-child { text-align: left; }
+.pivot-table tbody tr:hover { background: var(--bg-hover); }
+.pivot-table td:not(:first-child) { text-align: center; }
+.pivot-table .cell-empty { color: var(--text-muted); }
+.pivot-table .cell-value { font-weight: 600; color: var(--accent); cursor: pointer; }
+.pivot-table .cell-value:hover { text-decoration: underline; }
+.pivot-table .row-total { font-weight: 600; border-left: 2px solid var(--border); }
 .child-card { display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; }
 .child-card:hover { background: var(--bg-hover); }
 
@@ -1526,6 +1548,10 @@ async function showEntity(id) {
 // ============ REPORTS ============
 
 var _reportFields = [];
+var _pivotRowFields = [];
+var _pivotColFields = [];
+var _pivotDragField = null;
+var _pivotDragSource = null;
 var _reportFieldLabels = {
   building: 'Корпус', room: 'Помещение', object_type: 'Тип объекта',
   contractor_name: 'Контрагент', our_legal_entity: 'Наше юр. лицо',
@@ -1552,30 +1578,49 @@ async function showReports() {
   html += '<button id="tabLinked" class="btn btn-primary" data-tab="linked" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">По связям</button>';
   html += '</div>';
 
-  // Pivot section
+  // Pivot section (drag-and-drop)
+  _pivotRowFields = [];
+  _pivotColFields = [];
   html += '<div id="sectionPivot" style="display:none">';
-  html += '<div class="detail-section"><h3>Сводная таблица</h3>';
-  html += '<div class="form-group"><label>Группировать по</label>';
-  html += '<select id="reportGroupBy" onchange="onGroupByChange()">';
-  html += '<option value="">— выберите поле —</option>';
-  var priority = ['building', 'contractor_name', 'our_legal_entity', 'contract_type', 'object_type', 'room', 'tenant', 'equipment'];
-  var shown = new Set();
-  priority.forEach(function(key) {
-    var f = _reportFields.find(function(r) { return r.name === key; });
-    if (f) { html += '<option value="' + f.name + '">' + (_reportFieldLabels[f.name] || f.name_ru || f.name) + '</option>'; shown.add(f.name); }
-  });
-  html += '<optgroup label="Все поля">';
-  _reportFields.forEach(function(f) {
-    if (shown.has(f.name)) return;
-    if (f.name.startsWith('_') || f.name === 'rent_objects' || f.name === 'rent_comments') return;
-    html += '<option value="' + f.name + '">' + (f.name_ru || f.name) + '</option>';
-  });
-  html += '</optgroup></select></div>';
-  html += '<div class="form-group"><label>Фильтр по типу</label>';
-  html += '<select id="reportFilterType" onchange="runReport()"><option value="">Все</option>';
+  html += '<div class="detail-section">';
+  html += '<h3>Сводная таблица</h3>';
+
+  // Entity type selector
+  html += '<div class="form-group" style="margin-bottom:12px"><label>Тип данных</label>';
+  html += '<select id="pivotEntityType" style="max-width:240px">';
   entityTypes.forEach(function(t) { html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>'; });
-  html += '</select></div></div>';
-  html += '<div id="reportResults"></div>';
+  html += '</select></div>';
+
+  // Field pool
+  html += '<div style="margin-bottom:16px">';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Доступные поля — перетащите в Строки или Столбцы</div>';
+  html += '<div class="pivot-field-pool" id="pivotFieldPool" ondragover="event.preventDefault()" ondrop="onPivotDrop(event,this)">';
+  var skipFields = ['_','rent_objects','rent_comments','our_legal_entity_id','contractor_id','subtenant_id','balance_owner_id','balance_owner_name'];
+  var pivotFieldLabels = { building:'Корпус', contractor_name:'Контрагент', our_legal_entity:'Наше юр. лицо', contract_type:'Тип договора', room:'Помещение', object_type:'Тип объекта', tenant:'Арендатор', equipment_category:'Категория обор.', status:'Статус', inv_number:'Инв. номер', balance_owner:'Балансодержатель', number:'Номер', contract_date:'Дата' };
+  _reportFields.forEach(function(f) {
+    if (skipFields.some(function(s) { return f.name.startsWith(s); })) return;
+    var label = pivotFieldLabels[f.name] || f.name_ru || f.name;
+    html += '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + escapeHtml(label) + '" ondragstart="onPivotDragStart(event,this)">' + escapeHtml(label) + '</div>';
+  });
+  html += '</div></div>';
+
+  // Drop zones
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">';
+  html += '<div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">↕ Строки</div>';
+  html += '<div class="pivot-zone" id="pivotRowZone" data-zone="rows" ondragover="onPivotDragOver(event,this)" ondragleave="onPivotDragLeave(this)" ondrop="onPivotDrop(event,this)">';
+  html += '<div class="pivot-zone-hint">Перетащите поле сюда</div>';
+  html += '</div></div>';
+  html += '<div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">↔ Столбцы</div>';
+  html += '<div class="pivot-zone" id="pivotColZone" data-zone="cols" ondragover="onPivotDragOver(event,this)" ondragleave="onPivotDragLeave(this)" ondrop="onPivotDrop(event,this)">';
+  html += '<div class="pivot-zone-hint">Перетащите поле сюда (необязательно)</div>';
+  html += '</div></div>';
+  html += '</div>';
+
+  html += '<button class="btn btn-primary" onclick="buildPivotTable()">Построить таблицу</button>';
+  html += '</div>';
+  html += '<div id="pivotResults"></div>';
   html += '</div>';
 
   // Linked reports section
@@ -1599,7 +1644,7 @@ async function showReports() {
 
   html += '</div>';
   content.innerHTML = html;
-  switchReportTab('linked'); // default to linked tab
+  switchReportTab('pivot'); // default to pivot tab
 }
 
 function switchReportTab(tab) {
@@ -1610,6 +1655,186 @@ function switchReportTab(tab) {
   document.getElementById('tabLinked').className = isPivot ? 'btn' : 'btn btn-primary';
   document.getElementById('tabPivot').style.cssText = 'border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px';
   document.getElementById('tabLinked').style.cssText = 'border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px';
+}
+
+// ============ PIVOT TABLE (drag-and-drop) ============
+
+function onPivotDragStart(event, el) {
+  _pivotDragField = { name: el.dataset.field, label: el.dataset.label };
+  var parent = el.parentElement;
+  _pivotDragSource = parent ? parent.id : 'pivotFieldPool';
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function onPivotDragOver(event, zone) {
+  event.preventDefault();
+  zone.classList.add('drag-over');
+}
+
+function onPivotDragLeave(zone) {
+  zone.classList.remove('drag-over');
+}
+
+function onPivotDrop(event, zone) {
+  event.preventDefault();
+  zone.classList.remove('drag-over');
+  if (!_pivotDragField) return;
+
+  var targetZone = zone.dataset.zone || 'pool'; // 'rows', 'cols', or 'pool'
+  var field = _pivotDragField;
+
+  // Remove from source arrays
+  _pivotRowFields = _pivotRowFields.filter(function(f) { return f.name !== field.name; });
+  _pivotColFields = _pivotColFields.filter(function(f) { return f.name !== field.name; });
+
+  // Add to target
+  if (targetZone === 'rows') {
+    _pivotRowFields.push(field);
+  } else if (targetZone === 'cols') {
+    _pivotColFields.push(field);
+  }
+  // pool: already removed above
+
+  _pivotDragField = null;
+  _pivotDragSource = null;
+  updatePivotZones();
+}
+
+function pivotRemoveChip(el) {
+  var field = el.dataset.field;
+  var zone = el.dataset.zone;
+  if (zone === 'rows') _pivotRowFields = _pivotRowFields.filter(function(f) { return f.name !== field; });
+  if (zone === 'cols') _pivotColFields = _pivotColFields.filter(function(f) { return f.name !== field; });
+  updatePivotZones();
+}
+
+function updatePivotZones() {
+  var rowZone = document.getElementById('pivotRowZone');
+  var colZone = document.getElementById('pivotColZone');
+
+  if (rowZone) {
+    if (_pivotRowFields.length === 0) {
+      rowZone.innerHTML = '<div class="pivot-zone-hint">Перетащите поле сюда</div>';
+    } else {
+      rowZone.innerHTML = _pivotRowFields.map(function(f) {
+        return '<div class="pivot-chip pivot-chip-row" draggable="true" data-field="' + f.name + '" data-label="' + f.label + '" ondragstart="onPivotDragStart(event,this)">' +
+          escapeHtml(f.label) +
+          '<span class="pivot-chip-remove" data-field="' + f.name + '" data-zone="rows" onclick="pivotRemoveChip(this)">×</span></div>';
+      }).join('');
+    }
+  }
+
+  if (colZone) {
+    if (_pivotColFields.length === 0) {
+      colZone.innerHTML = '<div class="pivot-zone-hint">Перетащите поле сюда (необязательно)</div>';
+    } else {
+      colZone.innerHTML = _pivotColFields.map(function(f) {
+        return '<div class="pivot-chip pivot-chip-col" draggable="true" data-field="' + f.name + '" data-label="' + f.label + '" ondragstart="onPivotDragStart(event,this)">' +
+          escapeHtml(f.label) +
+          '<span class="pivot-chip-remove" data-field="' + f.name + '" data-zone="cols" onclick="pivotRemoveChip(this)">×</span></div>';
+      }).join('');
+    }
+  }
+}
+
+function _getPivotVal(props, field) {
+  // Handle rent_objects flattened fields
+  if (props[field] !== undefined && props[field] !== null && props[field] !== '') return String(props[field]);
+  return '—';
+}
+
+async function buildPivotTable() {
+  var rowFields = _pivotRowFields;
+  var colFields = _pivotColFields;
+  if (rowFields.length === 0) { alert('Перетащите хотя бы одно поле в Строки'); return; }
+
+  var entityType = document.getElementById('pivotEntityType').value;
+  var resultsEl = document.getElementById('pivotResults');
+  resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Загрузка данных...</div>';
+
+  var url = '/entities?limit=2000' + (entityType ? '&type=' + encodeURIComponent(entityType) : '');
+  var entities = await api(url);
+
+  // Expand rent_objects for contracts
+  var rows = [];
+  entities.forEach(function(e) {
+    var props = Object.assign({}, e.properties || {});
+    var ros = null;
+    if (props.rent_objects) {
+      try { ros = typeof props.rent_objects === 'string' ? JSON.parse(props.rent_objects) : props.rent_objects; } catch(ex) {}
+    }
+    if (ros && Array.isArray(ros) && ros.length > 0) {
+      ros.forEach(function(ro) { rows.push(Object.assign({}, props, ro)); });
+    } else {
+      rows.push(props);
+    }
+  });
+
+  if (rows.length === 0) {
+    resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Нет данных выбранного типа</div>';
+    return;
+  }
+
+  // Build unique row/col keys
+  var rowKeyMap = new Map(); // key → label (same here)
+  var colKeyMap = new Map();
+  var cells = {}; // cells[rowKey][colKey] = count
+
+  rows.forEach(function(props) {
+    var rowKey = rowFields.map(function(f) { return _getPivotVal(props, f.name); }).join(' / ');
+    var colKey = colFields.length > 0 ? colFields.map(function(f) { return _getPivotVal(props, f.name); }).join(' / ') : '__total__';
+    rowKeyMap.set(rowKey, rowKey);
+    if (colFields.length > 0) colKeyMap.set(colKey, colKey);
+    if (!cells[rowKey]) cells[rowKey] = {};
+    cells[rowKey][colKey] = (cells[rowKey][colKey] || 0) + 1;
+  });
+
+  var sortedRows = Array.from(rowKeyMap.keys()).sort(function(a, b) { return a.localeCompare(b, 'ru'); });
+  var sortedCols = colFields.length > 0 ? Array.from(colKeyMap.keys()).sort(function(a, b) { return a.localeCompare(b, 'ru'); }) : [];
+
+  var rowLabel = rowFields.map(function(f) { return f.label; }).join(' / ');
+  var colLabel = colFields.length > 0 ? colFields.map(function(f) { return f.label; }).join(' / ') : '';
+
+  var html = '<div class="detail-section" style="overflow-x:auto">';
+  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">' + rows.length + ' записей · ' + sortedRows.length + ' строк' + (sortedCols.length > 0 ? ' · ' + sortedCols.length + ' столбцов' : '') + '</div>';
+  html += '<table class="pivot-table">';
+
+  // Header row
+  html += '<thead><tr>';
+  html += '<th>' + escapeHtml(rowLabel) + '</th>';
+  sortedCols.forEach(function(ck) { html += '<th>' + escapeHtml(ck) + '</th>'; });
+  html += '<th>Итого</th>';
+  html += '</tr></thead>';
+
+  // Body
+  var grandTotal = 0;
+  var colTotals = {};
+  html += '<tbody>';
+  sortedRows.forEach(function(rk) {
+    var rowCells = cells[rk] || {};
+    var rowTotal = Object.values(rowCells).reduce(function(s, v) { return s + v; }, 0);
+    grandTotal += rowTotal;
+    html += '<tr>';
+    html += '<td><strong>' + escapeHtml(rk) + '</strong></td>';
+    if (sortedCols.length > 0) {
+      sortedCols.forEach(function(ck) {
+        var v = rowCells[ck] || 0;
+        colTotals[ck] = (colTotals[ck] || 0) + v;
+        html += v > 0 ? '<td class="cell-value">' + v + '</td>' : '<td class="cell-empty">—</td>';
+      });
+    }
+    html += '<td class="row-total">' + rowTotal + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody>';
+
+  // Footer
+  html += '<tfoot><tr><th>Итого</th>';
+  sortedCols.forEach(function(ck) { html += '<th>' + (colTotals[ck] || 0) + '</th>'; });
+  html += '<th>' + grandTotal + '</th></tr></tfoot>';
+
+  html += '</table></div>';
+  resultsEl.innerHTML = html;
 }
 
 async function runLinkedReport(type) {
