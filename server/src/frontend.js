@@ -1667,22 +1667,22 @@ var _pivotSkipFields = [
 var _pivotFieldLabels = {
   // Contract / supplement main fields
   contract_type: 'Тип договора', our_legal_entity: 'Наше юр. лицо', contractor_name: 'Контрагент',
-  subtenant_name: 'Субарендатор', number: 'Номер', contract_date: 'Дата',
+  subtenant_name: 'Субарендатор', number: 'Номер договора', contract_date: 'Дата договора',
   our_role_label: 'Роль нашей стороны', contractor_role_label: 'Роль контрагента',
   changes_description: 'Что поменялось',
   // Dynamic contract fields
   subject: 'Предмет договора', contract_amount: 'Сумма договора',
   rent_monthly: 'Аренда в месяц', payment_date: 'Дата оплаты',
   duration_date: 'Дата окончания', duration_text: 'Срок действия',
-  advances: 'Авансы', advance_amount: 'Сумма аванса',
+  advances: 'Авансы (да/нет)', advance_amount: 'Сумма аванса',
   vat_rate: 'НДС', completion_deadline: 'Срок выполнения',
   extra_services_desc: 'Доп. услуги', extra_services_cost: 'Стоимость доп. услуг',
   // Rent object fields
   building: 'Корпус', room: 'Помещение', object_type: 'Тип объекта', tenant: 'Арендатор',
-  equipment: 'Вид оборудования',
+  equipment: 'Оборудование по договору',
   // Equipment entity fields
-  equipment_category: 'Категория обор.', equipment_kind: 'Вид обор.',
-  status: 'Статус', inv_number: 'Инв. номер', balance_owner: 'Балансодержатель',
+  equipment_category: 'Категория оборудования', equipment_kind: 'Вид оборудования',
+  status: 'Статус оборудования', inv_number: 'Инв. номер', balance_owner: 'Балансодержатель',
   serial_number: 'Серийный номер', year: 'Год выпуска', manufacturer: 'Производитель',
   // Company fields
   is_own: 'Наша / чужая орг.', inn: 'ИНН',
