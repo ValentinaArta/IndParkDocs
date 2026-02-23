@@ -13,6 +13,8 @@ const TYPES = [
   { name: 'document', name_ru: 'Документ', icon: '📋', color: '#10B981', sort_order: 7 },
   { name: 'crane_track', name_ru: 'Подкрановый путь', icon: '🛤', color: '#F97316', sort_order: 8 },
   { name: 'supplement', name_ru: 'Доп. соглашение', icon: '📎', color: '#8B5CF6', sort_order: 9 },
+  { name: 'land_plot', name_ru: 'Земельный участок', icon: '🌍', color: '#10B981', sort_order: 10 },
+  { name: 'order', name_ru: 'Приказ', icon: '📜', color: '#6366F1', sort_order: 11 },
 ];
 
 const FIELDS = {
@@ -58,10 +60,26 @@ const FIELDS = {
     { name: 'changes_description', name_ru: 'Что поменялось', field_type: 'text' },
   ],
   equipment: [
+    { name: 'equipment_category', name_ru: 'Категория', field_type: 'select', options: JSON.stringify(['Электрооборудование','Газовое','Тепловое','Крановое хозяйство','Машины и механизмы','ИК оборудование']) },
+    { name: 'equipment_kind', name_ru: 'Вид', field_type: 'text' },
     { name: 'inv_number', name_ru: 'Инв. номер', field_type: 'text' },
-    { name: 'equipment_type', name_ru: 'Тип', field_type: 'text' },
-    { name: 'capacity', name_ru: 'Грузоподъёмность', field_type: 'text' },
-    { name: 'status', name_ru: 'Статус', field_type: 'select', options: JSON.stringify(['В работе','Законсервирован','На ремонте','Списан']) },
+    { name: 'serial_number', name_ru: 'Серийный номер', field_type: 'text' },
+    { name: 'year', name_ru: 'Год выпуска', field_type: 'text' },
+    { name: 'manufacturer', name_ru: 'Производитель', field_type: 'text' },
+    { name: 'status', name_ru: 'Статус', field_type: 'select', options: JSON.stringify(['В работе','На ремонте','Законсервировано','Списано']) },
+    { name: 'balance_owner', name_ru: 'Балансодержатель', field_type: 'text' },
+    { name: 'note', name_ru: 'Примечание', field_type: 'text' },
+  ],
+  land_plot: [
+    { name: 'cadastral_number', name_ru: 'Кадастровый номер', field_type: 'text' },
+    { name: 'area', name_ru: 'Площадь (га)', field_type: 'number' },
+    { name: 'purpose', name_ru: 'Разрешённое использование', field_type: 'text' },
+  ],
+  order: [
+    { name: 'order_number', name_ru: 'Номер приказа', field_type: 'text' },
+    { name: 'order_date', name_ru: 'Дата', field_type: 'date' },
+    { name: 'order_type', name_ru: 'Тип', field_type: 'select', options: JSON.stringify(['Консервация','Расконсервация','Списание','Передача','Прочее']) },
+    { name: 'issued_by', name_ru: 'Кем выдан', field_type: 'text' },
   ],
   document: [
     { name: 'doc_number', name_ru: 'Номер документа', field_type: 'text' },
@@ -83,6 +101,7 @@ const RELATION_TYPES = [
   { name: 'supplement_to', name_ru: 'дополнение к', color: '#8B5CF6' },
   { name: 'act_for', name_ru: 'акт по', color: '#EC4899' },
   { name: 'installed_on', name_ru: 'установлен на', color: '#F97316' },
+  { name: 'on_balance', name_ru: 'на балансе', color: '#3B82F6' },
 ];
 
 async function seed() {

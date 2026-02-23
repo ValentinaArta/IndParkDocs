@@ -808,6 +808,19 @@ function collectEntityIds(properties) {
   });
 }
 
+function collectEquipmentIds(properties) {
+  var el = document.getElementById('f_balance_owner');
+  if (!el || !el.value || el.value === '__new__') return;
+  var entId = parseInt(el.value);
+  if (entId) {
+    properties.balance_owner_id = entId;
+    var ent = _ownCompanies.find(function(c) { return c.id === entId; });
+    if (ent) properties.balance_owner_name = ent.name;
+    // delete plain text field to avoid duplication
+    delete properties.balance_owner;
+  }
+}
+
 // ============ ENTITY SELECT HANDLERS ============
 
 function onEntitySelectChange(fieldName) {
@@ -1688,7 +1701,12 @@ async function openCreateModal(typeName) {
   }
 
   fields.forEach(f => {
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), '') + '</div>';
+    if (f.name === 'balance_owner') {
+      html += '<div class="form-group"><label>Балансодержатель</label>' +
+        renderEntitySelect('f_balance_owner', _ownCompanies, '', '', 'наше юр. лицо') + '</div>';
+    } else {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), '') + '</div>';
+    }
   });
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
@@ -1723,6 +1741,9 @@ async function _doSubmitCreate(typeName) {
   // Collect entity IDs and names for linked fields
   if (isContractLike) {
     collectEntityIds(properties);
+  }
+  if (typeName === 'equipment') {
+    collectEquipmentIds(properties);
   }
 
   // Auto-generate name for contracts
@@ -1827,7 +1848,12 @@ async function openEditModal(id) {
   html += '</select></div>';
   fields.forEach(f => {
     const val = props[f.name] || '';
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
+    if (f.name === 'balance_owner') {
+      html += '<div class="form-group"><label>Балансодержатель</label>' +
+        renderEntitySelect('f_balance_owner', _ownCompanies, props.balance_owner_id || '', val, 'наше юр. лицо') + '</div>';
+    } else {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
+    }
   });
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
@@ -1859,6 +1885,9 @@ async function _doSubmitEdit(id) {
   // Collect entity IDs
   if (isContractLike) {
     collectEntityIds(properties);
+  }
+  if (e.type_name === 'equipment') {
+    collectEquipmentIds(properties);
   }
 
   // Auto-generate name for contracts
