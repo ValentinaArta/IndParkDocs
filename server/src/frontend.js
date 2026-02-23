@@ -1670,6 +1670,7 @@ async function showReports() {
     html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>';
   });
   html += '</select></div></details>';
+  html += '<div id="pivotTypeNotice" style="display:none;margin-bottom:8px;font-size:12px;color:var(--accent);padding:4px 8px;background:var(--bg-secondary);border-radius:4px;border-left:3px solid var(--accent)"></div>';
 
   // Field pool (filled dynamically by updatePivotFieldPool)
   html += '<div style="margin-bottom:16px">';
@@ -1775,7 +1776,7 @@ function updatePivotFieldPool() {
   function makeChip(f) {
     var label = _pivotFieldLabels[f.name] || f.name_ru || f.name;
     if (inZones.indexOf(f.name) >= 0) return ''; // already in a zone
-    return '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + label.replace(/"/g, '&quot;') + '" ondragstart="onPivotDragStart(event,this)" title="' + (f.entity_type || '') + '">' + label + '</div>';
+    return '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + label.replace(/"/g, '&quot;') + '" data-entity-type="' + (f.entity_type || '') + '" ondragstart="onPivotDragStart(event,this)" title="' + (f.entity_type || '') + '">' + label + '</div>';
   }
 
   if (!entityType) {
@@ -1839,7 +1840,7 @@ function updatePivotFieldPool() {
 }
 
 function onPivotDragStart(event, el) {
-  _pivotDragField = { name: el.dataset.field, label: el.dataset.label };
+  _pivotDragField = { name: el.dataset.field, label: el.dataset.label, entity_type: el.dataset.entityType || '' };
   var parent = el.parentElement;
   _pivotDragSource = parent ? parent.id : 'pivotFieldPool';
   event.dataTransfer.effectAllowed = 'move';
@@ -1873,6 +1874,32 @@ function onPivotDrop(event, zone) {
     _pivotColFields.push(field);
   }
   // pool: already removed above
+
+  // Auto-switch entity type if the dropped field belongs to a specific type
+  var sel = document.getElementById('pivotEntityType');
+  if (sel && field.entity_type && (targetZone === 'rows' || targetZone === 'cols')) {
+    var currentType = sel.value || '';
+    var fieldType = field.entity_type;
+    // contract and supplement share the same pool
+    var compatible = (currentType === fieldType) ||
+      (!fieldType) || // field has no specific type — works with any
+      (currentType === 'contract' && fieldType === 'supplement') ||
+      (currentType === 'supplement' && fieldType === 'contract');
+    if (!compatible && fieldType) {
+      sel.value = fieldType;
+      // Open the details block so user can see the type changed
+      var details = sel.closest('details');
+      if (details) details.open = true;
+      var notice = document.getElementById('pivotTypeNotice');
+      if (notice) {
+        var typeObj = entityTypes.find(function(t) { return t.name === fieldType; });
+        var typeName = typeObj ? (typeObj.icon + ' ' + typeObj.name_ru) : fieldType;
+        notice.textContent = '⚠️ Тип данных автоматически переключён на: ' + typeName;
+        notice.style.display = 'block';
+        setTimeout(function() { notice.style.display = 'none'; }, 5000);
+      }
+    }
+  }
 
   _pivotDragField = null;
   _pivotDragSource = null;
