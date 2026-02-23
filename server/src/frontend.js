@@ -452,6 +452,26 @@ function renderRentFields(container, allFields, props) {
   updateVatDisplay();
 }
 
+function renderRoSelectOrCustom(index, fieldName, label, value, options) {
+  options = options || [];
+  var isCustom = value && !options.includes(value);
+  var h = '<div class="form-group"><label>' + escapeHtml(label) + '</label>';
+  h += '<div style="display:flex;gap:6px;align-items:center">';
+  h += '<select class="ro-field" data-idx="' + index + '" data-name="' + fieldName + '" onchange="toggleRoCustom(this,' + index + ',&quot;' + fieldName + '&quot;)" style="flex:1">';
+  h += '<option value="">—</option>';
+  options.forEach(function(o) { h += '<option value="' + escapeHtml(o) + '"' + (o === value ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
+  h += '<option value="__custom__"' + (isCustom ? ' selected' : '') + '>Другое...</option>';
+  h += '</select>';
+  h += '<input class="ro-field ro-custom-input" data-idx="' + index + '" data-name="' + fieldName + '_custom" placeholder="Введите значение" value="' + (isCustom ? escapeHtml(value) : '') + '" style="flex:1;' + (isCustom ? '' : 'display:none') + '">';
+  h += '</div></div>';
+  return h;
+}
+
+function toggleRoCustom(sel, index, fieldName) {
+  var customEl = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="' + fieldName + '_custom"]');
+  if (customEl) customEl.style.display = sel.value === '__custom__' ? '' : 'none';
+}
+
 function renderRentObjectBlock(index, obj) {
   obj = obj || {};
   var isLand = (obj.object_type === 'Земельный участок');
@@ -476,9 +496,9 @@ function renderRentObjectBlock(index, obj) {
 
   if (obj.object_type) {
     if (!isLand) {
-      // Building fields
-      h += '<div class="form-group"><label>Корпус</label><input class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
-      h += '<div class="form-group"><label>Помещение</label><input class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '"></div>';
+      // Building fields (select_or_custom)
+      h += renderRoSelectOrCustom(index, 'building', 'Корпус', obj.building || '', getUsedValues('building'));
+      h += renderRoSelectOrCustom(index, 'room', 'Помещение', obj.room || '', getUsedValues('room'));
       h += '<div class="form-group"><label>Часть/Целиком</label><select class="ro-field" data-idx="' + index + '" data-name="rent_scope">';
       h += '<option value="">—</option><option value="Целиком"' + (obj.rent_scope === 'Целиком' ? ' selected' : '') + '>Целиком</option>';
       h += '<option value="Часть"' + (obj.rent_scope === 'Часть' ? ' selected' : '') + '>Часть</option></select></div>';
@@ -552,17 +572,22 @@ function onRentObjectCalcChange(index) {
 
 function collectRentObjectData(index) {
   var obj = {};
+  var customFields = {};
   document.querySelectorAll('.ro-field[data-idx="' + index + '"]').forEach(function(el) {
     var name = el.getAttribute('data-name');
-    if (name === 'object_type') {
-      if (el.value === '__custom__') {
-        var customEl = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type_custom"]');
-        obj.object_type = customEl ? customEl.value : '';
-      } else {
-        obj[name] = el.value;
-      }
-    } else if (name !== 'object_type_custom') {
+    if (name.endsWith('_custom')) {
+      customFields[name.replace('_custom', '')] = el.value;
+    } else if (el.tagName === 'SELECT' && el.value === '__custom__') {
+      // Will use custom value
+    } else {
       obj[name] = el.value;
+    }
+  });
+  // Apply custom values where select is __custom__
+  document.querySelectorAll('select.ro-field[data-idx="' + index + '"]').forEach(function(sel) {
+    var name = sel.getAttribute('data-name');
+    if (sel.value === '__custom__' && customFields[name]) {
+      obj[name] = customFields[name];
     }
   });
   return obj;
