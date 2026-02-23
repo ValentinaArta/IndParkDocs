@@ -113,6 +113,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .pivot-chip-row { background: #4ade80; color: #14532d; border-color: #16a34a; }
 .pivot-chip-col { background: #60a5fa; color: #1e3a5f; border-color: #2563eb; }
 .pivot-chip-remove { font-size: 14px; line-height: 1; cursor: pointer; opacity: 0.7; margin-left: 2px; }
+.pivot-type-btn { background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
+.pivot-type-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pivot-type-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
 .pivot-chip-remove:hover { opacity: 1; }
 .pivot-zone-hint { color: var(--text-muted); font-size: 12px; padding: 4px; width: 100%; text-align: center; }
 .pivot-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
@@ -1662,19 +1665,24 @@ async function showReports() {
   html += '<div class="detail-section">';
   html += '<h3>Сводная таблица</h3>';
 
-  // Entity type selector (collapsed by default)
-  html += '<details style="margin-bottom:12px"><summary style="font-size:12px;color:var(--text-muted);cursor:pointer">⚙ Фильтр по типу данных (необязательно)</summary>';
-  html += '<div style="margin-top:8px"><select id="pivotEntityType" style="max-width:240px" onchange="updatePivotFieldPool()">';
-  html += '<option value="">— Все типы —</option>';
-  entityTypes.forEach(function(t) {
-    html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>';
-  });
-  html += '</select></div></details>';
-  html += '<div id="pivotTypeNotice" style="display:none;margin-bottom:8px;font-size:12px;color:var(--accent);padding:4px 8px;background:var(--bg-secondary);border-radius:4px;border-left:3px solid var(--accent)"></div>';
-
-  // Field pool (filled dynamically by updatePivotFieldPool)
+  // Step 1: entity type (required)
   html += '<div style="margin-bottom:16px">';
-  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Доступные поля — перетащите в Строки или Столбцы</div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Шаг 1 — Тип данных</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+  var pivotTypes = ['contract','supplement','equipment','company','building','room','workshop','land_plot','order','document','crane_track'];
+  pivotTypes.forEach(function(tn) {
+    var t = entityTypes.find(function(x) { return x.name === tn; });
+    if (!t) return;
+    var isDefault = (tn === 'contract');
+    html += '<button type="button" class="btn btn-sm pivot-type-btn' + (isDefault ? ' active' : '') + '" data-type="' + tn + '" onclick="onPivotTypeSelect(this)" style="font-size:13px">' + t.icon + ' ' + t.name_ru + '</button>';
+  });
+  html += '</div>';
+  html += '<input type="hidden" id="pivotEntityType" value="contract">';
+  html += '</div>';
+
+  // Step 2: field pool
+  html += '<div style="margin-bottom:16px">';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Шаг 2 — Поля — перетащите в Строки или Столбцы</div>';
   html += '<div class="pivot-field-pool" id="pivotFieldPool" ondragover="event.preventDefault()" ondrop="onPivotDrop(event,this)"></div>';
   html += '</div>';
 
@@ -1770,51 +1778,16 @@ var _pivotFieldLabels = {
 function updatePivotFieldPool() {
   var pool = document.getElementById('pivotFieldPool');
   if (!pool) return;
-  var entityType = (document.getElementById('pivotEntityType') || {}).value || '';
+  var entityType = (document.getElementById('pivotEntityType') || {}).value || 'contract';
   var inZones = _pivotRowFields.concat(_pivotColFields).map(function(f) { return f.name; });
 
   function makeChip(f) {
     var label = _pivotFieldLabels[f.name] || f.name_ru || f.name;
     if (inZones.indexOf(f.name) >= 0) return ''; // already in a zone
-    return '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + label.replace(/"/g, '&quot;') + '" data-entity-type="' + (f.entity_type || '') + '" ondragstart="onPivotDragStart(event,this)" title="' + (f.entity_type || '') + '">' + label + '</div>';
+    return '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + label.replace(/"/g, '&quot;') + '" data-entity-type="' + (f.entity_type || '') + '" ondragstart="onPivotDragStart(event,this)">' + label + '</div>';
   }
 
-  if (!entityType) {
-    // Show ALL fields grouped by entity type
-    var contractExtra = ['subject','contract_amount','rent_monthly','payment_date','duration_date','duration_text','advances','advance_amount','vat_rate','completion_deadline','extra_services_desc','extra_services_cost','building','room','object_type','tenant','equipment'];
-    var contractExtraFields = contractExtra.map(function(name) {
-      return { name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract' };
-    });
-    // Group by entity type
-    var byType = {};
-    _reportFields.forEach(function(f) {
-      if (_pivotSkipFields.indexOf(f.name) >= 0) return;
-      if (f.name.charAt(0) === '_') return;
-      var t = f.entity_type || 'other';
-      if (!byType[t]) byType[t] = [];
-      if (!byType[t].find(function(x) { return x.name === f.name; })) byType[t].push(f);
-    });
-    // Add contract extra fields
-    contractExtraFields.forEach(function(f) {
-      var t = 'contract';
-      if (!byType[t]) byType[t] = [];
-      if (!byType[t].find(function(x) { return x.name === f.name; })) byType[t].push(f);
-    });
-    var html = '';
-    var typeOrder = ['contract','supplement','equipment','company','building','room','workshop','land_plot','order','document','crane_track'];
-    typeOrder.forEach(function(t) {
-      var tObj = entityTypes.find(function(et) { return et.name === t; });
-      var tFields = byType[t] || [];
-      if (tFields.length === 0) return;
-      var chips = tFields.map(makeChip).join('');
-      if (!chips.trim()) return;
-      html += '<div style="margin-bottom:6px"><span style="font-size:10px;color:var(--text-muted);margin-right:4px">' + (tObj ? tObj.icon + ' ' + tObj.name_ru : t) + ':</span>' + chips + '</div>';
-    });
-    pool.innerHTML = html || '<div style="color:var(--text-muted);font-size:12px;padding:4px">Нет полей</div>';
-    return;
-  }
-
-  // Filtered by specific entity type
+  // Always filter by selected entity type
   var relatedTypes = { contract: ['contract','supplement'], supplement: ['contract','supplement'] };
   var allowedTypes = relatedTypes[entityType] || [entityType];
   var fields = _reportFields.filter(function(f) {
@@ -1825,10 +1798,10 @@ function updatePivotFieldPool() {
   });
   var extraFields = [];
   if (allowedTypes.indexOf('contract') >= 0) {
-    var contractExtra2 = ['building','room','object_type','rent_monthly','contract_amount','advances','completion_deadline','subject','duration_date','duration_text','tenant','equipment','vat_rate'];
-    contractExtra2.forEach(function(name) {
+    var contractExtra = ['building','room','object_type','rent_monthly','contract_amount','advances','completion_deadline','subject','duration_date','duration_text','tenant','equipment','vat_rate'];
+    contractExtra.forEach(function(name) {
       if (!fields.find(function(f) { return f.name === name; }))
-        extraFields.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: entityType });
+        extraFields.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract' });
     });
   }
   var allFields = fields.concat(extraFields);
@@ -1855,30 +1828,18 @@ function onPivotDragLeave(zone) {
   zone.classList.remove('drag-over');
 }
 
-function _pivotFieldTypesCompatible(typeA, typeB) {
-  if (!typeA || !typeB) return true; // unknown type — allow
-  if (typeA === typeB) return true;
-  // contract and supplement share the same pool
-  var contractFamily = ['contract', 'supplement'];
-  if (contractFamily.indexOf(typeA) >= 0 && contractFamily.indexOf(typeB) >= 0) return true;
-  return false;
-}
-
-function _pivotZoneDominantType() {
-  // Find the most common entity_type among fields currently in zones
-  var all = _pivotRowFields.concat(_pivotColFields);
-  for (var i = 0; i < all.length; i++) {
-    if (all[i].entity_type) return all[i].entity_type;
-  }
-  return '';
-}
-
-function _pivotShowNotice(text) {
-  var notice = document.getElementById('pivotTypeNotice');
-  if (!notice) return;
-  notice.textContent = text;
-  notice.style.display = 'block';
-  setTimeout(function() { notice.style.display = 'none'; }, 5000);
+function onPivotTypeSelect(btn) {
+  var type = btn.getAttribute('data-type');
+  // Update hidden input
+  var inp = document.getElementById('pivotEntityType');
+  if (inp) inp.value = type;
+  // Update active button
+  document.querySelectorAll('.pivot-type-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  // Clear zones when type changes
+  _pivotRowFields = [];
+  _pivotColFields = [];
+  updatePivotZones();
 }
 
 function onPivotDrop(event, zone) {
@@ -1891,63 +1852,13 @@ function onPivotDrop(event, zone) {
   _pivotDragField = null;
   _pivotDragSource = null;
 
-  if (targetZone === 'rows' || targetZone === 'cols') {
-    var fieldType = field.entity_type || '';
-    var zoneType = _pivotZoneDominantType();
+  // Remove from wherever the field was before
+  _pivotRowFields = _pivotRowFields.filter(function(f) { return f.name !== field.name; });
+  _pivotColFields = _pivotColFields.filter(function(f) { return f.name !== field.name; });
 
-    // Check conflict with fields already in zones
-    if (fieldType && zoneType && !_pivotFieldTypesCompatible(fieldType, zoneType)) {
-      var fieldTypeObj = entityTypes.find(function(t) { return t.name === fieldType; });
-      var zoneTypeObj  = entityTypes.find(function(t) { return t.name === zoneType; });
-      var fieldTypeName = fieldTypeObj ? (fieldTypeObj.icon + ' ' + fieldTypeObj.name_ru) : fieldType;
-      var zoneTypeName  = zoneTypeObj  ? (zoneTypeObj.icon  + ' ' + zoneTypeObj.name_ru)  : zoneType;
-      var ok = confirm(
-        'Конфликт типов!\n\n' +
-        'В зонах уже есть поля типа «' + zoneTypeName + '»,\n' +
-        'а поле «' + field.label + '» относится к типу «' + fieldTypeName + '».\n\n' +
-        'Очистить зоны и переключиться на «' + fieldTypeName + '»?'
-      );
-      if (!ok) {
-        updatePivotZones();
-        return;
-      }
-      // Clear zones, switch type
-      _pivotRowFields = [];
-      _pivotColFields = [];
-      var sel = document.getElementById('pivotEntityType');
-      if (sel) {
-        sel.value = fieldType;
-        var details = sel.closest('details');
-        if (details) details.open = true;
-      }
-    }
-
-    // Remove field from whichever zone it was in before
-    _pivotRowFields = _pivotRowFields.filter(function(f) { return f.name !== field.name; });
-    _pivotColFields = _pivotColFields.filter(function(f) { return f.name !== field.name; });
-
-    // Add to target zone
-    if (targetZone === 'rows') _pivotRowFields.push(field);
-    else _pivotColFields.push(field);
-
-    // Auto-switch entity type if no conflict but type differs from selector
-    var sel2 = document.getElementById('pivotEntityType');
-    if (sel2 && fieldType) {
-      var currentSel = sel2.value || '';
-      if (!_pivotFieldTypesCompatible(currentSel, fieldType)) {
-        sel2.value = fieldType;
-        var details2 = sel2.closest('details');
-        if (details2) details2.open = true;
-        var typeObj2 = entityTypes.find(function(t) { return t.name === fieldType; });
-        var typeName2 = typeObj2 ? (typeObj2.icon + ' ' + typeObj2.name_ru) : fieldType;
-        _pivotShowNotice('⚠️ Тип данных переключён на: ' + typeName2);
-      }
-    }
-  } else {
-    // Dropped back to pool — just remove from zones
-    _pivotRowFields = _pivotRowFields.filter(function(f) { return f.name !== field.name; });
-    _pivotColFields = _pivotColFields.filter(function(f) { return f.name !== field.name; });
-  }
+  if (targetZone === 'rows') _pivotRowFields.push(field);
+  else if (targetZone === 'cols') _pivotColFields.push(field);
+  // pool: already removed above
 
   updatePivotZones();
 }
