@@ -87,7 +87,7 @@ router.get('/fields', authenticate, asyncHandler(async (req, res) => {
 
   // Merge: field definitions + dynamic property keys
   const allFields = new Map();
-  fields.forEach(f => allFields.set(f.name, { name: f.name, name_ru: f.name_ru, field_type: f.field_type, source: f.entity_type_ru }));
+  fields.forEach(f => allFields.set(f.name, { name: f.name, name_ru: f.name_ru, field_type: f.field_type, entity_type: f.entity_type, source: f.entity_type_ru }));
   propKeys.forEach(pk => {
     if (!allFields.has(pk.key)) {
       allFields.set(pk.key, { name: pk.key, name_ru: pk.key, field_type: 'text', source: 'properties' });

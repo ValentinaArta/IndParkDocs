@@ -1587,22 +1587,18 @@ async function showReports() {
 
   // Entity type selector
   html += '<div class="form-group" style="margin-bottom:12px"><label>Тип данных</label>';
-  html += '<select id="pivotEntityType" style="max-width:240px">';
-  entityTypes.forEach(function(t) { html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>'; });
+  html += '<select id="pivotEntityType" style="max-width:240px" onchange="updatePivotFieldPool()">';
+  entityTypes.forEach(function(t) {
+    var sel = (t.name === 'contract') ? ' selected' : '';
+    html += '<option value="' + t.name + '"' + sel + '>' + t.icon + ' ' + t.name_ru + '</option>';
+  });
   html += '</select></div>';
 
-  // Field pool
+  // Field pool (filled dynamically by updatePivotFieldPool)
   html += '<div style="margin-bottom:16px">';
   html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Доступные поля — перетащите в Строки или Столбцы</div>';
-  html += '<div class="pivot-field-pool" id="pivotFieldPool" ondragover="event.preventDefault()" ondrop="onPivotDrop(event,this)">';
-  var skipFields = ['_','rent_objects','rent_comments','our_legal_entity_id','contractor_id','subtenant_id','balance_owner_id','balance_owner_name'];
-  var pivotFieldLabels = { building:'Корпус', contractor_name:'Контрагент', our_legal_entity:'Наше юр. лицо', contract_type:'Тип договора', room:'Помещение', object_type:'Тип объекта', tenant:'Арендатор', equipment_category:'Категория обор.', status:'Статус', inv_number:'Инв. номер', balance_owner:'Балансодержатель', number:'Номер', contract_date:'Дата' };
-  _reportFields.forEach(function(f) {
-    if (skipFields.some(function(s) { return f.name.startsWith(s); })) return;
-    var label = pivotFieldLabels[f.name] || f.name_ru || f.name;
-    html += '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + escapeHtml(label) + '" ondragstart="onPivotDragStart(event,this)">' + escapeHtml(label) + '</div>';
-  });
-  html += '</div></div>';
+  html += '<div class="pivot-field-pool" id="pivotFieldPool" ondragover="event.preventDefault()" ondrop="onPivotDrop(event,this)"></div>';
+  html += '</div>';
 
   // Drop zones
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">';
@@ -1644,7 +1640,8 @@ async function showReports() {
 
   html += '</div>';
   content.innerHTML = html;
-  switchReportTab('pivot'); // default to pivot tab
+  switchReportTab('pivot');
+  updatePivotFieldPool(); // fill pool for default entity type
 }
 
 function switchReportTab(tab) {
@@ -1658,6 +1655,53 @@ function switchReportTab(tab) {
 }
 
 // ============ PIVOT TABLE (drag-and-drop) ============
+
+var _pivotSkipFields = ['rent_objects','rent_comments','our_legal_entity_id','contractor_id','subtenant_id','balance_owner_id','balance_owner_name'];
+var _pivotFieldLabels = { building:'Корпус', contractor_name:'Контрагент', our_legal_entity:'Наше юр. лицо', contract_type:'Тип договора', room:'Помещение', object_type:'Тип объекта', tenant:'Арендатор', equipment_category:'Категория обор.', equipment_kind:'Вид обор.', status:'Статус', inv_number:'Инв. номер', balance_owner:'Балансодержатель', number:'Номер', contract_date:'Дата', order_type:'Тип приказа', is_own:'Наше юрлицо', inn:'ИНН', area:'Площадь', purpose:'Назначение', cadastral_number:'Кадастровый №' };
+
+function updatePivotFieldPool() {
+  var pool = document.getElementById('pivotFieldPool');
+  if (!pool) return;
+  var entityType = (document.getElementById('pivotEntityType') || {}).value || '';
+  // Get fields for selected entity type
+  var type = entityTypes.find(function(t) { return t.name === entityType; });
+
+  // Decide which fields to show
+  var fields = _reportFields.filter(function(f) {
+    if (_pivotSkipFields.indexOf(f.name) >= 0) return false;
+    if (f.name.charAt(0) === '_') return false;
+    // Match by entity type
+    if (entityType && f.entity_type && f.entity_type !== entityType) return false;
+    return true;
+  });
+
+  // For contracts: also include dynamic/rent_objects fields
+  var extraFields = [];
+  if (entityType === 'contract' || entityType === 'supplement') {
+    var contractExtra = ['building','room','object_type','rent_monthly','contract_amount','advances','completion_deadline','subject','duration_date','duration_text','tenant','equipment','vat_rate'];
+    contractExtra.forEach(function(name) {
+      if (!fields.find(function(f) { return f.name === name; })) {
+        extraFields.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: entityType });
+      }
+    });
+  }
+
+  var allFields = fields.concat(extraFields);
+  // Remove fields already in zones
+  var inZones = _pivotRowFields.concat(_pivotColFields).map(function(f) { return f.name; });
+
+  if (allFields.length === 0) {
+    pool.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:4px">Нет полей для этого типа</div>';
+    return;
+  }
+
+  pool.innerHTML = allFields.filter(function(f) {
+    return inZones.indexOf(f.name) < 0;
+  }).map(function(f) {
+    var label = _pivotFieldLabels[f.name] || f.name_ru || f.name;
+    return '<div class="pivot-chip" draggable="true" data-field="' + f.name + '" data-label="' + label.replace(/"/g, '&quot;') + '" ondragstart="onPivotDragStart(event,this)">' + label + '</div>';
+  }).join('');
+}
 
 function onPivotDragStart(event, el) {
   _pivotDragField = { name: el.dataset.field, label: el.dataset.label };
@@ -1709,6 +1753,7 @@ function pivotRemoveChip(el) {
 }
 
 function updatePivotZones() {
+  updatePivotFieldPool(); // sync pool (chips removed from zones reappear here)
   var rowZone = document.getElementById('pivotRowZone');
   var colZone = document.getElementById('pivotColZone');
 
