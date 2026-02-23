@@ -243,23 +243,20 @@ function clearEntityCache() { _entityCache = {}; }
 
 function renderEntitySelect(id, entities, selectedId, selectedName, placeholder, onchangeAttr) {
   var selId = parseInt(selectedId) || 0;
-  var h = '<div>';
-  h += '<div style="display:flex;gap:6px;align-items:center">';
-  h += '<select id="' + id + '"' + (onchangeAttr ? ' onchange="' + onchangeAttr + '"' : '') + ' style="flex:1">';
-  if (entities.length === 0) {
-    h += '<option value="">— нет записей —</option>';
-  } else {
-    h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
-    entities.forEach(function(e) {
-      var sel = (e.id === selId) ? ' selected' : '';
-      h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
-    });
-  }
-  h += '<option value="__new__">➕ Создать новый...</option>';
-  h += '</select></div>';
-  if (entities.length === 0) {
-    h += '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Список пуст — используйте «➕ Создать новый» прямо здесь</div>';
-  }
+  var fieldName = id.replace(/^f_/, '');
+  var h = '<div style="display:flex;gap:6px;align-items:center">';
+  h += '<select id="' + id + '" onchange="onEntitySelectChange(&quot;' + fieldName + '&quot;)" style="flex:1">';
+  h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
+  entities.forEach(function(e) {
+    var sel = (e.id === selId) ? ' selected' : '';
+    h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
+  });
+  h += '<option value="__new__">Другое...</option>';
+  h += '</select>';
+  h += '<input id="' + id + '_custom" placeholder="Введите название" style="flex:1;display:none" ' +
+    'data-field="' + fieldName + '" ' +
+    'onkeydown="onEntityCustomKeydown(event,this)" ' +
+    'onblur="onEntityCustomConfirm(this.dataset.field)">';
   h += '</div>';
   return h;
 }
@@ -815,44 +812,69 @@ function collectEntityIds(properties) {
 
 function onEntitySelectChange(fieldName) {
   var el = document.getElementById('f_' + fieldName);
-  if (!el || el.value !== '__new__') return;
-  // Determine entity type to create
+  var customEl = document.getElementById('f_' + fieldName + '_custom');
+  if (!el) return;
+  if (customEl) {
+    customEl.style.display = (el.value === '__new__') ? '' : 'none';
+    if (el.value === '__new__') { customEl.value = ''; customEl.focus(); }
+  }
+}
+
+function onEntityCustomKeydown(event, input) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    onEntityCustomConfirm(input.dataset.field);
+  }
+}
+
+function onEntityCustomConfirm(fieldName) {
+  var el = document.getElementById('f_' + fieldName);
+  var customEl = document.getElementById('f_' + fieldName + '_custom');
+  if (!el || !customEl) return;
+  if (el.value !== '__new__') return;
+  var name = customEl.value.trim();
+  if (!name) return; // empty — keep visible, user still typing
+
   var entityType = 'company';
   if (fieldName === 'building' || fieldName === 'building_id') entityType = 'building';
   else if (fieldName === 'room' || fieldName === 'room_id') entityType = 'room';
 
-  var typeName = prompt('Введите название:');
-  if (!typeName || !typeName.trim()) { el.value = ''; return; }
-
-  // Create entity via API
   var typeObj = entityTypes.find(function(t) { return t.name === entityType; });
-  if (!typeObj) { alert('Тип сущности не найден: ' + entityType); el.value = ''; return; }
+  if (!typeObj) return;
 
   var props = {};
-  if (entityType === 'company' && (fieldName === 'our_legal_entity')) {
-    props.is_own = 'true';
-  }
+  if (entityType === 'company' && fieldName === 'our_legal_entity') props.is_own = 'true';
+
+  // Disable input while creating
+  customEl.disabled = true;
 
   api('/entities', {
     method: 'POST',
-    body: JSON.stringify({ entity_type_id: typeObj.id, name: typeName.trim(), properties: props })
+    body: JSON.stringify({ entity_type_id: typeObj.id, name: name, properties: props })
   }).then(function(newEntity) {
-    // Add to dropdown and select
     var opt = document.createElement('option');
     opt.value = newEntity.id;
-    opt.textContent = (typeObj.icon || '') + ' ' + typeName.trim();
+    opt.textContent = (typeObj.icon || '') + ' ' + name;
     opt.selected = true;
     var newOpt = el.querySelector('option[value="__new__"]');
     el.insertBefore(opt, newOpt);
+    el.value = String(newEntity.id);
+    customEl.style.display = 'none';
+    customEl.disabled = false;
     clearEntityCache();
-    // Update local lists
     if (entityType === 'company') {
       _allCompanies.push(newEntity);
       if (props.is_own === 'true') _ownCompanies.push(newEntity);
+    } else if (entityType === 'building') {
+      _buildings.push(newEntity);
+    } else if (entityType === 'room') {
+      _rooms.push(newEntity);
     }
   }).catch(function(err) {
-    alert('Ошибка создания: ' + (err.message || err));
+    alert('Ошибка: ' + (err.message || err));
     el.value = '';
+    customEl.style.display = 'none';
+    customEl.disabled = false;
   });
 }
 
