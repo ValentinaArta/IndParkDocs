@@ -170,6 +170,15 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
   const cleanProps = sanitizeObj(properties);
   const cleanName = xss(name);
 
+  // Duplicate check: same name + same type
+  const dupCheck = await pool.query(
+    'SELECT id, name FROM entities WHERE entity_type_id=$1 AND LOWER(name)=LOWER($2) AND deleted_at IS NULL',
+    [entity_type_id, cleanName]
+  );
+  if (dupCheck.rows.length > 0) {
+    return res.status(409).json({ error: 'duplicate', existing: dupCheck.rows[0], message: 'Запись с таким именем уже существует' });
+  }
+
   const { rows } = await pool.query(
     'INSERT INTO entities (entity_type_id, name, properties, parent_id) VALUES ($1,$2,$3,$4) RETURNING *',
     [entity_type_id, cleanName, cleanProps, parent_id || null]

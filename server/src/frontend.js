@@ -1116,9 +1116,12 @@ async function api(url, opts = {}) {
   }
   if (r.status === 401) { logout(); return {}; }
   if (!r.ok) {
-    const err = await r.json().catch(() => ({ error: 'Ошибка сервера' }));
-    alert(err.error || 'Ошибка');
-    throw new Error(err.error);
+    const errData = await r.json().catch(() => ({ error: 'Ошибка сервера' }));
+    const err = new Error(errData.error || 'Ошибка');
+    err.status = r.status;
+    err.data = errData;
+    if (r.status !== 409) alert(errData.error || 'Ошибка');
+    throw err;
   }
   return r.json();
 }
@@ -1788,20 +1791,25 @@ function _getPivotVal(props, field) {
   return '—';
 }
 
+var _pivotCellData = {}; // stored for drill-down clicks
+
 async function buildPivotTable() {
   var rowFields = _pivotRowFields;
   var colFields = _pivotColFields;
   if (rowFields.length === 0) { alert('Перетащите хотя бы одно поле в Строки'); return; }
 
   var entityType = document.getElementById('pivotEntityType').value;
+  var typeObj = entityTypes.find(function(t) { return t.name === entityType; });
+  var unitLabel = typeObj ? typeObj.name_ru : 'записей';
+
   var resultsEl = document.getElementById('pivotResults');
   resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Загрузка данных...</div>';
 
   var url = '/entities?limit=2000' + (entityType ? '&type=' + encodeURIComponent(entityType) : '');
   var entities = await api(url);
 
-  // Expand rent_objects for contracts
-  var rows = [];
+  // Expand rent_objects — keep original entity reference per row
+  var rows = []; // { props, entity }
   entities.forEach(function(e) {
     var props = Object.assign({}, e.properties || {});
     var ros = null;
@@ -1809,9 +1817,9 @@ async function buildPivotTable() {
       try { ros = typeof props.rent_objects === 'string' ? JSON.parse(props.rent_objects) : props.rent_objects; } catch(ex) {}
     }
     if (ros && Array.isArray(ros) && ros.length > 0) {
-      ros.forEach(function(ro) { rows.push(Object.assign({}, props, ro)); });
+      ros.forEach(function(ro) { rows.push({ props: Object.assign({}, props, ro), entity: e }); });
     } else {
-      rows.push(props);
+      rows.push({ props: props, entity: e });
     }
   });
 
@@ -1820,66 +1828,121 @@ async function buildPivotTable() {
     return;
   }
 
-  // Build unique row/col keys
-  var rowKeyMap = new Map(); // key → label (same here)
+  var rowKeyMap = new Map();
   var colKeyMap = new Map();
-  var cells = {}; // cells[rowKey][colKey] = count
+  var cells = {}; // cells[rk][ck] = [entity, ...]
 
-  rows.forEach(function(props) {
-    var rowKey = rowFields.map(function(f) { return _getPivotVal(props, f.name); }).join(' / ');
-    var colKey = colFields.length > 0 ? colFields.map(function(f) { return _getPivotVal(props, f.name); }).join(' / ') : '__total__';
-    rowKeyMap.set(rowKey, rowKey);
-    if (colFields.length > 0) colKeyMap.set(colKey, colKey);
-    if (!cells[rowKey]) cells[rowKey] = {};
-    cells[rowKey][colKey] = (cells[rowKey][colKey] || 0) + 1;
+  rows.forEach(function(row) {
+    var rk = rowFields.map(function(f) { return _getPivotVal(row.props, f.name); }).join(' / ');
+    var ck = colFields.length > 0 ? colFields.map(function(f) { return _getPivotVal(row.props, f.name); }).join(' / ') : '__total__';
+    rowKeyMap.set(rk, rk);
+    if (colFields.length > 0) colKeyMap.set(ck, ck);
+    if (!cells[rk]) cells[rk] = {};
+    if (!cells[rk][ck]) cells[rk][ck] = [];
+    // Avoid duplicate entities in same cell (from rent_objects expansion)
+    if (!cells[rk][ck].find(function(x) { return x.id === row.entity.id; })) {
+      cells[rk][ck].push(row.entity);
+    }
   });
 
   var sortedRows = Array.from(rowKeyMap.keys()).sort(function(a, b) { return a.localeCompare(b, 'ru'); });
   var sortedCols = colFields.length > 0 ? Array.from(colKeyMap.keys()).sort(function(a, b) { return a.localeCompare(b, 'ru'); }) : [];
 
+  // Store for drill-down
+  _pivotCellData = { rows: sortedRows, cols: sortedCols, cells: cells };
+
   var rowLabel = rowFields.map(function(f) { return f.label; }).join(' / ');
-  var colLabel = colFields.length > 0 ? colFields.map(function(f) { return f.label; }).join(' / ') : '';
+  var totalEntities = entities.length;
 
   var html = '<div class="detail-section" style="overflow-x:auto">';
-  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">' + rows.length + ' записей · ' + sortedRows.length + ' строк' + (sortedCols.length > 0 ? ' · ' + sortedCols.length + ' столбцов' : '') + '</div>';
+  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">' +
+    totalEntities + ' ' + unitLabel.toLowerCase() + ' · ' + sortedRows.length + ' строк' +
+    (sortedCols.length > 0 ? ' · ' + sortedCols.length + ' столбцов' : '') +
+    ' <span style="opacity:0.6">— нажмите на цифру чтобы увидеть список</span></div>';
   html += '<table class="pivot-table">';
 
-  // Header row
   html += '<thead><tr>';
   html += '<th>' + escapeHtml(rowLabel) + '</th>';
   sortedCols.forEach(function(ck) { html += '<th>' + escapeHtml(ck) + '</th>'; });
-  html += '<th>Итого</th>';
+  html += '<th>Итого, ' + escapeHtml(unitLabel.toLowerCase()) + '</th>';
   html += '</tr></thead>';
 
-  // Body
   var grandTotal = 0;
   var colTotals = {};
   html += '<tbody>';
-  sortedRows.forEach(function(rk) {
+  sortedRows.forEach(function(rk, ri) {
     var rowCells = cells[rk] || {};
-    var rowTotal = Object.values(rowCells).reduce(function(s, v) { return s + v; }, 0);
+    var rowTotal = Object.values(rowCells).reduce(function(s, arr) { return s + arr.length; }, 0);
     grandTotal += rowTotal;
     html += '<tr>';
     html += '<td><strong>' + escapeHtml(rk) + '</strong></td>';
     if (sortedCols.length > 0) {
-      sortedCols.forEach(function(ck) {
-        var v = rowCells[ck] || 0;
+      sortedCols.forEach(function(ck, ci) {
+        var arr = (rowCells[ck] || []);
+        var v = arr.length;
         colTotals[ck] = (colTotals[ck] || 0) + v;
-        html += v > 0 ? '<td class="cell-value">' + v + '</td>' : '<td class="cell-empty">—</td>';
+        html += v > 0
+          ? '<td class="cell-value" data-ri="' + ri + '" data-ci="' + ci + '" onclick="showPivotCellDetail(this)">' + v + '</td>'
+          : '<td class="cell-empty">—</td>';
       });
     }
-    html += '<td class="row-total">' + rowTotal + '</td>';
+    html += '<td class="row-total" data-ri="' + ri + '" data-ci="-1" onclick="showPivotCellDetail(this)" style="cursor:pointer">' + rowTotal + '</td>';
     html += '</tr>';
   });
   html += '</tbody>';
 
-  // Footer
   html += '<tfoot><tr><th>Итого</th>';
   sortedCols.forEach(function(ck) { html += '<th>' + (colTotals[ck] || 0) + '</th>'; });
   html += '<th>' + grandTotal + '</th></tr></tfoot>';
 
   html += '</table></div>';
+  html += '<div id="pivotDrillDown" style="margin-top:8px"></div>';
   resultsEl.innerHTML = html;
+}
+
+function showPivotCellDetail(el) {
+  var ri = parseInt(el.dataset.ri);
+  var ci = parseInt(el.dataset.ci);
+  var rk = _pivotCellData.rows[ri];
+  var allCols = _pivotCellData.cols;
+
+  var entityList = [];
+  if (ci === -1) {
+    // Row total: collect all entities in this row
+    var rowCells = _pivotCellData.cells[rk] || {};
+    Object.values(rowCells).forEach(function(arr) {
+      arr.forEach(function(e) { if (!entityList.find(function(x){ return x.id===e.id; })) entityList.push(e); });
+    });
+  } else {
+    var ck = allCols[ci];
+    entityList = (_pivotCellData.cells[rk] && _pivotCellData.cells[rk][ck]) ? _pivotCellData.cells[rk][ck] : [];
+    if (allCols.length === 0) {
+      // No columns, just row total
+      var rowCells2 = _pivotCellData.cells[rk] || {};
+      Object.values(rowCells2).forEach(function(arr) {
+        arr.forEach(function(e) { if (!entityList.find(function(x){return x.id===e.id;})) entityList.push(e); });
+      });
+    }
+  }
+
+  var colLabel = ci >= 0 && allCols[ci] ? ' · ' + escapeHtml(allCols[ci]) : '';
+  var html = '<div class="detail-section">';
+  html += '<h3>' + escapeHtml(rk) + colLabel + ' <span style="font-size:13px;font-weight:400;color:var(--text-muted)">(' + entityList.length + ')</span></h3>';
+  entityList.forEach(function(e) {
+    html += '<div class="child-card" onclick="showEntity(' + e.id + ')" style="cursor:pointer;padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;gap:8px">';
+    html += '<span>' + (e.icon || '📄') + '</span>';
+    html += '<span style="font-weight:500">' + escapeHtml(e.name) + '</span>';
+    var p = e.properties || {};
+    var tags = [];
+    if (p.contract_date) tags.push(p.contract_date);
+    if (p.contract_amount) tags.push(p.contract_amount + ' р.');
+    if (p.status) tags.push(p.status);
+    if (tags.length) html += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(tags.join(' · ')) + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  document.getElementById('pivotDrillDown').innerHTML = html;
+  document.getElementById('pivotDrillDown').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function runLinkedReport(type) {
@@ -2135,7 +2198,19 @@ async function _doSubmitCreate(typeName) {
   }
   if (!name) return alert('Введите название');
 
-  await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: type.id, name, properties, parent_id }) });
+  try {
+    await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: type.id, name, properties, parent_id }) });
+  } catch(err) {
+    if (err.status === 409 && err.data && err.data.existing) {
+      var ex = err.data.existing;
+      if (confirm('Уже существует: ' + ex.name + '. Открыть существующую?')) {
+        closeModal();
+        showEntity(ex.id);
+      }
+      return;
+    }
+    throw err;
+  }
   closeModal();
   showEntityList(typeName);
 }
