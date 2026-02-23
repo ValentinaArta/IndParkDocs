@@ -1127,12 +1127,27 @@ async function init() {
 
 function renderTypeNav() {
   const nav = document.getElementById('typeNav');
-  const visibleTypes = entityTypes.filter(t => t.name === 'contract' || t.name === 'supplement');
-  nav.innerHTML = visibleTypes.map(t =>
-    '<div class="nav-item" data-type="' + t.name + '" onclick="showEntityList(\\'' + t.name + '\\')">' +
-    '<span class="icon">' + t.icon + '</span> ' + t.name_ru +
-    '<span class="count" id="count_' + t.name + '">-</span></div>'
-  ).join('');
+  // Documents first, then the rest
+  const docTypes = entityTypes.filter(t => t.name === 'contract' || t.name === 'supplement');
+  const otherTypes = entityTypes.filter(t => t.name !== 'contract' && t.name !== 'supplement');
+
+  var html = '';
+  if (docTypes.length > 0) {
+    docTypes.forEach(function(t) {
+      html += '<div class="nav-item" data-type="' + t.name + '" onclick="showEntityList(\\'' + t.name + '\\')">' +
+        '<span class="icon">' + t.icon + '</span> ' + t.name_ru +
+        '<span class="count" id="count_' + t.name + '">-</span></div>';
+    });
+  }
+  if (otherTypes.length > 0) {
+    html += '<div class="nav-section" style="margin-top:8px">Реестры</div>';
+    otherTypes.forEach(function(t) {
+      html += '<div class="nav-item" data-type="' + t.name + '" onclick="showEntityList(\\'' + t.name + '\\')">' +
+        '<span class="icon">' + t.icon + '</span> ' + t.name_ru +
+        '<span class="count" id="count_' + t.name + '">-</span></div>';
+    });
+  }
+  nav.innerHTML = html;
 }
 
 function setActive(selector) {
