@@ -1426,7 +1426,7 @@ async function showReports() {
   var html = '<div style="max-width:900px;margin:0 auto">';
   html += '<div class="detail-section"><h3>Построить отчёт</h3>';
   html += '<div class="form-group"><label>Группировать по</label>';
-  html += '<select id="reportGroupBy" onchange="runReport()">';
+  html += '<select id="reportGroupBy" onchange="onGroupByChange()">';
   html += '<option value="">— выберите поле —</option>';
 
   // Prioritize useful fields
@@ -1459,6 +1459,24 @@ async function showReports() {
   html += '<div id="reportResults"></div>';
   html += '</div>';
   content.innerHTML = html;
+}
+
+// Which entity type owns each groupBy field (fields inside contract props/rent_objects)
+var _fieldEntityType = {
+  building: 'contract', room: 'contract', object_type: 'contract',
+  rent_scope: 'contract', contractor_name: 'contract', our_legal_entity: 'contract',
+  contract_type: 'contract', subtenant_name: 'contract', our_role_label: 'contract',
+  contractor_role_label: 'contract', tenant: 'contract', number: 'contract',
+  contract_date: 'contract',
+};
+
+function onGroupByChange() {
+  var groupBy = document.getElementById('reportGroupBy').value;
+  var filterTypeEl = document.getElementById('reportFilterType');
+  if (groupBy && _fieldEntityType[groupBy]) {
+    filterTypeEl.value = _fieldEntityType[groupBy];
+  }
+  runReport();
 }
 
 async function runReport() {
