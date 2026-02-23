@@ -43,6 +43,9 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     params.push('%' + search.replace(/[%_]/g, '\\$&') + '%');
     sql += ` AND (e.name ILIKE $${params.length})`;
   }
+  if (req.query.is_own === 'true') {
+    sql += ` AND (e.properties->>'is_own' = 'true')`;
+  }
   sql += ' ORDER BY e.name';
   params.push(safeLimit);
   sql += ` LIMIT $${params.length}`;
@@ -103,6 +106,52 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
   res.json({ ...entity, children, relations, parent, fields });
 }));
 
+// Auto-create relations from entity properties (contract → company, building, etc.)
+async function autoLinkEntities(entityId, entityTypeName, properties) {
+  if (!properties || (entityTypeName !== 'contract' && entityTypeName !== 'supplement')) return;
+
+  // Map: property name → { relation_type, entity_id_field }
+  const linkMap = [
+    { prop: 'our_legal_entity_id', relType: 'party_to' },
+    { prop: 'contractor_id', relType: 'party_to' },
+    { prop: 'subtenant_id', relType: 'party_to' },
+  ];
+
+  for (const link of linkMap) {
+    const targetId = parseInt(properties[link.prop]);
+    if (!targetId) continue;
+    // Upsert relation
+    await pool.query(
+      `INSERT INTO relations (from_entity_id, to_entity_id, relation_type)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (from_entity_id, to_entity_id, relation_type) DO NOTHING`,
+      [entityId, targetId, link.relType]
+    ).catch(() => {}); // Ignore if entity doesn't exist
+  }
+
+  // Link rent objects (buildings/rooms)
+  if (properties.rent_objects) {
+    let objs = [];
+    try { objs = typeof properties.rent_objects === 'string' ? JSON.parse(properties.rent_objects) : properties.rent_objects; } catch(e) {}
+    if (Array.isArray(objs)) {
+      for (const obj of objs) {
+        if (obj.building_id) {
+          await pool.query(
+            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+            [entityId, parseInt(obj.building_id), 'located_in']
+          ).catch(() => {});
+        }
+        if (obj.room_id) {
+          await pool.query(
+            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+            [entityId, parseInt(obj.room_id), 'located_in']
+          ).catch(() => {});
+        }
+      }
+    }
+  }
+}
+
 // POST /api/entities
 router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.entity), asyncHandler(async (req, res) => {
   const { entity_type_id, name, properties, parent_id } = req.body;
@@ -114,6 +163,11 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
     [entity_type_id, cleanName, cleanProps, parent_id || null]
   );
   await logAction(req.user.id, 'create', 'entity', rows[0].id, { name: cleanName, entity_type_id }, req.ip);
+
+  // Auto-link: get entity type name
+  const { rows: [typeInfo] } = await pool.query('SELECT name FROM entity_types WHERE id=$1', [entity_type_id]);
+  if (typeInfo) await autoLinkEntities(rows[0].id, typeInfo.name, cleanProps);
+
   res.status(201).json(rows[0]);
 }));
 
@@ -138,6 +192,19 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
   );
   if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
   await logAction(req.user.id, 'update', 'entity', id, { name: cleanName }, req.ip);
+
+  // Auto-link on update
+  if (cleanProps) {
+    const { rows: [typeInfo] } = await pool.query(
+      'SELECT et.name FROM entities e JOIN entity_types et ON e.entity_type_id=et.id WHERE e.id=$1', [id]
+    );
+    if (typeInfo) {
+      // Clear old auto-relations, then re-create
+      await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type IN ('party_to','located_in')", [id]);
+      await autoLinkEntities(id, typeInfo.name, cleanProps);
+    }
+  }
+
   res.json(rows[0]);
 }));
 

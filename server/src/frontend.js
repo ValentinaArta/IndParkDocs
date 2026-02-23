@@ -223,11 +223,70 @@ const CONTRACT_TYPE_FIELDS = {
 
 // Cache of all contract/supplement entities for extracting used values
 let _allContractEntities = [];
+var _entityCache = {};
 
 async function loadContractEntities() {
   const contracts = await api('/entities?type=contract');
   const supplements = await api('/entities?type=supplement');
   _allContractEntities = contracts.concat(supplements);
+}
+
+async function loadEntitiesByType(typeName, extraParams) {
+  var url = '/entities?type=' + encodeURIComponent(typeName) + '&limit=200';
+  if (extraParams) url += '&' + extraParams;
+  var key = url;
+  if (!_entityCache[key]) _entityCache[key] = await api(url);
+  return _entityCache[key];
+}
+
+function clearEntityCache() { _entityCache = {}; }
+
+function renderEntitySelect(id, entities, selectedId, selectedName, placeholder, onchangeAttr) {
+  var selId = parseInt(selectedId) || 0;
+  var h = '<div style="display:flex;gap:6px;align-items:center">';
+  h += '<select id="' + id + '"' + (onchangeAttr ? ' onchange="' + onchangeAttr + '"' : '') + ' style="flex:1">';
+  h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
+  entities.forEach(function(e) {
+    var sel = (e.id === selId) ? ' selected' : '';
+    h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
+  });
+  h += '<option value="__new__">➕ Создать новый...</option>';
+  h += '</select></div>';
+  return h;
+}
+
+function renderRoEntitySelect(index, fieldName, entities, selectedId, placeholder) {
+  var selId = parseInt(selectedId) || 0;
+  var entityType = fieldName.replace('_id', ''); // building_id → building
+  var h = '<select class="ro-field" data-idx="' + index + '" data-name="' + fieldName +
+    '" onchange="onRoEntityChange(this,' + index + ',&quot;' + entityType + '&quot;)" style="width:100%">';
+  h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
+  entities.forEach(function(e) {
+    var sel = (e.id === selId) ? ' selected' : '';
+    h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
+  });
+  h += '<option value="__new__">➕ Создать новый...</option>';
+  h += '</select>';
+  return h;
+}
+
+function onRoEntityChange(sel, index, entityType) {
+  if (sel.value !== '__new__') return;
+  var name = prompt('Название нового объекта (' + entityType + '):');
+  if (!name || !name.trim()) { sel.value = ''; return; }
+  var typeObj = entityTypes.find(function(t) { return t.name === entityType; });
+  if (!typeObj) { alert('Тип не найден: ' + entityType); sel.value = ''; return; }
+  api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: typeObj.id, name: name.trim(), properties: {} }) })
+    .then(function(newEnt) {
+      var opt = document.createElement('option');
+      opt.value = newEnt.id;
+      opt.textContent = (typeObj.icon || '') + ' ' + name.trim();
+      opt.selected = true;
+      sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+      clearEntityCache();
+      if (entityType === 'building') _buildings.push(newEnt);
+      else if (entityType === 'room') _rooms.push(newEnt);
+    }).catch(function(e) { alert('Ошибка: ' + e.message); sel.value = ''; });
 }
 
 function getUsedValues(fieldName) {
@@ -559,9 +618,11 @@ function renderRentObjectBlock(index, obj) {
 
   if (obj.object_type) {
     if (!isLand) {
-      // Building fields (select_or_custom)
-      h += renderRoSelectOrCustom(index, 'building', 'Корпус', obj.building || '', getUsedValues('building'));
-      h += renderRoSelectOrCustom(index, 'room', 'Помещение', obj.room || '', getUsedValues('room'));
+      // Building & room from real entities
+      h += '<div class="form-group"><label>Корпус</label>' + renderRoEntitySelect(index, 'building_id', _buildings, obj.building_id, 'выберите корпус') +
+        '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
+      h += '<div class="form-group"><label>Помещение</label>' + renderRoEntitySelect(index, 'room_id', _rooms, obj.room_id, 'выберите помещение') +
+        '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '"></div>';
       h += '<div class="form-group"><label>Часть/Целиком</label><select class="ro-field" data-idx="' + index + '" data-name="rent_scope">';
       h += '<option value="">—</option><option value="Целиком"' + (obj.rent_scope === 'Целиком' ? ' selected' : '') + '>Целиком</option>';
       h += '<option value="Часть"' + (obj.rent_scope === 'Часть' ? ' selected' : '') + '>Часть</option></select></div>';
@@ -635,24 +696,21 @@ function onRentObjectCalcChange(index) {
 
 function collectRentObjectData(index) {
   var obj = {};
-  var customFields = {};
   document.querySelectorAll('.ro-field[data-idx="' + index + '"]').forEach(function(el) {
     var name = el.getAttribute('data-name');
-    if (name.endsWith('_custom')) {
-      customFields[name.replace('_custom', '')] = el.value;
-    } else if (el.tagName === 'SELECT' && el.value === '__custom__') {
-      // Will use custom value
-    } else {
-      obj[name] = el.value;
-    }
+    if (!name) return;
+    if (el.tagName === 'SELECT' && el.value === '__new__') return;
+    obj[name] = el.value;
   });
-  // Apply custom values where select is __custom__
-  document.querySelectorAll('select.ro-field[data-idx="' + index + '"]').forEach(function(sel) {
-    var name = sel.getAttribute('data-name');
-    if (sel.value === '__custom__' && customFields[name]) {
-      obj[name] = customFields[name];
-    }
-  });
+  // Resolve entity names from IDs
+  if (obj.building_id) {
+    var b = _buildings.find(function(e) { return e.id === parseInt(obj.building_id); });
+    if (b) obj.building = b.name;
+  }
+  if (obj.room_id) {
+    var r = _rooms.find(function(e) { return e.id === parseInt(obj.room_id); });
+    if (r) obj.room = r.name;
+  }
   return obj;
 }
 
@@ -725,6 +783,70 @@ function updateVatDisplay() {
   }
 }
 
+function collectEntityIds(properties) {
+  // Map select element → id field + name field
+  var mappings = [
+    { selectId: 'f_our_legal_entity', idProp: 'our_legal_entity_id', nameProp: 'our_legal_entity', list: _ownCompanies },
+    { selectId: 'f_contractor_name', idProp: 'contractor_id', nameProp: 'contractor_name', list: _allCompanies },
+    { selectId: 'f_subtenant_name', idProp: 'subtenant_id', nameProp: 'subtenant_name', list: _allCompanies },
+  ];
+  mappings.forEach(function(m) {
+    var el = document.getElementById(m.selectId);
+    if (!el || !el.value || el.value === '__new__') return;
+    var entId = parseInt(el.value);
+    if (entId) {
+      properties[m.idProp] = entId;
+      var ent = m.list.find(function(e) { return e.id === entId; });
+      if (ent) properties[m.nameProp] = ent.name;
+    }
+  });
+}
+
+// ============ ENTITY SELECT HANDLERS ============
+
+function onEntitySelectChange(fieldName) {
+  var el = document.getElementById('f_' + fieldName);
+  if (!el || el.value !== '__new__') return;
+  // Determine entity type to create
+  var entityType = 'company';
+  if (fieldName === 'building' || fieldName === 'building_id') entityType = 'building';
+  else if (fieldName === 'room' || fieldName === 'room_id') entityType = 'room';
+
+  var typeName = prompt('Введите название:');
+  if (!typeName || !typeName.trim()) { el.value = ''; return; }
+
+  // Create entity via API
+  var typeObj = entityTypes.find(function(t) { return t.name === entityType; });
+  if (!typeObj) { alert('Тип сущности не найден: ' + entityType); el.value = ''; return; }
+
+  var props = {};
+  if (entityType === 'company' && (fieldName === 'our_legal_entity')) {
+    props.is_own = 'true';
+  }
+
+  api('/entities', {
+    method: 'POST',
+    body: JSON.stringify({ entity_type_id: typeObj.id, name: typeName.trim(), properties: props })
+  }).then(function(newEntity) {
+    // Add to dropdown and select
+    var opt = document.createElement('option');
+    opt.value = newEntity.id;
+    opt.textContent = (typeObj.icon || '') + ' ' + typeName.trim();
+    opt.selected = true;
+    var newOpt = el.querySelector('option[value="__new__"]');
+    el.insertBefore(opt, newOpt);
+    clearEntityCache();
+    // Update local lists
+    if (entityType === 'company') {
+      _allCompanies.push(newEntity);
+      if (props.is_own === 'true') _ownCompanies.push(newEntity);
+    }
+  }).catch(function(err) {
+    alert('Ошибка создания: ' + (err.message || err));
+    el.value = '';
+  });
+}
+
 // ============ CONTRACT PARTY ROLES ============
 
 var CONTRACT_ROLES = {
@@ -741,6 +863,18 @@ var CONTRACT_ROLES = {
 var _contractFormTypeName = '';
 var _contractFormFields = [];
 var _contractFormProps = {};
+
+var _ownCompanies = [];
+var _allCompanies = [];
+var _buildings = [];
+var _rooms = [];
+
+async function loadEntityLists() {
+  _ownCompanies = await loadEntitiesByType('company', 'is_own=true');
+  _allCompanies = await loadEntitiesByType('company');
+  _buildings = await loadEntitiesByType('building');
+  _rooms = await loadEntitiesByType('room');
+}
 
 function renderContractFormFields(fields, props, headerHtml) {
   _contractFormFields = fields;
@@ -774,24 +908,27 @@ function renderContractFormFields(fields, props, headerHtml) {
       return;
     }
 
-    // our_legal_entity — label from role
+    // our_legal_entity — entity selector from companies with is_own
     if (f.name === 'our_legal_entity') {
       var label = (props.our_role_label || roles.our);
-      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
+        renderEntitySelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, val, 'выберите', 'onEntitySelectChange(&quot;our_legal_entity&quot;)') + '</div>';
       return;
     }
 
-    // contractor_name — label from role
+    // contractor_name — entity selector from all companies
     if (f.name === 'contractor_name') {
       var label = (props.contractor_role_label || roles.contractor);
-      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
+        renderEntitySelect('f_contractor_name', _allCompanies, props.contractor_id, val, 'выберите', 'onEntitySelectChange(&quot;contractor_name&quot;)') + '</div>';
       return;
     }
 
-    // subtenant — only for Субаренды
+    // subtenant — entity selector, only for Субаренды
     if (f.name === 'subtenant_name') {
       var show = (contractType === 'Субаренды') || (roles.hasSubtenant);
-      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' + renderFieldInput(ef, val) + '</div>';
+      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
+        renderEntitySelect('f_subtenant_name', _allCompanies, props.subtenant_id, '', 'выберите', 'onEntitySelectChange(&quot;subtenant_name&quot;)') + '</div>';
       return;
     }
 
@@ -1395,9 +1532,11 @@ function closeModal() {
 
 async function openCreateModal(typeName) {
   _contractFormTypeName = typeName;
+  clearEntityCache();
   const type = entityTypes.find(t => t.name === typeName);
   const fields = await api('/entity-types/' + type.id + '/fields');
   const allEntities = await api('/entities');
+  await loadEntityLists();
   await loadContractEntities();
 
   const isContractLike = (typeName === 'contract' || typeName === 'supplement');
@@ -1454,6 +1593,11 @@ async function _doSubmitCreate(typeName) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
   }
 
+  // Collect entity IDs and names for linked fields
+  if (isContractLike) {
+    collectEntityIds(properties);
+  }
+
   // Auto-generate name for contracts
   let name = document.getElementById('f_name').value.trim();
   if (isContractLike) {
@@ -1469,10 +1613,12 @@ async function _doSubmitCreate(typeName) {
 }
 
 async function openEditModal(id) {
+  clearEntityCache();
   const e = await api('/entities/' + id);
   const fields = e.fields || [];
   const allEntities = await api('/entities');
   await loadContractEntities();
+  await loadEntityLists();
 
   const props = e.properties || {};
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
@@ -1509,13 +1655,16 @@ async function openEditModal(id) {
           '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" data-auto-set="true" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
       } else if (f.name === 'our_legal_entity') {
         var label = (props.our_role_label || roles.our);
-        editHtml += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+        editHtml += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
+          renderEntitySelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, val, 'выберите', 'onEntitySelectChange(&quot;our_legal_entity&quot;)') + '</div>';
       } else if (f.name === 'contractor_name') {
         var label = (props.contractor_role_label || roles.contractor);
-        editHtml += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+        editHtml += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
+          renderEntitySelect('f_contractor_name', _allCompanies, props.contractor_id, val, 'выберите', 'onEntitySelectChange(&quot;contractor_name&quot;)') + '</div>';
       } else if (f.name === 'subtenant_name') {
         var show = (contractType === 'Субаренды');
-        editHtml += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' + renderFieldInput(ef, val) + '</div>';
+        editHtml += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
+          renderEntitySelect('f_subtenant_name', _allCompanies, props.subtenant_id, val, 'выберите', 'onEntitySelectChange(&quot;subtenant_name&quot;)') + '</div>';
       } else {
         editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
       }
@@ -1580,6 +1729,11 @@ async function _doSubmitEdit(id) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
   }
 
+  // Collect entity IDs
+  if (isContractLike) {
+    collectEntityIds(properties);
+  }
+
   // Auto-generate name for contracts
   let name = document.getElementById('f_name').value.trim();
   if (isContractLike) {
@@ -1604,7 +1758,9 @@ async function deleteEntity(id) {
 
 async function openCreateSupplementModal(parentContractId) {
   _contractFormTypeName = 'supplement';
+  clearEntityCache();
   await loadContractEntities();
+  await loadEntityLists();
   const parentEntity = await api('/entities/' + parentContractId);
   const parentProps = parentEntity.properties || {};
   const suppType = entityTypes.find(t => t.name === 'supplement');
@@ -1633,13 +1789,16 @@ async function openCreateSupplementModal(parentContractId) {
         '<input id="f_contractor_role_label" value="' + escapeHtml(val || roles.contractor) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
     } else if (f.name === 'our_legal_entity') {
       var label = (parentProps.our_role_label || roles.our);
-      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
+        renderEntitySelect('f_our_legal_entity', _ownCompanies, parentProps.our_legal_entity_id, val, 'выберите', 'onEntitySelectChange(&quot;our_legal_entity&quot;)') + '</div>';
     } else if (f.name === 'contractor_name') {
       var label = (parentProps.contractor_role_label || roles.contractor);
-      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
+        renderEntitySelect('f_contractor_name', _allCompanies, parentProps.contractor_id, val, 'выберите', 'onEntitySelectChange(&quot;contractor_name&quot;)') + '</div>';
     } else if (f.name === 'subtenant_name') {
       var show = (contractType === 'Субаренды');
-      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' + renderFieldInput(ef, val) + '</div>';
+      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
+        renderEntitySelect('f_subtenant_name', _allCompanies, parentProps.subtenant_id, val, 'выберите', 'onEntitySelectChange(&quot;subtenant_name&quot;)') + '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
     }
