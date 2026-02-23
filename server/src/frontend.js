@@ -1888,17 +1888,24 @@ async function showEntity(id) {
 // ============ REPORTS ============
 
 var _reportFields = [];
+// Fields available for manual grouping (top-level context)
+// eq_category → eq_kind → eq_name are added automatically as drill-down path
 var AGG_HIERARCHY_FIELDS = [
-  { name: 'eq_balance_owner', label: 'Балансодержатель' },
-  { name: 'eq_building',      label: 'Корпус' },
-  { name: 'eq_category',      label: 'Категория оборудования' },
-  { name: 'eq_kind',          label: 'Вид оборудования' },
-  { name: 'eq_name',          label: 'Оборудование' },
   { name: 'contract_our_legal_entity', label: 'Наше юрлицо' },
+  { name: 'eq_balance_owner',          label: 'Балансодержатель' },
+  { name: 'eq_building',               label: 'Корпус' },
   { name: 'contract_contractor',       label: 'Контрагент' },
   { name: 'contract_type',             label: 'Тип договора' },
   { name: 'contract_year',             label: 'Год' },
 ];
+// Auto drill-down path appended after user grouping (always)
+var AGG_AUTO_DRILL = ['eq_category', 'eq_kind', 'eq_name'];
+// Full labels for all fields (used in tree rendering)
+var AGG_ALL_FIELDS = AGG_HIERARCHY_FIELDS.concat([
+  { name: 'eq_category', label: 'Категория оборудования' },
+  { name: 'eq_kind',     label: 'Вид оборудования' },
+  { name: 'eq_name',     label: 'Оборудование' },
+]);
 var AGG_CONTRACT_TYPES = ['Подряда','Аренды','Субаренды','Услуг','Купли-продажи'];
 var _aggHierarchy = []; // ordered list of field names
 
@@ -2078,7 +2085,7 @@ function renderAggHierarchyUI() {
     listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:6px">Добавьте поля из списка ниже</div>';
   } else {
     listEl.innerHTML = _aggHierarchy.map(function(name, i) {
-      var f = AGG_HIERARCHY_FIELDS.find(function(x) { return x.name === name; });
+      var f = AGG_ALL_FIELDS.find(function(x) { return x.name === name; });
       var label = f ? f.label : name;
       var isFirst = (i === 0), isLast = (i === _aggHierarchy.length - 1);
       return '<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">' +
@@ -2127,7 +2134,12 @@ async function buildAggregateReport() {
     return;
   }
   var metricLabel = (metric === 'rent_monthly') ? 'Аренда в мес.' : 'Сумма договора';
-  resultsEl.innerHTML = renderAggTree(data, _aggHierarchy, metric, metricLabel);
+  // Auto-extend hierarchy: [user grouping] → Категория → Вид → Оборудование → Договор
+  var autoHierarchy = _aggHierarchy.slice();
+  AGG_AUTO_DRILL.forEach(function(f) {
+    if (autoHierarchy.indexOf(f) < 0) autoHierarchy.push(f);
+  });
+  resultsEl.innerHTML = renderAggTree(data, autoHierarchy, metric, metricLabel);
 }
 
 function renderAggTree(rows, hierarchy, metric, metricLabel) {
@@ -2156,7 +2168,7 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
       node.children.forEach(function(child) {
         var id = 'agg_' + (++_uid);
         var field = hierarchy[depth];
-        var fDef = AGG_HIERARCHY_FIELDS.find(function(x) { return x.name === field; });
+        var fDef = AGG_ALL_FIELDS.find(function(x) { return x.name === field; });
         var fLabel = fDef ? fDef.label : field;
         h += '<div style="margin-left:' + (depth * 18) + 'px">';
         h += '<div class="agg-tree-row" data-target="' + id + '" onclick="aggToggle(this.dataset.target)">';
