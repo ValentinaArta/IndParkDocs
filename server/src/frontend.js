@@ -116,6 +116,11 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .pivot-type-btn { background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
 .pivot-type-btn:hover { border-color: var(--accent); color: var(--accent); }
 .pivot-type-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+.agg-tree-row { display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:4px; }
+.agg-tree-row:hover { background:var(--bg-hover); }
+.agg-tree-leaf { display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;color:var(--text-secondary);font-size:13px; }
+.agg-tree-leaf:hover { background:var(--bg-hover);border-radius:4px; }
+.agg-total { color:var(--accent);font-weight:600;white-space:nowrap; }
 .pivot-chip-remove:hover { opacity: 1; }
 .pivot-zone-hint { color: var(--text-muted); font-size: 12px; padding: 4px; width: 100%; text-align: center; }
 .pivot-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
@@ -1628,6 +1633,20 @@ async function showEntity(id) {
 // ============ REPORTS ============
 
 var _reportFields = [];
+var AGG_HIERARCHY_FIELDS = [
+  { name: 'eq_balance_owner', label: 'Балансодержатель' },
+  { name: 'eq_building',      label: 'Корпус' },
+  { name: 'eq_category',      label: 'Категория оборудования' },
+  { name: 'eq_kind',          label: 'Вид оборудования' },
+  { name: 'eq_name',          label: 'Оборудование' },
+  { name: 'contract_our_legal_entity', label: 'Наше юрлицо' },
+  { name: 'contract_contractor',       label: 'Контрагент' },
+  { name: 'contract_type',             label: 'Тип договора' },
+  { name: 'contract_year',             label: 'Год' },
+];
+var AGG_CONTRACT_TYPES = ['Подряда','Аренды','Субаренды','Услуг','Купли-продажи'];
+var _aggHierarchy = []; // ordered list of field names
+
 var _pivotRowFields = [];
 var _pivotColFields = [];
 var _pivotDragField = null;
@@ -1655,7 +1674,8 @@ async function showReports() {
   // Tabs
   html += '<div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border)">';
   html += '<button id="tabPivot" class="btn" data-tab="pivot" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Сводная таблица</button>';
-  html += '<button id="tabLinked" class="btn btn-primary" data-tab="linked" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">По связям</button>';
+  html += '<button id="tabLinked" class="btn" data-tab="linked" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">По связям</button>';
+  html += '<button id="tabAgg" class="btn btn-primary" data-tab="agg" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Анализ затрат</button>';
   html += '</div>';
 
   // Pivot section (drag-and-drop)
@@ -1709,20 +1729,221 @@ async function showReports() {
   html += '<div id="linkedResults"></div>';
   html += '</div>';
 
+  // Aggregate report section
+  _aggHierarchy = [];
+  html += '<div id="sectionAgg" style="display:none">';
+  html += '<div class="detail-section"><h3>Анализ затрат по оборудованию</h3>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px">';
+
+  // Left: filters
+  html += '<div>';
+  html += '<div class="form-group"><label>Типы договоров *</label><div id="aggTypeFilter" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">';
+  AGG_CONTRACT_TYPES.forEach(function(t) {
+    html += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:normal">';
+    html += '<input type="checkbox" class="agg-type-cb" value="' + t + '"> ' + t;
+    html += '</label>';
+  });
+  html += '</div></div>';
+  html += '<div class="form-group"><label>Период</label>';
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">от&nbsp;<input type="date" id="aggDateFrom" style="flex:1;min-width:120px">&nbsp;до&nbsp;<input type="date" id="aggDateTo" style="flex:1;min-width:120px"></div></div>';
+  html += '<div class="form-group"><label>Контрагент</label><select id="aggContractor" style="width:100%"><option value="">— Все —</option>';
+  _allCompanies.forEach(function(c) { html += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
+  html += '</select></div>';
+  html += '<div class="form-group"><label>Суммировать</label><select id="aggMetric" style="width:100%">';
+  html += '<option value="contract_amount">Сумма договора</option>';
+  html += '<option value="rent_monthly">Аренда в месяц</option>';
+  html += '</select></div>';
+  html += '</div>';
+
+  // Right: hierarchy builder
+  html += '<div>';
+  html += '<div class="form-group"><label>Группировка строк</label>';
+  html += '<div id="aggHierarchyList" style="min-height:50px;border:2px dashed var(--border);border-radius:6px;padding:8px;background:var(--bg-secondary);margin-bottom:8px">';
+  html += '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:6px">Добавьте поля из списка ниже</div>';
+  html += '</div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Доступные поля (нажмите чтобы добавить):</div>';
+  html += '<div id="aggFieldPool" style="display:flex;flex-wrap:wrap;gap:6px">';
+  AGG_HIERARCHY_FIELDS.forEach(function(f) {
+    html += '<button type="button" class="btn btn-sm agg-pool-btn" data-name="' + f.name + '" onclick="aggAddField(this.dataset.name)" style="font-size:11px">' + escapeHtml(f.label) + ' +</button>';
+  });
+  html += '</div></div>';
+  html += '</div>';
+
+  html += '</div>'; // end grid
+  html += '<button class="btn btn-primary" onclick="buildAggregateReport()">Построить отчёт</button>';
+  html += '</div>'; // end detail-section
+  html += '<div id="aggResults"></div>';
+  html += '</div>'; // end sectionAgg
+
   html += '</div>';
   content.innerHTML = html;
-  switchReportTab('pivot');
+  switchReportTab('agg');
   updatePivotFieldPool(); // fill pool for default entity type
 }
 
 function switchReportTab(tab) {
-  var isPivot = (tab === 'pivot');
-  document.getElementById('sectionPivot').style.display = isPivot ? '' : 'none';
-  document.getElementById('sectionLinked').style.display = isPivot ? 'none' : '';
-  document.getElementById('tabPivot').className = isPivot ? 'btn btn-primary' : 'btn';
-  document.getElementById('tabLinked').className = isPivot ? 'btn' : 'btn btn-primary';
-  document.getElementById('tabPivot').style.cssText = 'border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px';
-  document.getElementById('tabLinked').style.cssText = 'border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px';
+  var tabs = ['pivot','linked','agg'];
+  tabs.forEach(function(t) {
+    var btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+    var sec = document.getElementById('section' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) { btn.className = (t === tab) ? 'btn btn-primary' : 'btn'; btn.style.cssText = 'border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px'; }
+    if (sec) sec.style.display = (t === tab) ? '' : 'none';
+  });
+}
+
+// ============ AGGREGATE REPORT ============
+
+function aggAddField(name) {
+  if (_aggHierarchy.indexOf(name) >= 0) return;
+  _aggHierarchy.push(name);
+  renderAggHierarchyUI();
+}
+
+function aggRemoveField(name) {
+  _aggHierarchy = _aggHierarchy.filter(function(n) { return n !== name; });
+  renderAggHierarchyUI();
+}
+
+function aggMoveField(name, dir) {
+  var idx = _aggHierarchy.indexOf(name);
+  if (idx < 0) return;
+  var newIdx = idx + (dir === 'up' ? -1 : 1);
+  if (newIdx < 0 || newIdx >= _aggHierarchy.length) return;
+  _aggHierarchy.splice(idx, 1);
+  _aggHierarchy.splice(newIdx, 0, name);
+  renderAggHierarchyUI();
+}
+
+function renderAggHierarchyUI() {
+  var listEl = document.getElementById('aggHierarchyList');
+  var poolEl = document.getElementById('aggFieldPool');
+  if (!listEl || !poolEl) return;
+
+  if (_aggHierarchy.length === 0) {
+    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:6px">Добавьте поля из списка ниже</div>';
+  } else {
+    listEl.innerHTML = _aggHierarchy.map(function(name, i) {
+      var f = AGG_HIERARCHY_FIELDS.find(function(x) { return x.name === name; });
+      var label = f ? f.label : name;
+      var isFirst = (i === 0), isLast = (i === _aggHierarchy.length - 1);
+      return '<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">' +
+        '<span style="color:var(--text-muted);font-size:11px;width:18px;text-align:right">' + (i+1) + '.</span>' +
+        '<span style="flex:1;padding:4px 10px;background:var(--bg-hover);border-radius:4px;font-size:13px">' + escapeHtml(label) + '</span>' +
+        '<button type="button" class="btn btn-sm" style="padding:2px 7px" data-name="' + name + '" data-dir="up" onclick="aggMoveField(this.dataset.name,this.dataset.dir)"' + (isFirst?' disabled':'') + '>↑</button>' +
+        '<button type="button" class="btn btn-sm" style="padding:2px 7px" data-name="' + name + '" data-dir="down" onclick="aggMoveField(this.dataset.name,this.dataset.dir)"' + (isLast?' disabled':'') + '>↓</button>' +
+        '<button type="button" class="btn btn-sm" style="padding:2px 7px;color:var(--danger)" data-name="' + name + '" onclick="aggRemoveField(this.dataset.name)">×</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  poolEl.innerHTML = AGG_HIERARCHY_FIELDS.filter(function(f) {
+    return _aggHierarchy.indexOf(f.name) < 0;
+  }).map(function(f) {
+    return '<button type="button" class="btn btn-sm agg-pool-btn" data-name="' + f.name + '" onclick="aggAddField(this.dataset.name)" style="font-size:11px">' + escapeHtml(f.label) + ' +</button>';
+  }).join(' ');
+}
+
+async function buildAggregateReport() {
+  if (_aggHierarchy.length === 0) { alert('Добавьте хотя бы одно поле в группировку'); return; }
+  var types = Array.from(document.querySelectorAll('.agg-type-cb:checked')).map(function(cb) { return cb.value; });
+  if (types.length === 0) { alert('Выберите хотя бы один тип договора'); return; }
+
+  var metric      = document.getElementById('aggMetric').value;
+  var dateFrom    = document.getElementById('aggDateFrom').value;
+  var dateTo      = document.getElementById('aggDateTo').value;
+  var contractorId = document.getElementById('aggContractor').value;
+
+  var p = new URLSearchParams();
+  p.set('contract_types', types.join('|'));
+  p.set('metric', metric);
+  if (dateFrom) p.set('date_from', dateFrom);
+  if (dateTo)   p.set('date_to', dateTo);
+  if (contractorId) p.set('contractor_id', contractorId);
+
+  var resultsEl = document.getElementById('aggResults');
+  resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Загрузка...</div>';
+
+  var data;
+  try { data = await api('/reports/aggregate?' + p.toString()); }
+  catch(e) { resultsEl.innerHTML = '<div style="color:var(--danger);padding:12px">Ошибка: ' + escapeHtml(String(e.message || e)) + '</div>'; return; }
+
+  if (!data.length) {
+    resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Нет данных по выбранным параметрам</div>';
+    return;
+  }
+  var metricLabel = (metric === 'rent_monthly') ? 'Аренда в мес.' : 'Сумма договора';
+  resultsEl.innerHTML = renderAggTree(data, _aggHierarchy, metric, metricLabel);
+}
+
+function renderAggTree(rows, hierarchy, metric, metricLabel) {
+  // Build nested tree from flat rows
+  function buildLevel(data, depth) {
+    var total = data.reduce(function(s, r) { return s + (r[metric] || 0); }, 0);
+    if (depth >= hierarchy.length) return { contracts: data, total: total };
+    var field = hierarchy[depth];
+    var order = [], map = {};
+    data.forEach(function(r) {
+      var val = (r[field] || '—');
+      if (!map[val]) { map[val] = []; order.push(val); }
+      map[val].push(r);
+    });
+    order.sort(function(a,b) { return String(a).localeCompare(String(b),'ru'); });
+    var children = order.map(function(key) { return Object.assign({ key: key }, buildLevel(map[key], depth + 1)); });
+    return { children: children, total: total };
+  }
+
+  var tree = buildLevel(rows, 0);
+  var _uid = 0;
+
+  function renderNode(node, depth) {
+    var h = '';
+    if (node.children) {
+      node.children.forEach(function(child) {
+        var id = 'agg_' + (++_uid);
+        var field = hierarchy[depth];
+        var fDef = AGG_HIERARCHY_FIELDS.find(function(x) { return x.name === field; });
+        var fLabel = fDef ? fDef.label : field;
+        h += '<div style="margin-left:' + (depth * 18) + 'px">';
+        h += '<div class="agg-tree-row" data-target="' + id + '" onclick="aggToggle(this.dataset.target)">';
+        h += '<span id="' + id + '_ico" style="font-size:10px;color:var(--text-muted);width:12px">▶</span>';
+        h += '<span style="font-size:11px;color:var(--text-muted);min-width:130px">' + escapeHtml(fLabel) + '</span>';
+        h += '<span style="flex:1;font-weight:' + (depth < 2 ? '600' : '400') + '">' + escapeHtml(String(child.key)) + '</span>';
+        h += '<span class="agg-total">' + _fmtNum(child.total) + ' ₽</span>';
+        h += '</div>';
+        h += '<div id="' + id + '" style="display:none">' + renderNode(child, depth + 1) + '</div>';
+        h += '</div>';
+      });
+    }
+    if (node.contracts) {
+      node.contracts.forEach(function(r) {
+        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px" onclick="showEntity(' + r.contract_id + ')">';
+        h += '<span>📄</span>';
+        h += '<span style="flex:1">' + escapeHtml(r.contract_name) + '</span>';
+        if (r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + r.contract_date + '</span>';
+        h += '<span class="agg-total">' + _fmtNum(r[metric]) + ' ₽</span>';
+        h += '</div>';
+      });
+    }
+    return h;
+  }
+
+  var totalFmt = _fmtNum(tree.total);
+  var h = '<div class="detail-section" style="margin-top:16px">';
+  h += '<div style="display:flex;justify-content:space-between;margin-bottom:12px;font-weight:600">';
+  h += '<span>' + rows.length + ' связей</span><span>' + escapeHtml(metricLabel) + ': ' + totalFmt + ' ₽</span>';
+  h += '</div>';
+  h += renderNode(tree, 0);
+  h += '</div>';
+  return h;
+}
+
+function aggToggle(id) {
+  var el = document.getElementById(id);
+  var ico = document.getElementById(id + '_ico');
+  if (!el) return;
+  var open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  if (ico) ico.textContent = open ? '▶' : '▼';
 }
 
 // ============ PIVOT TABLE (drag-and-drop) ============

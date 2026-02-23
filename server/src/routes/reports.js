@@ -204,4 +204,63 @@ router.get('/linked', authenticate, asyncHandler(async (req, res) => {
   res.status(400).json({ error: 'Unknown report type. Use: equipment_by_location, equipment_by_tenant' });
 }));
 
+// GET /api/reports/aggregate — equipment costs/income grouped by linked contracts
+// Params: contract_types (pipe-separated), metric, date_from, date_to, contractor_id
+router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
+  const { contract_types, metric, date_from, date_to, contractor_id } = req.query;
+  const types = contract_types ? contract_types.split('|').filter(Boolean) : [];
+  if (types.length === 0) return res.status(400).json({ error: 'Укажите тип договора' });
+
+  const params = [types];
+  let extra = '';
+
+  if (date_from) { params.push(date_from); extra += ` AND (c.properties->>'contract_date') >= $${params.length}`; }
+  if (date_to)   { params.push(date_to);   extra += ` AND (c.properties->>'contract_date') <= $${params.length}`; }
+  if (contractor_id) {
+    params.push(parseInt(contractor_id));
+    extra += ` AND (c.properties->>'contractor_id')::int = $${params.length}`;
+  }
+
+  const sql = `
+    SELECT
+      e.id AS eq_id, e.name AS eq_name, e.properties AS eq_props,
+      par.id AS building_id, par.name AS building_name,
+      c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props
+    FROM entities e
+    JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
+    JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
+    JOIN entities c ON c.id = r.to_entity_id AND c.deleted_at IS NULL
+    JOIN entity_types et_c ON c.entity_type_id = et_c.id AND et_c.name = 'contract'
+    LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
+    WHERE e.deleted_at IS NULL
+      AND c.properties->>'contract_type' = ANY($1)
+      ${extra}
+    ORDER BY e.name, c.id
+  `;
+
+  const { rows } = await pool.query(sql, params);
+  res.json(rows.map(r => {
+    const ep = r.eq_props || {};
+    const cp = r.contract_props || {};
+    return {
+      eq_id: r.eq_id,
+      eq_name: r.eq_name,
+      eq_building: r.building_name || '—',
+      eq_category: ep.equipment_category || '',
+      eq_kind: ep.equipment_kind || '',
+      eq_balance_owner: ep.balance_owner_name || '',
+      eq_status: ep.status || '',
+      contract_id: r.contract_id,
+      contract_name: r.contract_name,
+      contract_our_legal_entity: cp.our_legal_entity || '',
+      contract_contractor: cp.contractor_name || '',
+      contract_type: cp.contract_type || '',
+      contract_date: cp.contract_date || '',
+      contract_year: (cp.contract_date || '').substring(0, 4),
+      contract_amount: parseFloat(cp.contract_amount) || 0,
+      rent_monthly: parseFloat(cp.rent_monthly) || 0,
+    };
+  }));
+}));
+
 module.exports = router;
