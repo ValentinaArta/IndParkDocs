@@ -418,6 +418,12 @@ function _renderEqListItem(item, rowId) {
   h += '<option value="__custom__">Другое...</option></select>';
   h += '<input class="eq-create-cat-custom" data-row="' + rowId + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
   h += '<div class="form-group"><label>Вид оборудования</label><input class="eq-create-kind" data-row="' + rowId + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
+  h += '<div class="form-group"><label>Корпус</label><select class="eq-create-building" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
+  _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
+  h += '</select></div>';
+  h += '<div class="form-group"><label>Балансодержатель</label><select class="eq-create-owner" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
+  _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
+  h += '</select></div>';
   h += '<div style="display:flex;gap:8px;margin-top:4px">';
   h += '<button type="button" class="btn btn-primary btn-sm" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateSubmit(this)">Создать и выбрать</button>';
   h += '<button type="button" class="btn btn-sm" data-row="' + rowId + '" onclick="eqListCreateShow(this)">Отмена</button>';
@@ -472,7 +478,26 @@ function onEqCatChange(sel) {
 function eqListCreateShow(btn) {
   var rowId = btn.getAttribute('data-row');
   var panel = document.getElementById('eq_create_' + rowId);
-  if (panel) panel.style.display = (panel.style.display === 'none' ? 'block' : 'none');
+  if (!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // Auto-fill building from contract form (select_or_custom field)
+    var buildingSel = panel.querySelector('.eq-create-building');
+    if (buildingSel && !buildingSel.value) {
+      var fBuilding = document.getElementById('f_building');
+      if (fBuilding && fBuilding.value && fBuilding.value !== '__custom__') {
+        var matchB = _buildings.find(function(b) { return b.name.toLowerCase() === fBuilding.value.toLowerCase(); });
+        if (matchB) buildingSel.value = String(matchB.id);
+      }
+    }
+    // Auto-fill balance owner from contract's our_legal_entity_id
+    var ownerSel = panel.querySelector('.eq-create-owner');
+    if (ownerSel && !ownerSel.value) {
+      var ownerId = _contractFormProps && _contractFormProps.our_legal_entity_id;
+      if (ownerId) ownerSel.value = String(ownerId);
+    }
+  }
 }
 
 async function eqListCreateSubmit(btn) {
@@ -492,6 +517,13 @@ async function eqListCreateSubmit(btn) {
     }
   }
   if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
+  var buildingEl = document.querySelector('.eq-create-building[data-row="' + rowId + '"]');
+  var ownerEl = document.querySelector('.eq-create-owner[data-row="' + rowId + '"]');
+  var parentId = buildingEl && buildingEl.value ? parseInt(buildingEl.value) : null;
+  if (ownerEl && ownerEl.value) {
+    var ownerEnt = _ownCompanies.find(function(c) { return c.id === parseInt(ownerEl.value); });
+    if (ownerEnt) { props.balance_owner_id = ownerEnt.id; props.balance_owner_name = ownerEnt.name; }
+  }
   function selectNewEq(ent) {
     if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
     var item = btn.closest('.eq-list-item');
@@ -505,8 +537,10 @@ async function eqListCreateSubmit(btn) {
     var panel = document.getElementById('eq_create_' + rowId);
     if (panel) panel.style.display = 'none';
   }
+  var body = { entity_type_id: eqTypeId, name: nameEl.value.trim(), properties: props };
+  if (parentId) body.parent_id = parentId;
   try {
-    var newEq = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: eqTypeId, name: nameEl.value.trim(), properties: props }) });
+    var newEq = await api('/entities', { method: 'POST', body: JSON.stringify(body) });
     selectNewEq(newEq);
   } catch(err) {
     if (err.status === 409 && err.data && err.data.existing) {
@@ -832,6 +866,9 @@ function renderRentObjectBlock(index, obj) {
       h += '<option value="__custom__">Другое...</option></select>';
       h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
       h += '<div class="form-group"><label>Вид</label><input class="ro-eq-kind" data-idx="' + index + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
+      h += '<div class="form-group"><label>Балансодержатель</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
+      _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
+      h += '</select></div>';
       h += '<div style="display:flex;gap:8px">';
       h += '<button type="button" class="btn btn-primary btn-sm" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="submitRentEquipmentCreate(this)">Создать и выбрать</button>';
       h += '<button type="button" class="btn btn-sm" data-idx="' + index + '" onclick="toggleRentEquipmentCreate(this)">Отмена</button>';
@@ -916,7 +953,17 @@ function onRentObjectCalcChange(index) {
 function toggleRentEquipmentCreate(el) {
   var idx = el.getAttribute('data-idx');
   var panel = document.getElementById('ro_eq_create_' + idx);
-  if (panel) panel.style.display = (panel.style.display === 'none' ? 'block' : 'none');
+  if (!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // Auto-fill balance owner from contract's our_legal_entity_id
+    var ownerSel = panel.querySelector('.ro-eq-owner');
+    if (ownerSel && !ownerSel.value) {
+      var ownerId = _contractFormProps && _contractFormProps.our_legal_entity_id;
+      if (ownerId) ownerSel.value = String(ownerId);
+    }
+  }
 }
 
 async function submitRentEquipmentCreate(el) {
@@ -936,6 +983,14 @@ async function submitRentEquipmentCreate(el) {
     }
   }
   if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
+  var ownerElR = document.querySelector('.ro-eq-owner[data-idx="' + idx + '"]');
+  if (ownerElR && ownerElR.value) {
+    var ownerEntR = _ownCompanies.find(function(c) { return c.id === parseInt(ownerElR.value); });
+    if (ownerEntR) { props.balance_owner_id = ownerEntR.id; props.balance_owner_name = ownerEntR.name; }
+  }
+  // Use rent object's building as parent_id for the new equipment entity
+  var buildingIdElR = document.querySelector('.ro-field[data-idx="' + idx + '"][data-name="building_id"]');
+  var parentIdR = buildingIdElR && buildingIdElR.value ? parseInt(buildingIdElR.value) : null;
   function selectEquipment(ent) {
     if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
     var sel = document.querySelector('.ro-field[data-idx="' + idx + '"][data-name="equipment_id"]');
@@ -952,7 +1007,9 @@ async function submitRentEquipmentCreate(el) {
     if (panel) panel.style.display = 'none';
   }
   try {
-    var newEq = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: eqTypeId, name: nameEl.value.trim(), properties: props }) });
+    var bodyR = { entity_type_id: eqTypeId, name: nameEl.value.trim(), properties: props };
+    if (parentIdR) bodyR.parent_id = parentIdR;
+    var newEq = await api('/entities', { method: 'POST', body: JSON.stringify(bodyR) });
     selectEquipment(newEq);
   } catch(err) {
     if (err.status === 409 && err.data && err.data.existing) {
