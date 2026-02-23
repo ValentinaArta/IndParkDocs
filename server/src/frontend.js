@@ -393,20 +393,44 @@ function collectAdvances() {
   return result;
 }
 
+var _eqListRowCounter = 0;
+
+function _renderEqListItem(item, rowId) {
+  var eqTypeObj = entityTypes ? entityTypes.find(function(t) { return t.name === 'equipment'; }) : null;
+  var eqTypeId = eqTypeObj ? eqTypeObj.id : '';
+  var h = '<div class="eq-list-item" data-row="' + rowId + '">';
+  h += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">';
+  h += '<select class="eq-list-sel" style="flex:1"><option value="">— выберите из реестра —</option>';
+  _equipment.forEach(function(e) {
+    var sel = (e.id === parseInt(item.equipment_id)) ? ' selected' : '';
+    h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
+  });
+  h += '</select>';
+  h += '<button type="button" class="btn btn-sm" style="font-size:11px;white-space:nowrap" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateShow(this)">+ Создать</button>';
+  h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
+  h += '</div>';
+  // Inline create panel (hidden)
+  h += '<div class="eq-list-create-panel" id="eq_create_' + rowId + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новое оборудование</div>';
+  h += '<div class="form-group"><label>Название *</label><input class="eq-create-name" data-row="' + rowId + '" placeholder="Введите название" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Категория</label><select class="eq-create-cat" data-row="' + rowId + '"><option value="">—</option>';
+  EQUIPMENT_CATEGORIES.forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+  h += '</select></div>';
+  h += '<div class="form-group"><label>Вид оборудования</label><input class="eq-create-kind" data-row="' + rowId + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
+  h += '<div style="display:flex;gap:8px;margin-top:4px">';
+  h += '<button type="button" class="btn btn-primary btn-sm" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateSubmit(this)">Создать и выбрать</button>';
+  h += '<button type="button" class="btn btn-sm" data-row="' + rowId + '" onclick="eqListCreateShow(this)">Отмена</button>';
+  h += '</div>';
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
 function renderEquipmentListField(items) {
   if (!Array.isArray(items) || items.length === 0) items = [{ equipment_id: '', equipment_name: '' }];
+  _eqListRowCounter = items.length;
   var h = '<div id="f_equipment_list">';
-  items.forEach(function(item) {
-    h += '<div class="eq-list-item" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
-    h += '<select class="eq-list-sel" style="flex:1"><option value="">— выберите оборудование —</option>';
-    _equipment.forEach(function(e) {
-      var sel = (e.id === parseInt(item.equipment_id)) ? ' selected' : '';
-      h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
-    });
-    h += '</select>';
-    h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
-    h += '</div>';
-  });
+  items.forEach(function(item, i) { h += _renderEqListItem(item, i); });
   h += '<button type="button" class="btn btn-sm" style="margin-top:4px" onclick="eqListAdd()">+ Добавить оборудование</button>';
   h += '</div>';
   return h;
@@ -415,28 +439,69 @@ function renderEquipmentListField(items) {
 function eqListAdd() {
   var container = document.getElementById('f_equipment_list');
   if (!container) return;
+  var rowId = _eqListRowCounter++;
   var div = document.createElement('div');
-  div.className = 'eq-list-item';
-  div.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
-  var h = '<select class="eq-list-sel" style="flex:1"><option value="">— выберите оборудование —</option>';
-  _equipment.forEach(function(e) { h += '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>'; });
-  h += '</select>';
-  h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
-  div.innerHTML = h;
+  div.innerHTML = _renderEqListItem({ equipment_id: '', equipment_name: '' }, rowId);
   var addBtn = container.querySelector('button:last-child');
-  container.insertBefore(div, addBtn);
+  container.insertBefore(div.firstChild, addBtn);
 }
 
 function eqListRemove(btn) {
   var container = document.getElementById('f_equipment_list');
   if (!container) return;
+  var item = btn.closest('.eq-list-item');
   var items = container.querySelectorAll('.eq-list-item');
   if (items.length <= 1) {
-    var sel = btn.parentElement.querySelector('select');
+    var sel = item ? item.querySelector('select') : null;
     if (sel) sel.value = '';
+    var panel = item ? item.querySelector('.eq-list-create-panel') : null;
+    if (panel) panel.style.display = 'none';
     return;
   }
-  btn.parentElement.remove();
+  if (item) item.remove();
+}
+
+function eqListCreateShow(btn) {
+  var rowId = btn.getAttribute('data-row');
+  var panel = document.getElementById('eq_create_' + rowId);
+  if (panel) panel.style.display = (panel.style.display === 'none' ? 'block' : 'none');
+}
+
+async function eqListCreateSubmit(btn) {
+  var rowId = btn.getAttribute('data-row');
+  var eqTypeId = parseInt(btn.getAttribute('data-eqtype'));
+  var nameEl = document.querySelector('.eq-create-name[data-row="' + rowId + '"]');
+  var catEl  = document.querySelector('.eq-create-cat[data-row="' + rowId + '"]');
+  var kindEl = document.querySelector('.eq-create-kind[data-row="' + rowId + '"]');
+  if (!nameEl || !nameEl.value.trim()) { alert('Введите название оборудования'); return; }
+  var props = {};
+  if (catEl  && catEl.value)  props.equipment_category = catEl.value;
+  if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
+  function selectNewEq(ent) {
+    if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
+    var item = btn.closest('.eq-list-item');
+    var sel = item ? item.querySelector('.eq-list-sel') : null;
+    if (sel) {
+      var opt = document.createElement('option');
+      opt.value = ent.id; opt.textContent = ent.name; opt.selected = true;
+      Array.from(sel.options).forEach(function(o) { o.selected = false; });
+      sel.appendChild(opt);
+    }
+    var panel = document.getElementById('eq_create_' + rowId);
+    if (panel) panel.style.display = 'none';
+  }
+  try {
+    var newEq = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: eqTypeId, name: nameEl.value.trim(), properties: props }) });
+    selectNewEq(newEq);
+  } catch(err) {
+    if (err.status === 409 && err.data && err.data.existing) {
+      if (confirm('Оборудование с таким названием уже существует. Выбрать существующую запись?')) {
+        selectNewEq(err.data.existing);
+      }
+    } else {
+      alert('Ошибка: ' + (err.message || String(err)));
+    }
+  }
 }
 
 function getEqListValue() {
