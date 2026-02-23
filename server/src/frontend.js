@@ -144,6 +144,10 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       </div>
       <div class="nav-section">Типы сущностей</div>
       <div id="typeNav"></div>
+      <div class="nav-section" style="margin-top:12px">Аналитика</div>
+      <div class="nav-item" onclick="showReports()">
+        <span class="icon">📋</span> Отчёты
+      </div>
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
         <span class="icon">⚙️</span> Типы и поля
@@ -1258,6 +1262,129 @@ async function showEntity(id) {
   }
 
   document.getElementById('content').innerHTML = html;
+}
+
+// ============ REPORTS ============
+
+var _reportFields = [];
+var _reportFieldLabels = {
+  building: 'Корпус', room: 'Помещение', object_type: 'Тип объекта',
+  contractor_name: 'Контрагент', our_legal_entity: 'Наше юр. лицо',
+  contract_type: 'Тип договора', tenant: 'Арендатор',
+  equipment: 'Оборудование', rent_scope: 'Часть/Целиком',
+  our_role_label: 'Роль нашей стороны', contractor_role_label: 'Роль контрагента',
+};
+
+async function showReports() {
+  currentView = 'reports';
+  setActive(null);
+  document.getElementById('pageTitle').textContent = 'Отчёты';
+  document.getElementById('breadcrumb').textContent = '';
+  document.getElementById('topActions').innerHTML = '';
+
+  // Load available fields
+  _reportFields = await api('/reports/fields');
+
+  var content = document.getElementById('content');
+  var html = '<div style="max-width:900px;margin:0 auto">';
+  html += '<div class="detail-section"><h3>Построить отчёт</h3>';
+  html += '<div class="form-group"><label>Группировать по</label>';
+  html += '<select id="reportGroupBy" onchange="runReport()">';
+  html += '<option value="">— выберите поле —</option>';
+
+  // Prioritize useful fields
+  var priority = ['building', 'contractor_name', 'our_legal_entity', 'contract_type', 'object_type', 'room', 'tenant', 'equipment'];
+  var shown = new Set();
+  priority.forEach(function(key) {
+    var f = _reportFields.find(function(r) { return r.name === key; });
+    if (f) {
+      html += '<option value="' + f.name + '">' + (_reportFieldLabels[f.name] || f.name_ru || f.name) + '</option>';
+      shown.add(f.name);
+    }
+  });
+  html += '<optgroup label="Все поля">';
+  _reportFields.forEach(function(f) {
+    if (shown.has(f.name)) return;
+    if (f.name.startsWith('_') || f.name === 'rent_objects' || f.name === 'rent_comments') return;
+    html += '<option value="' + f.name + '">' + (f.name_ru || f.name) + '</option>';
+  });
+  html += '</optgroup></select></div>';
+
+  html += '<div class="form-group"><label>Фильтр по типу сущности</label>';
+  html += '<select id="reportFilterType" onchange="runReport()">';
+  html += '<option value="">Все</option>';
+  entityTypes.forEach(function(t) {
+    html += '<option value="' + t.name + '">' + t.icon + ' ' + t.name_ru + '</option>';
+  });
+  html += '</select></div>';
+
+  html += '</div>';
+  html += '<div id="reportResults"></div>';
+  html += '</div>';
+  content.innerHTML = html;
+}
+
+async function runReport() {
+  var groupBy = document.getElementById('reportGroupBy').value;
+  var filterType = document.getElementById('reportFilterType').value;
+  var resultsEl = document.getElementById('reportResults');
+  if (!groupBy) { resultsEl.innerHTML = ''; return; }
+
+  resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Загрузка...</div>';
+
+  var url = '/reports/pivot?groupBy=' + encodeURIComponent(groupBy);
+  if (filterType) url += '&filterType=' + encodeURIComponent(filterType);
+
+  var data = await api(url);
+  if (!data.groups || data.groups.length === 0) {
+    resultsEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Нет данных для группировки по этому полю</div>';
+    return;
+  }
+
+  var label = _reportFieldLabels[groupBy] || groupBy;
+  var html = '<div class="detail-section">';
+  html += '<h3>' + escapeHtml(label) + ' (' + data.groups.length + ' значений)</h3>';
+
+  data.groups.forEach(function(group) {
+    html += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">';
+    html += '<div style="background:var(--bg-hover);padding:10px 14px;font-weight:600;display:flex;justify-content:space-between;align-items:center">';
+    html += '<span>' + escapeHtml(group.value) + '</span>';
+    html += '<span style="font-size:12px;color:var(--text-muted)">' + group.entities.length + ' записей</span>';
+    html += '</div>';
+
+    // Group entities by type
+    var byType = {};
+    group.entities.forEach(function(e) {
+      var key = e.type_name;
+      if (!byType[key]) byType[key] = { name_ru: e.type_name_ru, icon: e.icon, color: e.color, items: [] };
+      byType[key].items.push(e);
+    });
+
+    html += '<div style="padding:10px 14px">';
+    Object.keys(byType).forEach(function(typeName) {
+      var bt = byType[typeName];
+      html += '<div style="margin-bottom:8px">';
+      html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">' + bt.icon + ' ' + bt.name_ru + ' (' + bt.items.length + ')</div>';
+      bt.items.forEach(function(e) {
+        html += '<div class="child-card" onclick="showEntity(' + e.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px">';
+        html += '<span style="font-size:14px">' + bt.icon + '</span> ';
+        html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(e.name) + '</span>';
+        // Show key properties
+        var props = e.properties || {};
+        var tags = [];
+        if (props.number) tags.push('№' + props.number);
+        if (props.contract_date) tags.push(props.contract_date);
+        if (props.contract_type) tags.push(props.contract_type);
+        if (tags.length) html += ' <span style="font-size:11px;color:var(--text-muted)">' + tags.join(' · ') + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+
+  html += '</div>';
+  resultsEl.innerHTML = html;
 }
 
 // ============ MODALS ============

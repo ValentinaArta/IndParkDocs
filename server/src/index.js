@@ -52,6 +52,7 @@ app.use('/api/entity-types', require('./routes/entityTypes'));
 app.use('/api/entities', require('./routes/entities'));
 app.use('/api/relations', require('./routes/relations'));
 app.use('/api/stats', require('./routes/stats'));
+app.use('/api/reports', require('./routes/reports'));
 app.use('/api/health', require('./routes/health'));
 
 // SPA fallback
