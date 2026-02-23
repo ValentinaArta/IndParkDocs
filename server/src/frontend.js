@@ -520,6 +520,12 @@ async function eqListCreateSubmit(btn) {
   var buildingEl = document.querySelector('.eq-create-building[data-row="' + rowId + '"]');
   var ownerEl = document.querySelector('.eq-create-owner[data-row="' + rowId + '"]');
   var parentId = buildingEl && buildingEl.value ? parseInt(buildingEl.value) : null;
+  // Validation: required fields
+  var missing = [];
+  if (!props.equipment_category) missing.push('Категория');
+  if (!ownerEl || !ownerEl.value) missing.push('Балансодержатель');
+  if (!parentId) missing.push('Корпус');
+  if (missing.length) { alert('Заполните обязательные поля: ' + missing.join(', ')); return; }
   if (ownerEl && ownerEl.value) {
     var ownerEnt = _ownCompanies.find(function(c) { return c.id === parseInt(ownerEl.value); });
     if (ownerEnt) { props.balance_owner_id = ownerEnt.id; props.balance_owner_name = ownerEnt.name; }
@@ -984,13 +990,20 @@ async function submitRentEquipmentCreate(el) {
   }
   if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
   var ownerElR = document.querySelector('.ro-eq-owner[data-idx="' + idx + '"]');
+  var ownerEntR = null;
   if (ownerElR && ownerElR.value) {
-    var ownerEntR = _ownCompanies.find(function(c) { return c.id === parseInt(ownerElR.value); });
+    ownerEntR = _ownCompanies.find(function(c) { return c.id === parseInt(ownerElR.value); });
     if (ownerEntR) { props.balance_owner_id = ownerEntR.id; props.balance_owner_name = ownerEntR.name; }
   }
   // Use rent object's building as parent_id for the new equipment entity
   var buildingIdElR = document.querySelector('.ro-field[data-idx="' + idx + '"][data-name="building_id"]');
   var parentIdR = buildingIdElR && buildingIdElR.value ? parseInt(buildingIdElR.value) : null;
+  // Validation: required fields
+  var missingR = [];
+  if (!props.equipment_category) missingR.push('Категория');
+  if (!ownerEntR) missingR.push('Балансодержатель');
+  if (!parentIdR) missingR.push('Корпус');
+  if (missingR.length) { alert('Заполните обязательные поля: ' + missingR.join(', ')); return; }
   function selectEquipment(ent) {
     if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
     var sel = document.querySelector('.ro-field[data-idx="' + idx + '"][data-name="equipment_id"]');
