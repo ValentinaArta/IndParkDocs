@@ -3321,7 +3321,9 @@ async function _doSubmitCreateSupplement(parentContractId) {
 // ============ ACTS ============
 
 async function openCreateActModal(parentContractId) {
+  try {
   clearEntityCache();
+  entityTypes = await api('/entity-types');  // принудительно обновить типы
   await loadEntityLists();
   const parentEntity = await api('/entities/' + parentContractId);
   const parentProps = parentEntity.properties || {};
@@ -3353,6 +3355,7 @@ async function openCreateActModal(parentContractId) {
 
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
+  } catch(err) { alert('Ошибка открытия формы акта: ' + (err && err.message ? err.message : String(err))); }
 }
 
 async function _doSubmitCreateAct(parentContractId) {
