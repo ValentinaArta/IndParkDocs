@@ -1888,22 +1888,23 @@ async function showEntity(id) {
 // ============ REPORTS ============
 
 var _reportFields = [];
-// Fields available for manual grouping (top-level context)
-// eq_category → eq_kind → eq_name are added automatically as drill-down path
+// Fields available for manual grouping
 var AGG_HIERARCHY_FIELDS = [
   { name: 'contract_our_legal_entity', label: 'Наше юрлицо' },
   { name: 'eq_balance_owner',          label: 'Балансодержатель' },
   { name: 'eq_building',               label: 'Корпус' },
+  { name: 'eq_kind',                   label: 'Вид оборудования' },
+  { name: 'eq_status',                 label: 'Статус оборудования' },
   { name: 'contract_contractor',       label: 'Контрагент' },
   { name: 'contract_type',             label: 'Тип договора' },
   { name: 'contract_year',             label: 'Год' },
 ];
-// Auto drill-down path appended after user grouping (always)
-var AGG_AUTO_DRILL = ['eq_category', 'eq_kind', 'eq_name'];
-// Full labels for all fields (used in tree rendering)
+// Auto drill-down path appended after user grouping:
+// [пользовательская группировка] → Категория → Оборудование → Договор
+var AGG_AUTO_DRILL = ['eq_category', 'eq_name'];
+// Full labels for all fields including auto-drill (used in tree rendering)
 var AGG_ALL_FIELDS = AGG_HIERARCHY_FIELDS.concat([
   { name: 'eq_category', label: 'Категория оборудования' },
-  { name: 'eq_kind',     label: 'Вид оборудования' },
   { name: 'eq_name',     label: 'Оборудование' },
 ]);
 var AGG_CONTRACT_TYPES = ['Подряда','Аренды','Субаренды','Услуг','Купли-продажи'];
