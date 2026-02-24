@@ -3351,7 +3351,8 @@ async function openCreateActModal(parentContractId) {
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>';
   html += '<button class="btn btn-primary" onclick="if(!_submitting){_submitting=true;_doSubmitCreateAct(' + parentContractId + ').finally(function(){_submitting=false;})}">Создать акт</button></div>';
 
-  openModal(html);
+  document.getElementById('modal').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
 }
 
 async function _doSubmitCreateAct(parentContractId) {
