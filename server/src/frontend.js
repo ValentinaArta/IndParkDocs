@@ -237,6 +237,13 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
     { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
   ],
+  'Обслуживания': [
+    { name: 'service_subject', name_ru: 'Описание работ / предмет', field_type: 'text' },
+    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
+    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
+    { name: 'contract_amount', name_ru: 'Стоимость', field_type: 'number' },
+    { name: 'service_comment', name_ru: 'Комментарий', field_type: 'text' },
+  ],
   'Аренды': [
     { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },
     { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
@@ -1321,7 +1328,8 @@ var CONTRACT_ROLES = {
   'Субаренды':   { our: 'Арендодатель',   contractor: 'Арендатор', hasSubtenant: true },
   'Услуг':       { our: 'Заказчик',      contractor: 'Исполнитель' },
   'Поставки':    { our: 'Покупатель',    contractor: 'Поставщик' },
-  'Эксплуатации':{ our: 'Заказчик',      contractor: 'Исполнитель' },
+  'Обслуживания': { our: 'Заказчик',      contractor: 'Исполнитель' },
+  'Эксплуатации': { our: 'Заказчик',      contractor: 'Исполнитель' },  // backward compat
   'Купли-продажи':{ our: 'Покупатель',   contractor: 'Продавец' },
   'Цессии':      { our: 'Цедент',        contractor: 'Цессионарий' },
 };
@@ -2056,7 +2064,7 @@ var AGG_HIERARCHY_FIELDS = [
 var AGG_AUTO_DRILL = [];
 // All fields for label lookup in tree rendering
 var AGG_ALL_FIELDS = AGG_HIERARCHY_FIELDS;
-var AGG_CONTRACT_TYPES = ['Подряда','Аренды','Субаренды','Услуг','Купли-продажи'];
+var AGG_CONTRACT_TYPES = ['Подряда','Аренды','Субаренды','Услуг','Купли-продажи','Обслуживания'];
 var _aggHierarchy = []; // ordered list of field names
 
 var _pivotRowFields = [];
@@ -2377,7 +2385,8 @@ var _pivotFieldLabels = {
   our_role_label: 'Роль нашей стороны', contractor_role_label: 'Роль контрагента',
   changes_description: 'Что поменялось',
   // Dynamic contract fields
-  subject: 'Предмет договора', contract_amount: 'Сумма договора',
+  subject: 'Предмет договора', service_subject: 'Описание работ / предмет', service_comment: 'Комментарий',
+  contract_amount: 'Сумма договора',
   rent_monthly: 'Аренда в месяц', payment_date: 'Дата оплаты',
   duration_date: 'Дата окончания', duration_text: 'Срок действия',
   advances: 'Авансы (да/нет)', advance_amount: 'Сумма аванса',
@@ -2432,7 +2441,7 @@ function updatePivotFieldPool() {
 
   // Contract extra fields (from rent_objects + virtual equipment)
   var contractExtra = ['building','room','object_type','rent_monthly','contract_amount','advances',
-    'completion_deadline','subject','duration_date','duration_text','tenant','equipment','vat_rate'];
+    'completion_deadline','subject','service_subject','service_comment','duration_date','duration_text','tenant','equipment','vat_rate'];
   contractExtra.forEach(function(name) {
     if (!groups.contract.find(function(f) { return f.name === name; }))
       groups.contract.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract' });
