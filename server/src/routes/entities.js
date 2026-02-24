@@ -120,7 +120,33 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 
 // Auto-create relations from entity properties (contract → company, building, etc.)
 async function autoLinkEntities(entityId, entityTypeName, properties) {
-  if (!properties || (entityTypeName !== 'contract' && entityTypeName !== 'supplement')) return;
+  if (!properties || (entityTypeName !== 'contract' && entityTypeName !== 'supplement' && entityTypeName !== 'act')) return;
+
+  // Handle act: link to parent contract + link equipment items
+  if (entityTypeName === 'act') {
+    if (properties.parent_contract_id) {
+      const cid = parseInt(properties.parent_contract_id);
+      if (cid) {
+        await pool.query(
+          'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+          [entityId, cid, 'supplement_to']
+        ).catch(() => {});
+      }
+    }
+    if (properties.act_items) {
+      let items = [];
+      try { items = typeof properties.act_items === 'string' ? JSON.parse(properties.act_items) : properties.act_items; } catch(e) {}
+      for (const item of (Array.isArray(items) ? items : [])) {
+        if (item.equipment_id) {
+          await pool.query(
+            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+            [parseInt(item.equipment_id), entityId, 'subject_of']
+          ).catch(() => {});
+        }
+      }
+    }
+    return;
+  }
 
   // Map: property name → { relation_type, entity_id_field }
   const linkMap = [
@@ -245,8 +271,12 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
     if (typeInfo) {
       // Clear old auto-relations, then re-create
       await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type IN ('party_to','located_in')", [id]);
-      // Clear equipment subject_of relations pointing to this contract
+      // Clear equipment subject_of relations pointing to this entity (contract or act)
       await pool.query("DELETE FROM relations WHERE to_entity_id=$1 AND relation_type='subject_of'", [id]);
+      // For acts: clear supplement_to pointing from this act to contract
+      if (typeInfo.name === 'act') {
+        await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type='supplement_to'", [id]);
+      }
       await autoLinkEntities(id, typeInfo.name, cleanProps);
     }
   }

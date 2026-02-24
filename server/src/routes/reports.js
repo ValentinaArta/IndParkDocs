@@ -204,63 +204,90 @@ router.get('/linked', authenticate, asyncHandler(async (req, res) => {
   res.status(400).json({ error: 'Unknown report type. Use: equipment_by_location, equipment_by_tenant' });
 }));
 
-// GET /api/reports/aggregate — equipment costs/income grouped by linked contracts
-// Params: contract_types (pipe-separated), metric, date_from, date_to, contractor_id
+// GET /api/reports/aggregate — equipment costs grouped by contracts + acts
 router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
   const { contract_types, metric, date_from, date_to, contractor_id } = req.query;
   const types = contract_types ? contract_types.split('|').filter(Boolean) : [];
   if (types.length === 0) return res.status(400).json({ error: 'Укажите тип договора' });
 
-  const params = [types];
-  let extra = '';
+  const buildExtra = (params, prefix) => {
+    let extra = '';
+    if (date_from) { params.push(date_from); extra += ` AND (${prefix}.properties->>'contract_date') >= $${params.length}`; }
+    if (date_to)   { params.push(date_to);   extra += ` AND (${prefix}.properties->>'contract_date') <= $${params.length}`; }
+    if (contractor_id) { params.push(parseInt(contractor_id)); extra += ` AND (${prefix}.properties->>'contractor_id')::int = $${params.length}`; }
+    return extra;
+  };
 
-  if (date_from) { params.push(date_from); extra += ` AND (c.properties->>'contract_date') >= $${params.length}`; }
-  if (date_to)   { params.push(date_to);   extra += ` AND (c.properties->>'contract_date') <= $${params.length}`; }
-  if (contractor_id) {
-    params.push(parseInt(contractor_id));
-    extra += ` AND (c.properties->>'contractor_id')::int = $${params.length}`;
-  }
+  const mapRow = (r, amount) => {
+    const ep = r.eq_props || {};
+    const cp = r.contract_props || {};
+    return {
+      eq_id: r.eq_id, eq_name: r.eq_name,
+      eq_building: r.building_name || '—',
+      eq_category: ep.equipment_category || '',
+      eq_balance_owner: ep.balance_owner_name || '',
+      eq_status: ep.status || '',
+      contract_id: r.contract_id, contract_name: r.contract_name,
+      act_id: r.act_id || null, act_name: r.act_name || null, act_date: r.act_date || null,
+      contract_our_legal_entity: cp.our_legal_entity || '',
+      contract_contractor: cp.contractor_name || '',
+      contract_type: cp.contract_type || '',
+      contract_date: cp.contract_date || '',
+      contract_year: (cp.contract_date || '').substring(0, 4),
+      contract_amount: amount,
+      rent_monthly: parseFloat(cp.rent_monthly) || 0,
+    };
+  };
 
-  const sql = `
-    SELECT
-      e.id AS eq_id, e.name AS eq_name, e.properties AS eq_props,
-      par.id AS building_id, par.name AS building_name,
-      c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props
+  // Path 1: equipment → subject_of → contract (direct)
+  const p1 = [types];
+  const sql1 = `
+    SELECT e.id AS eq_id, e.name AS eq_name, e.properties AS eq_props,
+      par.name AS building_name,
+      c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
+      NULL::int AS act_id, NULL::text AS act_name, NULL::text AS act_date
     FROM entities e
     JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
     JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
     JOIN entities c ON c.id = r.to_entity_id AND c.deleted_at IS NULL
     JOIN entity_types et_c ON c.entity_type_id = et_c.id AND et_c.name = 'contract'
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
-    WHERE e.deleted_at IS NULL
-      AND c.properties->>'contract_type' = ANY($1)
-      ${extra}
-    ORDER BY e.name, c.id
-  `;
+    WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
+    ${buildExtra(p1, 'c')} ORDER BY e.name, c.id`;
+  const r1 = await pool.query(sql1, p1);
+  const rows1 = r1.rows.map(r => mapRow(r, parseFloat((r.contract_props || {}).contract_amount) || 0));
 
-  const { rows } = await pool.query(sql, params);
-  res.json(rows.map(r => {
-    const ep = r.eq_props || {};
-    const cp = r.contract_props || {};
-    return {
-      eq_id: r.eq_id,
-      eq_name: r.eq_name,
-      eq_building: r.building_name || '—',
-      eq_category: ep.equipment_category || '',
-      eq_kind: ep.equipment_kind || '',
-      eq_balance_owner: ep.balance_owner_name || '',
-      eq_status: ep.status || '',
-      contract_id: r.contract_id,
-      contract_name: r.contract_name,
-      contract_our_legal_entity: cp.our_legal_entity || '',
-      contract_contractor: cp.contractor_name || '',
-      contract_type: cp.contract_type || '',
-      contract_date: cp.contract_date || '',
-      contract_year: (cp.contract_date || '').substring(0, 4),
-      contract_amount: parseFloat(cp.contract_amount) || 0,
-      rent_monthly: parseFloat(cp.rent_monthly) || 0,
-    };
-  }));
+  // Path 2: equipment → subject_of → act → supplement_to → contract
+  const p2 = [types];
+  const sql2 = `
+    SELECT e.id AS eq_id, e.name AS eq_name, e.properties AS eq_props,
+      par.name AS building_name,
+      c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
+      act.id AS act_id, act.name AS act_name,
+      act.properties->>'act_date' AS act_date,
+      act.properties AS act_props
+    FROM entities e
+    JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
+    JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
+    JOIN entities act ON act.id = r.to_entity_id AND act.deleted_at IS NULL
+    JOIN entity_types et_act ON act.entity_type_id = et_act.id AND et_act.name = 'act'
+    JOIN relations r2 ON r2.from_entity_id = act.id AND r2.relation_type = 'supplement_to'
+    JOIN entities c ON c.id = r2.to_entity_id AND c.deleted_at IS NULL
+    JOIN entity_types et_c ON c.entity_type_id = et_c.id AND et_c.name = 'contract'
+    LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
+    WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
+    ${buildExtra(p2, 'c')} ORDER BY e.name, act.id`;
+  const r2 = await pool.query(sql2, p2);
+  const rows2 = r2.rows.map(r => {
+    // Find per-equipment amount from act_items
+    let items = [];
+    try { items = JSON.parse((r.act_props || {}).act_items || '[]'); } catch(e) {}
+    const item = items.find(i => parseInt(i.equipment_id) === r.eq_id);
+    const amount = item ? (parseFloat(item.amount) || 0) : 0;
+    return mapRow(r, amount);
+  });
+
+  res.json([...rows1, ...rows2]);
 }));
 
 module.exports = router;

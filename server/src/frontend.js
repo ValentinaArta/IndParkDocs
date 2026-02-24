@@ -571,10 +571,92 @@ function getEqListValue() {
   return result;
 }
 
+// ============ ACT ITEMS ============
+
+var _actItemCounter = 0;
+
+function _renderActItem(item, rowId) {
+  var h = '<div class="act-item-row" data-row="' + rowId + '" style="display:grid;grid-template-columns:2fr 1fr 3fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover)">';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">Оборудование *</label>';
+  h += '<select class="act-item-eq" style="width:100%;margin-top:2px"><option value="">— выберите —</option>';
+  _equipment.forEach(function(e) {
+    var sel = (e.id === parseInt(item.equipment_id)) ? ' selected' : '';
+    h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
+  });
+  h += '</select></div>';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">Сумма, ₽</label>';
+  h += '<input type="number" class="act-item-amount" value="' + (item.amount || '') + '" placeholder="0" style="width:100%;margin-top:2px" oninput="recalcActTotal()"></div>';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">Описание работ</label>';
+  h += '<input class="act-item-desc" value="' + escapeHtml(item.description || '') + '" placeholder="что делали..." style="width:100%;margin-top:2px"></div>';
+  h += '<button type="button" class="btn btn-sm" style="color:var(--danger);margin-bottom:2px" onclick="actItemRemove(this)">×</button>';
+  h += '</div>';
+  return h;
+}
+
+function renderActItemsField(items) {
+  if (!Array.isArray(items) || items.length === 0) items = [{}];
+  _actItemCounter = items.length;
+  var h = '<div id="f_act_items">';
+  items.forEach(function(item, i) { h += _renderActItem(item, i); });
+  h += '<button type="button" class="btn btn-sm" style="margin-top:4px" onclick="actItemAdd()">+ Добавить оборудование</button>';
+  h += '</div>';
+  return h;
+}
+
+function actItemAdd() {
+  var container = document.getElementById('f_act_items');
+  if (!container) return;
+  var rowId = _actItemCounter++;
+  var div = document.createElement('div');
+  div.innerHTML = _renderActItem({}, rowId);
+  var addBtn = container.querySelector('button:last-child');
+  container.insertBefore(div.firstChild, addBtn);
+}
+
+function actItemRemove(btn) {
+  var container = document.getElementById('f_act_items');
+  if (!container) return;
+  var rows = container.querySelectorAll('.act-item-row');
+  if (rows.length <= 1) {
+    var row0 = btn.closest('.act-item-row');
+    if (row0) { row0.querySelector('.act-item-eq').value = ''; row0.querySelector('.act-item-amount').value = ''; row0.querySelector('.act-item-desc').value = ''; }
+    recalcActTotal(); return;
+  }
+  var row = btn.closest('.act-item-row');
+  if (row) { row.remove(); recalcActTotal(); }
+}
+
+function recalcActTotal() {
+  var total = 0;
+  document.querySelectorAll('.act-item-amount').forEach(function(el) { total += parseFloat(el.value) || 0; });
+  var totalEl = document.getElementById('f_total_amount');
+  if (totalEl) totalEl.value = total;
+}
+
+function getActItemsValue() {
+  var container = document.getElementById('f_act_items');
+  if (!container) return [];
+  var result = [];
+  container.querySelectorAll('.act-item-row').forEach(function(row) {
+    var eqSel = row.querySelector('.act-item-eq');
+    var amtEl = row.querySelector('.act-item-amount');
+    var descEl = row.querySelector('.act-item-desc');
+    if (!eqSel || !eqSel.value) return;
+    var eqId = parseInt(eqSel.value);
+    var eqEnt = _equipment.find(function(e) { return e.id === eqId; });
+    result.push({ equipment_id: eqId, equipment_name: eqEnt ? eqEnt.name : '', amount: parseFloat(amtEl ? amtEl.value : 0) || 0, description: descEl ? descEl.value.trim() : '' });
+  });
+  return result;
+}
+
 function renderFieldInput(f, value) {
   const val = value || '';
   const id = 'f_' + f.name;
-  if (f.field_type === 'equipment_list') {
+  if (f.field_type === 'act_items') {
+    var actItemsVal = [];
+    try { if (typeof val === 'string' && val) actItemsVal = JSON.parse(val); else if (Array.isArray(val)) actItemsVal = val; } catch(e) {}
+    return renderActItemsField(actItemsVal);
+  } else if (f.field_type === 'equipment_list') {
     var eqItems = [];
     try { if (typeof val === 'string' && val) eqItems = JSON.parse(val); else if (Array.isArray(val)) eqItems = val; } catch(e) {}
     return renderEquipmentListField(eqItems);
@@ -620,6 +702,13 @@ function toggleCustomInput(sel) {
 }
 
 function getFieldValue(f) {
+  if (f.field_type === 'act_items') {
+    var actItems = getActItemsValue();
+    var total = actItems.reduce(function(s, i) { return s + (i.amount || 0); }, 0);
+    var totalEl = document.getElementById('f_total_amount');
+    if (totalEl) totalEl.value = total;
+    return actItems.length > 0 ? JSON.stringify(actItems) : null;
+  }
   if (f.field_type === 'equipment_list') {
     var eqItems = getEqListValue();
     return eqItems.length > 0 ? JSON.stringify(eqItems) : null;
@@ -1744,6 +1833,26 @@ async function showEntity(id) {
             });
           }
           return;
+        } else if (f.field_type === 'act_items') {
+          var actView = [];
+          try { if (typeof val === 'string' && val) actView = JSON.parse(val); else if (Array.isArray(val)) actView = val; } catch(ex) {}
+          if (actView.length > 0) {
+            html += '<div class="detail-section"><h3>Позиции акта</h3>';
+            html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+            html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Оборудование</th><th style="text-align:right;padding:6px">Сумма, ₽</th><th style="text-align:left;padding:6px">Описание работ</th></tr></thead><tbody>';
+            var actTotal = 0;
+            actView.forEach(function(item) {
+              actTotal += item.amount || 0;
+              html += '<tr style="border-bottom:1px solid var(--border)">';
+              html += '<td style="padding:6px"><a href="#" onclick="showEntity(' + (item.equipment_id || 0) + ');return false" style="color:var(--accent)">⚙️ ' + escapeHtml(item.equipment_name || '—') + '</a></td>';
+              html += '<td style="text-align:right;padding:6px;font-weight:500">' + _fmtNum(item.amount || 0) + ' ₽</td>';
+              html += '<td style="padding:6px;color:var(--text-secondary)">' + escapeHtml(item.description || '—') + '</td>';
+              html += '</tr>';
+            });
+            html += '<tr style="font-weight:600;background:var(--bg-hover)"><td style="padding:6px">Итого</td><td style="text-align:right;padding:6px">' + _fmtNum(actTotal) + ' ₽</td><td></td></tr>';
+            html += '</tbody></table></div>';
+          }
+          return;
         } else if (f.field_type === 'equipment_list') {
           var eqView = [];
           try { if (typeof val === 'string' && val) eqView = JSON.parse(val); else if (Array.isArray(val)) eqView = val; } catch(ex) {}
@@ -1791,10 +1900,10 @@ async function showEntity(id) {
     html += '</div></div>';
   }
 
-  // Supplements section for contracts
+  // Supplements + Acts sections for contracts
   if (e.type_name === 'contract') {
-    const allEntities = await api('/entities?type=supplement');
-    const supplements = allEntities.filter(function(s) { return s.parent_id === e.id; });
+    const allSupplements = await api('/entities?type=supplement');
+    const supplements = allSupplements.filter(function(s) { return s.parent_id === e.id; });
     html += '<div class="detail-section"><h3>Доп. соглашения</h3>';
     if (supplements.length > 0) {
       html += '<div class="children-grid">';
@@ -1809,6 +1918,56 @@ async function showEntity(id) {
     }
     html += '<button class="btn btn-sm btn-primary" onclick="openCreateSupplementModal(' + e.id + ')" style="margin-top:8px">+ Доп. соглашение</button>';
     html += '</div>';
+
+    // Acts section
+    const allActs = await api('/entities?type=act&limit=200');
+    const acts = allActs.filter(function(a) { return a.parent_id === e.id; });
+    html += '<div class="detail-section"><h3>Акты</h3>';
+    if (acts.length > 0) {
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">';
+      html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Акт</th><th style="text-align:left;padding:6px">Дата</th><th style="text-align:right;padding:6px">Сумма</th></tr></thead><tbody>';
+      acts.forEach(function(a) {
+        var ap = a.properties || {};
+        var items = [];
+        try { items = JSON.parse(ap.act_items || '[]'); } catch(ex) {}
+        var total = items.reduce(function(s, i) { return s + (parseFloat(i.amount) || 0); }, 0);
+        html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="showEntity(' + a.id + ')">';
+        html += '<td style="padding:6px">📝 ' + escapeHtml(a.name) + '</td>';
+        html += '<td style="padding:6px;color:var(--text-muted)">' + (ap.act_date || '—') + '</td>';
+        html += '<td style="text-align:right;padding:6px;font-weight:500">' + (total > 0 ? _fmtNum(total) + ' ₽' : '—') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    } else {
+      html += '<div style="color:var(--text-muted);font-size:13px;margin-bottom:8px">Нет актов</div>';
+    }
+    html += '<button class="btn btn-sm btn-primary" onclick="openCreateActModal(' + e.id + ')" style="margin-top:4px">+ Акт</button>';
+    html += '</div>';
+  }
+
+  // Work history section for equipment
+  if (e.type_name === 'equipment') {
+    const actRels = (e.relations || []).filter(function(r) { return r.relation_type === 'subject_of' && r.from_entity_id === e.id && r.to_type_name === 'act'; });
+    if (actRels.length > 0) {
+      html += '<div class="detail-section"><h3>История работ</h3>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Акт</th><th style="text-align:left;padding:6px">Дата</th><th style="text-align:right;padding:6px">Сумма</th><th style="text-align:left;padding:6px">Описание</th></tr></thead><tbody>';
+      for (var ai = 0; ai < actRels.length; ai++) {
+        var actData = await api('/entities/' + actRels[ai].to_entity_id);
+        var ap = actData.properties || {};
+        var items = [];
+        try { items = JSON.parse(ap.act_items || '[]'); } catch(ex) {}
+        var myItem = items.find(function(it) { return parseInt(it.equipment_id) === e.id; });
+        var contractRel = (actData.relations || []).find(function(r) { return r.relation_type === 'supplement_to' && r.from_entity_id === actData.id; });
+        html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="showEntity(' + actData.id + ')">';
+        html += '<td style="padding:6px">📝 ' + escapeHtml(actData.name) + (contractRel ? '<br><span style="font-size:11px;color:var(--text-muted)">→ ' + escapeHtml(contractRel.to_entity_name || '') + '</span>' : '') + '</td>';
+        html += '<td style="padding:6px;color:var(--text-muted)">' + (ap.act_date || '—') + '</td>';
+        html += '<td style="text-align:right;padding:6px;font-weight:500">' + (myItem && myItem.amount ? _fmtNum(myItem.amount) + ' ₽' : '—') + '</td>';
+        html += '<td style="padding:6px;color:var(--text-secondary);font-size:12px">' + escapeHtml(myItem ? (myItem.description || '') : '') + '</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+    }
   }
 
   // Location block (for non-contract entities)
@@ -2207,7 +2366,7 @@ function aggToggle(id) {
 // ============ PIVOT TABLE (drag-and-drop) ============
 
 var _pivotSkipFields = [
-  'rent_objects','rent_comments','equipment_list',
+  'rent_objects','rent_comments','equipment_list','act_items','parent_contract_id','parent_contract_name',
   'our_legal_entity_id','contractor_id','subtenant_id','balance_owner_id','balance_owner_name',
   'extra_services','duration_type', // internal flags — not useful for pivot
 ];
@@ -3126,6 +3285,59 @@ async function _doSubmitCreateSupplement(parentContractId) {
   const name = 'ДС №' + num + (contractor ? ' — ' + contractor : '');
 
   await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: suppType.id, name, properties, parent_id: parentContractId }) });
+  closeModal();
+  showEntity(parentContractId);
+}
+
+// ============ ACTS ============
+
+async function openCreateActModal(parentContractId) {
+  clearEntityCache();
+  await loadEntityLists();
+  const parentEntity = await api('/entities/' + parentContractId);
+  const parentProps = parentEntity.properties || {};
+  const actType = entityTypes.find(function(t) { return t.name === 'act'; });
+  if (!actType) return alert('Тип "Акт" не найден. Возможно, сервер ещё не перезапустился после добавления миграции.');
+
+  var html = '<h3>Новый акт</h3>';
+  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-hover);border-radius:6px">Договор-основание: <strong>' + escapeHtml(parentEntity.name) + '</strong></div>';
+  html += '<div class="form-group"><label>Номер акта *</label><input id="f_act_number" placeholder="№ акта"></div>';
+  html += '<div class="form-group"><label>Дата акта</label><input type="date" id="f_act_date"></div>';
+  html += '<div class="form-group"><label>Комментарий</label><input id="f_comment" placeholder="примечание к акту"></div>';
+  html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="0" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
+  html += '<div class="form-group"><label>Оборудование и работы *</label>' + renderActItemsField([]) + '</div>';
+
+  html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>';
+  html += '<button class="btn btn-primary" onclick="if(!_submitting){_submitting=true;_doSubmitCreateAct(' + parentContractId + ').finally(function(){_submitting=false;})}">Создать акт</button></div>';
+
+  openModal(html);
+}
+
+async function _doSubmitCreateAct(parentContractId) {
+  var actNumber = (document.getElementById('f_act_number') || {}).value || '';
+  if (!actNumber.trim()) { alert('Введите номер акта'); return; }
+  var actItems = getActItemsValue();
+  if (actItems.length === 0) { alert('Добавьте хотя бы одну единицу оборудования'); return; }
+
+  var actDate = (document.getElementById('f_act_date') || {}).value || '';
+  var comment = (document.getElementById('f_comment') || {}).value || '';
+  var total = actItems.reduce(function(s, i) { return s + (i.amount || 0); }, 0);
+  var parentEntity = await api('/entities/' + parentContractId);
+
+  var properties = {
+    act_number: actNumber.trim(),
+    act_date: actDate,
+    comment: comment,
+    parent_contract_id: String(parentContractId),
+    parent_contract_name: parentEntity.name,
+    act_items: JSON.stringify(actItems),
+    total_amount: String(total),
+  };
+
+  var actType = entityTypes.find(function(t) { return t.name === 'act'; });
+  var actName = 'Акт №' + actNumber.trim() + (actDate ? ' от ' + actDate : '') + ' — ' + parentEntity.name;
+
+  await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: actType.id, name: actName, properties: properties, parent_id: parentContractId }) });
   closeModal();
   showEntity(parentContractId);
 }
