@@ -3190,13 +3190,30 @@ async function openEditModal(id) {
   }
 
   // Non-contract edit
-  html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
-  allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
-    html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
-  });
-  html += '</select></div>';
+  var isAct = (e.type_name === 'act');
+  if (!isAct) {
+    html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
+    allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
+      html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
+    });
+    html += '</select></div>';
+  }
+  if (isAct && props.parent_contract_name) {
+    html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-hover);border-radius:6px">Договор-основание: <strong>' + escapeHtml(props.parent_contract_name) + '</strong></div>';
+  }
   fields.forEach(f => {
     const val = props[f.name] || '';
+    // For acts: hide service fields, make total_amount readonly display
+    if (isAct) {
+      if (f.name === 'parent_contract_id' || f.name === 'parent_contract_name') return;
+      if (f.name === 'total_amount') {
+        var items = [];
+        try { items = JSON.parse(props.act_items || '[]'); } catch(ex) {}
+        var total = items.reduce(function(s, i) { return s + (parseFloat(i.amount) || 0); }, 0);
+        html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="' + total + '" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
+        return;
+      }
+    }
     if (f.name === 'balance_owner') {
       html += '<div class="form-group"><label>Балансодержатель</label>' +
         renderEntitySelect('f_balance_owner', _ownCompanies, props.balance_owner_id || '', val, 'наше юр. лицо') + '</div>';
@@ -3221,9 +3238,16 @@ async function _doSubmitEdit(id) {
   const e = await api('/entities/' + id);
   const fields = e.fields || [];
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
-  const parent_id = isContractLike ? (e.parent_id || null) : (document.getElementById('f_parent') ? document.getElementById('f_parent').value || null : null);
+  const fParentEl = document.getElementById('f_parent');
+  const parent_id = isContractLike ? (e.parent_id || null) : (e.type_name === 'act' ? e.parent_id : (fParentEl ? fParentEl.value || null : null));
   const properties = {};
   fields.forEach(f => { properties[f.name] = getFieldValue(f); });
+  // For acts: preserve hidden service fields
+  if (e.type_name === 'act') {
+    var origProps = e.properties || {};
+    if (origProps.parent_contract_id) properties.parent_contract_id = origProps.parent_contract_id;
+    if (origProps.parent_contract_name) properties.parent_contract_name = origProps.parent_contract_name;
+  }
 
   // Collect dynamic contract-type fields
   if (isContractLike && properties.contract_type) {
