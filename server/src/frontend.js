@@ -1414,6 +1414,13 @@ function renderContractFormFields(fields, props, headerHtml) {
       return;
     }
 
+    // Skip fields already covered by CONTRACT_TYPE_FIELDS for this type (e.g. vat_rate for Аренды)
+    var ctTypeFields = CONTRACT_TYPE_FIELDS[contractType] || [];
+    if (ctTypeFields.find(function(cf) { return cf.name === f.name; })) return;
+
+    // Default vat_rate to 22
+    if (f.name === 'vat_rate' && !val) val = '22';
+
     // Regular fields
     html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
   });
@@ -2397,7 +2404,7 @@ var _pivotFieldLabels = {
   rent_monthly: 'Аренда в месяц', payment_date: 'Дата оплаты',
   duration_date: 'Дата окончания', duration_text: 'Срок действия',
   advances: 'Авансы (да/нет)', advance_amount: 'Сумма аванса',
-  vat_rate: 'НДС', completion_deadline: 'Срок выполнения',
+  vat_rate: 'в т.ч. НДС, %', completion_deadline: 'Срок выполнения',
   extra_services_desc: 'Доп. услуги', extra_services_cost: 'Стоимость доп. услуг',
   // Rent object fields
   building: 'Корпус', room: 'Помещение', object_type: 'Тип объекта', tenant: 'Арендатор',
@@ -3115,6 +3122,11 @@ async function openEditModal(id) {
         editHtml += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
           renderEntitySelect('f_subtenant_name', _allCompanies, props.subtenant_id, val, 'выберите', 'onEntitySelectChange(&quot;subtenant_name&quot;)') + '</div>';
       } else {
+        // Skip fields already covered by CONTRACT_TYPE_FIELDS for this type (e.g. vat_rate for Аренды)
+        var ctTypeFieldsEdit = CONTRACT_TYPE_FIELDS[contractType] || [];
+        if (ctTypeFieldsEdit.find(function(cf) { return cf.name === f.name; })) return;
+        // Default vat_rate to 22
+        if (f.name === 'vat_rate' && !val) val = '22';
         editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
       }
     });
