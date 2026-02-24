@@ -609,19 +609,21 @@ function renderActItemsField(items) {
   _actItemCounter = items.length;
   var h = '<div id="f_act_items">';
   items.forEach(function(item, i) { h += _renderActItem(item, i); });
-  h += '<button type="button" class="btn btn-sm" style="margin-top:4px" onclick="actItemAdd()">+ Добавить оборудование</button>';
+  h += '<button type="button" class="btn btn-sm act-item-add-btn" style="margin-top:4px" onclick="actItemAdd()">+ Добавить оборудование</button>';
   h += '</div>';
   return h;
 }
 
 function actItemAdd() {
   var container = document.getElementById('f_act_items');
-  if (!container) return;
+  if (!container) { console.error('actItemAdd: container not found'); return; }
   var rowId = _actItemCounter++;
   var div = document.createElement('div');
   div.innerHTML = _renderActItem({}, rowId);
-  var addBtn = container.querySelector('button:last-child');
-  container.insertBefore(div.firstChild, addBtn);
+  var child = div.firstElementChild || div.firstChild;
+  var addBtn = container.querySelector('.act-item-add-btn');
+  if (addBtn) container.insertBefore(child, addBtn);
+  else container.appendChild(child);
 }
 
 function actItemRemove(btn) {
