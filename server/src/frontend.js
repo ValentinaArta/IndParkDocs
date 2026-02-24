@@ -444,19 +444,21 @@ function renderEquipmentListField(items) {
   _eqListRowCounter = items.length;
   var h = '<div id="f_equipment_list">';
   items.forEach(function(item, i) { h += _renderEqListItem(item, i); });
-  h += '<button type="button" class="btn btn-sm" style="margin-top:4px" onclick="eqListAdd()">+ Добавить оборудование</button>';
+  h += '<button type="button" class="btn btn-sm eq-list-add-btn" style="margin-top:4px" onclick="eqListAdd()">+ Добавить оборудование</button>';
   h += '</div>';
   return h;
 }
 
 function eqListAdd() {
   var container = document.getElementById('f_equipment_list');
-  if (!container) return;
+  if (!container) { console.error('eqListAdd: container not found'); return; }
   var rowId = _eqListRowCounter++;
   var div = document.createElement('div');
   div.innerHTML = _renderEqListItem({ equipment_id: '', equipment_name: '' }, rowId);
-  var addBtn = container.querySelector('button:last-child');
-  container.insertBefore(div.firstChild, addBtn);
+  var child = div.firstElementChild || div.firstChild;
+  var addBtn = container.querySelector('.eq-list-add-btn');
+  if (addBtn) container.insertBefore(child, addBtn);
+  else container.appendChild(child);
 }
 
 function eqListRemove(btn) {
@@ -581,12 +583,14 @@ function getEqListValue() {
 // ============ ACT ITEMS ============
 
 var _actItemCounter = 0;
+var _actEquipmentList = null;  // filtered to contract's equipment when creating act
 
 function _renderActItem(item, rowId) {
+  var eqList = _actEquipmentList || _equipment;
   var h = '<div class="act-item-row" data-row="' + rowId + '" style="display:grid;grid-template-columns:2fr 1fr 3fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover)">';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">Оборудование *</label>';
   h += '<select class="act-item-eq" style="width:100%;margin-top:2px"><option value="">— выберите —</option>';
-  _equipment.forEach(function(e) {
+  eqList.forEach(function(e) {
     var sel = (e.id === parseInt(item.equipment_id)) ? ' selected' : '';
     h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
   });
@@ -2386,6 +2390,7 @@ var _pivotFieldLabels = {
   changes_description: 'Что поменялось',
   // Dynamic contract fields
   subject: 'Предмет договора', service_subject: 'Описание работ / предмет', service_comment: 'Комментарий',
+  contract_end_date: 'Срок действия (до)',
   contract_amount: 'Сумма договора',
   rent_monthly: 'Аренда в месяц', payment_date: 'Дата оплаты',
   duration_date: 'Дата окончания', duration_text: 'Срок действия',
@@ -2949,6 +2954,7 @@ async function runReport() {
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
+  _actEquipmentList = null;
 }
 
 async function openCreateModal(typeName) {
@@ -3308,8 +3314,20 @@ async function openCreateActModal(parentContractId) {
   const actType = entityTypes.find(function(t) { return t.name === 'act'; });
   if (!actType) return alert('Тип "Акт" не найден. Возможно, сервер ещё не перезапустился после добавления миграции.');
 
+  // Filter equipment to only those linked to this contract via equipment_list
+  var contractEqItems = [];
+  try { contractEqItems = JSON.parse(parentProps.equipment_list || '[]'); } catch(ex) {}
+  var contractEqIds = contractEqItems.map(function(i) { return parseInt(i.equipment_id); }).filter(Boolean);
+  _actEquipmentList = contractEqIds.length > 0
+    ? _equipment.filter(function(e) { return contractEqIds.indexOf(e.id) !== -1; })
+    : null;  // null = show all if contract has no equipment_list
+
+  var eqNote = contractEqIds.length > 0
+    ? '<span style="color:var(--accent)">' + (_actEquipmentList ? _actEquipmentList.length : 0) + ' ед. из договора</span>'
+    : '<span style="color:var(--text-muted)">весь реестр (по договору нет оборудования)</span>';
+
   var html = '<h3>Новый акт</h3>';
-  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-hover);border-radius:6px">Договор-основание: <strong>' + escapeHtml(parentEntity.name) + '</strong></div>';
+  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-hover);border-radius:6px">Договор-основание: <strong>' + escapeHtml(parentEntity.name) + '</strong><br>Оборудование: ' + eqNote + '</div>';
   html += '<div class="form-group"><label>Номер акта *</label><input id="f_act_number" placeholder="№ акта"></div>';
   html += '<div class="form-group"><label>Дата акта</label><input type="date" id="f_act_date"></div>';
   html += '<div class="form-group"><label>Комментарий</label><input id="f_comment" placeholder="примечание к акту"></div>';
