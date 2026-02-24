@@ -417,7 +417,6 @@ function _renderEqListItem(item, rowId) {
   getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
   h += '<option value="__custom__">Другое...</option></select>';
   h += '<input class="eq-create-cat-custom" data-row="' + rowId + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
-  h += '<div class="form-group"><label>Вид оборудования</label><input class="eq-create-kind" data-row="' + rowId + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
   h += '<div class="form-group"><label>Корпус</label><select class="eq-create-building" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
   _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
   h += '</select></div>';
@@ -505,7 +504,6 @@ async function eqListCreateSubmit(btn) {
   var eqTypeId = parseInt(btn.getAttribute('data-eqtype'));
   var nameEl = document.querySelector('.eq-create-name[data-row="' + rowId + '"]');
   var catEl  = document.querySelector('.eq-create-cat[data-row="' + rowId + '"]');
-  var kindEl = document.querySelector('.eq-create-kind[data-row="' + rowId + '"]');
   if (!nameEl || !nameEl.value.trim()) { alert('Введите название оборудования'); return; }
   var props = {};
   if (catEl && catEl.value) {
@@ -516,7 +514,6 @@ async function eqListCreateSubmit(btn) {
       props.equipment_category = catEl.value;
     }
   }
-  if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
   var buildingEl = document.querySelector('.eq-create-building[data-row="' + rowId + '"]');
   var ownerEl = document.querySelector('.eq-create-owner[data-row="' + rowId + '"]');
   var parentId = buildingEl && buildingEl.value ? parseInt(buildingEl.value) : null;
@@ -871,7 +868,6 @@ function renderRentObjectBlock(index, obj) {
       getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
       h += '<option value="__custom__">Другое...</option></select>';
       h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
-      h += '<div class="form-group"><label>Вид</label><input class="ro-eq-kind" data-idx="' + index + '" placeholder="мостовой кран, трансформатор..." style="width:100%"></div>';
       h += '<div class="form-group"><label>Балансодержатель</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
       _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
       h += '</select></div>';
@@ -977,7 +973,6 @@ async function submitRentEquipmentCreate(el) {
   var eqTypeId = parseInt(el.getAttribute('data-eqtype'));
   var nameEl = document.querySelector('.ro-eq-name[data-idx="' + idx + '"]');
   var catEl  = document.querySelector('.ro-eq-cat[data-idx="' + idx + '"]');
-  var kindEl = document.querySelector('.ro-eq-kind[data-idx="' + idx + '"]');
   if (!nameEl || !nameEl.value.trim()) { alert('Введите название оборудования'); return; }
   var props = {};
   if (catEl && catEl.value) {
@@ -988,7 +983,6 @@ async function submitRentEquipmentCreate(el) {
       props.equipment_category = catEl.value;
     }
   }
-  if (kindEl && kindEl.value) props.equipment_kind = kindEl.value;
   var ownerElR = document.querySelector('.ro-eq-owner[data-idx="' + idx + '"]');
   var ownerEntR = null;
   if (ownerElR && ownerElR.value) {
@@ -1893,7 +1887,6 @@ var AGG_HIERARCHY_FIELDS = [
   { name: 'contract_our_legal_entity', label: 'Наше юрлицо' },
   { name: 'eq_balance_owner',          label: 'Балансодержатель' },
   { name: 'eq_building',               label: 'Корпус' },
-  { name: 'eq_kind',                   label: 'Вид оборудования' },
   { name: 'eq_status',                 label: 'Статус оборудования' },
   { name: 'contract_contractor',       label: 'Контрагент' },
   { name: 'contract_type',             label: 'Тип договора' },
@@ -1905,7 +1898,7 @@ var AGG_AUTO_DRILL = ['eq_category', 'eq_name'];
 // Full labels for all fields including auto-drill (used in tree rendering)
 var AGG_ALL_FIELDS = AGG_HIERARCHY_FIELDS.concat([
   { name: 'eq_category', label: 'Категория оборудования' },
-  { name: 'eq_name',     label: 'Оборудование' },
+  { name: 'eq_name', label: 'Оборудование' },
 ]);
 var AGG_CONTRACT_TYPES = ['Подряда','Аренды','Субаренды','Услуг','Купли-продажи'];
 var _aggHierarchy = []; // ordered list of field names
@@ -2238,7 +2231,7 @@ var _pivotFieldLabels = {
   building: 'Корпус', room: 'Помещение', object_type: 'Тип объекта', tenant: 'Арендатор',
   equipment: 'Оборудование по договору',
   // Equipment entity fields
-  equipment_category: 'Категория оборудования', equipment_kind: 'Вид оборудования',
+  equipment_category: 'Категория оборудования',
   status: 'Статус оборудования', inv_number: 'Инв. номер', balance_owner: 'Балансодержатель',
   serial_number: 'Серийный номер', year: 'Год выпуска', manufacturer: 'Производитель',
   // Company fields
@@ -2249,7 +2242,7 @@ var _pivotFieldLabels = {
   order_type: 'Тип приказа', order_number: 'Номер приказа', order_date: 'Дата приказа',
   // Virtual equipment fields (available through contract rent_objects)
   eq_name: 'Оборудование', eq_category: 'Категория оборудования',
-  eq_kind: 'Вид оборудования', eq_status: 'Статус оборудования',
+  eq_status: 'Статус оборудования',
   eq_inv_number: 'Инв. № оборудования', eq_manufacturer: 'Производитель оборудования',
 };
 
@@ -2289,7 +2282,7 @@ function updatePivotFieldPool() {
       groups.contract.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract' });
   });
   // Virtual equipment fields via contract rent_objects
-  ['eq_name','eq_category','eq_kind','eq_status','eq_inv_number','eq_manufacturer'].forEach(function(name) {
+  ['eq_name','eq_category','eq_status','eq_inv_number','eq_manufacturer'].forEach(function(name) {
     groups.contract.push({ name: name, name_ru: _pivotFieldLabels[name] || name, entity_type: 'contract' });
   });
 
@@ -2422,7 +2415,7 @@ async function buildPivotTable() {
   var numCols = colFields.filter(function(f) { return _isNumericField(f.name); });
 
   // Equipment mode: if any row/col field is equipment-related, show equipment items not documents
-  var _eqFields = new Set(['eq_name','eq_category','eq_kind','eq_status','eq_inv_number','eq_manufacturer','equipment']);
+  var _eqFields = new Set(['eq_name','eq_category','eq_status','eq_inv_number','eq_manufacturer','equipment']);
   var equipmentMode = rowFields.concat(colFields).some(function(f) { return _eqFields.has(f.name); });
   var unitLabel = equipmentMode ? 'единиц оборудования' : 'документов';
 
@@ -2453,7 +2446,6 @@ async function buildPivotTable() {
             merged.eq_name = eq.name || '';
             var ep = eq.properties || {};
             merged.eq_category = ep.equipment_category || '';
-            merged.eq_kind     = ep.equipment_kind || '';
             merged.eq_status   = ep.status || '';
             merged.eq_inv_number  = ep.inv_number || '';
             merged.eq_manufacturer = ep.manufacturer || '';
@@ -2655,7 +2647,6 @@ async function runLinkedReport(type) {
           var p = item.props || {};
           var tags = [];
           if (p.equipment_category) tags.push(p.equipment_category);
-          if (p.equipment_kind) tags.push(p.equipment_kind);
           if (p.inv_number) tags.push('инв. ' + p.inv_number);
           if (p.status && p.status !== 'В работе') tags.push(p.status);
           html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px">';
