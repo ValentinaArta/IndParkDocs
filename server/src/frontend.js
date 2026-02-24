@@ -1882,10 +1882,16 @@ async function showEntity(id) {
 // ============ REPORTS ============
 
 var _reportFields = [];
-// Fields available for manual grouping (only equipment dimensions)
+// Fields available for manual grouping
 var AGG_HIERARCHY_FIELDS = [
-  { name: 'eq_category', label: 'Категория оборудования' },
-  { name: 'eq_name',     label: 'Оборудование' },
+  { name: 'contract_our_legal_entity', label: 'Наше юрлицо' },
+  { name: 'eq_balance_owner',          label: 'Балансодержатель' },
+  { name: 'eq_building',               label: 'Корпус' },
+  { name: 'eq_category',               label: 'Категория оборудования' },
+  { name: 'eq_name',                   label: 'Оборудование' },
+  { name: 'contract_contractor',       label: 'Контрагент' },
+  { name: 'contract_type',             label: 'Тип договора' },
+  { name: 'contract_year',             label: 'Год' },
 ];
 // No auto drill — user controls grouping fully
 var AGG_AUTO_DRILL = [];
