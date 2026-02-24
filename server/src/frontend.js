@@ -91,13 +91,20 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 /* Modal */
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 100; }
 .modal-overlay.show { display: flex; }
-.modal { background: white; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-.modal h3 { font-size: 16px; margin-bottom: 16px; }
+.modal { position: relative; background: white; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.15); transition: max-width 0.15s, width 0.15s, height 0.15s, max-height 0.15s, border-radius 0.15s; }
+.modal.modal--wide { max-width: min(860px, 95vw); }
+.modal.modal--full { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+.modal h3 { font-size: 16px; margin-bottom: 16px; padding-right: 80px; }
 .modal .form-group { margin-bottom: 14px; }
 .modal label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
 .modal input, .modal select, .modal textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; }
 .modal input:focus, .modal select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+/* Modal resize controls */
+.modal-resize-bar { position: sticky; top: 0; float: right; margin: -4px -4px 0 8px; display: flex; gap: 2px; z-index: 10; background: transparent; }
+.modal-resize-btn { background: none; border: 1px solid transparent; border-radius: 5px; cursor: pointer; padding: 3px 6px; font-size: 13px; color: var(--text-muted); line-height: 1.2; transition: all 0.1s; }
+.modal-resize-btn:hover { background: var(--bg-hover); border-color: var(--border); color: var(--text-primary); }
+.modal-resize-btn.is-active { background: var(--accent); color: white; border-color: var(--accent); }
 
 /* Search */
 .search-bar { padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; width: 240px; font-family: inherit; }
@@ -1435,8 +1442,7 @@ function renderContractFormFields(fields, props, headerHtml) {
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreate(\\''+typeName+'\\')">Создать</button></div>';
 
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
 
   // Attach contract_type change handler
   var ctEl = document.getElementById('f_contract_type');
@@ -2961,6 +2967,38 @@ async function runReport() {
 
 // ============ MODALS ============
 
+var _modalSize = 'normal';
+
+function setModalContent(html) {
+  var sizes = ['normal', 'wide', 'full'];
+  var labels = {'normal': '▭', 'wide': '⊟', 'full': '⛶'};
+  var titles = {'normal': 'Стандарт', 'wide': 'Широкий', 'full': 'На всю страницу'};
+  var resizeBar = '<div class="modal-resize-bar">';
+  sizes.forEach(function(s) {
+    var active = (_modalSize === s) ? ' is-active' : '';
+    resizeBar += '<button class="modal-resize-btn' + active + '" data-modal-size="' + s + '" title="' + titles[s] + '">' + labels[s] + '</button>';
+  });
+  resizeBar += '</div>';
+  var el = document.getElementById('modal');
+  el.innerHTML = resizeBar + html;
+  el.classList.toggle('modal--wide', _modalSize === 'wide');
+  el.classList.toggle('modal--full', _modalSize === 'full');
+  document.getElementById('modalOverlay').classList.add('show');
+  el.querySelectorAll('[data-modal-size]').forEach(function(btn) {
+    btn.addEventListener('click', function() { setModalSize(btn.getAttribute('data-modal-size')); });
+  });
+}
+
+function setModalSize(size) {
+  _modalSize = size;
+  var modal = document.getElementById('modal');
+  modal.classList.toggle('modal--wide', size === 'wide');
+  modal.classList.toggle('modal--full', size === 'full');
+  document.querySelectorAll('[data-modal-size]').forEach(function(btn) {
+    btn.classList.toggle('is-active', btn.getAttribute('data-modal-size') === size);
+  });
+}
+
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
   _actEquipmentList = null;
@@ -3008,8 +3046,7 @@ async function openCreateModal(typeName) {
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreate(\\'' + typeName + '\\')">Создать</button></div>';
 
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
   document.getElementById('f_name').focus();
 }
 
@@ -3135,8 +3172,7 @@ async function openEditModal(id) {
     editHtml += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
       '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
 
-    document.getElementById('modal').innerHTML = editHtml;
-    document.getElementById('modalOverlay').classList.add('show');
+    setModalContent(editHtml);
 
     var ctEl = document.getElementById('f_contract_type');
     if (ctEl) {
@@ -3172,8 +3208,7 @@ async function openEditModal(id) {
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
 
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
 }
 
 async function submitEdit(id) {
@@ -3277,8 +3312,7 @@ async function openCreateSupplementModal(parentContractId) {
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreateSupplement(' + parentContractId + ')">Создать</button></div>';
 
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
 
   var ctEl = document.getElementById('f_contract_type');
   if (ctEl) {
@@ -3353,8 +3387,7 @@ async function openCreateActModal(parentContractId) {
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>';
   html += '<button class="btn btn-primary" onclick="if(!_submitting){_submitting=true;_doSubmitCreateAct(' + parentContractId + ').finally(function(){_submitting=false;})}">Создать акт</button></div>';
 
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
   } catch(err) { alert('Ошибка открытия формы акта: ' + (err && err.message ? err.message : String(err))); }
 }
 
@@ -3408,8 +3441,7 @@ async function openRelationModal(entityId) {
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitRelation(' + entityId + ')">Создать</button></div>';
 
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
 }
 
 async function submitRelation(entityId) {
@@ -3477,8 +3509,7 @@ function openAddTypeModal() {
     '<div class="form-group"><label>Цвет</label><input type="color" id="t_color" value="#6366F1"></div>' +
     '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitAddType()">Создать</button></div>';
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
 }
 
 async function submitAddType() {
@@ -3504,8 +3535,7 @@ function openAddFieldModal(typeId) {
     '<div class="form-group" id="fd_options_group" style="display:none"><label>Варианты (через запятую)</label><input id="fd_options" placeholder="Вариант 1, Вариант 2"></div>' +
     '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitAddField(' + typeId + ')">Создать</button></div>';
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
+  setModalContent(html);
   document.getElementById('fd_type').onchange = function() {
     document.getElementById('fd_options_group').style.display = this.value === 'select' ? '' : 'none';
   };
