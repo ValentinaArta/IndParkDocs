@@ -3002,6 +3002,7 @@ function setModalSize(size) {
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
   _actEquipmentList = null;
+  _submitting = false;
 }
 
 async function openCreateModal(typeName) {
@@ -3416,32 +3417,41 @@ async function openCreateActModal(parentContractId) {
 }
 
 async function _doSubmitCreateAct(parentContractId) {
-  var actNumber = (document.getElementById('f_act_number') || {}).value || '';
-  if (!actNumber.trim()) { alert('Введите номер акта'); return; }
-  var actItems = getActItemsValue();
-  if (actItems.length === 0) { alert('Добавьте хотя бы одну единицу оборудования'); return; }
+  try {
+    var actNumber = (document.getElementById('f_act_number') || {}).value || '';
+    if (!actNumber.trim()) { alert('Введите номер акта'); return; }
+    var actItems = getActItemsValue();
+    if (actItems.length === 0) { alert('Добавьте хотя бы одну единицу оборудования. Убедитесь что в строке выбрано оборудование из списка.'); return; }
 
-  var actDate = (document.getElementById('f_act_date') || {}).value || '';
-  var comment = (document.getElementById('f_comment') || {}).value || '';
-  var total = actItems.reduce(function(s, i) { return s + (i.amount || 0); }, 0);
-  var parentEntity = await api('/entities/' + parentContractId);
+    var actDate = (document.getElementById('f_act_date') || {}).value || '';
+    var comment = (document.getElementById('f_comment') || {}).value || '';
+    var total = actItems.reduce(function(s, i) { return s + (i.amount || 0); }, 0);
+    var parentEntity = await api('/entities/' + parentContractId);
 
-  var properties = {
-    act_number: actNumber.trim(),
-    act_date: actDate,
-    comment: comment,
-    parent_contract_id: String(parentContractId),
-    parent_contract_name: parentEntity.name,
-    act_items: JSON.stringify(actItems),
-    total_amount: String(total),
-  };
+    var properties = {
+      act_number: actNumber.trim(),
+      act_date: actDate,
+      comment: comment,
+      parent_contract_id: String(parentContractId),
+      parent_contract_name: parentEntity.name,
+      act_items: JSON.stringify(actItems),
+      total_amount: String(total),
+    };
 
-  var actType = entityTypes.find(function(t) { return t.name === 'act'; });
-  var actName = 'Акт №' + actNumber.trim() + (actDate ? ' от ' + actDate : '') + ' — ' + parentEntity.name;
+    // Refresh entityTypes if act type missing
+    if (!entityTypes.find(function(t) { return t.name === 'act'; })) {
+      entityTypes = await api('/entity-types');
+    }
+    var actType = entityTypes.find(function(t) { return t.name === 'act'; });
+    if (!actType) { alert('Тип "Акт" не найден в entity-types. Попробуйте обновить страницу.'); return; }
 
-  await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: actType.id, name: actName, properties: properties, parent_id: parentContractId }) });
-  closeModal();
-  showEntity(parentContractId);
+    var actName = 'Акт №' + actNumber.trim() + (actDate ? ' от ' + actDate : '') + ' — ' + parentEntity.name;
+    await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: actType.id, name: actName, properties: properties, parent_id: parentContractId }) });
+    closeModal();
+    showEntity(parentContractId);
+  } catch(err) {
+    alert('Ошибка сохранения акта: ' + (err && err.message ? err.message : JSON.stringify(err)));
+  }
 }
 
 // ============ RELATIONS ============
