@@ -887,7 +887,7 @@ function renderDynamicFields(contractType, props) {
 }
 
 var _rentObjectCounter = 0;
-var OBJECT_TYPES = ['Производство класс B', 'Производство класс С', 'Офис', 'Административно-бытовые', 'Склад', 'Земельный участок', 'Оборудование'];
+var OBJECT_TYPES = ['Производство класс В', 'Производство класс С', 'Офис', 'Склад', 'ЗУ', 'Вендомат'];
 var ROOM_TYPES = ['Производственное', 'Офисное', 'Складское', 'Административно-бытовое', 'Техническое'];
 var EQUIPMENT_CATEGORIES = ['Электрооборудование','Газовое','Тепловое','Крановое хозяйство','Машины и механизмы','ИК оборудование'];
 
@@ -1126,13 +1126,15 @@ function _roEqCreateMiniForm(index, eqTypeId) {
 
 function renderRentObjectBlock(index, obj) {
   obj = obj || {};
-  // Backward compat: map old object_type → item_type
-  var item_type = obj.item_type || '';
-  if (!item_type && obj.object_type) {
-    if (obj.object_type === 'Оборудование') item_type = 'equipment';
-    else if (obj.object_type === 'Земельный участок') item_type = 'land_plot';
-    else item_type = 'room';
+  // Resolve object_type: prefer new field, fallback from old item_type
+  var objectType = obj.object_type || '';
+  if (!objectType && obj.item_type) {
+    if (obj.item_type === 'land_plot') objectType = 'ЗУ';
+    else if (obj.item_type === 'equipment') objectType = 'Оборудование';
   }
+  // If objectType is not in OBJECT_TYPES, add it temporarily for display
+  var typeOptions = OBJECT_TYPES.slice();
+  if (objectType && typeOptions.indexOf(objectType) < 0) typeOptions.push(objectType);
   var calcMode = obj.calc_mode || 'area_rate';
 
   var h = '<div class="rent-object-block" id="rent_obj_' + index + '" style="border-left:3px solid var(--accent);padding-left:12px;margin-bottom:12px;position:relative">';
@@ -1141,42 +1143,47 @@ function renderRentObjectBlock(index, obj) {
   h += '<button type="button" class="btn btn-sm btn-danger" onclick="removeRentObject(' + index + ')" style="padding:2px 8px;font-size:11px">✕</button>';
   h += '</div>';
 
-  // Item type selector
-  h += '<div class="form-group"><label>Вид</label>';
-  h += '<select class="ro-field" data-idx="' + index + '" data-name="item_type" onchange="onRentItemTypeChange(' + index + ')">';
+  // Тип помещения — open select
+  h += '<div class="form-group"><label>Тип помещения</label>';
+  h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type">';
   h += '<option value="">—</option>';
-  h += '<option value="room"' + (item_type === 'room' ? ' selected' : '') + '>🚪 Помещение</option>';
-  h += '<option value="equipment"' + (item_type === 'equipment' ? ' selected' : '') + '>⚙️ Оборудование</option>';
-  h += '<option value="land_plot"' + (item_type === 'land_plot' ? ' selected' : '') + '>🌍 Земельный участок</option>';
-  h += '</select></div>';
+  typeOptions.forEach(function(t) {
+    h += '<option value="' + escapeHtml(t) + '"' + (objectType === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+  });
+  h += '</select>';
+  h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="addRentObjectType(' + index + ')">+ Добавить тип помещения</button>';
+  h += '</div>';
 
-  if (item_type === 'room') {
-    h += '<div class="form-group"><label>Корпус</label>' + renderRoEntitySelect(index, 'building_id', _buildings, obj.building_id, 'выберите корпус') +
-      '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
-    h += '<div class="form-group"><label>Помещение</label>';
-    h += renderRoRoomSelect(index, obj.room_id);
-    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '">';
-    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
-    h += '</div>';
-    h += _roRoomCreateMiniForm(index);
-    h += _roCalcFields(index, obj, calcMode);
-  } else if (item_type === 'equipment') {
-    var eqTypeObj = entityTypes.find(function(t) { return t.name === 'equipment'; });
-    var eqTypeId = eqTypeObj ? eqTypeObj.id : '';
-    h += '<div class="form-group"><label>Оборудование</label>';
-    h += renderRoEntitySelect(index, 'equipment_id', _equipment, obj.equipment_id, 'выберите из реестра');
-    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="equipment_name" value="' + escapeHtml(obj.equipment_name || '') + '">';
-    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="toggleRentEquipmentCreate(this)">+ Создать новую единицу</button>';
-    h += '</div>';
-    h += _roEqCreateMiniForm(index, eqTypeId);
-    h += '<div class="form-group"><label>Комментарий</label><input class="ro-field" data-idx="' + index + '" data-name="comment" value="' + escapeHtml(obj.comment || '') + '"></div>';
-  } else if (item_type === 'land_plot') {
-    h += '<div class="form-group"><label>Местоположение ЗУ</label><input class="ro-field" data-idx="' + index + '" data-name="land_location" value="' + escapeHtml(obj.land_location || '') + '"></div>';
-    h += _roCalcFields(index, obj, calcMode);
-  }
+  // Корпус
+  h += '<div class="form-group"><label>Корпус</label>' + renderRoEntitySelect(index, 'building_id', _buildings, obj.building_id, 'выберите корпус') +
+    '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
+
+  // Помещение
+  h += '<div class="form-group"><label>Помещение</label>';
+  h += renderRoRoomSelect(index, obj.room_id);
+  h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '">';
+  h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
+  h += '</div>';
+  h += _roRoomCreateMiniForm(index);
+
+  // Calc fields
+  h += _roCalcFields(index, obj, calcMode);
 
   h += '</div>';
   return h;
+}
+
+function addRentObjectType(index) {
+  var name = prompt('Введите тип помещения:');
+  if (!name || !name.trim()) return;
+  name = name.trim();
+  if (OBJECT_TYPES.indexOf(name) < 0) OBJECT_TYPES.push(name);
+  var sel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type"]');
+  if (sel) {
+    var existing = Array.from(sel.options).find(function(o) { return o.value === name; });
+    if (!existing) { var opt = document.createElement('option'); opt.value = name; opt.text = name; sel.appendChild(opt); }
+    sel.value = name;
+  }
 }
 
 function addRentObject() {
