@@ -2139,6 +2139,7 @@ async function showReports() {
   html += '<button id="tabPivot" class="btn" data-tab="pivot" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Сводная таблица</button>';
   html += '<button id="tabLinked" class="btn" data-tab="linked" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">По связям</button>';
   html += '<button id="tabAgg" class="btn btn-primary" data-tab="agg" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Анализ затрат</button>';
+  html += '<button id="tabWorkHistory" class="btn" data-tab="workHistory" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">История работ</button>';
   html += '</div>';
 
   // Pivot section (drag-and-drop)
@@ -2238,6 +2239,24 @@ async function showReports() {
   html += '<div id="aggResults"></div>';
   html += '</div>'; // end sectionAgg
 
+  // Work History section
+  html += '<div id="sectionWorkHistory" style="display:none">';
+  html += '<div class="detail-section"><h3>История работ по оборудованию</h3>';
+  html += '<p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Матрица: строки — оборудование, столбцы — виды работ из актов</p>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">';
+  html += '<div class="form-group"><label>Категория</label><select id="whCategory" style="width:100%"><option value="">— Все категории —</option>';
+  EQUIPMENT_CATEGORIES.forEach(function(c) { html += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+  html += '</select></div>';
+  html += '<div class="form-group"><label>Корпус</label><select id="whBuilding" style="width:100%"><option value="">— Все корпуса —</option>';
+  (_buildings || []).forEach(function(b) { html += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
+  html += '</select></div>';
+  html += '<div class="form-group"><label>Период (акты)</label><div style="display:flex;gap:6px;align-items:center">от&nbsp;<input type="date" id="whDateFrom" style="flex:1">&nbsp;до&nbsp;<input type="date" id="whDateTo" style="flex:1"></div></div>';
+  html += '</div>';
+  html += '<button class="btn btn-primary" onclick="buildWorkHistoryReport()">Построить таблицу</button>';
+  html += '</div>'; // end detail-section
+  html += '<div id="whResults"></div>';
+  html += '</div>'; // end sectionWorkHistory
+
   html += '</div>';
   content.innerHTML = html;
   switchReportTab('agg');
@@ -2245,7 +2264,7 @@ async function showReports() {
 }
 
 function switchReportTab(tab) {
-  var tabs = ['pivot','linked','agg'];
+  var tabs = ['pivot','linked','agg','workHistory'];
   tabs.forEach(function(t) {
     var btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     var sec = document.getElementById('section' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -3489,6 +3508,144 @@ async function _doSubmitCreateAct(parentContractId) {
   } catch(err) {
     alert('Ошибка сохранения акта: ' + (err && err.message ? err.message : JSON.stringify(err)));
   }
+}
+
+// ============ WORK HISTORY REPORT ============
+
+async function buildWorkHistoryReport() {
+  var resultsEl = document.getElementById('whResults');
+  resultsEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Загрузка...</div>';
+
+  var category = (document.getElementById('whCategory') || {}).value || '';
+  var buildingId = (document.getElementById('whBuilding') || {}).value || '';
+  var dateFrom = (document.getElementById('whDateFrom') || {}).value || '';
+  var dateTo = (document.getElementById('whDateTo') || {}).value || '';
+
+  var params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (buildingId) params.set('building_id', buildingId);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+
+  try {
+    var rows = await api('/reports/work-history?' + params.toString());
+    resultsEl.innerHTML = renderWorkHistoryTable(rows);
+  } catch(err) {
+    resultsEl.innerHTML = '<div style="color:red;padding:16px">Ошибка: ' + escapeHtml(err.message || String(err)) + '</div>';
+  }
+}
+
+function renderWorkHistoryTable(rows) {
+  if (!rows || rows.length === 0) {
+    return '<div class="detail-section"><p style="color:var(--text-muted);padding:16px">Нет данных. Создайте акты и свяжите их с оборудованием.</p></div>';
+  }
+
+  // Collect unique descriptions (columns), skip empty
+  var descSet = {};
+  rows.forEach(function(r) {
+    if (r.description && r.description.trim()) descSet[r.description.trim()] = true;
+  });
+  var descriptions = Object.keys(descSet).sort();
+
+  // Collect unique equipment (rows)
+  var eqMap = {};
+  rows.forEach(function(r) {
+    if (!eqMap[r.eq_id]) {
+      eqMap[r.eq_id] = {
+        eq_id: r.eq_id, eq_name: r.eq_name,
+        eq_inv_number: r.eq_inv_number, eq_category: r.eq_category,
+        eq_status: r.eq_status, building_name: r.building_name,
+        cells: {}
+      };
+    }
+    var desc = (r.description || '').trim();
+    if (desc) {
+      if (!eqMap[r.eq_id].cells[desc]) eqMap[r.eq_id].cells[desc] = { amount: 0, acts: [] };
+      eqMap[r.eq_id].cells[desc].amount += r.amount || 0;
+      eqMap[r.eq_id].cells[desc].acts.push({ act_id: r.act_id, act_name: r.act_name, act_date: r.act_date, amount: r.amount });
+    }
+  });
+  var equipment = Object.values(eqMap).sort(function(a,b) { return a.eq_name.localeCompare(b.eq_name, 'ru'); });
+
+  // Totals per description
+  var descTotals = {};
+  descriptions.forEach(function(d) { descTotals[d] = 0; });
+  equipment.forEach(function(eq) {
+    descriptions.forEach(function(d) {
+      descTotals[d] += (eq.cells[d] ? eq.cells[d].amount : 0);
+    });
+  });
+
+  var grandTotal = equipment.reduce(function(s, eq) {
+    return s + descriptions.reduce(function(s2, d) { return s2 + (eq.cells[d] ? eq.cells[d].amount : 0); }, 0);
+  }, 0);
+
+  var fmt = function(v) { return v > 0 ? v.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' \u20bd' : '\u2014'; };
+  var fmtDate = function(d) { return d ? d.split('-').reverse().join('.') : ''; };
+  var TABLE_MAX_COL = 30;
+  var trunc = function(s, n) { return s.length > n ? s.substring(0, n) + '\u2026' : s; };
+
+  var h = '<div class="detail-section">';
+  h += '<div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">' + equipment.length + ' \u0435\u0434. \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f \xb7 ' + descriptions.length + ' \u0432\u0438\u0434\u043e\u0432 \u0440\u0430\u0431\u043e\u0442</div>';
+  h += '<div style="overflow-x:auto">';
+  h += '<table style="border-collapse:collapse;width:100%;font-size:13px">';
+
+  // Header
+  h += '<thead><tr>';
+  h += '<th style="text-align:left;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border);min-width:180px;position:sticky;left:0;z-index:1">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435</th>';
+  h += '<th style="text-align:left;padding:8px 6px;background:var(--bg-secondary);border:1px solid var(--border);min-width:90px">\u041a\u043e\u0440\u043f\u0443\u0441</th>';
+  h += '<th style="text-align:left;padding:8px 6px;background:var(--bg-secondary);border:1px solid var(--border);min-width:80px">\u0421\u0442\u0430\u0442\u0443\u0441</th>';
+  descriptions.forEach(function(d) {
+    h += '<th title="' + escapeHtml(d) + '" style="text-align:right;padding:8px 8px;background:var(--bg-secondary);border:1px solid var(--border);min-width:110px;max-width:150px;white-space:normal;word-break:break-word">' + escapeHtml(trunc(d, TABLE_MAX_COL)) + '</th>';
+  });
+  h += '<th style="text-align:right;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border);min-width:110px;font-weight:700">\u0418\u0442\u043e\u0433\u043e</th>';
+  h += '</tr></thead>';
+
+  // Body
+  h += '<tbody>';
+  equipment.forEach(function(eq, idx) {
+    var rowTotal = descriptions.reduce(function(s, d) { return s + (eq.cells[d] ? eq.cells[d].amount : 0); }, 0);
+    var bg = idx % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)';
+    h += '<tr>';
+    h += '<td style="padding:7px 10px;border:1px solid var(--border);background:' + bg + ';position:sticky;left:0;z-index:1">';
+    h += '<a href="#" onclick="showEntity(' + eq.eq_id + ');return false" style="font-weight:600;color:var(--accent)">' + escapeHtml(eq.eq_name) + '</a>';
+    if (eq.eq_inv_number) h += '<div style="font-size:11px;color:var(--text-muted)">\u0438\u043d\u0432. ' + escapeHtml(eq.eq_inv_number) + '</div>';
+    h += '</td>';
+    h += '<td style="padding:7px 6px;border:1px solid var(--border);background:' + bg + ';font-size:12px">' + escapeHtml(eq.building_name) + '</td>';
+    h += '<td style="padding:7px 6px;border:1px solid var(--border);background:' + bg + ';font-size:12px">' + escapeHtml(eq.eq_status || '\u2014') + '</td>';
+    descriptions.forEach(function(d) {
+      var cell = eq.cells[d];
+      if (!cell) {
+        h += '<td style="padding:7px 8px;border:1px solid var(--border);background:' + bg + ';text-align:center;color:var(--text-muted)">\u2014</td>';
+      } else {
+        var actsList = cell.acts.map(function(a) { return (a.act_name || '\u0410\u043a\u0442') + (a.act_date ? ' (' + fmtDate(a.act_date) + ')' : '') + (a.amount ? ' \u2014 ' + a.amount.toLocaleString('ru-RU',{maximumFractionDigits:0}) + ' \u20bd' : ''); }).join('; ');
+        h += '<td style="padding:7px 8px;border:1px solid var(--border);background:' + bg + ';text-align:right" title="' + escapeHtml(actsList) + '">';
+        h += '<div style="font-weight:600">' + fmt(cell.amount) + '</div>';
+        h += '<div style="font-size:11px;color:var(--text-muted)">' + cell.acts.length + ' ' + (cell.acts.length === 1 ? '\u0430\u043a\u0442' : cell.acts.length < 5 ? '\u0430\u043a\u0442\u0430' : '\u0430\u043a\u0442\u043e\u0432') + '</div>';
+        h += '</td>';
+      }
+    });
+    h += '<td style="padding:7px 10px;border:1px solid var(--border);background:' + bg + ';text-align:right;font-weight:700">' + fmt(rowTotal) + '</td>';
+    h += '</tr>';
+  });
+
+  // Footer totals
+  h += '<tr style="background:var(--bg-secondary);font-weight:700">';
+  h += '<td colspan="3" style="padding:8px 10px;border:1px solid var(--border)">\u0418\u0442\u043e\u0433\u043e \u043f\u043e \u0432\u0438\u0434\u0430\u043c \u0440\u0430\u0431\u043e\u0442</td>';
+  descriptions.forEach(function(d) {
+    h += '<td style="padding:8px 8px;border:1px solid var(--border);text-align:right">' + fmt(descTotals[d]) + '</td>';
+  });
+  h += '<td style="padding:8px 10px;border:1px solid var(--border);text-align:right">' + fmt(grandTotal) + '</td>';
+  h += '</tr>';
+  h += '</tbody></table></div>';
+
+  if (descriptions.length > 0) {
+    h += '<div style="margin-top:16px;font-size:12px;color:var(--text-muted)"><strong>\u0412\u0438\u0434\u044b \u0440\u0430\u0431\u043e\u0442:</strong> ';
+    h += descriptions.map(function(d, i) { return (i+1) + '. ' + escapeHtml(d); }).join(' &nbsp;|&nbsp; ');
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
 }
 
 // ============ RELATIONS ============
