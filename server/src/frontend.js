@@ -679,14 +679,16 @@ function _renderActItem(item, rowId) {
   h += '<div style="display:flex;flex-direction:column;gap:6px">';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0430\u0431\u043e\u0442</label>';
   h += '<textarea class="act-item-desc" placeholder="\u0447\u0442\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e..." style="width:100%;margin-top:2px;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.description || '') + '</textarea></div>';
-  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u0420\u0430\u0431\u043e\u0442\u044b/\u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f</label>';
-  h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
-  // Broken/emergency flag
   var brokenChecked = item.broken ? ' checked' : '';
-  h += '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid ' + (item.broken ? 'var(--danger)' : 'var(--border)') + ';background:' + (item.broken ? 'rgba(239,68,68,.08)' : 'transparent') + ';transition:all .15s" class="act-item-broken-label">';
-  h += '<input type="checkbox" class="act-item-broken"' + brokenChecked + ' onchange="_onActItemBrokenChange(this)"> ';
+  var brokenBorder = item.broken ? 'var(--danger)' : 'transparent';
+  var brokenBg = item.broken ? 'rgba(239,68,68,.08)' : 'transparent';
+  h += '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">';
+  h += '<label style="font-size:11px;color:var(--text-muted)">\u0420\u0430\u0431\u043e\u0442\u044b/\u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f</label>';
+  h += '<label class="act-item-broken-label" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;padding:2px 7px;border-radius:5px;border:1px solid ' + brokenBorder + ';background:' + brokenBg + ';transition:all .15s;color:' + (item.broken ? 'var(--danger)' : 'var(--text-muted)') + '">';
+  h += '<input type="checkbox" class="act-item-broken"' + brokenChecked + ' onchange="_onActItemBrokenChange(this)">';
   h += '\u26a0\ufe0f \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439/\u0430\u0432\u0430\u0440\u0438\u0439\u043d\u044b\u0439</label>';
   h += '</div>';
+  h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
   h += '</div>';
   return h;
 }
