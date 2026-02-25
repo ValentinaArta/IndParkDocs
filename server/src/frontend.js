@@ -3699,17 +3699,19 @@ async function buildWorkHistoryReport() {
 
 function renderWorkHistoryTable(rows) {
   if (!rows || rows.length === 0) {
-    return '<div class="detail-section"><p style="color:var(--text-muted);padding:16px">Нет данных. Создайте акты и свяжите их с оборудованием.</p></div>';
+    return '<div class="detail-section"><p style="color:var(--text-muted);padding:16px">\u041d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445. \u0421\u043e\u0437\u0434\u0430\u0439\u0442\u0435 \u0430\u043a\u0442\u044b \u0438 \u0441\u0432\u044f\u0436\u0438\u0442\u0435 \u0438\u0445 \u0441 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435\u043c.</p></div>';
   }
 
-  // Collect unique descriptions (columns), skip empty
-  var descSet = {};
-  rows.forEach(function(r) {
-    if (r.description && r.description.trim()) descSet[r.description.trim()] = true;
-  });
-  var descriptions = Object.keys(descSet).sort();
+  var fmtDate = function(d) { return d ? d.split('-').reverse().join('.') : ''; };
+  var fmt = function(v) { return v > 0 ? v.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' \u20bd' : ''; };
 
-  // Collect unique equipment (rows)
+  // Collect unique sorted dates (columns)
+  var dateSet = {};
+  rows.forEach(function(r) { if (r.act_date) dateSet[r.act_date] = true; });
+  var dates = Object.keys(dateSet).sort();
+
+  // Collect unique equipment (rows), group cells by date
+  // Cell = { descriptions: [], amount: 0, act_ids: [] }
   var eqMap = {};
   rows.forEach(function(r) {
     if (!eqMap[r.eq_id]) {
@@ -3717,96 +3719,97 @@ function renderWorkHistoryTable(rows) {
         eq_id: r.eq_id, eq_name: r.eq_name,
         eq_inv_number: r.eq_inv_number, eq_category: r.eq_category,
         eq_status: r.eq_status, building_name: r.building_name,
-        cells: {}
+        cells: {}, totalAmount: 0
       };
     }
-    var desc = (r.description || '').trim();
-    if (desc) {
-      if (!eqMap[r.eq_id].cells[desc]) eqMap[r.eq_id].cells[desc] = { amount: 0, acts: [] };
-      eqMap[r.eq_id].cells[desc].amount += r.amount || 0;
-      eqMap[r.eq_id].cells[desc].acts.push({ act_id: r.act_id, act_name: r.act_name, act_date: r.act_date, amount: r.amount });
+    var date = r.act_date || '';
+    if (!eqMap[r.eq_id].cells[date]) {
+      eqMap[r.eq_id].cells[date] = { descriptions: [], amount: 0, actIds: [], actNames: [] };
     }
+    var cell = eqMap[r.eq_id].cells[date];
+    if (r.description && r.description.trim()) {
+      if (cell.descriptions.indexOf(r.description.trim()) < 0) {
+        cell.descriptions.push(r.description.trim());
+      }
+    }
+    cell.amount += r.amount || 0;
+    if (r.act_id && cell.actIds.indexOf(r.act_id) < 0) {
+      cell.actIds.push(r.act_id);
+      cell.actNames.push(r.act_name || '\u0410\u043a\u0442');
+    }
+    eqMap[r.eq_id].totalAmount += r.amount || 0;
   });
+
   var equipment = Object.values(eqMap).sort(function(a,b) { return a.eq_name.localeCompare(b.eq_name, 'ru'); });
 
-  // Totals per description
-  var descTotals = {};
-  descriptions.forEach(function(d) { descTotals[d] = 0; });
-  equipment.forEach(function(eq) {
-    descriptions.forEach(function(d) {
-      descTotals[d] += (eq.cells[d] ? eq.cells[d].amount : 0);
-    });
-  });
-
-  var grandTotal = equipment.reduce(function(s, eq) {
-    return s + descriptions.reduce(function(s2, d) { return s2 + (eq.cells[d] ? eq.cells[d].amount : 0); }, 0);
-  }, 0);
-
-  var fmt = function(v) { return v > 0 ? v.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' \u20bd' : '\u2014'; };
-  var fmtDate = function(d) { return d ? d.split('-').reverse().join('.') : ''; };
-  var TABLE_MAX_COL = 30;
-  var trunc = function(s, n) { return s.length > n ? s.substring(0, n) + '\u2026' : s; };
-
   var h = '<div class="detail-section">';
-  h += '<div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">' + equipment.length + ' \u0435\u0434. \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f \xb7 ' + descriptions.length + ' \u0432\u0438\u0434\u043e\u0432 \u0440\u0430\u0431\u043e\u0442</div>';
+  h += '<div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">';
+  h += equipment.length + ' \u0435\u0434. \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f &middot; ' + dates.length + ' \u0434\u0430\u0442';
+  h += '</div>';
   h += '<div style="overflow-x:auto">';
-  h += '<table style="border-collapse:collapse;width:100%;font-size:13px">';
+  h += '<table style="border-collapse:collapse;font-size:13px;min-width:100%">';
 
-  // Header
+  // Header row
   h += '<thead><tr>';
-  h += '<th style="text-align:left;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border);min-width:180px;position:sticky;left:0;z-index:1">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435</th>';
-  h += '<th style="text-align:left;padding:8px 6px;background:var(--bg-secondary);border:1px solid var(--border);min-width:90px">\u041a\u043e\u0440\u043f\u0443\u0441</th>';
-  h += '<th style="text-align:left;padding:8px 6px;background:var(--bg-secondary);border:1px solid var(--border);min-width:80px">\u0421\u0442\u0430\u0442\u0443\u0441</th>';
-  descriptions.forEach(function(d) {
-    h += '<th title="' + escapeHtml(d) + '" style="text-align:right;padding:8px 8px;background:var(--bg-secondary);border:1px solid var(--border);min-width:110px;max-width:150px;white-space:normal;word-break:break-word">' + escapeHtml(trunc(d, TABLE_MAX_COL)) + '</th>';
+  h += '<th style="text-align:left;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border);min-width:200px;position:sticky;left:0;z-index:2">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435</th>';
+  dates.forEach(function(d) {
+    h += '<th style="text-align:center;padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);min-width:160px;white-space:nowrap">' + fmtDate(d) + '</th>';
   });
-  h += '<th style="text-align:right;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border);min-width:110px;font-weight:700">\u0418\u0442\u043e\u0433\u043e</th>';
+  h += '<th style="text-align:right;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border);min-width:100px;font-weight:700;white-space:nowrap">\u0418\u0442\u043e\u0433\u043e, \u20bd</th>';
   h += '</tr></thead>';
 
   // Body
   h += '<tbody>';
   equipment.forEach(function(eq, idx) {
-    var rowTotal = descriptions.reduce(function(s, d) { return s + (eq.cells[d] ? eq.cells[d].amount : 0); }, 0);
     var bg = idx % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)';
     h += '<tr>';
-    h += '<td style="padding:7px 10px;border:1px solid var(--border);background:' + bg + ';position:sticky;left:0;z-index:1">';
-    h += '<a href="#" onclick="showEntity(' + eq.eq_id + ');return false" style="font-weight:600;color:var(--accent)">' + escapeHtml(eq.eq_name) + '</a>';
+
+    // Equipment cell (sticky)
+    h += '<td style="padding:8px 10px;border:1px solid var(--border);background:' + bg + ';position:sticky;left:0;z-index:1;vertical-align:top">';
+    h += '<a href="#" onclick="showEntity(' + eq.eq_id + ');return false" style="font-weight:600;color:var(--accent);display:block">' + escapeHtml(eq.eq_name) + '</a>';
     if (eq.eq_inv_number) h += '<div style="font-size:11px;color:var(--text-muted)">\u0438\u043d\u0432. ' + escapeHtml(eq.eq_inv_number) + '</div>';
+    if (eq.building_name && eq.building_name !== '\u2014') h += '<div style="font-size:11px;color:var(--text-muted)">' + escapeHtml(eq.building_name) + '</div>';
     h += '</td>';
-    h += '<td style="padding:7px 6px;border:1px solid var(--border);background:' + bg + ';font-size:12px">' + escapeHtml(eq.building_name) + '</td>';
-    h += '<td style="padding:7px 6px;border:1px solid var(--border);background:' + bg + ';font-size:12px">' + escapeHtml(eq.eq_status || '\u2014') + '</td>';
-    descriptions.forEach(function(d) {
-      var cell = eq.cells[d];
-      if (!cell) {
-        h += '<td style="padding:7px 8px;border:1px solid var(--border);background:' + bg + ';text-align:center;color:var(--text-muted)">\u2014</td>';
+
+    // Date cells
+    dates.forEach(function(date) {
+      var cell = eq.cells[date];
+      if (!cell || (cell.descriptions.length === 0 && cell.amount === 0)) {
+        h += '<td style="padding:8px 12px;border:1px solid var(--border);background:' + bg + ';text-align:center;color:var(--text-muted);vertical-align:top">\u2014</td>';
       } else {
-        var actsList = cell.acts.map(function(a) { return (a.act_name || '\u0410\u043a\u0442') + (a.act_date ? ' (' + fmtDate(a.act_date) + ')' : '') + (a.amount ? ' \u2014 ' + a.amount.toLocaleString('ru-RU',{maximumFractionDigits:0}) + ' \u20bd' : ''); }).join('; ');
-        h += '<td style="padding:7px 8px;border:1px solid var(--border);background:' + bg + ';text-align:right" title="' + escapeHtml(actsList) + '">';
-        h += '<div style="font-weight:600">' + fmt(cell.amount) + '</div>';
-        h += '<div style="font-size:11px;color:var(--text-muted)">' + cell.acts.length + ' ' + (cell.acts.length === 1 ? '\u0430\u043a\u0442' : cell.acts.length < 5 ? '\u0430\u043a\u0442\u0430' : '\u0430\u043a\u0442\u043e\u0432') + '</div>';
+        h += '<td style="padding:8px 12px;border:1px solid var(--border);background:' + bg + ';vertical-align:top">';
+        // List of work descriptions
+        if (cell.descriptions.length > 0) {
+          h += '<div style="font-size:12px;line-height:1.5">';
+          cell.descriptions.forEach(function(desc) {
+            h += '<div style="margin-bottom:2px">' + escapeHtml(desc) + '</div>';
+          });
+          h += '</div>';
+        }
+        // Amount (if non-zero)
+        if (cell.amount > 0) {
+          h += '<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px">' + fmt(cell.amount) + '</div>';
+        }
+        // Link to act(s)
+        if (cell.actIds.length > 0) {
+          h += '<div style="font-size:11px;margin-top:3px">';
+          cell.actIds.forEach(function(aid, i) {
+            h += '<a href="#" onclick="showEntity(' + aid + ');return false" style="color:var(--text-muted)">\u2192 ' + escapeHtml(cell.actNames[i] || '\u0410\u043a\u0442') + '</a>';
+            if (i < cell.actIds.length - 1) h += ' ';
+          });
+          h += '</div>';
+        }
         h += '</td>';
       }
     });
-    h += '<td style="padding:7px 10px;border:1px solid var(--border);background:' + bg + ';text-align:right;font-weight:700">' + fmt(rowTotal) + '</td>';
+
+    // Row total
+    h += '<td style="padding:8px 10px;border:1px solid var(--border);background:' + bg + ';text-align:right;font-weight:600;vertical-align:top">';
+    h += eq.totalAmount > 0 ? fmt(eq.totalAmount) : '\u2014';
+    h += '</td>';
     h += '</tr>';
   });
-
-  // Footer totals
-  h += '<tr style="background:var(--bg-secondary);font-weight:700">';
-  h += '<td colspan="3" style="padding:8px 10px;border:1px solid var(--border)">\u0418\u0442\u043e\u0433\u043e \u043f\u043e \u0432\u0438\u0434\u0430\u043c \u0440\u0430\u0431\u043e\u0442</td>';
-  descriptions.forEach(function(d) {
-    h += '<td style="padding:8px 8px;border:1px solid var(--border);text-align:right">' + fmt(descTotals[d]) + '</td>';
-  });
-  h += '<td style="padding:8px 10px;border:1px solid var(--border);text-align:right">' + fmt(grandTotal) + '</td>';
-  h += '</tr>';
-  h += '</tbody></table></div>';
-
-  if (descriptions.length > 0) {
-    h += '<div style="margin-top:16px;font-size:12px;color:var(--text-muted)"><strong>\u0412\u0438\u0434\u044b \u0440\u0430\u0431\u043e\u0442:</strong> ';
-    h += descriptions.map(function(d, i) { return (i+1) + '. ' + escapeHtml(d); }).join(' &nbsp;|&nbsp; ');
-    h += '</div>';
-  }
-  h += '</div>';
+  h += '</tbody></table></div></div>';
   return h;
 }
 
