@@ -2710,12 +2710,6 @@ async function showReports() {
   html += '</div>';
   html += '<button class="btn btn-primary" onclick="buildRentAnalysis()">\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435</button>';
   html += '</div>';
-  // Rate mode selector
-  html += '<div style="margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">';
-  html += '<span style="font-size:12px;color:var(--text-muted);font-weight:600">\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441 \u043f\u043e:</span>';
-  html += '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="radio" name="rentRateMode" value="rent_rate" checked onchange="_setRentRateMode(this.value)"> \u0410\u0440\u0435\u043d\u0434\u043d\u0430\u044f \u0441\u0442\u0430\u0432\u043a\u0430</label>';
-  html += '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="radio" name="rentRateMode" value="net_rate" onchange="_setRentRateMode(this.value)"> \u0427\u0438\u0441\u0442\u0430\u044f \u0430\u0440\u0435\u043d\u0434\u043d\u0430\u044f \u0441\u0442\u0430\u0432\u043a\u0430</label>';
-  html += '</div>';
   // Column selector (collapsible)
   html += '<div style="margin-bottom:12px">';
   html += '<button type="button" class="btn btn-sm" onclick="_toggleRentColPanel()" style="font-size:11px;margin-bottom:6px">\u2630 \u0421\u0442\u043e\u043b\u0431\u0446\u044b</button>';
@@ -4269,7 +4263,8 @@ var RENT_COLS = [
   { key: 'net_rate',         label: '\u0421\u0442\u0430\u0432\u043a\u0430 \u0447\u0438\u0441\u0442\u0430\u044f, \u20bd/\u043c\xb2/\u043c\u0435\u0441', w: 120, fmt: 'num0' },
   { key: 'utility_rate',     label: '\u041a\u0423 \u0432 \u043f\u043b\u0430\u0442\u0435\u0436\u0435/\u0441\u0442\u0430\u0432\u043a\u0435',  w: 130 },
   { key: 'external_rental',  label: '\u0410\u0440\u0435\u043d\u0434\u0430 \u0432\u043d\u0435\u0448\u043d\u044f\u044f',                      w: 100, fmt: 'bool' },
-  { key: 'monthly_amount',   label: '\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441, \u20bd', w: 110, fmt: 'num0' },
+  { key: 'rent_payment',     label: '\u0410\u0440\u0435\u043d\u0434\u043d\u044b\u0439 \u043f\u043b\u0430\u0442\u0435\u0436, \u20bd/\u043c\u0435\u0441', w: 130, fmt: 'num0' },
+  { key: 'net_payment',      label: '\u0427\u0438\u0441\u0442\u044b\u0439 \u0430\u0440. \u043f\u043b\u0430\u0442\u0435\u0436, \u20bd/\u043c\u0435\u0441', w: 140, fmt: 'num0' },
   { key: 'contract_end_date',label: '\u0421\u0440\u043e\u043a \u0434\u043e',                      w: 90,  fmt: 'date' },
   { key: 'comment',          label: '\u041f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435',                                         w: 180 },
 ];
@@ -4380,8 +4375,13 @@ function _fmtRentNum(v, dec) {
 }
 function _fmtRentDate(d) { return d ? d.split('-').reverse().join('.') : ''; }
 
+function _rentPayment(row) { return (parseFloat(row.area)||0) * (parseFloat(row.rent_rate)||0); }
+function _rentNetPayment(row) { return (parseFloat(row.area)||0) * (parseFloat(row.net_rate)||0); }
+
 function _buildRentTableHtml(rows) {
   var fmtVal = function(col, row) {
+    if (col.key === 'rent_payment') { var rp = _rentPayment(row); return rp > 0 ? _fmtRentNum(rp, 0) : '<span style="color:var(--text-muted)">—</span>'; }
+    if (col.key === 'net_payment')  { var np = _rentNetPayment(row); return np > 0 ? _fmtRentNum(np, 0) : '<span style="color:var(--text-muted)">—</span>'; }
     var v = row[col.key];
     if (col.fmt === 'date') return _fmtRentDate(v);
     if (col.fmt === 'num0') return v ? _fmtRentNum(v, 0) : '<span style="color:var(--text-muted)">—</span>';
@@ -4398,13 +4398,14 @@ function _buildRentTableHtml(rows) {
 
   // Summary
   var totalArea = rows.reduce(function(s,r){ return s + (parseFloat(r.area)||0); }, 0);
-  var totalMonthly = rows.reduce(function(s,r){ return s + _rentMonthlyAmount(r); }, 0);
-  var rateLabel = _rentRateMode === 'net_rate' ? '\u0427\u0438\u0441\u0442\u0430\u044f \u0430\u0440\u0435\u043d\u0434\u0430/\u043c\u0435\u0441, \u20bd' : '\u0410\u0440\u0435\u043d\u0434\u0430/\u043c\u0435\u0441, \u20bd';
+  var totalRentPay = rows.reduce(function(s,r){ return s + _rentPayment(r); }, 0);
+  var totalNetPay  = rows.reduce(function(s,r){ return s + _rentNetPayment(r); }, 0);
 
   var h = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">';
   h += '<div class="stat-card"><div class="stat-label">\u0421\u0442\u0440\u043e\u043a</div><div class="stat-value">' + rows.length + '</div></div>';
   h += '<div class="stat-card"><div class="stat-label">\u041f\u043b\u043e\u0449\u0430\u0434\u044c, \u043c\xb2</div><div class="stat-value">' + _fmtRentNum(totalArea, 1) + '</div></div>';
-  h += '<div class="stat-card"><div class="stat-label">' + rateLabel + '</div><div class="stat-value">' + _fmtRentNum(totalMonthly, 0) + '</div></div>';
+  h += '<div class="stat-card"><div class="stat-label">\u0410\u0440\u0435\u043d\u0434\u043d\u044b\u0439 \u043f\u043b\u0430\u0442\u0435\u0436/\u043c\u0435\u0441, \u20bd</div><div class="stat-value">' + _fmtRentNum(totalRentPay, 0) + '</div></div>';
+  h += '<div class="stat-card"><div class="stat-label">\u0427\u0438\u0441\u0442\u044b\u0439 \u043f\u043b\u0430\u0442\u0435\u0436/\u043c\u0435\u0441, \u20bd</div><div class="stat-value">' + _fmtRentNum(totalNetPay, 0) + '</div></div>';
   h += '</div>';
 
   if (_rentGroupBy.length > 0) {
@@ -4426,9 +4427,9 @@ function _buildFlatRentTable(rows, fmtVal) {
     var isFiltered = _rentFilters[col.key] && _rentFilters[col.key].size > 0;
     var sortIcon = _rentSortField === col.key ? (_rentSortAsc ? ' \u2191' : ' \u2193') : '';
     var w = (_rentColWidths[col.key] || col.w);
-    h += '<th class="rent-th" style="width:' + w + 'px;min-width:40px">';
-    h += '<div class="rent-th-inner" onclick="_rentSort(&quot;' + col.key + '&quot;)">';
-    h += '<span>' + (col.key === 'monthly_amount' ? (_rentRateMode === 'net_rate' ? '\u0427\u0438\u0441\u0442\u0430\u044f \u0430\u0440\u0435\u043d\u0434\u0430/\u043c\u0435\u0441, \u20bd' : col.label) : col.label) + sortIcon + '</span>';
+    h += '<th class="rent-th" style="width:' + w + 'px;min-width:40px;white-space:normal;word-break:break-word">';
+    h += '<div class="rent-th-inner" onclick="_rentSort(&quot;' + col.key + '&quot;)" style="white-space:normal;word-break:break-word;align-items:flex-start">';
+    h += '<span style="white-space:normal">' + col.label + sortIcon + '</span>';
     h += '<button class="rent-filter-btn' + (isFiltered ? ' active' : '') + '" title="\u0424\u0438\u043b\u044c\u0442\u0440" onclick="event.stopPropagation();_rentOpenFilter(event,&quot;' + col.key + '&quot;)">\u25bc</button>';
     h += '</div>';
     h += '<div class="rent-col-resizer" onmousedown="event.stopPropagation();_rentStartResize(event,&quot;' + col.key + '&quot;)"></div>';
@@ -4442,31 +4443,27 @@ function _buildFlatRentTable(rows, fmtVal) {
     h += '<td style="padding:5px 8px;border:1px solid var(--border);background:' + bg + ';color:var(--text-muted);text-align:right">' + (i+1) + '</td>';
     visCols.forEach(function(col) {
       var align = (col.fmt === 'num0' || col.fmt === 'num1') ? 'right' : 'left';
-      // Dynamic monthly_amount based on rate mode
-      var cellRow = row;
-      if (col.key === 'monthly_amount') {
-        cellRow = Object.assign({}, row, { monthly_amount: _rentMonthlyAmount(row) });
-      }
-      h += '<td style="padding:5px 8px;border:1px solid var(--border);background:' + bg + ';text-align:' + align + ';max-width:' + col.w + 'px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(String(cellRow[col.key] || '')) + '">';
-      h += fmtVal(col, cellRow) + '</td>';
+      h += '<td style="padding:5px 8px;border:1px solid var(--border);background:' + bg + ';text-align:' + align + ';max-width:' + col.w + 'px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="">';
+      h += fmtVal(col, row) + '</td>';
     });
     h += '</tr>';
   });
 
-  // Totals row — dynamic by visCols
-  var SUMABLE = { area: 1, rent_rate: 0, net_rate: 0, monthly_amount: 0 };
+  // Totals row
+  var SUMABLE = { area: 1, rent_payment: 0, net_payment: 0 };
   h += '<tr style="background:var(--bg-secondary);font-weight:700">';
   h += '<td style="padding:5px 8px;border:1px solid var(--border)">\u0418\u0442\u043e\u0433\u043e (' + rows.length + ' \u0441\u0442\u0440\u043e\u043a)</td>';
   visCols.forEach(function(col) {
     h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">';
-    if (col.key in SUMABLE) {
-      var tot;
-      if (col.key === 'monthly_amount') {
-        tot = rows.reduce(function(s,r){ return s + _rentMonthlyAmount(r); }, 0);
-      } else {
-        tot = rows.reduce(function(s,r){ return s + (parseFloat(r[col.key])||0); }, 0);
-      }
-      h += tot > 0 ? _fmtRentNum(tot, SUMABLE[col.key]) : '';
+    if (col.key === 'rent_payment') {
+      var tot1 = rows.reduce(function(s,r){ return s + _rentPayment(r); }, 0);
+      h += tot1 > 0 ? _fmtRentNum(tot1, 0) : '';
+    } else if (col.key === 'net_payment') {
+      var tot2 = rows.reduce(function(s,r){ return s + _rentNetPayment(r); }, 0);
+      h += tot2 > 0 ? _fmtRentNum(tot2, 0) : '';
+    } else if (col.key === 'area') {
+      var tot3 = rows.reduce(function(s,r){ return s + (parseFloat(r.area)||0); }, 0);
+      h += tot3 > 0 ? _fmtRentNum(tot3, 1) : '';
     }
     h += '</td>';
   });
@@ -4521,7 +4518,7 @@ function _buildGroupedRentTable(rows) {
 
   function renderGroup(g, depth) {
     var area = g.rows.reduce(function(s,r){return s+(parseFloat(r.area)||0);}, 0);
-    var mon = g.rows.reduce(function(s,r){return s+_rentMonthlyAmount(r);}, 0);
+    var mon = g.rows.reduce(function(s,r){return s+_rentPayment(r);}, 0);
     var indent = depth * 20;
     h += '<tr style="background:var(--bg-secondary)">';
     h += '<td colspan="4" style="padding:6px 10px 6px ' + (10+indent) + 'px;border:1px solid var(--border);font-weight:600">';
@@ -4545,8 +4542,7 @@ function _buildGroupedRentTable(rows) {
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(row.contractor_name || '') + '</td>';
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(row.object_type || '') + ' / ' + escapeHtml(row.building || '') + '</td>';
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';text-align:right;white-space:nowrap">';
-        var _rRate = parseFloat(row[_rentRateMode]) || 0;
-        h += _fmtRentNum(row.area, 1) + ' \u043c\xb2 &middot; ' + _fmtRentNum(_rRate, 0) + ' = ' + _fmtRentNum(_rentMonthlyAmount(row), 0) + ' \u20bd/\u043c\u0435\u0441';
+        h += _fmtRentNum(row.area, 1) + ' \u043c\xb2 &middot; ' + _fmtRentNum(row.rent_rate||0, 0) + ' = ' + _fmtRentNum(_rentPayment(row), 0) + ' \u20bd/\u043c\u0435\u0441';
         h += '</td></tr>';
       });
     }
