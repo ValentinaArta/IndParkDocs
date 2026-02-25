@@ -154,14 +154,19 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
   .entity-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
-.rent-filter-dropdown { position:absolute;top:100%;left:0;z-index:100;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:180px;max-width:280px;padding:6px 0; }
+.rent-filter-dropdown { position:absolute;top:100%;left:0;z-index:100;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,.15);min-width:220px;max-width:320px;padding:6px 0; }
 .rent-filter-dropdown label { display:flex;align-items:center;gap:6px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 .rent-filter-dropdown label:hover { background:var(--bg-hover); }
-.rent-th { position:relative;white-space:nowrap;padding:6px 8px;background:var(--bg-secondary);border:1px solid var(--border);font-size:12px;font-weight:600;user-select:none; }
-.rent-th-inner { display:flex;align-items:center;gap:4px;cursor:pointer; }
+.rent-th { position:relative;white-space:nowrap;padding:6px 8px 6px 8px;background:var(--bg-secondary);border:1px solid var(--border);font-size:12px;font-weight:600;user-select:none; }
+.rent-th-inner { display:flex;align-items:center;gap:4px;cursor:pointer;padding-right:4px; }
 .rent-th-inner:hover { color:var(--accent); }
 .rent-filter-btn { background:none;border:none;cursor:pointer;padding:1px 3px;color:var(--text-muted);font-size:11px;line-height:1;border-radius:3px; }
 .rent-filter-btn.active { color:var(--accent);background:rgba(99,102,241,.12); }
+.rent-col-resizer { position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;z-index:2;background:transparent;transition:background 0.1s; }
+.rent-col-resizer:hover { background:var(--accent);opacity:.4; }
+.rent-col-resizer.resizing { background:var(--accent);opacity:.7; }
+.rent-filter-search { width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:4px;padding:4px 7px;font-size:12px;margin-bottom:4px;outline:none; }
+.rent-filter-search:focus { border-color:var(--accent); }
 .rent-group-tag { display:flex;align-items:center;gap:4px;padding:3px 8px 3px 10px;background:var(--accent);color:white;border-radius:12px;font-size:12px; }
 .rent-group-tag button { background:none;border:none;color:white;cursor:pointer;font-size:14px;line-height:1;padding:0 0 1px; }
 .rent-field-btn { font-size:11px;padding:3px 8px;border-radius:12px; }
@@ -3727,6 +3732,7 @@ var _rentFilters = {};   // { field: Set<string> | null }  null = all selected
 var _rentGroupBy = [];   // array of field keys
 var _rentSortField = null;
 var _rentSortAsc = true;
+var _rentColWidths = {}; // col.key -> px width (user-resized)
 
 var RENT_COLS = [
   { key: 'contract_name',    label: '\u2116 \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430',   w: 180, link: true },
@@ -3828,18 +3834,21 @@ function _buildRentTableHtml(rows) {
 }
 
 function _buildFlatRentTable(rows, fmtVal) {
+  var totalW = 36 + RENT_COLS.reduce(function(s,c){ return s + (_rentColWidths[c.key] || c.w); }, 0);
   var h = '<div style="overflow-x:auto">';
-  h += '<table style="border-collapse:collapse;font-size:12px;min-width:100%">';
+  h += '<table style="border-collapse:collapse;font-size:12px;table-layout:fixed;width:' + totalW + 'px">';
   h += '<thead><tr>';
-  h += '<th class="rent-th" style="min-width:36px">#</th>';
+  h += '<th class="rent-th" style="min-width:36px;width:36px">#</th>';
   RENT_COLS.forEach(function(col) {
     var isFiltered = _rentFilters[col.key] && _rentFilters[col.key].size > 0;
     var sortIcon = _rentSortField === col.key ? (_rentSortAsc ? ' \u2191' : ' \u2193') : '';
-    h += '<th class="rent-th" style="min-width:' + col.w + 'px">';
+    var w = (_rentColWidths[col.key] || col.w);
+    h += '<th class="rent-th" style="width:' + w + 'px;min-width:40px">';
     h += '<div class="rent-th-inner" onclick="_rentSort(&quot;' + col.key + '&quot;)">';
     h += '<span>' + col.label + sortIcon + '</span>';
-    h += '</div>';
     h += '<button class="rent-filter-btn' + (isFiltered ? ' active' : '') + '" title="\u0424\u0438\u043b\u044c\u0442\u0440" onclick="event.stopPropagation();_rentOpenFilter(event,&quot;' + col.key + '&quot;)">\u25bc</button>';
+    h += '</div>';
+    h += '<div class="rent-col-resizer" onmousedown="event.stopPropagation();_rentStartResize(event,&quot;' + col.key + '&quot;)"></div>';
     h += '</th>';
   });
   h += '</tr></thead><tbody>';
@@ -3939,6 +3948,32 @@ function _rentSort(field) {
   _rentRender();
 }
 
+function _rentStartResize(e, key) {
+  e.preventDefault();
+  var th = e.currentTarget.parentNode;
+  var startX = e.clientX;
+  var startW = th.offsetWidth;
+  var handle = e.currentTarget;
+  handle.classList.add('resizing');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  function onMove(e2) {
+    var w = Math.max(40, startW + e2.clientX - startX);
+    _rentColWidths[key] = w;
+    th.style.width = w + 'px';
+    th.style.minWidth = w + 'px';
+  }
+  function onUp() {
+    handle.classList.remove('resizing');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 var _rentFilterOpen = null;
 function _rentOpenFilter(event, field) {
   // Close existing dropdown if any
@@ -3962,18 +3997,47 @@ function _rentOpenFilter(event, field) {
   d.onclick = function(e) { e.stopPropagation(); };
 
   var allChecked = !active || active.size === 0;
-  d.innerHTML = '<label style="font-weight:600;border-bottom:1px solid var(--border);margin-bottom:4px"><input type="checkbox" id="rfAll" ' + (allChecked ? 'checked' : '') + '> \u0412\u0441\u0435</label>' +
-    uniqueVals.map(function(v) {
-      var chk = allChecked || (active && active.has(v));
-      return '<label><input type="checkbox" class="rfVal" value="' + escapeHtml(v) + '" ' + (chk ? 'checked' : '') + '> ' + escapeHtml(v || '(\u043f\u0443\u0441\u0442\u043e)') + '</label>';
-    }).join('') +
-    '<div style="padding:6px 10px;border-top:1px solid var(--border);margin-top:4px;display:flex;gap:6px">' +
+  // Build HTML with search input + "Only this" buttons
+  var labelsHtml = uniqueVals.map(function(v) {
+    var chk = allChecked || (active && active.has(v));
+    var display = escapeHtml(v || '(\u043f\u0443\u0441\u0442\u043e)');
+    return '<div class="rf-row" data-val="' + escapeHtml(v) + '" style="display:flex;align-items:center;gap:0">' +
+      '<label style="flex:1;display:flex;align-items:center;gap:6px;padding:3px 10px;cursor:pointer;font-size:12px;overflow:hidden">' +
+      '<input type="checkbox" class="rfVal" value="' + escapeHtml(v) + '" ' + (chk ? 'checked' : '') + '>' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v) + '">' + display + '</span></label>' +
+      '<button onclick="_rentFilterOnly(&quot;' + escapeHtml(v) + '&quot;,&quot;' + field + '&quot;)" title="\u0422\u043e\u043b\u044c\u043a\u043e \u044d\u0442\u043e" style="background:none;border:none;cursor:pointer;padding:2px 8px 2px 2px;font-size:10px;color:var(--text-muted);flex-shrink:0;white-space:nowrap">' +
+      '\u0442\u043e\u043b\u044c\u043a\u043e</button></div>';
+  }).join('');
+
+  d.innerHTML =
+    '<div style="padding:4px 8px 4px">' +
+    '<input class="rent-filter-search" id="rfSearch" placeholder="\u041f\u043e\u0438\u0441\u043a..." autocomplete="off">' +
+    '</div>' +
+    '<div style="padding:0 10px 4px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px">' +
+    '<label style="font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">' +
+    '<input type="checkbox" id="rfAll" ' + (allChecked ? 'checked' : '') + '> \u0412\u0441\u0435</label>' +
+    '<button onclick="_rentFilterNone(&quot;' + field + '&quot;)" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--text-muted);white-space:nowrap">\u0421\u043d\u044f\u0442\u044c \u0432\u0441\u0451</button>' +
+    '</div>' +
+    '<div id="rfList" style="max-height:220px;overflow-y:auto">' + labelsHtml + '</div>' +
+    '<div style="padding:6px 10px;border-top:1px solid var(--border);margin-top:2px;display:flex;gap:6px">' +
     '<button class="btn btn-primary btn-sm" onclick="_rentApplyFilter(&quot;' + field + '&quot;)">OK</button>' +
     '<button class="btn btn-sm" onclick="_rentClearFilter(&quot;' + field + '&quot;)">\u0421\u0431\u0440\u043e\u0441</button></div>';
 
   d.querySelector('#rfAll').addEventListener('change', function() {
-    d.querySelectorAll('.rfVal').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
+    var checked = this.checked;
+    d.querySelectorAll('.rfVal').forEach(function(cb) { cb.checked = checked; });
   });
+
+  // Search handler — show/hide rows
+  d.querySelector('#rfSearch').addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    d.querySelectorAll('.rf-row').forEach(function(row) {
+      var val = row.getAttribute('data-val').toLowerCase();
+      row.style.display = (q === '' || val.indexOf(q) >= 0) ? '' : 'none';
+    });
+  });
+
+  setTimeout(function() { var s = d.querySelector('#rfSearch'); if (s) s.focus(); }, 50);
 
   event.currentTarget.parentNode.appendChild(d);
   // Close on outside click
@@ -4010,6 +4074,24 @@ function _rentClearFilter(field) {
   if (d) d.remove();
   _rentFilterOpen = null;
   _rentRender();
+}
+
+// Quick: uncheck everything and check only this value
+function _rentFilterOnly(val, field) {
+  var d = document.getElementById('rentFilterDrop');
+  if (!d) return;
+  d.querySelectorAll('.rfVal').forEach(function(cb) { cb.checked = cb.value === val; });
+  var allCb = d.querySelector('#rfAll');
+  if (allCb) allCb.checked = false;
+}
+
+// Quick: uncheck all
+function _rentFilterNone(field) {
+  var d = document.getElementById('rentFilterDrop');
+  if (!d) return;
+  d.querySelectorAll('.rfVal').forEach(function(cb) { cb.checked = false; });
+  var allCb = d.querySelector('#rfAll');
+  if (allCb) allCb.checked = false;
 }
 
 function _renderRentGroupZone() {
