@@ -953,40 +953,34 @@ function renderRentFields(container, allFields, props) {
   // Comments
   html += '<div class="form-group"><label>Комментарии</label>' + renderCommentsBlock(props.rent_comments) + '</div>';
 
-  // Duration
-  html += '<div class="form-group"><label>Срок действия</label>' +
-    '<select id="f_duration_type" onchange="onRentFieldChange()">' +
-    '<option value="">—</option>' +
-    '<option value="Дата"' + (durationType === 'Дата' ? ' selected' : '') + '>Дата</option>' +
-    '<option value="Текст"' + (durationType === 'Текст' ? ' selected' : '') + '>Свободный ввод</option>' +
-    '</select></div>';
-
-  if (durationType === 'Дата') {
-    html += '<div class="form-group"><label>Дата окончания</label>' +
-      '<input type="date" id="f_duration_date" value="' + (props.duration_date || '') + '"></div>';
-  }
-  if (durationType === 'Текст') {
-    html += '<div class="form-group"><label>Срок действия (текст)</label>' +
-      '<input id="f_duration_text" value="' + escapeHtml(props.duration_text || '') + '"></div>';
-  }
-
-  // External rental checkbox (contract-level, not per object)
+  // External rental checkbox — hidden in supplement (#5: inherited from contract)
   var externalRental = props.external_rental === 'true' || props.external_rental === true;
-  html += '<div class="form-group" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
-    '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + '> Аренда внешняя</label></div>';
+  if (_contractFormTypeName !== 'supplement') {
+    html += '<div class="form-group" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+      '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + '> Аренда внешняя</label></div>';
+  } else {
+    // Hidden checkbox to preserve value (inherited from contract, not editable in supplement)
+    html += '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + ' style="display:none">';
+  }
 
-  // Transfer equipment section
+  // Transfer equipment — button instead of checkbox (#6)
   var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
-  html += '<div class="form-group" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px">' +
-    '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') +
-    ' onchange="onRentFieldChange()"> Передача оборудования по договору</label></div>';
+  html += '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') + ' style="display:none">';
   if (hasTransfer) {
     var transferItems = [];
     try {
       if (typeof props.equipment_list === 'string' && props.equipment_list) transferItems = JSON.parse(props.equipment_list);
       else if (Array.isArray(props.equipment_list)) transferItems = props.equipment_list;
     } catch(ex) {}
-    html += '<div class="form-group"><label>Передаваемое оборудование</label>' + renderEquipmentListField(transferItems) + '</div>';
+    html += '<div class="form-group" style="margin-top:8px;border-left:3px solid var(--accent);padding-left:12px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    html += '<label style="font-weight:600">⚙️ Передача оборудования</label>';
+    html += '<button type="button" onclick="disableEquipmentTransfer()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer">✕ Убрать</button>';
+    html += '</div>';
+    html += renderEquipmentListField(transferItems);
+    html += '</div>';
+  } else {
+    html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">⚙️ + Передача оборудования по договору</button></div>';
   }
 
   container.innerHTML = html;
@@ -1070,17 +1064,47 @@ function _roCalcFields(index, obj, calcMode) {
   if (calcMode === 'area_rate') {
     h += '<div class="form-group"><label>Площадь (м²)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="area" value="' + (obj.area || '') + '" oninput="recalcRentMonthly()"></div>';
     h += '<div class="form-group"><label>Арендная ставка (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
+    // Net rate and utility rate right after rent_rate (#3)
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    h += '<div class="form-group"><label style="font-size:12px">Ставка чистая (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="net_rate" value="' + escapeHtml(obj.net_rate || '') + '" placeholder="0"></div>';
+    h += '<div class="form-group"><label style="font-size:12px">КУ в платеже/ставке</label><input class="ro-field" data-idx="' + index + '" data-name="utility_rate" value="' + escapeHtml(obj.utility_rate || '') + '" placeholder="опишите или сумма"></div>';
+    h += '</div>';
     var objTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
     if (objTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + _fmtNum(objTotal) + ' руб.</div>';
   } else {
     h += '<div class="form-group"><label>Арендная плата</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="fixed_rent" value="' + (obj.fixed_rent || '') + '" oninput="recalcRentMonthly()"></div>';
   }
-  h += '<div class="form-group"><label>Комментарий</label><input class="ro-field" data-idx="' + index + '" data-name="comment" value="' + escapeHtml(obj.comment || '') + '"></div>';
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-  h += '<div class="form-group"><label style="font-size:12px">Ставка чистая, руб/м²/мес</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="net_rate" value="' + escapeHtml(obj.net_rate || '') + '" placeholder="0"></div>';
-  h += '<div class="form-group"><label style="font-size:12px">КУ в платеже/ставке</label><input class="ro-field" data-idx="' + index + '" data-name="utility_rate" value="' + escapeHtml(obj.utility_rate || '') + '" placeholder="опишите или сумма"></div>';
+  // Comment: toggle button (#1)
+  var hasCmt = !!(obj.comment && obj.comment.trim());
+  h += '<div id="ro_cmt_wrap_' + index + '" style="margin-top:4px">';
+  h += '<div id="ro_cmt_block_' + index + '"' + (hasCmt ? '' : ' style="display:none"') + '>';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">' +
+    '<label style="font-size:12px;margin:0;color:var(--text-secondary)">Комментарий</label>' +
+    '<button type="button" onclick="closeRoComment(' + index + ')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 4px;font-size:13px">✕</button></div>';
+  h += '<input class="ro-field" data-idx="' + index + '" data-name="comment" id="ro_cmt_in_' + index + '" value="' + escapeHtml(obj.comment || '') + '" style="width:100%;box-sizing:border-box">';
+  h += '</div>';
+  h += '<button type="button" id="ro_cmt_btn_' + index + '" onclick="showRoComment(' + index + ')"' +
+    ' style="font-size:11px;background:none;border:1px dashed var(--border);color:var(--text-secondary);border-radius:4px;padding:2px 10px;cursor:pointer;margin-top:2px' + (hasCmt ? ';display:none' : '') + '">💬 Добавить комментарий</button>';
   h += '</div>';
   return h;
+}
+
+function showRoComment(index) {
+  var block = document.getElementById('ro_cmt_block_' + index);
+  var btn = document.getElementById('ro_cmt_btn_' + index);
+  if (block) block.style.display = '';
+  if (btn) btn.style.display = 'none';
+  var inp = document.getElementById('ro_cmt_in_' + index);
+  if (inp) inp.focus();
+}
+
+function closeRoComment(index) {
+  var block = document.getElementById('ro_cmt_block_' + index);
+  var btn = document.getElementById('ro_cmt_btn_' + index);
+  var inp = document.getElementById('ro_cmt_in_' + index);
+  if (inp) inp.value = '';
+  if (block) block.style.display = 'none';
+  if (btn) btn.style.display = '';
 }
 
 function _roRoomCreateMiniForm(index) {
@@ -1137,7 +1161,7 @@ function renderRentObjectBlock(index, obj) {
   if (objectType && typeOptions.indexOf(objectType) < 0) typeOptions.push(objectType);
   var calcMode = obj.calc_mode || 'area_rate';
 
-  var h = '<div class="rent-object-block" id="rent_obj_' + index + '" style="border-left:3px solid var(--accent);padding-left:12px;margin-bottom:12px;position:relative">';
+  var h = '<div class="rent-object-block" id="rent_obj_' + index + '" style="border-left:3px solid var(--accent);padding:12px 12px 12px 15px;margin-bottom:12px;position:relative;background:var(--bg-secondary);border-radius:6px">';
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
   h += '<strong>Помещение ' + (index + 1) + '</strong>';
   h += '<button type="button" class="btn btn-sm btn-danger" onclick="removeRentObject(' + index + ')" style="padding:2px 8px;font-size:11px">✕</button>';
@@ -1503,6 +1527,16 @@ function onRentFieldChange() {
     }
   });
   renderRentFields(container, allFields, currentProps);
+}
+
+function enableEquipmentTransfer() {
+  var cb = document.getElementById('f_transfer_equipment');
+  if (cb) { cb.checked = true; onRentFieldChange(); }
+}
+
+function disableEquipmentTransfer() {
+  var cb = document.getElementById('f_transfer_equipment');
+  if (cb) { cb.checked = false; onRentFieldChange(); }
 }
 
 function updateVatDisplay() {
