@@ -177,7 +177,8 @@ router.get('/linked', authenticate, asyncHandler(async (req, res) => {
       JOIN entities b          ON b.id = r_loc.to_entity_id
       JOIN entity_types bt     ON bt.id = b.entity_type_id AND bt.name IN ('building','room','workshop','land_plot')
       LEFT JOIN entities e     ON e.parent_id = b.id AND e.deleted_at IS NULL
-      LEFT JOIN entity_types et ON et.id = e.entity_type_id AND et.name IN ('equipment','crane_track')
+        AND e.entity_type_id IN (SELECT id FROM entity_types WHERE name IN ('equipment','crane_track'))
+      LEFT JOIN entity_types et ON et.id = e.entity_type_id
       LEFT JOIN relations r_eq ON r_eq.from_entity_id = e.id AND r_eq.to_entity_id = b.id AND r_eq.relation_type = 'located_in'
       WHERE comp.deleted_at IS NULL
         AND (c.properties->>'contract_type' ILIKE '%Аренд%' OR c.properties->>'contract_type' ILIKE '%Субаренд%')
@@ -376,7 +377,7 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         contract_date: c.contract_date || '', contract_end_date: c.contract_end_date || '',
         our_legal_entity: c.our_legal_entity || '', contractor_name: c.contractor_name || '',
         subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
-        object_type: ro.object_type || '', building: ro.building || '',
+        object_type: ro.object_type || (ro.item_type === 'room' ? 'Помещение' : ro.item_type === 'equipment' ? 'Оборудование' : ro.item_type === 'land_plot' ? 'Земельный участок' : '') || '', building: ro.building || '',
         rent_scope: ro.rent_scope || '',
         area, rent_rate: rate, annual_amount: annual, monthly_amount: monthly,
         net_rate: parseFloat(ro.net_rate) || 0,
