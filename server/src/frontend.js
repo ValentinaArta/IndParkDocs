@@ -309,6 +309,50 @@ function renderEntitySelect(id, entities, selectedId, selectedName, placeholder,
   return h;
 }
 
+function renderLandPlotSelectorField(selectedId) {
+  var lpOptions = '<option value="">— не указано —</option>';
+  (_landPlots || []).forEach(function(lp) {
+    var cn = (lp.properties || {}).cadastral_number;
+    var label = cn ? cn + ' — ' + escapeHtml(lp.name) : escapeHtml(lp.name);
+    var sel = (lp.id === selectedId) ? ' selected' : '';
+    lpOptions += '<option value="' + lp.id + '"' + sel + '>' + label + '</option>';
+  });
+  var h = '<div class="form-group">';
+  h += '<label>Находится на земельном участке</label>';
+  h += '<div style="display:flex;gap:8px;align-items:center">';
+  h += '<select id="f_land_plot_id" style="flex:1">' + lpOptions + '</select>';
+  h += '<button type="button" class="btn btn-sm" onclick="quickCreateLandPlot()" style="white-space:nowrap">+ Новый участок</button>';
+  h += '</div></div>';
+  return h;
+}
+
+async function quickCreateLandPlot() {
+  var cn = prompt('Введите кадастровый номер нового земельного участка:');
+  if (!cn || !cn.trim()) return;
+  var lpType = entityTypes.find(function(t) { return t.name === 'land_plot'; });
+  if (!lpType) { alert('Тип ЗУ не найден'); return; }
+  var name = 'ЗУ ' + cn.trim();
+  try {
+    var created = await api('/entities', { method: 'POST', body: JSON.stringify({
+      entity_type_id: lpType.id, name: name,
+      properties: { cadastral_number: cn.trim() }
+    }) });
+    _landPlots = await loadEntitiesByType('land_plot');
+    var sel = document.getElementById('f_land_plot_id');
+    if (sel) {
+      sel.innerHTML = '<option value="">— не указано —</option>' + _landPlots.map(function(lp) {
+        var c = (lp.properties || {}).cadastral_number;
+        var label = c ? c + ' \u2014 ' + escapeHtml(lp.name) : escapeHtml(lp.name);
+        var s = lp.id === created.id ? ' selected' : '';
+        return '<option value="' + lp.id + '"' + s + '>' + label + '</option>';
+      }).join('');
+    }
+  } catch(err) {
+    if (err.status === 409) alert('Земельный участок с таким именем уже существует');
+    else alert('Ошибка: ' + (err.message || String(err)));
+  }
+}
+
 function renderRoEntitySelect(index, fieldName, entities, selectedId, placeholder) {
   var selId = parseInt(selectedId) || 0;
   var entityType = fieldName.replace('_id', ''); // building_id → building
@@ -438,7 +482,7 @@ function _renderEqListItem(item, rowId) {
   h += '<div class="form-group"><label>Корпус</label><select class="eq-create-building" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
   _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
   h += '</select></div>';
-  h += '<div class="form-group"><label>Балансодержатель</label><select class="eq-create-owner" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
+  h += '<div class="form-group"><label>Собственник</label><select class="eq-create-owner" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
   _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
   h += '</select></div>';
   h += '<div style="display:flex;gap:8px;margin-top:4px">';
@@ -540,7 +584,7 @@ async function eqListCreateSubmit(btn) {
   // Validation: required fields
   var missing = [];
   if (!props.equipment_category) missing.push('Категория');
-  if (!ownerEl || !ownerEl.value) missing.push('Балансодержатель');
+  if (!ownerEl || !ownerEl.value) missing.push('Собственник');
   if (!parentId) missing.push('Корпус');
   if (missing.length) { alert('Заполните обязательные поля: ' + missing.join(', ')); return; }
   if (ownerEl && ownerEl.value) {
@@ -995,7 +1039,7 @@ function renderRentObjectBlock(index, obj) {
       getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
       h += '<option value="__custom__">Другое...</option></select>';
       h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
-      h += '<div class="form-group"><label>Балансодержатель</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
+      h += '<div class="form-group"><label>Собственник</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
       _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
       h += '</select></div>';
       h += '<div style="display:flex;gap:8px">';
@@ -1122,7 +1166,7 @@ async function submitRentEquipmentCreate(el) {
   // Validation: required fields
   var missingR = [];
   if (!props.equipment_category) missingR.push('Категория');
-  if (!ownerEntR) missingR.push('Балансодержатель');
+  if (!ownerEntR) missingR.push('Собственник');
   if (!parentIdR) missingR.push('Корпус');
   if (missingR.length) { alert('Заполните обязательные поля: ' + missingR.join(', ')); return; }
   function selectEquipment(ent) {
@@ -1380,6 +1424,7 @@ var _allCompanies = [];
 var _buildings = [];
 var _rooms = [];
 var _equipment = [];
+var _landPlots = [];
 
 async function loadEntityLists() {
   _ownCompanies = await loadEntitiesByType('company', 'is_own=true');
@@ -1387,6 +1432,7 @@ async function loadEntityLists() {
   _buildings = await loadEntitiesByType('building');
   _rooms = await loadEntitiesByType('room');
   _equipment = await loadEntitiesByType('equipment');
+  _landPlots = await loadEntitiesByType('land_plot');
 }
 
 function renderContractFormFields(fields, props, headerHtml) {
@@ -2023,8 +2069,23 @@ async function showEntity(id) {
 
   // Location block (for non-contract entities)
   if (e.type_name !== 'contract' && e.type_name !== 'supplement') {
+    var isBuildingType = (e.type_name === 'building' || e.type_name === 'workshop');
+    var locationTitle = isBuildingType ? 'Собственник' : 'Расположение';
+
+    // For buildings: also show land plot from relations
+    if (isBuildingType) {
+      var lpRels = (e.relations || []).filter(function(r) { return r.relation_type === 'located_on' && r.from_entity_id === e.id; });
+      if (lpRels.length > 0) {
+        var lpRel = lpRels[0];
+        html += '<div class="detail-section">';
+        html += '<h3>Земельный участок</h3>';
+        html += '<a href="#" onclick="showEntity(' + lpRel.to_entity_id + ');return false" style="color:var(--accent)">🌍 ' + escapeHtml(lpRel.to_name || 'Земельный участок') + '</a>';
+        html += '</div>';
+      }
+    }
+
     html += '<div class="detail-section" id="locationBlock">';
-    html += '<h3 style="display:flex;justify-content:space-between;align-items:center">Расположение';
+    html += '<h3 style="display:flex;justify-content:space-between;align-items:center">' + locationTitle;
     html += '<button class="btn btn-sm" onclick="toggleParentEdit(' + e.id + ')">✏️ Изменить</button></h3>';
     if (e.ancestry && e.ancestry.length > 0) {
       html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
@@ -2039,13 +2100,22 @@ async function showEntity(id) {
       html += '<span style="color:var(--text-muted);font-size:13px">Не привязано ни к какому объекту</span>';
     }
     html += '<div id="parentEditBlock" style="display:none;margin-top:12px">';
-    html += '<div class="form-group"><label>Входит в</label>';
-    html += '<select id="parentSelectInline" style="width:100%"><option value="">— нет (корневой объект) —</option>';
-    (_allEntitiesForParent || []).forEach(function(x) {
-      if (x.id === e.id) return; // can't be own parent
-      html += '<option value="' + x.id + '"' + (e.parent_id === x.id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
-    });
-    html += '</select></div>';
+    if (isBuildingType) {
+      html += '<div class="form-group"><label>Собственник</label>';
+      html += '<select id="parentSelectInline" style="width:100%"><option value="">— не указано —</option>';
+      (_allCompanies || []).forEach(function(c) {
+        html += '<option value="' + c.id + '"' + (e.parent_id === c.id ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+      });
+      html += '</select></div>';
+    } else {
+      html += '<div class="form-group"><label>Входит в</label>';
+      html += '<select id="parentSelectInline" style="width:100%"><option value="">— нет (корневой объект) —</option>';
+      (_allEntitiesForParent || []).forEach(function(x) {
+        if (x.id === e.id) return; // can't be own parent
+        html += '<option value="' + x.id + '"' + (e.parent_id === x.id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
+      });
+      html += '</select></div>';
+    }
     html += '<div style="display:flex;gap:8px">';
     html += '<button class="btn btn-primary btn-sm" onclick="saveParent(' + e.id + ')">Сохранить</button>';
     html += '<button class="btn btn-sm" onclick="toggleParentEdit(' + e.id + ')">Отмена</button>';
@@ -2095,7 +2165,7 @@ var _reportFields = [];
 // Fields available for manual grouping
 var AGG_HIERARCHY_FIELDS = [
   { name: 'contract_our_legal_entity', label: 'Наше юрлицо' },
-  { name: 'eq_balance_owner',          label: 'Балансодержатель' },
+  { name: 'eq_balance_owner',          label: 'Собственник' },
   { name: 'eq_building',               label: 'Корпус' },
   { name: 'eq_category',               label: 'Категория оборудования' },
   { name: 'eq_name',                   label: 'Оборудование' },
@@ -2460,7 +2530,7 @@ var _pivotFieldLabels = {
   equipment: 'Оборудование по договору',
   // Equipment entity fields
   equipment_category: 'Категория оборудования',
-  status: 'Статус оборудования', inv_number: 'Инв. номер', balance_owner: 'Балансодержатель',
+  status: 'Статус оборудования', inv_number: 'Инв. номер', balance_owner: 'Собственник',
   serial_number: 'Серийный номер', year: 'Год выпуска', manufacturer: 'Производитель',
   // Company fields
   is_own: 'Наша / чужая орг.', inn: 'ИНН',
@@ -3065,13 +3135,21 @@ async function openCreateModal(typeName) {
     html += '<div class="form-group"><label>Название</label><input id="f_name" required></div>';
   }
 
-  // Parent selector (hide for contracts)
+  // Parent selector (hide for contracts; special label for buildings)
   if (!isContractLike) {
-    html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
-    allEntities.filter(function(x) { return x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
-      html += '<option value="' + x.id + '">' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
-    });
-    html += '</select></div>';
+    if (typeName === 'building' || typeName === 'workshop') {
+      html += '<div class="form-group"><label>Собственник</label><select id="f_parent"><option value="">— не указано —</option>';
+      _allCompanies.forEach(function(c) {
+        html += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+      });
+      html += '</select></div>';
+    } else {
+      html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
+      allEntities.filter(function(x) { return x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
+        html += '<option value="' + x.id + '">' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
+      });
+      html += '</select></div>';
+    }
   }
   if (isContractLike) {
     renderContractFormFields(fields, {}, html);
@@ -3079,13 +3157,19 @@ async function openCreateModal(typeName) {
   }
 
   fields.forEach(f => {
-    if (f.name === 'balance_owner') {
-      html += '<div class="form-group"><label>Балансодержатель</label>' +
-        renderEntitySelect('f_balance_owner', _ownCompanies, '', '', 'наше юр. лицо') + '</div>';
+    if (f.name === 'balance_owner' || f.name === 'owner') {
+      var fieldId = f.name === 'owner' ? 'f_owner' : 'f_balance_owner';
+      html += '<div class="form-group"><label>Собственник</label>' +
+        renderEntitySelect(fieldId, _allCompanies, '', '', 'выберите организацию') + '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), '') + '</div>';
     }
   });
+
+  // Building: land plot selector
+  if (typeName === 'building' || typeName === 'workshop') {
+    html += renderLandPlotSelectorField(null);
+  }
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreate(\\'' + typeName + '\\')">Создать</button></div>';
@@ -3122,6 +3206,13 @@ async function _doSubmitCreate(typeName) {
   if (typeName === 'equipment') {
     collectEquipmentIds(properties);
   }
+  // Collect owner entity for land_plot and building-like
+  var ownerEl = document.getElementById('f_owner');
+  if (ownerEl && ownerEl.value) {
+    var ownerEnt = _allCompanies.find(function(c) { return c.id === parseInt(ownerEl.value); });
+    if (ownerEnt) { properties.owner_id = ownerEnt.id; properties.owner_name = ownerEnt.name; }
+    delete properties.owner;
+  }
 
   // Auto-generate name for contracts
   let name = document.getElementById('f_name').value.trim();
@@ -3132,8 +3223,9 @@ async function _doSubmitCreate(typeName) {
   }
   if (!name) return alert('Введите название');
 
+  var createdEntity;
   try {
-    await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: type.id, name, properties, parent_id }) });
+    createdEntity = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: type.id, name, properties, parent_id }) });
   } catch(err) {
     if (err.status === 409 && err.data && err.data.existing) {
       var ex = err.data.existing;
@@ -3145,6 +3237,17 @@ async function _doSubmitCreate(typeName) {
     }
     throw err;
   }
+
+  // Handle located_on relation for building/workshop
+  if ((typeName === 'building' || typeName === 'workshop') && createdEntity && createdEntity.id) {
+    var lpSel = document.getElementById('f_land_plot_id');
+    if (lpSel && lpSel.value) {
+      await api('/relations', { method: 'POST', body: JSON.stringify({
+        from_entity_id: createdEntity.id, to_entity_id: parseInt(lpSel.value), relation_type: 'located_on'
+      }) }).catch(function() {});
+    }
+  }
+
   closeModal();
   showEntityList(typeName);
 }
@@ -3235,16 +3338,35 @@ async function openEditModal(id) {
 
   // Non-contract edit
   var isAct = (e.type_name === 'act');
+  var isBuildingLike = (e.type_name === 'building' || e.type_name === 'workshop');
+
   if (!isAct) {
-    html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
-    allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
-      html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
-    });
-    html += '</select></div>';
+    if (isBuildingLike) {
+      html += '<div class="form-group"><label>Собственник</label><select id="f_parent"><option value="">— не указано —</option>';
+      _allCompanies.forEach(function(c) {
+        html += '<option value="' + c.id + '"' + (c.id === e.parent_id ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+      });
+      html += '</select></div>';
+    } else {
+      html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
+      allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
+        html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
+      });
+      html += '</select></div>';
+    }
   }
   if (isAct && props.parent_contract_name) {
     html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-hover);border-radius:6px">Договор-основание: <strong>' + escapeHtml(props.parent_contract_name) + '</strong></div>';
   }
+
+  // For buildings: find existing located_on relation
+  var existingLandPlotId = null;
+  if (isBuildingLike) {
+    var eRels = e.relations || [];
+    var lpRel = eRels.find(function(r) { return r.relation_type === 'located_on' && r.from_entity_id === id; });
+    if (lpRel) existingLandPlotId = lpRel.to_entity_id || null;
+  }
+
   fields.forEach(f => {
     const val = props[f.name] || '';
     // For acts: hide service fields, make total_amount readonly display
@@ -3259,12 +3381,20 @@ async function openEditModal(id) {
       }
     }
     if (f.name === 'balance_owner') {
-      html += '<div class="form-group"><label>Балансодержатель</label>' +
+      html += '<div class="form-group"><label>Собственник</label>' +
         renderEntitySelect('f_balance_owner', _ownCompanies, props.balance_owner_id || '', val, 'наше юр. лицо') + '</div>';
+    } else if (f.name === 'owner') {
+      html += '<div class="form-group"><label>Собственник</label>' +
+        renderEntitySelect('f_owner', _allCompanies, props.owner_id || '', props.owner_name || '', 'выберите организацию') + '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
     }
   });
+
+  // Building: land plot selector
+  if (isBuildingLike) {
+    html += renderLandPlotSelectorField(existingLandPlotId);
+  }
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
@@ -3305,6 +3435,17 @@ async function _doSubmitEdit(id) {
   if (e.type_name === 'equipment') {
     collectEquipmentIds(properties);
   }
+  // Collect owner entity for land_plot / building-like
+  var ownerEditEl = document.getElementById('f_owner');
+  if (ownerEditEl && ownerEditEl.value) {
+    var ownerEditEnt = _allCompanies.find(function(c) { return c.id === parseInt(ownerEditEl.value); });
+    if (ownerEditEnt) { properties.owner_id = ownerEditEnt.id; properties.owner_name = ownerEditEnt.name; }
+    delete properties.owner;
+  } else if (e.properties && e.properties.owner_id) {
+    // Preserve if not changed
+    properties.owner_id = e.properties.owner_id;
+    properties.owner_name = e.properties.owner_name;
+  }
 
   // Auto-generate name for contracts
   let name = document.getElementById('f_name').value.trim();
@@ -3315,6 +3456,27 @@ async function _doSubmitEdit(id) {
   }
 
   await api('/entities/' + id, { method: 'PUT', body: JSON.stringify({ name, properties, parent_id }) });
+
+  // Handle located_on relation for building/workshop
+  if (e.type_name === 'building' || e.type_name === 'workshop') {
+    var lpSelEdit = document.getElementById('f_land_plot_id');
+    if (lpSelEdit) {
+      // Delete existing located_on from this building
+      var existRels = e.relations || [];
+      for (var ri = 0; ri < existRels.length; ri++) {
+        if (existRels[ri].relation_type === 'located_on' && existRels[ri].from_entity_id === id) {
+          await api('/relations/' + existRels[ri].id, { method: 'DELETE' }).catch(function() {});
+        }
+      }
+      // Create new if selected
+      if (lpSelEdit.value) {
+        await api('/relations', { method: 'POST', body: JSON.stringify({
+          from_entity_id: id, to_entity_id: parseInt(lpSelEdit.value), relation_type: 'located_on'
+        }) }).catch(function() {});
+      }
+    }
+  }
+
   closeModal();
   showEntity(id);
 }
