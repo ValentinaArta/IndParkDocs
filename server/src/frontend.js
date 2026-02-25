@@ -665,10 +665,10 @@ var _actEquipmentList = null;  // filtered to contract's equipment when creating
 function _renderActItem(item, rowId, bgIdx) {
   var eqList = _actEquipmentList || _equipment;
   var _bgIdx = (bgIdx !== undefined) ? bgIdx : rowId;
-  var altBg = (_bgIdx % 2 === 0) ? 'var(--bg-hover)' : 'var(--bg-secondary)';
+  var altBg = (_bgIdx % 2 === 0) ? 'var(--bg-primary)' : 'rgba(99,102,241,0.05)';
   var rowBg = item.broken ? 'rgba(239,68,68,.08)' : altBg;
-  var rowBorder = item.broken ? '#dc2626' : ((_bgIdx % 2 === 0) ? 'var(--border)' : 'var(--accent)40');
-  var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:8px;padding:10px;border:1px solid ' + rowBorder + ';border-radius:6px;background:' + rowBg + '">';
+  var rowBorder = item.broken ? '#dc2626' : 'var(--border)';
+  var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:4px;padding:10px;border:1px solid ' + rowBorder + ';border-radius:6px;background:' + rowBg + '">';
   // Row 1: equipment + amount + delete
   h += '<div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 *</label>';
@@ -687,15 +687,15 @@ function _renderActItem(item, rowId, bgIdx) {
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0430\u0431\u043e\u0442</label>';
   h += '<textarea class="act-item-desc" placeholder="\u0447\u0442\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e..." style="width:100%;margin-top:2px;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.description || '') + '</textarea></div>';
   var brokenChecked = item.broken ? ' checked' : '';
-  var brokenBorder = item.broken ? 'var(--danger)' : 'transparent';
+  var brokenBorder = item.broken ? 'var(--danger)' : 'var(--border)';
   var brokenBg = item.broken ? 'rgba(239,68,68,.08)' : 'transparent';
-  h += '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">';
-  h += '<label style="font-size:11px;color:var(--text-muted)">\u0420\u0430\u0431\u043e\u0442\u044b/\u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f</label>';
-  h += '<label class="act-item-broken-label" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;padding:2px 7px;border-radius:5px;border:1px solid ' + brokenBorder + ';background:' + brokenBg + ';transition:all .15s;color:' + (item.broken ? 'var(--danger)' : 'var(--text-muted)') + '">';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u0420\u0430\u0431\u043e\u0442\u044b/\u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f</label>';
+  h += '<div style="display:flex;gap:6px;align-items:flex-end;margin-top:2px">';
+  h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="flex:1;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea>';
+  h += '<label class="act-item-broken-label" style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;font-size:11px;padding:4px 7px;border-radius:5px;border:1px solid ' + brokenBorder + ';background:' + brokenBg + ';transition:all .15s;color:' + (item.broken ? 'var(--danger)' : 'var(--text-muted)') + ';text-align:center;min-width:70px;white-space:nowrap;flex-shrink:0">';
   h += '<input type="checkbox" class="act-item-broken"' + brokenChecked + ' onchange="_onActItemBrokenChange(this)">';
-  h += '\u26a0\ufe0f \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439/\u0430\u0432\u0430\u0440\u0438\u0439\u043d\u044b\u0439</label>';
-  h += '</div>';
-  h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
+  h += '\u26a0\ufe0f \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439/<br>\u0430\u0432\u0430\u0440\u0438\u0439\u043d\u044b\u0439</label>';
+  h += '</div></div>';
   h += '</div>';
   return h;
 }
@@ -703,7 +703,7 @@ function _renderActItem(item, rowId, bgIdx) {
 function renderActItemsField(items) {
   if (!Array.isArray(items) || items.length === 0) items = [{}];
   _actItemCounter = items.length;
-  var h = '<div id="f_act_items">';
+  var h = '<div id="f_act_items" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px">';
   items.forEach(function(item, i) { h += _renderActItem(item, i, i); });
   h += '<button type="button" class="btn btn-sm act-item-add-btn" style="margin-top:4px" onclick="actItemAdd()">+ Добавить оборудование</button>';
   h += '</div>';
@@ -730,8 +730,8 @@ function _onActItemBrokenChange(cb) {
     if (label) { label.style.borderColor = 'var(--danger)'; label.style.background = 'rgba(239,68,68,.15)'; label.style.color = 'var(--danger)'; }
     if (row) { row.style.background = 'rgba(239,68,68,.08)'; row.style.borderColor = '#dc2626'; }
   } else {
-    if (label) { label.style.borderColor = 'transparent'; label.style.background = 'transparent'; label.style.color = 'var(--text-muted)'; }
-    if (row) { row.style.background = 'var(--bg-hover)'; row.style.borderColor = 'var(--border)'; }
+    if (label) { label.style.borderColor = 'var(--border)'; label.style.background = 'transparent'; label.style.color = 'var(--text-muted)'; }
+    if (row) { row.style.background = ''; row.style.borderColor = 'var(--border)'; }
   }
 }
 
@@ -1062,113 +1062,117 @@ function collectComments() {
   return result;
 }
 
+function _roCalcFields(index, obj, calcMode) {
+  var h = '';
+  h += '<div class="form-group"><label>Расчёт</label><select class="ro-field" data-idx="' + index + '" data-name="calc_mode" onchange="onRentObjectCalcChange(' + index + ')">';
+  h += '<option value="area_rate"' + (calcMode === 'area_rate' ? ' selected' : '') + '>Площадь × Ставка</option>';
+  h += '<option value="fixed"' + (calcMode === 'fixed' ? ' selected' : '') + '>Фиксированная аренда</option></select></div>';
+  if (calcMode === 'area_rate') {
+    h += '<div class="form-group"><label>Площадь (м²)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="area" value="' + (obj.area || '') + '" oninput="recalcRentMonthly()"></div>';
+    h += '<div class="form-group"><label>Арендная ставка (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
+    var objTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
+    if (objTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + _fmtNum(objTotal) + ' руб.</div>';
+  } else {
+    h += '<div class="form-group"><label>Арендная плата</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="fixed_rent" value="' + (obj.fixed_rent || '') + '" oninput="recalcRentMonthly()"></div>';
+  }
+  h += '<div class="form-group"><label>Комментарий</label><input class="ro-field" data-idx="' + index + '" data-name="comment" value="' + escapeHtml(obj.comment || '') + '"></div>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div class="form-group"><label style="font-size:12px">Ставка чистая, руб/м²/мес</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="net_rate" value="' + escapeHtml(obj.net_rate || '') + '" placeholder="0"></div>';
+  h += '<div class="form-group"><label style="font-size:12px">КУ в платеже/ставке</label><input class="ro-field" data-idx="' + index + '" data-name="utility_rate" value="' + escapeHtml(obj.utility_rate || '') + '" placeholder="опишите или сумма"></div>';
+  h += '</div>';
+  return h;
+}
+
+function _roRoomCreateMiniForm(index) {
+  var h = '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">🚪 Новое помещение</div>';
+  h += '<div class="form-group"><label>Тип помещения</label>';
+  h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%" onchange="onRoRoomTypeChange(this,' + index + ')"><option value="">—</option>';
+  ROOM_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
+  h += '<option value="__custom__">Другое...</option></select>';
+  h += '<input class="ro-room-type-custom" data-idx="' + index + '" placeholder="Введите тип" style="display:none;margin-top:4px;width:100%"></div>';
+  h += '<div class="form-group"><label>Корпус</label><select class="ro-room-building" data-idx="' + index + '" style="width:100%"><option value="">— не указан —</option>';
+  _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
+  h += '</select></div>';
+  h += '<div class="form-group"><label>Описание помещения</label><input class="ro-room-desc" data-idx="' + index + '" style="width:100%"></div>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div class="form-group"><label>Площадь, м²</label><input type="number" class="ro-room-area" data-idx="' + index + '" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Этаж</label><input class="ro-room-floor" data-idx="' + index + '" style="width:100%"></div>';
+  h += '</div>';
+  h += '<div style="display:flex;gap:8px;margin-top:8px">';
+  h += '<button type="button" class="btn btn-primary btn-sm" onclick="submitRentRoomCreate(this,' + index + ')">Создать и выбрать</button>';
+  h += '<button type="button" class="btn btn-sm" onclick="toggleRentRoomCreate(this,' + index + ')">Отмена</button>';
+  h += '</div></div>';
+  return h;
+}
+
+function _roEqCreateMiniForm(index, eqTypeId) {
+  var h = '<div id="ro_eq_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новая единица оборудования</div>';
+  h += '<div class="form-group"><label>Название *</label><input class="ro-eq-name" data-idx="' + index + '" placeholder="Название оборудования" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '" onchange="onEqCatChange(this)"><option value="">—</option>';
+  getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+  h += '<option value="__custom__">Другое...</option></select>';
+  h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
+  h += '<div class="form-group"><label>Собственник</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
+  _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
+  h += '</select></div>';
+  h += '<div style="display:flex;gap:8px">';
+  h += '<button type="button" class="btn btn-primary btn-sm" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="submitRentEquipmentCreate(this)">Создать и выбрать</button>';
+  h += '<button type="button" class="btn btn-sm" data-idx="' + index + '" onclick="toggleRentEquipmentCreate(this)">Отмена</button>';
+  h += '</div></div>';
+  return h;
+}
+
 function renderRentObjectBlock(index, obj) {
   obj = obj || {};
-  var isLand = (obj.object_type === 'Земельный участок');
-  var isEquipment = (obj.object_type === 'Оборудование');
+  // Backward compat: map old object_type → item_type
+  var item_type = obj.item_type || '';
+  if (!item_type && obj.object_type) {
+    if (obj.object_type === 'Оборудование') item_type = 'equipment';
+    else if (obj.object_type === 'Земельный участок') item_type = 'land_plot';
+    else item_type = 'room';
+  }
   var calcMode = obj.calc_mode || 'area_rate';
 
   var h = '<div class="rent-object-block" id="rent_obj_' + index + '" style="border-left:3px solid var(--accent);padding-left:12px;margin-bottom:12px;position:relative">';
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-  h += '<strong>Объект ' + (index + 1) + '</strong>';
+  h += '<strong>Позиция ' + (index + 1) + '</strong>';
   h += '<button type="button" class="btn btn-sm btn-danger" onclick="removeRentObject(' + index + ')" style="padding:2px 8px;font-size:11px">✕</button>';
   h += '</div>';
 
-  // Object type
-  h += '<div class="form-group"><label>Тип объекта</label>';
-  h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" onchange="onRentObjectTypeChange(' + index + ')">';
+  // Item type selector
+  h += '<div class="form-group"><label>Вид</label>';
+  h += '<select class="ro-field" data-idx="' + index + '" data-name="item_type" onchange="onRentItemTypeChange(' + index + ')">';
   h += '<option value="">—</option>';
-  OBJECT_TYPES.forEach(function(ot) { h += '<option value="' + escapeHtml(ot) + '"' + (obj.object_type === ot ? ' selected' : '') + '>' + escapeHtml(ot) + '</option>'; });
-  var _showCustom = obj._showCustomInput || (obj.object_type && !OBJECT_TYPES.includes(obj.object_type));
-  h += '<option value="__custom__"' + (_showCustom ? ' selected' : '') + '>Другое...</option></select>';
-  if (_showCustom) {
-    var _customVal = (!obj._showCustomInput && obj.object_type) ? obj.object_type : '';
-    h += '<input class="ro-field" data-idx="' + index + '" data-name="object_type_custom" value="' + escapeHtml(_customVal) + '" placeholder="Введите тип" style="margin-top:4px;width:100%" onblur="onObjectTypeCustomBlur(this,' + index + ')">';
-  }
-  h += '</div>';
+  h += '<option value="room"' + (item_type === 'room' ? ' selected' : '') + '>🚪 Помещение</option>';
+  h += '<option value="equipment"' + (item_type === 'equipment' ? ' selected' : '') + '>⚙️ Оборудование</option>';
+  h += '<option value="land_plot"' + (item_type === 'land_plot' ? ' selected' : '') + '>🌍 Земельный участок</option>';
+  h += '</select></div>';
 
-  if (obj.object_type) {
-    if (isEquipment) {
-      // Equipment entity selector
-      var eqTypeObj = entityTypes.find(function(t) { return t.name === 'equipment'; });
-      var eqTypeId = eqTypeObj ? eqTypeObj.id : '';
-      h += '<div class="form-group"><label>Единица оборудования</label>';
-      h += renderRoEntitySelect(index, 'equipment_id', _equipment, obj.equipment_id, 'выберите из реестра');
-      h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="equipment_name" value="' + escapeHtml(obj.equipment_name || '') + '">';
-      h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="toggleRentEquipmentCreate(this)">+ Создать новую единицу</button>';
-      h += '</div>';
-      // Inline mini-form for quick equipment creation (hidden)
-      h += '<div id="ro_eq_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
-      h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новая единица оборудования</div>';
-      h += '<div class="form-group"><label>Название *</label><input class="ro-eq-name" data-idx="' + index + '" placeholder="Название оборудования" style="width:100%"></div>';
-      h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '" onchange="onEqCatChange(this)"><option value="">—</option>';
-      getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
-      h += '<option value="__custom__">Другое...</option></select>';
-      h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
-      h += '<div class="form-group"><label>Собственник</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
-      _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
-      h += '</select></div>';
-      h += '<div style="display:flex;gap:8px">';
-      h += '<button type="button" class="btn btn-primary btn-sm" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="submitRentEquipmentCreate(this)">Создать и выбрать</button>';
-      h += '<button type="button" class="btn btn-sm" data-idx="' + index + '" onclick="toggleRentEquipmentCreate(this)">Отмена</button>';
-      h += '</div></div>';
-    } else if (!isLand) {
-      // Building & room from real entities
-      h += '<div class="form-group"><label>Корпус</label>' + renderRoEntitySelect(index, 'building_id', _buildings, obj.building_id, 'выберите корпус') +
-        '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
-      // Room: select from registry + inline create form
-      h += '<div class="form-group"><label>Помещение</label>';
-      h += renderRoRoomSelect(index, obj.room_id);
-      h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '">';
-      h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
-      h += '</div>';
-      // Inline room create mini-form
-      h += '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
-      h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">🚪 Новое помещение</div>';
-      h += '<div class="form-group"><label>Тип помещения</label>';
-      h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%" onchange="onRoRoomTypeChange(this,' + index + ')">';
-      h += '<option value="">—</option>';
-      ROOM_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
-      h += '<option value="__custom__">Другое...</option></select>';
-      h += '<input class="ro-room-type-custom" data-idx="' + index + '" placeholder="Введите тип" style="display:none;margin-top:4px;width:100%"></div>';
-      h += '<div class="form-group"><label>Корпус</label><select class="ro-room-building" data-idx="' + index + '" style="width:100%"><option value="">— не указан —</option>';
-      _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
-      h += '</select></div>';
-      h += '<div class="form-group"><label>Описание помещения</label><input class="ro-room-desc" data-idx="' + index + '" style="width:100%"></div>';
-      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-      h += '<div class="form-group"><label>Площадь, м²</label><input type="number" class="ro-room-area" data-idx="' + index + '" style="width:100%"></div>';
-      h += '<div class="form-group"><label>Этаж</label><input class="ro-room-floor" data-idx="' + index + '" style="width:100%"></div>';
-      h += '</div>';
-      h += '<div style="display:flex;gap:8px;margin-top:8px">';
-      h += '<button type="button" class="btn btn-primary btn-sm" onclick="submitRentRoomCreate(this,' + index + ')">Создать и выбрать</button>';
-      h += '<button type="button" class="btn btn-sm" onclick="toggleRentRoomCreate(this,' + index + ')">Отмена</button>';
-      h += '</div></div>';
-    } else {
-      h += '<div class="form-group"><label>Местоположение ЗУ</label><input class="ro-field" data-idx="' + index + '" data-name="land_location" value="' + escapeHtml(obj.land_location || '') + '"></div>';
-    }
-
-    // Calc mode toggle
-    h += '<div class="form-group"><label>Расчёт</label><select class="ro-field" data-idx="' + index + '" data-name="calc_mode" onchange="onRentObjectCalcChange(' + index + ')">';
-    h += '<option value="area_rate"' + (calcMode === 'area_rate' ? ' selected' : '') + '>Площадь × Ставка</option>';
-    h += '<option value="fixed"' + (calcMode === 'fixed' ? ' selected' : '') + '>Фиксированная аренда</option></select></div>';
-
-    if (calcMode === 'area_rate') {
-      h += '<div class="form-group"><label>Площадь (м²)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="area" value="' + (obj.area || '') + '" oninput="recalcRentMonthly()"></div>';
-      h += '<div class="form-group"><label>Арендная ставка (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
-      var objTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
-      if (objTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + _fmtNum(objTotal) + ' руб.</div>';
-    } else {
-      h += '<div class="form-group"><label>Арендная плата</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="fixed_rent" value="' + (obj.fixed_rent || '') + '" oninput="recalcRentMonthly()"></div>';
-    }
-
-    // Comment
-    h += '<div class="form-group"><label>Комментарий</label><input class="ro-field" data-idx="' + index + '" data-name="comment" value="' + escapeHtml(obj.comment || '') + '"></div>';
-    // Additional rate/type fields
-    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-    h += '<div class="form-group"><label style="font-size:12px">\u0421\u0442\u0430\u0432\u043a\u0430 \u0447\u0438\u0441\u0442\u0430\u044f, \u0440\u0443\u0431/\u043c\xb2/\u043c\u0435\u0441</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="net_rate" value="' + escapeHtml(obj.net_rate || '') + '" placeholder="0"></div>';
-    h += '<div class="form-group"><label style="font-size:12px">\u041a\u0423 \u0432 \u043f\u043b\u0430\u0442\u0435\u0436\u0435/\u0441\u0442\u0430\u0432\u043a\u0435</label><input class="ro-field" data-idx="' + index + '" data-name="utility_rate" value="' + escapeHtml(obj.utility_rate || '') + '" placeholder="\u043e\u043f\u0438\u0448\u0438\u0442\u0435 \u0438\u043b\u0438 \u0441\u0443\u043c\u043c\u0430"></div>';
+  if (item_type === 'room') {
+    h += '<div class="form-group"><label>Корпус</label>' + renderRoEntitySelect(index, 'building_id', _buildings, obj.building_id, 'выберите корпус') +
+      '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
+    h += '<div class="form-group"><label>Помещение</label>';
+    h += renderRoRoomSelect(index, obj.room_id);
+    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '">';
+    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
     h += '</div>';
-    // external_rental moved to contract level (renderRentFields)
+    h += _roRoomCreateMiniForm(index);
+    h += _roCalcFields(index, obj, calcMode);
+  } else if (item_type === 'equipment') {
+    var eqTypeObj = entityTypes.find(function(t) { return t.name === 'equipment'; });
+    var eqTypeId = eqTypeObj ? eqTypeObj.id : '';
+    h += '<div class="form-group"><label>Оборудование</label>';
+    h += renderRoEntitySelect(index, 'equipment_id', _equipment, obj.equipment_id, 'выберите из реестра');
+    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="equipment_name" value="' + escapeHtml(obj.equipment_name || '') + '">';
+    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="toggleRentEquipmentCreate(this)">+ Создать новую единицу</button>';
+    h += '</div>';
+    h += _roEqCreateMiniForm(index, eqTypeId);
+    h += '<div class="form-group"><label>Комментарий</label><input class="ro-field" data-idx="' + index + '" data-name="comment" value="' + escapeHtml(obj.comment || '') + '"></div>';
+  } else if (item_type === 'land_plot') {
+    h += '<div class="form-group"><label>Местоположение ЗУ</label><input class="ro-field" data-idx="' + index + '" data-name="land_location" value="' + escapeHtml(obj.land_location || '') + '"></div>';
+    h += _roCalcFields(index, obj, calcMode);
   }
 
   h += '</div>';
@@ -1189,6 +1193,18 @@ function removeRentObject(index) {
   if (el) { el.remove(); recalcRentMonthly(); }
 }
 
+function onRentItemTypeChange(index) {
+  var obj = collectRentObjectData(index);
+  var block = document.getElementById('rent_obj_' + index);
+  if (block) {
+    var div = document.createElement('div');
+    div.innerHTML = renderRentObjectBlock(index, obj);
+    block.replaceWith(div.firstChild);
+    recalcRentMonthly();
+  }
+}
+
+// kept for backward compat (old __custom__ path)
 function onRentObjectTypeChange(index) {
   var sel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type"]');
   if (!sel) return;
@@ -2501,7 +2517,7 @@ async function showReports() {
   html += '<div class="form-group"><label>Типы договоров *</label><div id="aggTypeFilter" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">';
   AGG_CONTRACT_TYPES.forEach(function(t) {
     html += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:normal">';
-    html += '<input type="checkbox" class="agg-type-cb" value="' + t + '"> ' + t;
+    html += '<input type="checkbox" class="agg-type-cb" value="' + t + '" checked> ' + t;
     html += '</label>';
   });
   html += '</div></div>';
@@ -3203,13 +3219,16 @@ async function runLinkedReport(type) {
       } else {
         g.items.forEach(function(item) {
           var p = item.props || {};
+          var isBroken = _brokenEqIds.has(item.id);
+          var isEmerg = (p.status === 'Аварийное');
           var tags = [];
           if (p.equipment_category) tags.push(p.equipment_category);
           if (p.inv_number) tags.push('инв. ' + p.inv_number);
           if (p.status && p.status !== 'В работе') tags.push(p.status);
-          html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px">';
+          var nameColor = isBroken ? '#dc2626' : (isEmerg ? '#b85c5c' : '');
+          html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px' + (isBroken ? ';background:rgba(239,68,68,.07)' : (isEmerg ? ';background:rgba(184,92,92,.05)' : '')) + '">';
           html += '<span>' + (item.icon || '⚙️') + '</span>';
-          html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(item.name) + '</span>';
+          html += '<span style="font-weight:500;font-size:13px' + (nameColor ? ';color:' + nameColor : '') + '">' + escapeHtml(item.name) + (isBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>' : (isEmerg ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '')) + '</span>';
           if (tags.length) html += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(tags.join(' · ')) + '</span>';
           html += '</div>';
         });
@@ -3238,13 +3257,16 @@ async function runLinkedReport(type) {
       } else {
         g.items.forEach(function(item) {
           var p = item.props || {};
+          var isBroken = _brokenEqIds.has(item.id);
+          var isEmerg = (p.status === 'Аварийное');
           var tags = [];
           if (p.equipment_category) tags.push(p.equipment_category);
           if (item.building_name) tags.push(item.building_name);
           if (p.status && p.status !== 'В работе') tags.push(p.status);
-          html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px">';
+          var nameColor = isBroken ? '#dc2626' : (isEmerg ? '#b85c5c' : '');
+          html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px' + (isBroken ? ';background:rgba(239,68,68,.07)' : (isEmerg ? ';background:rgba(184,92,92,.05)' : '')) + '">';
           html += '<span>' + (item.icon || '⚙️') + '</span>';
-          html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(item.name) + '</span>';
+          html += '<span style="font-weight:500;font-size:13px' + (nameColor ? ';color:' + nameColor : '') + '">' + escapeHtml(item.name) + (isBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>' : (isEmerg ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '')) + '</span>';
           if (tags.length) html += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(tags.join(' · ')) + '</span>';
           html += '</div>';
         });
