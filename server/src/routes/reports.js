@@ -455,4 +455,34 @@ router.get('/work-history', authenticate, asyncHandler(async (req, res) => {
   res.json(rows);
 }));
 
+// GET /api/reports/broken-equipment — returns IDs of equipment marked broken/emergency in their latest act
+router.get('/broken-equipment', authenticate, asyncHandler(async (req, res) => {
+  // For each equipment, find the latest act (via subject_of relation), check broken flag in act_items
+  const sql = `
+    SELECT DISTINCT ON (r.from_entity_id)
+      r.from_entity_id          AS eq_id,
+      a.properties->>'act_items' AS act_items
+    FROM relations r
+    JOIN entities a  ON a.id = r.to_entity_id AND a.deleted_at IS NULL
+    JOIN entity_types at ON a.entity_type_id = at.id AND at.name = 'act'
+    WHERE r.relation_type = 'subject_of'
+    ORDER BY r.from_entity_id,
+             (a.properties->>'act_date') DESC NULLS LAST,
+             a.id DESC`;
+
+  const result = await pool.query(sql);
+  const brokenIds = [];
+
+  result.rows.forEach(function(row) {
+    let items = [];
+    try { items = JSON.parse(row.act_items || '[]'); } catch(e) {}
+    const item = items.find(function(i) { return parseInt(i.equipment_id) === row.eq_id; });
+    if (item && (item.broken === true || item.broken === 'true')) {
+      brokenIds.push(row.eq_id);
+    }
+  });
+
+  res.json(brokenIds);
+}));
+
 module.exports = router;

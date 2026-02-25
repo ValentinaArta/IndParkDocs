@@ -170,6 +170,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .rent-group-tag { display:flex;align-items:center;gap:4px;padding:3px 8px 3px 10px;background:var(--accent);color:white;border-radius:12px;font-size:12px; }
 .rent-group-tag button { background:none;border:none;color:white;cursor:pointer;font-size:14px;line-height:1;padding:0 0 1px; }
 .rent-field-btn { font-size:11px;padding:3px 8px;border-radius:12px; }
+.eq-broken-row td, .eq-broken-cell { background:rgba(239,68,68,.10) !important; color:var(--text-primary); }
+.eq-broken-row td:first-child a, .eq-broken-cell a { color:#dc2626 !important; }
+.eq-broken-badge { display:inline-block;font-size:10px;background:#dc2626;color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle; }
 </style>
 </head>
 <body>
@@ -678,6 +681,11 @@ function _renderActItem(item, rowId) {
   h += '<textarea class="act-item-desc" placeholder="\u0447\u0442\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e..." style="width:100%;margin-top:2px;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.description || '') + '</textarea></div>';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u0420\u0430\u0431\u043e\u0442\u044b/\u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f</label>';
   h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
+  // Broken/emergency flag
+  var brokenChecked = item.broken ? ' checked' : '';
+  h += '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid ' + (item.broken ? 'var(--danger)' : 'var(--border)') + ';background:' + (item.broken ? 'rgba(239,68,68,.08)' : 'transparent') + ';transition:all .15s" class="act-item-broken-label">';
+  h += '<input type="checkbox" class="act-item-broken"' + brokenChecked + ' onchange="_onActItemBrokenChange(this)"> ';
+  h += '\u26a0\ufe0f \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439/\u0430\u0432\u0430\u0440\u0438\u0439\u043d\u044b\u0439</label>';
   h += '</div>';
   h += '</div>';
   return h;
@@ -705,13 +713,27 @@ function actItemAdd() {
   else container.appendChild(child);
 }
 
+function _onActItemBrokenChange(cb) {
+  var label = cb.closest('.act-item-broken-label');
+  if (!label) return;
+  if (cb.checked) {
+    label.style.borderColor = 'var(--danger)';
+    label.style.background = 'rgba(239,68,68,.08)';
+    label.style.color = 'var(--danger)';
+  } else {
+    label.style.borderColor = 'var(--border)';
+    label.style.background = 'transparent';
+    label.style.color = '';
+  }
+}
+
 function actItemRemove(btn) {
   var container = document.getElementById('f_act_items');
   if (!container) return;
   var rows = container.querySelectorAll('.act-item-row');
   if (rows.length <= 1) {
     var row0 = btn.closest('.act-item-row');
-    if (row0) { row0.querySelector('.act-item-eq').value = ''; row0.querySelector('.act-item-amount').value = ''; row0.querySelector('.act-item-desc').value = ''; var cmt = row0.querySelector('.act-item-comment'); if (cmt) cmt.value = ''; }
+    if (row0) { row0.querySelector('.act-item-eq').value = ''; row0.querySelector('.act-item-amount').value = ''; row0.querySelector('.act-item-desc').value = ''; var cmt = row0.querySelector('.act-item-comment'); if (cmt) cmt.value = ''; var brk = row0.querySelector('.act-item-broken'); if (brk) { brk.checked = false; _onActItemBrokenChange(brk); } }
     recalcActTotal(); return;
   }
   var row = btn.closest('.act-item-row');
@@ -737,7 +759,8 @@ function getActItemsValue() {
     var eqId = parseInt(eqSel.value);
     var eqEnt = _equipment.find(function(e) { return e.id === eqId; });
     var cmtEl = row.querySelector('.act-item-comment');
-    result.push({ equipment_id: eqId, equipment_name: eqEnt ? eqEnt.name : '', amount: parseFloat(amtEl ? amtEl.value : 0) || 0, description: descEl ? descEl.value.trim() : '', comment: cmtEl ? cmtEl.value.trim() : '' });
+    var brkEl = row.querySelector('.act-item-broken');
+    result.push({ equipment_id: eqId, equipment_name: eqEnt ? eqEnt.name : '', amount: parseFloat(amtEl ? amtEl.value : 0) || 0, description: descEl ? descEl.value.trim() : '', comment: cmtEl ? cmtEl.value.trim() : '', broken: brkEl ? brkEl.checked : false });
   });
   return result;
 }
@@ -1456,6 +1479,7 @@ var _contractFormProps = {};
 
 var _ownCompanies = [];
 var _allCompanies = [];
+var _brokenEqIds = new Set(); // equipment IDs marked broken/emergency in their latest act
 var _buildings = [];
 var _rooms = [];
 var _equipment = [];
@@ -1468,6 +1492,14 @@ async function loadEntityLists() {
   _rooms = await loadEntitiesByType('room');
   _equipment = await loadEntitiesByType('equipment');
   _landPlots = await loadEntitiesByType('land_plot');
+  loadBrokenEquipment(); // background load, no await
+}
+
+async function loadBrokenEquipment() {
+  try {
+    var ids = await api('/reports/broken-equipment');
+    _brokenEqIds = new Set(ids.map(function(id) { return parseInt(id); }));
+  } catch(e) { /* non-fatal */ }
 }
 
 function renderContractFormFields(fields, props, headerHtml) {
@@ -1835,10 +1867,12 @@ function renderEntityGrid(entities) {
     Object.entries(props).forEach(([k, v]) => {
       if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
     });
-    html += '<div class="entity-card" onclick="showEntity(' + e.id + ')">' +
+    var isEqBroken = (e.type_name === 'equipment') && _brokenEqIds.has(e.id);
+    var cardStyle = isEqBroken ? ' style="border-left:3px solid #dc2626;background:rgba(239,68,68,.06)"' : '';
+    html += '<div class="entity-card"' + cardStyle + ' onclick="showEntity(' + e.id + ')">' +
       '<div class="card-header">' +
       '<div class="card-icon" style="background:' + e.color + '20;color:' + e.color + '">' + e.icon + '</div>' +
-      '<div><div class="card-title">' + escapeHtml(e.name) + '</div>' +
+      '<div><div class="card-title">' + escapeHtml(e.name) + (isEqBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>' : '') + '</div>' +
       '<div class="card-type">' + e.type_name_ru + (e.parent_name ? ' · ' + escapeHtml(e.parent_name) : '') + '</div></div>' +
       '</div>' +
       (tags ? '<div class="card-props">' + tags + '</div>' : '') +
@@ -2541,10 +2575,12 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
     if (node.contracts) {
       node.contracts.forEach(function(r) {
         var eqId = r.eq_id || r.contract_id;
-        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px" onclick="showEntity(' + eqId + ')">';
+        var isEqBroken = _brokenEqIds.has(parseInt(eqId));
+        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px;' + (isEqBroken ? 'background:rgba(239,68,68,.09);border-radius:4px;' : '') + '" onclick="showEntity(' + eqId + ')">';
         h += '<span>⚙️</span>';
-        h += '<span style="flex:1">';
+        h += '<span style="flex:1;' + (isEqBroken ? 'color:#dc2626;font-weight:500;' : '') + '">';
         h += escapeHtml(r.eq_name || r.contract_name);
+        if (isEqBroken) h += '<span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>';
         if (r.act_name) h += '<span style="font-size:11px;color:var(--text-muted);margin-left:6px">' + escapeHtml(r.act_name) + '</span>';
         h += '</span>';
         if (r.act_date || r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + (r.act_date || r.contract_date) + '</span>';
@@ -4288,12 +4324,15 @@ function renderWorkHistoryTable(rows) {
   // Body
   h += '<tbody>';
   equipment.forEach(function(eq, idx) {
-    var bg = idx % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)';
-    h += '<tr>';
+    var isBroken = _brokenEqIds.has(eq.eq_id);
+    var bg = isBroken ? 'rgba(239,68,68,.10)' : (idx % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)');
+    h += '<tr' + (isBroken ? ' class="eq-broken-row"' : '') + '>';
 
     // Equipment cell (sticky)
     h += '<td style="padding:8px 10px;border:1px solid var(--border);background:' + bg + ';position:sticky;left:0;z-index:1;vertical-align:top">';
-    h += '<a href="#" onclick="showEntity(' + eq.eq_id + ');return false" style="font-weight:600;color:var(--accent);display:block">' + escapeHtml(eq.eq_name) + '</a>';
+    var nameColor = isBroken ? '#dc2626' : 'var(--accent)';
+    h += '<a href="#" onclick="showEntity(' + eq.eq_id + ');return false" style="font-weight:600;color:' + nameColor + ';display:block">' + escapeHtml(eq.eq_name) + '</a>';
+    if (isBroken) h += '<span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>';
     if (eq.eq_inv_number) h += '<div style="font-size:11px;color:var(--text-muted)">\u0438\u043d\u0432. ' + escapeHtml(eq.eq_inv_number) + '</div>';
     if (eq.building_name && eq.building_name !== '\u2014') h += '<div style="font-size:11px;color:var(--text-muted)">' + escapeHtml(eq.building_name) + '</div>';
     h += '</td>';
