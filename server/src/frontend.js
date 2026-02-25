@@ -2537,7 +2537,6 @@ async function showEntity(id) {
 var _reportFields = [];
 // Fields available for manual grouping
 var AGG_HIERARCHY_FIELDS = [
-  { name: 'contract_our_legal_entity', label: 'Наше юрлицо' },
   { name: 'eq_balance_owner',          label: 'Собственник' },
   { name: 'eq_building',               label: 'Корпус' },
   { name: 'eq_category',               label: 'Категория оборудования' },

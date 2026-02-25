@@ -244,7 +244,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
   const p1 = [types];
   const sql1 = `
     SELECT e.id AS eq_id, e.name AS eq_name, e.properties AS eq_props,
-      par.name AS building_name,
+      CASE WHEN par_type.name = 'room' THEN COALESCE(grandpar.name, par.name)
+           ELSE COALESCE(par.name, '—') END AS building_name,
       c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
       NULL::int AS act_id, NULL::text AS act_name, NULL::text AS act_date
     FROM entities e
@@ -253,6 +254,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     JOIN entities c ON c.id = r.to_entity_id AND c.deleted_at IS NULL
     JOIN entity_types et_c ON c.entity_type_id = et_c.id AND et_c.name = 'contract'
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
+    LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
+    LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
     ${buildExtra(p1, 'c')} ORDER BY e.name, c.id`;
   const r1 = await pool.query(sql1, p1);
@@ -262,7 +265,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
   const p2 = [types];
   const sql2 = `
     SELECT e.id AS eq_id, e.name AS eq_name, e.properties AS eq_props,
-      par.name AS building_name,
+      CASE WHEN par_type.name = 'room' THEN COALESCE(grandpar.name, par.name)
+           ELSE COALESCE(par.name, '—') END AS building_name,
       c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
       act.id AS act_id, act.name AS act_name,
       act.properties->>'act_date' AS act_date,
@@ -276,6 +280,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     JOIN entities c ON c.id = r2.to_entity_id AND c.deleted_at IS NULL
     JOIN entity_types et_c ON c.entity_type_id = et_c.id AND et_c.name = 'contract'
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
+    LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
+    LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
     ${buildExtra(p2, 'c')} ORDER BY e.name, act.id`;
   const r2 = await pool.query(sql2, p2);
