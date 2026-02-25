@@ -660,10 +660,12 @@ function getEqListValue() {
 var _actItemCounter = 0;
 var _actEquipmentList = null;  // filtered to contract's equipment when creating act
 
-function _renderActItem(item, rowId) {
+function _renderActItem(item, rowId, bgIdx) {
   var eqList = _actEquipmentList || _equipment;
-  var rowBg = item.broken ? 'rgba(239,68,68,.08)' : 'var(--bg-hover)';
-  var rowBorder = item.broken ? '#dc2626' : 'var(--border)';
+  var _bgIdx = (bgIdx !== undefined) ? bgIdx : rowId;
+  var altBg = (_bgIdx % 2 === 0) ? 'var(--bg-hover)' : 'var(--bg-secondary)';
+  var rowBg = item.broken ? 'rgba(239,68,68,.08)' : altBg;
+  var rowBorder = item.broken ? '#dc2626' : ((_bgIdx % 2 === 0) ? 'var(--border)' : 'var(--accent)40');
   var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:8px;padding:10px;border:1px solid ' + rowBorder + ';border-radius:6px;background:' + rowBg + '">';
   // Row 1: equipment + amount + delete
   h += '<div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">';
@@ -700,7 +702,7 @@ function renderActItemsField(items) {
   if (!Array.isArray(items) || items.length === 0) items = [{}];
   _actItemCounter = items.length;
   var h = '<div id="f_act_items">';
-  items.forEach(function(item, i) { h += _renderActItem(item, i); });
+  items.forEach(function(item, i) { h += _renderActItem(item, i, i); });
   h += '<button type="button" class="btn btn-sm act-item-add-btn" style="margin-top:4px" onclick="actItemAdd()">+ Добавить оборудование</button>';
   h += '</div>';
   return h;
@@ -710,8 +712,9 @@ function actItemAdd() {
   var container = document.getElementById('f_act_items');
   if (!container) { console.error('actItemAdd: container not found'); return; }
   var rowId = _actItemCounter++;
+  var bgIdx = container.querySelectorAll('.act-item-row').length;
   var div = document.createElement('div');
-  div.innerHTML = _renderActItem({}, rowId);
+  div.innerHTML = _renderActItem({}, rowId, bgIdx);
   var child = div.firstElementChild || div.firstChild;
   var addBtn = container.querySelector('.act-item-add-btn');
   if (addBtn) container.insertBefore(child, addBtn);
