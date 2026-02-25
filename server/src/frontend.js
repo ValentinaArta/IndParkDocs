@@ -664,11 +664,9 @@ var _actEquipmentList = null;  // filtered to contract's equipment when creating
 
 function _renderActItem(item, rowId, bgIdx) {
   var eqList = _actEquipmentList || _equipment;
-  var _bgIdx = (bgIdx !== undefined) ? bgIdx : rowId;
-  var altBg = (_bgIdx % 2 === 0) ? 'var(--bg-primary)' : 'rgba(99,102,241,0.05)';
-  var rowBg = item.broken ? 'rgba(239,68,68,.08)' : altBg;
+  var rowBg = item.broken ? 'rgba(239,68,68,.08)' : 'var(--bg-primary)';
   var rowBorder = item.broken ? '#dc2626' : 'var(--border)';
-  var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:4px;padding:10px;border:1px solid ' + rowBorder + ';border-radius:6px;background:' + rowBg + '">';
+  var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:8px;padding:10px;border:1px solid ' + rowBorder + ';border-radius:8px;background:' + rowBg + ';box-shadow:0 1px 3px rgba(0,0,0,.06)">';
   // Row 1: equipment + amount + delete
   h += '<div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 *</label>';
@@ -696,14 +694,15 @@ function _renderActItem(item, rowId, bgIdx) {
   h += '<input type="checkbox" class="act-item-broken"' + brokenChecked + ' onchange="_onActItemBrokenChange(this)">';
   h += '\u26a0\ufe0f \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439/<br>\u0430\u0432\u0430\u0440\u0438\u0439\u043d\u044b\u0439</label>';
   h += '</div></div>';
-  h += '</div>';
+  h += '</div>';  // closes row2
+  h += '</div>';  // closes act-item-row outer div
   return h;
 }
 
 function renderActItemsField(items) {
   if (!Array.isArray(items) || items.length === 0) items = [{}];
   _actItemCounter = items.length;
-  var h = '<div id="f_act_items" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px">';
+  var h = '<div id="f_act_items" style="background:transparent;padding:0;margin-top:4px">';
   items.forEach(function(item, i) { h += _renderActItem(item, i, i); });
   h += '<button type="button" class="btn btn-sm act-item-add-btn" style="margin-top:4px" onclick="actItemAdd()">+ Добавить оборудование</button>';
   h += '</div>';
@@ -1109,20 +1108,21 @@ function closeRoComment(index) {
 }
 
 function _roRoomCreateMiniForm(index) {
-  var h = '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
-  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">🚪 Новое помещение</div>';
-  h += '<div class="form-group"><label>Тип объекта</label>';
+  var h = '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg-secondary)">';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">🚪 Новое помещение — полная форма</div>';
+  h += '<div class="form-group"><label>Название / Номер помещения</label><input class="ro-room-name" data-idx="' + index + '" placeholder="Кабинет 101, Склад №3..." style="width:100%"></div>';
+  h += '<div class="form-group"><label>Тип помещения</label>';
   h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
   OBJECT_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
   h += '</select></div>';
   h += '<div class="form-group"><label>Корпус</label><select class="ro-room-building" data-idx="' + index + '" style="width:100%"><option value="">— не указан —</option>';
   _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
   h += '</select></div>';
-  h += '<div class="form-group"><label>Описание помещения</label><input class="ro-room-desc" data-idx="' + index + '" style="width:100%"></div>';
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   h += '<div class="form-group"><label>Площадь, м²</label><input type="number" class="ro-room-area" data-idx="' + index + '" style="width:100%"></div>';
   h += '<div class="form-group"><label>Этаж</label><input class="ro-room-floor" data-idx="' + index + '" style="width:100%"></div>';
   h += '</div>';
+  h += '<div class="form-group"><label>Описание / примечание</label><input class="ro-room-desc" data-idx="' + index + '" style="width:100%"></div>';
   h += '<div style="display:flex;gap:8px;margin-top:8px">';
   h += '<button type="button" class="btn btn-primary btn-sm" onclick="submitRentRoomCreate(this,' + index + ')">Создать и выбрать</button>';
   h += '<button type="button" class="btn btn-sm" onclick="toggleRentRoomCreate(this,' + index + ')">Отмена</button>';
@@ -1131,17 +1131,27 @@ function _roRoomCreateMiniForm(index) {
 }
 
 function _roEqCreateMiniForm(index, eqTypeId) {
-  var h = '<div id="ro_eq_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
-  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новая единица оборудования</div>';
+  var h = '<div id="ro_eq_create_' + index + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg-secondary)">';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">⚙️ Новая единица оборудования — полная форма</div>';
   h += '<div class="form-group"><label>Название *</label><input class="ro-eq-name" data-idx="' + index + '" placeholder="Название оборудования" style="width:100%"></div>';
-  h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '" onchange="onEqCatChange(this)"><option value="">—</option>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '" onchange="onEqCatChange(this)" style="width:100%"><option value="">—</option>';
   getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
   h += '<option value="__custom__">Другое...</option></select>';
   h += '<input class="ro-eq-cat-custom" data-idx="' + index + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
+  h += '<div class="form-group"><label>Вид / тип</label><input class="ro-eq-kind" data-idx="' + index + '" placeholder="кран, насос, котёл..." style="width:100%"></div>';
+  h += '<div class="form-group"><label>Инв. номер</label><input class="ro-eq-inv" data-idx="' + index + '" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Зав. номер</label><input class="ro-eq-serial" data-idx="' + index + '" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Год выпуска</label><input type="number" class="ro-eq-year" data-idx="' + index + '" placeholder="2010" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Производитель</label><input class="ro-eq-mfr" data-idx="' + index + '" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Статус</label><select class="ro-eq-status" data-idx="' + index + '" style="width:100%">';
+  ['В работе','На ремонте','Законсервировано','Списано'].forEach(function(s) { h += '<option value="' + s + '">' + s + '</option>'; });
+  h += '</select></div>';
   h += '<div class="form-group"><label>Собственник</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
   _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
   h += '</select></div>';
-  h += '<div style="display:flex;gap:8px">';
+  h += '</div>';
+  h += '<div style="display:flex;gap:8px;margin-top:4px">';
   h += '<button type="button" class="btn btn-primary btn-sm" data-idx="' + index + '" data-eqtype="' + eqTypeId + '" onclick="submitRentEquipmentCreate(this)">Создать и выбрать</button>';
   h += '<button type="button" class="btn btn-sm" data-idx="' + index + '" onclick="toggleRentEquipmentCreate(this)">Отмена</button>';
   h += '</div></div>';
@@ -1328,6 +1338,20 @@ async function submitRentEquipmentCreate(el) {
       props.equipment_category = catEl.value;
     }
   }
+  // Collect all additional fields from expanded form
+  var kindEl    = document.querySelector('.ro-eq-kind[data-idx="' + idx + '"]');
+  var invEl     = document.querySelector('.ro-eq-inv[data-idx="' + idx + '"]');
+  var serialEl  = document.querySelector('.ro-eq-serial[data-idx="' + idx + '"]');
+  var yearEl    = document.querySelector('.ro-eq-year[data-idx="' + idx + '"]');
+  var mfrEl     = document.querySelector('.ro-eq-mfr[data-idx="' + idx + '"]');
+  var statusEl  = document.querySelector('.ro-eq-status[data-idx="' + idx + '"]');
+  if (kindEl && kindEl.value.trim()) props.equipment_kind = kindEl.value.trim();
+  if (invEl && invEl.value.trim()) props.inv_number = invEl.value.trim();
+  if (serialEl && serialEl.value.trim()) props.serial_number = serialEl.value.trim();
+  if (yearEl && yearEl.value) props.year = yearEl.value;
+  if (mfrEl && mfrEl.value.trim()) props.manufacturer = mfrEl.value.trim();
+  if (statusEl && statusEl.value) props.status = statusEl.value;
+
   var ownerElR = document.querySelector('.ro-eq-owner[data-idx="' + idx + '"]');
   var ownerEntR = null;
   if (ownerElR && ownerElR.value) {
@@ -1340,8 +1364,7 @@ async function submitRentEquipmentCreate(el) {
   // Validation: required fields
   var missingR = [];
   if (!props.equipment_category) missingR.push('Категория');
-  if (!ownerEntR) missingR.push('Собственник');
-  if (!parentIdR) missingR.push('Корпус');
+  if (!parentIdR) missingR.push('Корпус (выберите помещение или здание)');
   if (missingR.length) { alert('Заполните обязательные поля: ' + missingR.join(', ')); return; }
   function selectEquipment(ent) {
     if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
@@ -1425,6 +1448,7 @@ function toggleRentRoomCreate(btn, index) {
 async function submitRentRoomCreate(btn, index) {
   var block = document.getElementById('ro_room_create_' + index);
   if (!block) return;
+  var nameEl = block.querySelector('.ro-room-name');
   var typeEl = block.querySelector('.ro-room-type');
   var typeCustomEl = block.querySelector('.ro-room-type-custom');
   var roomType = typeEl ? typeEl.value : '';
@@ -1434,14 +1458,16 @@ async function submitRentRoomCreate(btn, index) {
   var floorEl = block.querySelector('.ro-room-floor');
   var buildingId = bldEl ? (parseInt(bldEl.value) || null) : null;
   var building = buildingId ? (_buildings.find(function(b) { return b.id === buildingId; }) || {}).name || '' : '';
-  // Build a default name
-  var parts = [];
-  if (roomType) parts.push(roomType);
-  if (floorEl && floorEl.value.trim()) parts.push('\u044d\u0442.' + floorEl.value.trim()); // эт.N
-  if (building) parts.push(building);
-  var defaultName = parts.join(', ') || '\u041d\u043e\u0432\u043e\u0435 \u043f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u0435';
-  var roomName = prompt('\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u044f:', defaultName);
-  if (!roomName || !roomName.trim()) return;
+  // Use explicit name field, or auto-generate from type+floor+building
+  var roomName = nameEl && nameEl.value.trim() ? nameEl.value.trim() : '';
+  if (!roomName) {
+    var parts = [];
+    if (roomType) parts.push(roomType);
+    if (floorEl && floorEl.value.trim()) parts.push('\u044d\u0442.' + floorEl.value.trim());
+    if (building) parts.push(building);
+    roomName = parts.join(', ') || '\u041d\u043e\u0432\u043e\u0435 \u043f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u0435';
+  }
+  if (!roomName.trim()) return;
   var roomTypeObj = entityTypes.find(function(t) { return t.name === 'room'; });
   if (!roomTypeObj) return alert('\u0422\u0438\u043f \u041f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u0435 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d');
   var props = {};
@@ -2758,12 +2784,10 @@ async function showReports() {
   html += '<button type="button" class="btn btn-sm" onclick="_rentColSelectAll(false)">\u041d\u0438\u0447\u0435\u0433\u043e</button>';
   html += '</div></div>';
   html += '</div>';
-  // Group-by zone
+  // Filter-headers zone (replaces group-by)
   html += '<div style="margin-bottom:12px">';
-  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">\u0413\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u043a\u0430 \u0441\u0442\u0440\u043e\u043a \u043f\u043e:</div>';
-  html += '<div id="rentGroupZone" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:6px;border:2px dashed var(--border);border-radius:6px;background:var(--bg-secondary)">';
-  html += '<span style="color:var(--text-muted);font-size:12px;align-self:center">\u041d\u0430\u0436\u043c\u0438\u0442\u0435 + \u043f\u043e\u043b\u0435 \u043d\u0438\u0436\u0435 \u0447\u0442\u043e\u0431\u044b \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0443\u0440\u043e\u0432\u0435\u043d\u044c \u0433\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u043a\u0438</span>';
-  html += '</div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">\u0421\u0442\u0440\u043e\u043a\u0438 \u043e\u0442\u0431\u043e\u0440\u0430:</div>';
+  html += '<div id="rentGroupZone" style="display:flex;flex-direction:column;gap:4px;min-height:20px"></div>';
   html += '<div id="rentGroupFieldBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>';
   html += '</div>';
   html += '</div>';
@@ -3664,6 +3688,12 @@ function closeModal() {
 }
 
 async function openCreateModal(typeName) {
+  // Для ДС из реестра — сначала выбираем родительский договор
+  if (typeName === 'supplement') {
+    await openSelectParentContractForSupplement();
+    return;
+  }
+
   _contractFormTypeName = typeName;
   clearEntityCache();
   const type = entityTypes.find(t => t.name === typeName);
@@ -3898,12 +3928,15 @@ function renderContractCard(data) {
     data.history.forEach(function(s) {
       h += '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">';
       if (s.is_contract) {
-        h += '<strong>' + escapeHtml(s.name) + '</strong>';
+        // Основной договор — кликабельный
+        h += '<a href="#" onclick="openContractCard(' + s.id + ');return false" style="color:var(--accent);font-weight:600">';
+        h += '📄 ' + escapeHtml(s.name);
+        h += '</a>';
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
-        h += ' <span style="color:var(--text-secondary);font-size:12px">— Основной договор</span>';
+        h += ' <span style="background:var(--bg-hover);color:var(--text-secondary);font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px">Основной договор</span>';
       } else {
-        h += '<a href="#" onclick="closeModal();showEntity(' + s.id + ');return false" style="color:var(--accent)">';
-        h += escapeHtml(s.name) + (s.number ? ' №' + escapeHtml(s.number) : '');
+        h += '<a href="#" onclick="openSupplementCard(' + s.id + ');return false" style="color:var(--accent)">';
+        h += '📎 ' + escapeHtml(s.name) + (s.number ? ' №' + escapeHtml(s.number) : '');
         h += '</a>';
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         if (s.changes) h += ' — <span style="color:var(--text-secondary)">' + escapeHtml(s.changes) + '</span>';
@@ -3913,6 +3946,11 @@ function renderContractCard(data) {
     h += '</div></div>';
   }
 
+  // Кнопка добавить ДС
+  h += '<div style="margin-top:12px">';
+  h += '<button class="btn btn-sm btn-primary" onclick="openCreateSupplementModal(' + data.id + ')">+ Доп. соглашение</button>';
+  h += '</div>';
+
   return h;
 }
 
@@ -3921,6 +3959,103 @@ async function openContractCard(id) {
   try {
     var data = await api('/reports/contract-card/' + id);
     setModalContent(renderContractCard(data));
+  } catch(e) {
+    setModalContent('<div style="color:#dc2626;padding:20px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>');
+  }
+}
+
+// ── Карточка ДС (только изменения) ─────────────────────────────────────────
+async function openSupplementCard(id) {
+  setModalContent('<div style="text-align:center;padding:40px;color:var(--text-secondary)">Загрузка...</div>');
+  try {
+    var supp = await api('/entities/' + id);
+    var sp = supp.properties || {};
+    var parentId = supp.parent_id;
+    var parentData = null;
+    if (parentId) {
+      try { parentData = await api('/reports/contract-card/' + parentId); } catch(ex) {}
+    }
+
+    var h = '';
+    // Header
+    h += '<div style="margin-bottom:16px">';
+    h += '<h2 style="font-size:1.2rem;font-weight:700;margin:0 0 4px">📎 ' + escapeHtml(supp.name) + '</h2>';
+    h += '<span style="font-size:13px;color:var(--text-secondary)">Доп. соглашение' + (sp.contract_type ? ' к договору ' + escapeHtml(sp.contract_type) : '') + '</span>';
+    h += '</div>';
+
+    // Link to parent contract
+    if (parentId) {
+      h += '<div style="margin-bottom:12px;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px">';
+      h += '<span style="color:var(--text-muted)">Основной договор:</span> ';
+      h += '<a href="#" onclick="openContractCard(' + parentId + ');return false" style="color:var(--accent);font-weight:600">';
+      h += parentData ? escapeHtml(parentData.name) : '📄 Договор #' + parentId;
+      h += '</a>';
+      h += '</div>';
+    }
+
+    // Изменения (changes_description)
+    if (sp.changes_description) {
+      h += '<div style="margin-bottom:16px;padding:10px 14px;background:rgba(99,102,241,.07);border-left:3px solid var(--accent);border-radius:0 6px 6px 0">';
+      h += '<div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px">ИЗМЕНЕНИЯ</div>';
+      h += '<div style="font-size:14px">' + escapeHtml(sp.changes_description) + '</div>';
+      h += '</div>';
+    }
+
+    // Changed rental terms (rent_objects)
+    if (sp.rent_objects) {
+      var rentObjs = [];
+      try { rentObjs = JSON.parse(sp.rent_objects); } catch(ex) {}
+      if (rentObjs.length > 0) {
+        h += '<div style="margin-bottom:16px">';
+        h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">ИЗМЕНЁННЫЕ УСЛОВИЯ АРЕНДЫ</div>';
+        h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+        h += '<thead><tr style="border-bottom:2px solid var(--border)">';
+        h += '<th style="text-align:left;padding:6px">Объект</th>';
+        h += '<th style="text-align:right;padding:6px">Площадь, м²</th>';
+        h += '<th style="text-align:right;padding:6px">Ставка, ₽/м²</th>';
+        h += '<th style="text-align:right;padding:6px">Сумма, ₽</th>';
+        h += '</tr></thead><tbody>';
+        var suppTotal = 0;
+        rentObjs.forEach(function(ro) {
+          var sum = ro.fixed_rent ? parseFloat(ro.fixed_rent) : (parseFloat(ro.area) || 0) * (parseFloat(ro.rent_rate) || 0);
+          suppTotal += sum || 0;
+          h += '<tr style="border-bottom:1px solid var(--border)">';
+          h += '<td style="padding:6px">' + escapeHtml(ro.room_name || ro.object_type || '—') + '</td>';
+          h += '<td style="text-align:right;padding:6px">' + (ro.area ? ro.area + ' м²' : '—') + '</td>';
+          h += '<td style="text-align:right;padding:6px">' + (ro.rent_rate ? ro.rent_rate + ' ₽' : '—') + '</td>';
+          h += '<td style="text-align:right;padding:6px;font-weight:500">' + (sum > 0 ? _fmtNum(sum) + ' ₽' : '—') + '</td>';
+          h += '</tr>';
+        });
+        if (suppTotal > 0) {
+          h += '<tr style="font-weight:600;background:var(--bg-hover)"><td style="padding:6px">Итого</td><td></td><td></td><td style="text-align:right;padding:6px">' + _fmtNum(suppTotal) + ' ₽/мес</td></tr>';
+        }
+        h += '</tbody></table></div>';
+      }
+    }
+
+    // Other changed fields (amount, dates etc.)
+    var shownFields = ['contract_date','contract_end_date','contract_amount','number'];
+    var fieldLabels = { contract_date: 'Дата', contract_end_date: 'Срок действия до', contract_amount: 'Сумма договора', number: 'Номер' };
+    var changedFields = shownFields.filter(function(k) {
+      return sp[k] && (!parentData || String(sp[k]) !== String((parentData.properties || {})[k] || ''));
+    });
+    if (changedFields.length > 0) {
+      h += '<div style="display:flex;flex-direction:column;gap:6px;font-size:14px;margin-bottom:16px">';
+      changedFields.forEach(function(k) {
+        h += '<div><span style="color:var(--text-secondary)">' + (fieldLabels[k] || k) + ':</span> <strong>' + escapeHtml(sp[k]) + '</strong></div>';
+      });
+      h += '</div>';
+    }
+
+    // Actions
+    h += '<div style="margin-top:16px;display:flex;gap:8px">';
+    h += '<button class="btn btn-sm" onclick="closeModal();showEntity(' + id + ')">📋 Полные детали</button>';
+    if (parentId) {
+      h += '<button class="btn btn-sm btn-primary" onclick="openContractCard(' + parentId + ')">← К договору</button>';
+    }
+    h += '</div>';
+
+    setModalContent(h);
   } catch(e) {
     setModalContent('<div style="color:#dc2626;padding:20px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>');
   }
@@ -4170,6 +4305,33 @@ async function deleteEntity(id) {
 
 // ============ SUPPLEMENTS ============
 
+// Шаг 1: выбор родительского договора (из реестра ДС)
+async function openSelectParentContractForSupplement() {
+  await loadContractEntities();
+  var contracts = await api('/entities?type=contract');
+  var h = '<h3>Новое доп. соглашение</h3>';
+  h += '<div style="margin-bottom:16px;color:var(--text-secondary);font-size:14px">Сначала выберите договор, к которому относится ДС:</div>';
+  h += '<div class="form-group"><label>Договор *</label>';
+  h += '<select id="f_parent_contract_select" style="width:100%"><option value="">— выберите —</option>';
+  contracts.forEach(function(c) {
+    var cp = c.properties || {};
+    h += '<option value="' + c.id + '">' + escapeHtml(c.name) + (cp.contract_date ? ' от ' + cp.contract_date : '') + '</option>';
+  });
+  h += '</select></div>';
+  h += '<div class="modal-actions">';
+  h += '<button class="btn" onclick="closeModal()">Отмена</button>';
+  h += '<button class="btn btn-primary" onclick="_proceedCreateSupplement()">Далее →</button>';
+  h += '</div>';
+  setModalContent(h);
+}
+
+async function _proceedCreateSupplement() {
+  var sel = document.getElementById('f_parent_contract_select');
+  if (!sel || !sel.value) { alert('Выберите договор'); return; }
+  var parentContractId = parseInt(sel.value);
+  await openCreateSupplementModal(parentContractId);
+}
+
 async function openCreateSupplementModal(parentContractId) {
   _contractFormTypeName = 'supplement';
   clearEntityCache();
@@ -4408,8 +4570,9 @@ async function _doSubmitCreateAct(parentContractId) {
 // ============ RENT ANALYSIS REPORT ============
 
 var _rentAllRows = [];
-var _rentFilters = {};   // { field: Set<string> | null }  null = all selected
-var _rentGroupBy = [];   // array of field keys
+var _rentFilters = {};          // { field: Set<string> | null }  null = all selected
+var _rentGroupBy = [];          // array of field keys shown as filter-headers
+var _rentGroupByValues = {};    // { field: string } — selected value per filter-header
 var _rentSortField = null;
 var _rentSortAsc = true;
 var _rentColWidths = {}; // col.key -> px width (user-resized)
@@ -4453,6 +4616,7 @@ async function buildRentAnalysis() {
     }
     _rentFilters = {};
     _rentGroupBy = [];
+    _rentGroupByValues = {};
     _renderRentColCheckboxes();
     _renderRentGroupZone();
     _renderRentGroupFieldBtns();
@@ -4574,11 +4738,8 @@ function _buildRentTableHtml(rows) {
   h += '<div class="stat-card"><div class="stat-label">\u0427\u0438\u0441\u0442\u044b\u0439 \u043f\u043b\u0430\u0442\u0435\u0436/\u043c\u0435\u0441, \u20bd</div><div class="stat-value">' + _fmtRentNum(totalNetPay, 0) + '</div></div>';
   h += '</div>';
 
-  if (_rentGroupBy.length > 0) {
-    h += _buildGroupedRentTable(rows);
-  } else {
-    h += _buildFlatRentTable(rows, fmtVal);
-  }
+  // Таблица всегда плоская; группировка работает как фильтры через rentGroupZone
+  h += _buildFlatRentTable(rows, fmtVal);
   return h;
 }
 
@@ -4885,14 +5046,47 @@ function _renderRentGroupZone() {
   var zone = document.getElementById('rentGroupZone');
   if (!zone) return;
   if (_rentGroupBy.length === 0) {
-    zone.innerHTML = '<span style="color:var(--text-muted);font-size:12px;align-self:center">\u041d\u0430\u0436\u043c\u0438\u0442\u0435 + \u043f\u043e\u043b\u0435 \u043d\u0438\u0436\u0435 \u0447\u0442\u043e\u0431\u044b \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0443\u0440\u043e\u0432\u0435\u043d\u044c \u0433\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u043a\u0438</span>';
+    zone.innerHTML = '<span style="color:var(--text-muted);font-size:12px">\u0414\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u043f\u043e\u043b\u044f \u0434\u043b\u044f \u0444\u0438\u043b\u044c\u0442\u0440\u0430\u0446\u0438\u0438 \u043d\u0438\u0436\u0435</span>';
     return;
   }
   var labels = {};
   RENT_GROUP_FIELDS.forEach(function(f) { labels[f.key] = f.label; });
-  zone.innerHTML = _rentGroupBy.map(function(k) {
-    return '<span class="rent-group-tag">' + escapeHtml(labels[k] || k) + '<button onclick="_rentRemoveGroup(&quot;' + k + '&quot;)">&times;</button></span>';
+
+  zone.innerHTML = _rentGroupBy.map(function(field) {
+    // Collect unique values for this field from all data rows
+    var seen = {};
+    var uniqueVals = [];
+    _rentAllRows.forEach(function(r) {
+      var v = String(r[field] || '');
+      if (!seen[v]) { seen[v] = true; uniqueVals.push(v); }
+    });
+    uniqueVals.sort(function(a, b) { return a.localeCompare(b, 'ru'); });
+    var activeVal = _rentGroupByValues[field] || '';
+
+    var opts = '<option value="">\u2014 \u0412\u0441\u0435 \u2014</option>';
+    uniqueVals.forEach(function(v) {
+      opts += '<option value="' + escapeHtml(v) + '"' + (activeVal === v ? ' selected' : '') + '>' + escapeHtml(v || '(\u043f\u0443\u0441\u0442\u043e)') + '</option>';
+    });
+
+    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0">' +
+      '<span style="font-size:12px;font-weight:600;color:var(--text-secondary);min-width:130px">' + escapeHtml(labels[field] || field) + ':</span>' +
+      '<select style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)" ' +
+        'onchange="_rentGroupByValueChange(&quot;' + field + '&quot;, this.value)">' + opts + '</select>' +
+      '<button class="btn btn-sm" onclick="_rentRemoveGroup(&quot;' + field + '&quot;)" style="padding:2px 7px;font-size:11px;line-height:1">&times;</button>' +
+      '</div>';
   }).join('');
+}
+
+// Вызывается при изменении значения фильтра-заголовка
+function _rentGroupByValueChange(field, value) {
+  if (value === '') {
+    delete _rentGroupByValues[field];
+    delete _rentFilters[field];
+  } else {
+    _rentGroupByValues[field] = value;
+    _rentFilters[field] = new Set([value]);
+  }
+  _rentRender();
 }
 
 function _renderRentGroupFieldBtns() {
@@ -4900,7 +5094,8 @@ function _renderRentGroupFieldBtns() {
   if (!el) return;
   el.innerHTML = RENT_GROUP_FIELDS.map(function(f) {
     var active = _rentGroupBy.indexOf(f.key) >= 0;
-    return '<button class="btn btn-sm rent-field-btn' + (active ? ' btn-primary' : '') + '" onclick="_rentToggleGroup(&quot;' + f.key + '&quot;)">+ ' + escapeHtml(f.label) + '</button>';
+    return '<button class="btn btn-sm rent-field-btn' + (active ? ' btn-primary' : '') + '" onclick="_rentToggleGroup(&quot;' + f.key + '&quot;)">' +
+      (active ? '\u2713 ' : '+ ') + escapeHtml(f.label) + '</button>';
   }).join('');
 }
 
@@ -4911,6 +5106,9 @@ function _rentToggleGroup(field) {
 
 function _rentRemoveGroup(field) {
   _rentGroupBy = _rentGroupBy.filter(function(k) { return k !== field; });
+  // Clear the filter for this field when removing the header
+  delete _rentGroupByValues[field];
+  delete _rentFilters[field];
   _renderRentGroupZone();
   _renderRentGroupFieldBtns();
   _rentRender();
