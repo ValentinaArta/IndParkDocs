@@ -2126,6 +2126,7 @@ async function showEntityList(typeName) {
     '<button class="btn btn-primary" onclick="openCreateModal(\\'' + typeName + '\\')">+ Добавить</button>';
 
   const entities = await api('/entities?type=' + typeName);
+  if (typeName === 'equipment') await loadBrokenEquipment();
   renderEntityGrid(entities);
 }
 
@@ -3873,12 +3874,15 @@ function renderContractCard(data) {
     h += '<div style="display:none;padding:12px 14px">';
     data.equipment_list.forEach(function(eq) {
       var isEmerg = eq.is_emergency;
-      var style = isEmerg ? 'color:#b85c5c;font-weight:600' : '';
-      h += '<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;' + style + '">';
+      var isBroken = eq.is_broken;
+      var isRed = isEmerg || isBroken;
+      var txtStyle = isBroken ? 'color:#dc2626;font-weight:600' : (isEmerg ? 'color:#b85c5c;font-weight:600' : '');
+      h += '<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;' + txtStyle + '">';
       h += escapeHtml(eq.name || '—');
       if (eq.kind || eq.category) h += ' <span style="color:var(--text-secondary);font-size:12px">(' + escapeHtml((eq.kind || eq.category || '')) + ')</span>';
       if (eq.location) h += ' — ' + escapeHtml(eq.location);
-      if (isEmerg) h += ' <span style="background:#fef2f2;color:#b85c5c;font-size:11px;padding:1px 5px;border-radius:3px;border:1px solid #b85c5c">⚠ Аварийное</span>';
+      if (isBroken) h += ' <span style="background:#fef2f2;color:#dc2626;font-size:11px;padding:1px 5px;border-radius:3px;border:1px solid #dc2626">⚠ Нерабочий</span>';
+      else if (isEmerg) h += ' <span style="background:#fef2f2;color:#b85c5c;font-size:11px;padding:1px 5px;border-radius:3px;border:1px solid #b85c5c">⚠ Аварийное</span>';
       h += '</div>';
     });
     h += '</div></div>';

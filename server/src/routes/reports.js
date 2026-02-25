@@ -571,9 +571,10 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     rRes.rows.forEach(r => { roomMap[r.id] = { name: r.name, props: r.properties || {} }; });
   }
 
-  // 6. Equipment details + located_in
+  // 6. Equipment details + located_in + broken-from-acts
   const eqIds = [...new Set(transferEquipment.map(eq => parseInt(eq.equipment_id)).filter(id => id > 0))];
   const eqMap = {};
+  const brokenEqIds = new Set();
   if (eqIds.length) {
     const eRes = await pool.query(
       'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [eqIds]);
@@ -586,6 +587,20 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const locMap = {};
     locRes.rows.forEach(r => { if (!locMap[r.eq_id]) locMap[r.eq_id] = r.loc; });
     Object.keys(eqMap).forEach(id => { eqMap[id].location = locMap[parseInt(id)] || ''; });
+    // Check broken flag from latest act
+    const brokenRes = await pool.query(
+      `SELECT DISTINCT ON (r.from_entity_id) r.from_entity_id AS eq_id, a.properties->>'act_items' AS act_items
+       FROM relations r
+       JOIN entities a ON a.id = r.to_entity_id AND a.deleted_at IS NULL
+       JOIN entity_types at ON a.entity_type_id = at.id AND at.name = 'act'
+       WHERE r.from_entity_id = ANY($1) AND r.relation_type = 'subject_of'
+       ORDER BY r.from_entity_id, (a.properties->>'act_date') DESC NULLS LAST, a.id DESC`, [eqIds]);
+    brokenRes.rows.forEach(function(row) {
+      let items = [];
+      try { items = JSON.parse(row.act_items || '[]'); } catch(e) {}
+      const item = items.find(i => parseInt(i.equipment_id) === row.eq_id);
+      if (item && (item.broken === true || item.broken === 'true')) brokenEqIds.add(row.eq_id);
+    });
   }
 
   // 7. Build rent rows
@@ -608,11 +623,13 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const id = parseInt(eq.equipment_id);
     const d = eqMap[id] || {};
     const p = d.props || {};
+    const isEmerg = p.status === 'Аварийное';
+    const isBroken = brokenEqIds.has(id);
     return {
       name: eq.equipment_name || d.name || '',
       category: p.equipment_category || '', kind: p.equipment_kind || '',
       location: d.location || '', status: p.status || '',
-      is_emergency: p.status === 'Аварийное',
+      is_emergency: isEmerg, is_broken: isBroken,
     };
   });
 
