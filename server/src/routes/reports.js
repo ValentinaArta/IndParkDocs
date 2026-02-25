@@ -291,20 +291,43 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/reports/rent-analysis — flat rows from Аренды/Субаренды contracts, expanded from rent_objects
+// Uses rent_objects from the LATEST supplement (by date) if it has them, otherwise from the contract itself
 router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
   const sql = `
-    SELECT e.id, e.name,
+    WITH latest_supps AS (
+      SELECT DISTINCT ON (s.parent_id)
+        s.parent_id              AS contract_id,
+        s.id                     AS supp_id,
+        s.name                   AS supp_name,
+        s.properties->>'contract_date'     AS supp_date,
+        s.properties->>'rent_objects'      AS rent_objects,
+        s.properties->>'contract_end_date' AS supp_end_date
+      FROM entities s
+      JOIN entity_types st ON s.entity_type_id = st.id AND st.name = 'supplement'
+      WHERE s.deleted_at IS NULL
+        AND s.properties->>'rent_objects' IS NOT NULL
+        AND s.properties->>'rent_objects' NOT IN ('', '[]', 'null')
+      ORDER BY s.parent_id,
+               s.properties->>'contract_date' DESC NULLS LAST,
+               s.id DESC
+    )
+    SELECT
+      e.id, e.name,
       e.properties->>'contract_type'     AS contract_type,
       e.properties->>'number'            AS contract_number,
       e.properties->>'contract_date'     AS contract_date,
-      e.properties->>'contract_end_date' AS contract_end_date,
+      COALESCE(ls.supp_end_date, e.properties->>'contract_end_date') AS contract_end_date,
       e.properties->>'our_legal_entity'  AS our_legal_entity,
       e.properties->>'contractor_name'   AS contractor_name,
       e.properties->>'subtenant_name'    AS subtenant_name,
       e.properties->>'vat_rate'          AS vat_rate,
-      e.properties->>'rent_objects'      AS rent_objects
+      COALESCE(ls.rent_objects, e.properties->>'rent_objects') AS rent_objects,
+      ls.supp_id   IS NOT NULL  AS from_supplement,
+      ls.supp_name              AS supp_name,
+      ls.supp_date              AS supp_date
     FROM entities e
     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'contract'
+    LEFT JOIN latest_supps ls ON ls.contract_id = e.id
     WHERE e.deleted_at IS NULL
       AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
     ORDER BY e.properties->>'contract_date', e.name`;
@@ -330,6 +353,7 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
       });
       return;
     }
+    const fromSupp = c.from_supplement === true || c.from_supplement === 't';
     roList.forEach(function(ro) {
       seq++;
       const area = parseFloat(ro.area) || 0;
@@ -349,7 +373,10 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         net_rate: parseFloat(ro.net_rate) || 0,
         utility_rate: ro.utility_rate || '',
         external_rental: ro.external_rental === 'true' || ro.external_rental === true,
-        comment: ro.comment || '', room: ro.room || ''
+        comment: ro.comment || '', room: ro.room || '',
+        from_supplement: fromSupp,
+        supp_name: fromSupp ? (c.supp_name || '') : '',
+        supp_date: fromSupp ? (c.supp_date || '') : '',
       });
     });
   });

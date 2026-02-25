@@ -3840,7 +3840,12 @@ function _buildRentTableHtml(rows) {
     if (col.fmt === 'num0') return v ? _fmtRentNum(v, 0) : '<span style="color:var(--text-muted)">—</span>';
     if (col.fmt === 'num1') return v ? _fmtRentNum(v, 1) : '<span style="color:var(--text-muted)">—</span>';
     if (col.fmt === 'bool') return (v === true || v === 'true') ? '\u2705 \u0414\u0430' : '<span style="color:var(--text-muted)">\u041d\u0435\u0442</span>';
-    if (col.link) return '<a href="#" onclick="showEntity(' + row.contract_id + ');return false" style="color:var(--accent)">' + escapeHtml(v || '') + '</a>';
+    if (col.link) {
+      var badge = row.from_supplement
+        ? '<div style="font-size:10px;color:var(--text-muted);margin-top:1px">\ud83d\udccb \u0414\u0421: ' + escapeHtml(row.supp_name || '') + (row.supp_date ? ' \u043e\u0442 ' + _fmtRentDate(row.supp_date) : '') + '</div>'
+        : '';
+      return '<a href="#" onclick="showEntity(' + row.contract_id + ');return false" style="color:var(--accent)">' + escapeHtml(v || '') + '</a>' + badge;
+    }
     return escapeHtml(v || '');
   };
 
@@ -3976,6 +3981,7 @@ function _buildGroupedRentTable(rows) {
         h += '<td style="padding:4px 8px 4px ' + (10+indent+20) + 'px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">';
         h += '<a href="#" onclick="showEntity(' + row.contract_id + ');return false" style="color:var(--accent)">' + escapeHtml(row.contract_name || '') + '</a>';
         if (row.contract_date) h += ' <span style="color:var(--text-muted)">(' + _fmtRentDate(row.contract_date) + ')</span>';
+        if (row.from_supplement) h += '<div style="font-size:10px;color:var(--text-muted);margin-top:1px">\ud83d\udccb \u0414\u0421: ' + escapeHtml(row.supp_name || '') + (row.supp_date ? ' \u043e\u0442 ' + _fmtRentDate(row.supp_date) : '') + '</div>';
         h += '</td>';
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(row.contractor_name || '') + '</td>';
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(row.object_type || '') + ' / ' + escapeHtml(row.building || '') + '</td>';
