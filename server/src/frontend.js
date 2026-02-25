@@ -2909,7 +2909,14 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
       map[val].push(r);
     });
     order.sort(function(a,b) { return String(a).localeCompare(String(b),'ru'); });
-    var children = order.map(function(key) { return Object.assign({ key: key }, buildLevel(map[key], depth + 1)); });
+    var children = order.map(function(key) {
+      var child = buildLevel(map[key], depth + 1);
+      // Find best representative row: prefer row with eq_status set
+      var rows = map[key];
+      var bestRow = rows.find(function(r){ return r.eq_status; }) || rows[0] || {};
+      child.first_row = bestRow;
+      return Object.assign({ key: key }, child);
+    });
     return { children: children, total: total };
   }
 
@@ -2924,11 +2931,22 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
         var field = hierarchy[depth];
         var fDef = AGG_ALL_FIELDS.find(function(x) { return x.name === field; });
         var fLabel = fDef ? fDef.label : field;
+        // Emergency/broken check for equipment-level nodes
+        var isEqField = (field === 'eq_name' || field === 'equipment');
+        var fr = child.first_row || {};
+        var nodeEqId = isEqField ? (parseInt(fr.eq_id) || 0) : 0;
+        var nodeIsB = isEqField && nodeEqId > 0 && _brokenEqIds.has(nodeEqId);
+        var nodeIsE = isEqField && (fr.eq_status === '\u0410\u0432\u0430\u0440\u0438\u0439\u043d\u043e\u0435');
+        var nodeRowStyle = nodeIsB ? 'background:rgba(239,68,68,.09);border-left:2px solid #dc2626;'
+          : (nodeIsE ? 'background:rgba(184,92,92,.10);border-left:2px solid #b85c5c;' : '');
+        var nodeNameStyle = nodeIsB ? 'color:#dc2626;font-weight:600;' : (nodeIsE ? 'color:#b85c5c;font-weight:600;' : 'font-weight:' + (depth < 2 ? '600' : '400') + ';');
+        var nodeBadge = nodeIsB ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>'
+          : (nodeIsE ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '');
         h += '<div style="margin-left:' + (depth * 18) + 'px">';
-        h += '<div class="agg-tree-row" data-target="' + id + '" onclick="aggToggle(this.dataset.target)">';
+        h += '<div class="agg-tree-row" data-target="' + id + '" onclick="aggToggle(this.dataset.target)" style="' + nodeRowStyle + '">';
         h += '<span id="' + id + '_ico" style="font-size:10px;color:var(--text-muted);width:12px">▶</span>';
         h += '<span style="font-size:11px;color:var(--text-muted);min-width:130px">' + escapeHtml(fLabel) + '</span>';
-        h += '<span style="flex:1;font-weight:' + (depth < 2 ? '600' : '400') + '">' + escapeHtml(String(child.key)) + '</span>';
+        h += '<span style="flex:1;' + nodeNameStyle + '">' + escapeHtml(String(child.key)) + nodeBadge + '</span>';
         h += '<span class="agg-total">' + _fmtNum(child.total) + ' ₽</span>';
         h += '</div>';
         h += '<div id="' + id + '" style="display:none">' + renderNode(child, depth + 1) + '</div>';
