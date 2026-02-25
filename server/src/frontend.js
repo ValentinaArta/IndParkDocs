@@ -3657,7 +3657,7 @@ async function _doSubmitCreateAct(parentContractId) {
     } catch(postErr) {
       if (postErr.status === 409 && postErr.data && postErr.data.existing) {
         var ex = postErr.data.existing;
-        if (confirm('Акт с таким номером и датой уже существует:\n«' + ex.name + '»\n\nОткрыть существующий акт?')) {
+        if (confirm('Акт с таким номером и датой уже существует: ' + ex.name + '. Открыть существующий акт?')) {
           closeModal();
           showEntity(ex.id);
         }
