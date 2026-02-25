@@ -243,6 +243,8 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
     { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
     { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
+    { name: 'transfer_equipment', name_ru: 'Передача оборудования', field_type: 'checkbox', _group: 'all' },
+    { name: 'equipment_list', name_ru: 'Передаваемое оборудование', field_type: 'equipment_list', _group: 'transfer' },
   ],
   'Обслуживания': [
     { name: 'service_subject', name_ru: 'Описание работ / предмет', field_type: 'text' },
@@ -262,6 +264,8 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
     { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
     { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
+    { name: 'transfer_equipment', name_ru: 'Передача оборудования', field_type: 'checkbox', _group: 'all' },
+    { name: 'equipment_list', name_ru: 'Передаваемое оборудование', field_type: 'equipment_list', _group: 'transfer' },
   ]
 };
 
@@ -767,7 +771,7 @@ function renderDynamicFields(contractType, props) {
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
   if (extraFields.length === 0) { container.innerHTML = ''; return; }
 
-  if (contractType === 'Аренды') {
+  if (contractType === 'Аренды' || contractType === 'Субаренды') {
     renderRentFields(container, extraFields, props);
     return;
   }
@@ -861,6 +865,20 @@ function renderRentFields(container, allFields, props) {
   if (durationType === 'Текст') {
     html += '<div class="form-group"><label>Срок действия (текст)</label>' +
       '<input id="f_duration_text" value="' + escapeHtml(props.duration_text || '') + '"></div>';
+  }
+
+  // Transfer equipment section
+  var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
+  html += '<div class="form-group" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px">' +
+    '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') +
+    ' onchange="onRentFieldChange()"> Передача оборудования по договору</label></div>';
+  if (hasTransfer) {
+    var transferItems = [];
+    try {
+      if (typeof props.equipment_list === 'string' && props.equipment_list) transferItems = JSON.parse(props.equipment_list);
+      else if (Array.isArray(props.equipment_list)) transferItems = props.equipment_list;
+    } catch(ex) {}
+    html += '<div class="form-group"><label>Передаваемое оборудование</label>' + renderEquipmentListField(transferItems) + '</div>';
   }
 
   container.innerHTML = html;
@@ -1205,6 +1223,12 @@ function onRentFieldChange() {
   // Collect other fields
   allFields.forEach(function(f) {
     if (f.name === 'rent_objects' || f.name === 'rent_comments') return;
+    if (f.field_type === 'equipment_list') {
+      // Preserve current equipment list before re-render
+      var eqItems = getEqListValue();
+      currentProps[f.name] = eqItems.length > 0 ? JSON.stringify(eqItems) : '';
+      return;
+    }
     if (f.field_type === 'checkbox') {
       var cb = document.getElementById('f_' + f.name);
       currentProps[f.name] = cb ? String(cb.checked) : 'false';
