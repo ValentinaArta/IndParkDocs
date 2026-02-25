@@ -2860,6 +2860,7 @@ function renderAggHierarchyUI() {
 
 async function buildAggregateReport() {
   if (_aggHierarchy.length === 0) { alert('Добавьте хотя бы одно поле в группировку'); return; }
+  await loadBrokenEquipment(); // ensure broken IDs are fresh before rendering
   var types = Array.from(document.querySelectorAll('.agg-type-cb:checked')).map(function(cb) { return cb.value; });
   if (types.length === 0) { alert('Выберите хотя бы один тип договора'); return; }
 
@@ -2944,6 +2945,8 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
             eq_name: r.eq_name || r.contract_name, eq_status: r.eq_status, total: 0, docs: [] };
           eqOrder.push(key);
         }
+        // Update eq_status from any row that has it (first row may have empty status)
+        if (!eqGroups[key].eq_status && r.eq_status) eqGroups[key].eq_status = r.eq_status;
         eqGroups[key].total += (r[metric] || 0);
         eqGroups[key].docs.push(r);
       });
@@ -2953,9 +2956,9 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
         var eqId = grp.eq_id || grp.contract_id;
         var isBroken = _brokenEqIds.has(parseInt(eqId));
         var isEmerg = (grp.eq_status === 'Аварийное');
-        var leafBg = isBroken ? 'background:rgba(239,68,68,.09);border-radius:4px;'
-          : (isEmerg ? 'background:rgba(184,92,92,.06);border-radius:4px;' : '');
-        var leafColor = isBroken ? 'color:#dc2626;font-weight:500;' : (isEmerg ? 'color:#b85c5c;' : '');
+        var leafBg = isBroken ? 'background:rgba(239,68,68,.09);border-radius:4px;border-left:2px solid #dc2626;padding-left:6px;'
+          : (isEmerg ? 'background:rgba(184,92,92,.10);border-radius:4px;border-left:2px solid #b85c5c;padding-left:6px;' : '');
+        var leafColor = isBroken ? 'color:#dc2626;font-weight:500;' : (isEmerg ? 'color:#b85c5c;font-weight:500;' : '');
         var hasMulti = grp.docs.length > 1;
         var detId = 'eqd_' + (++_uid);
 
