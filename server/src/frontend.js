@@ -2854,8 +2854,7 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
 
         h += '<div style="margin-left:' + (depth * 18) + 'px">';
         // Summary row
-        h += '<div class="agg-tree-leaf" style="' + leafBg + '" onclick="' +
-          (hasMulti ? 'aggToggle(\'' + detId + '\')' : 'showEntity(' + eqId + ')') + '">';
+        h += '<div class="agg-tree-leaf" style="' + leafBg + '" data-det-id="' + detId + '" data-eq-id="' + eqId + '" data-multi="' + (hasMulti ? '1' : '0') + '" onclick="aggLeafClick(this)">';
         if (hasMulti) h += '<span id="' + detId + '_ico" style="font-size:10px;color:var(--text-muted);width:12px">\u25b6</span>';
         else h += '<span style="width:12px">\u2003</span>';
         h += '<span>\u2699\ufe0f</span>';
@@ -2914,6 +2913,11 @@ function aggToggle(id) {
   var open = el.style.display !== 'none';
   el.style.display = open ? 'none' : '';
   if (ico) ico.textContent = open ? '▶' : '▼';
+}
+
+function aggLeafClick(el) {
+  if (el.dataset.multi === '1') aggToggle(el.dataset.detId);
+  else showEntity(parseInt(el.dataset.eqId));
 }
 
 // ============ PIVOT TABLE (drag-and-drop) ============
