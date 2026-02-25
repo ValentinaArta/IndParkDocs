@@ -2954,6 +2954,19 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
       });
     }
     if (node.contracts) {
+      // If eq_name already used in hierarchy above → skip eqGroups header, list docs directly
+      var eqAlreadyGrouped = hierarchy.slice(0, depth).indexOf('eq_name') >= 0;
+      if (eqAlreadyGrouped) {
+        node.contracts.forEach(function(r) {
+          h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px" onclick="showEntity(' + (r.act_id || r.contract_id) + ')">';
+          h += '<span style="width:12px">\u2003</span><span>\ud83d\udcc4</span>';
+          h += '<span style="flex:1;font-size:12px;color:var(--text-secondary)">' + escapeHtml(r.act_name || r.contract_name) + '</span>';
+          if (r.act_date || r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + (r.act_date || r.contract_date) + '</span>';
+          h += '<span class="agg-total">' + _fmtNum(r[metric]) + ' \u20bd</span>';
+          h += '</div>';
+        });
+        return h;
+      }
       // Group rows by equipment so each unit appears once with total, expandable per-document
       var eqGroups = {}, eqOrder = [];
       node.contracts.forEach(function(r) {
