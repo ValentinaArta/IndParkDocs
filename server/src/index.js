@@ -335,7 +335,24 @@ async function runMigration010() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => {
+async function runMigration011() {
+  const pool = require('./db');
+  try {
+    await pool.query(
+      `UPDATE field_definitions
+       SET options = $1
+       WHERE name = 'status'
+         AND entity_type_id = (SELECT id FROM entity_types WHERE name = 'equipment')
+         AND NOT (options::jsonb @> '"Аварийное"'::jsonb)`,
+      [JSON.stringify(['В работе','На ремонте','Законсервировано','Списано','Аварийное'])]
+    );
+    console.log('Migration 011 applied: added Аварийное status for equipment');
+  } catch(e) {
+    console.error('Migration 011 error (non-fatal):', e.message);
+  }
+}
+
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 

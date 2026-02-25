@@ -173,6 +173,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .eq-broken-row td, .eq-broken-cell { background:rgba(239,68,68,.10) !important; color:var(--text-primary); }
 .eq-broken-row td:first-child a, .eq-broken-cell a { color:#dc2626 !important; }
 .eq-broken-badge { display:inline-block;font-size:10px;background:#dc2626;color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle; }
+.eq-emergency-badge { display:inline-block;font-size:10px;background:#b85c5c;color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle; }
 </style>
 </head>
 <body>
@@ -1870,11 +1871,16 @@ function renderEntityGrid(entities) {
       if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
     });
     var isEqBroken = (e.type_name === 'equipment') && _brokenEqIds.has(e.id);
-    var cardStyle = isEqBroken ? ' style="border-left:3px solid #dc2626;background:rgba(239,68,68,.06)"' : '';
+    var isEmergency = (e.type_name === 'equipment') && (props.status === 'Аварийное');
+    var cardStyle = isEqBroken ? ' style="border-left:3px solid #dc2626;background:rgba(239,68,68,.06)"'
+      : (isEmergency ? ' style="border-left:3px solid #b85c5c;background:rgba(184,92,92,.05)"' : '');
+    var nameBadge = isEqBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>'
+      : (isEmergency ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '');
+    var titleStyle = (!isEqBroken && isEmergency) ? ' style="color:#b85c5c"' : '';
     html += '<div class="entity-card"' + cardStyle + ' onclick="showEntity(' + e.id + ')">' +
       '<div class="card-header">' +
       '<div class="card-icon" style="background:' + e.color + '20;color:' + e.color + '">' + e.icon + '</div>' +
-      '<div><div class="card-title">' + escapeHtml(e.name) + (isEqBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>' : '') + '</div>' +
+      '<div><div class="card-title"' + titleStyle + '>' + escapeHtml(e.name) + nameBadge + '</div>' +
       '<div class="card-type">' + e.type_name_ru + (e.parent_name ? ' · ' + escapeHtml(e.parent_name) : '') + '</div></div>' +
       '</div>' +
       (tags ? '<div class="card-props">' + tags + '</div>' : '') +
@@ -1917,7 +1923,10 @@ async function showEntity(id) {
   var bcParts = (e.ancestry || []).map(function(a) {
     return '<a href="#" onclick="showEntity(' + a.id + ');return false" style="color:var(--accent)">' + a.icon + ' ' + escapeHtml(a.name) + '</a>';
   });
-  bcParts.push(e.icon + ' ' + escapeHtml(e.name));
+  var _eProps = e.properties || {};
+  var _eEmergencyBadge = (e.type_name === 'equipment' && _eProps.status === 'Аварийное')
+    ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '';
+  bcParts.push(e.icon + ' ' + escapeHtml(e.name) + _eEmergencyBadge);
   document.getElementById('breadcrumb').innerHTML = bcParts.join(' › ');
   document.getElementById('topActions').innerHTML =
     '<button class="btn btn-sm" onclick="openEditModal(' + id + ')">Редактировать</button>' +
@@ -2578,11 +2587,16 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
       node.contracts.forEach(function(r) {
         var eqId = r.eq_id || r.contract_id;
         var isEqBroken = _brokenEqIds.has(parseInt(eqId));
-        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px;' + (isEqBroken ? 'background:rgba(239,68,68,.09);border-radius:4px;' : '') + '" onclick="showEntity(' + eqId + ')">';
+        var isEmergencyLeaf = (r.eq_status === 'Аварийное');
+        var leafBg = isEqBroken ? 'background:rgba(239,68,68,.09);border-radius:4px;'
+          : (isEmergencyLeaf ? 'background:rgba(184,92,92,.06);border-radius:4px;' : '');
+        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px;' + leafBg + '" onclick="showEntity(' + eqId + ')">';
         h += '<span>⚙️</span>';
-        h += '<span style="flex:1;' + (isEqBroken ? 'color:#dc2626;font-weight:500;' : '') + '">';
+        var leafColor = isEqBroken ? 'color:#dc2626;font-weight:500;' : (isEmergencyLeaf ? 'color:#b85c5c;' : '');
+        h += '<span style="flex:1;' + leafColor + '">';
         h += escapeHtml(r.eq_name || r.contract_name);
         if (isEqBroken) h += '<span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>';
+        else if (isEmergencyLeaf) h += '<span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>';
         if (r.act_name) h += '<span style="font-size:11px;color:var(--text-muted);margin-left:6px">' + escapeHtml(r.act_name) + '</span>';
         h += '</span>';
         if (r.act_date || r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + (r.act_date || r.contract_date) + '</span>';
@@ -4327,14 +4341,16 @@ function renderWorkHistoryTable(rows) {
   h += '<tbody>';
   equipment.forEach(function(eq, idx) {
     var isBroken = _brokenEqIds.has(eq.eq_id);
-    var bg = isBroken ? 'rgba(239,68,68,.10)' : (idx % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)');
+    var isEmergencyRow = (eq.eq_status === 'Аварийное');
+    var bg = isBroken ? 'rgba(239,68,68,.10)' : (isEmergencyRow ? 'rgba(184,92,92,.07)' : (idx % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)'));
     h += '<tr' + (isBroken ? ' class="eq-broken-row"' : '') + '>';
 
     // Equipment cell (sticky)
     h += '<td style="padding:8px 10px;border:1px solid var(--border);background:' + bg + ';position:sticky;left:0;z-index:1;vertical-align:top">';
-    var nameColor = isBroken ? '#dc2626' : 'var(--accent)';
+    var nameColor = isBroken ? '#dc2626' : (isEmergencyRow ? '#b85c5c' : 'var(--accent)');
     h += '<a href="#" onclick="showEntity(' + eq.eq_id + ');return false" style="font-weight:600;color:' + nameColor + ';display:block">' + escapeHtml(eq.eq_name) + '</a>';
     if (isBroken) h += '<span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>';
+    else if (isEmergencyRow) h += '<span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>';
     if (eq.eq_inv_number) h += '<div style="font-size:11px;color:var(--text-muted)">\u0438\u043d\u0432. ' + escapeHtml(eq.eq_inv_number) + '</div>';
     if (eq.building_name && eq.building_name !== '\u2014') h += '<div style="font-size:11px;color:var(--text-muted)">' + escapeHtml(eq.building_name) + '</div>';
     h += '</td>';
