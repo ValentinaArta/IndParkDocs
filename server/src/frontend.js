@@ -3911,8 +3911,25 @@ function _buildGroupedRentTable(rows) {
   RENT_GROUP_FIELDS.forEach(function(f) { fieldLabels[f.key] = f.label; });
   RENT_COLS.forEach(function(c) { fieldLabels[c.key] = c.label; });
 
+  var GC = [
+    { key: 'gc0', label: '\u0414\u043e\u0433\u043e\u0432\u043e\u0440', w: 220 },
+    { key: 'gc1', label: '\u0410\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440', w: 170 },
+    { key: 'gc2', label: '\u0422\u0438\u043f / \u041a\u043e\u0440\u043f\u0443\u0441', w: 160 },
+    { key: 'gc3', label: '\u041f\u043b\u043e\u0449\u0430\u0434\u044c \u0438 \u0441\u0442\u0430\u0432\u043a\u0430', w: 170 },
+  ];
+  var gcTotalW = GC.reduce(function(s,c){ return s + (_rentColWidths[c.key] || c.w); }, 0);
   var h = '<div style="overflow-x:auto">';
-  h += '<table style="border-collapse:collapse;font-size:12px;width:100%"><tbody>';
+  h += '<table style="border-collapse:collapse;font-size:12px;table-layout:fixed;width:' + gcTotalW + 'px">';
+  // Resizable header
+  h += '<thead><tr>';
+  GC.forEach(function(col) {
+    var w = _rentColWidths[col.key] || col.w;
+    h += '<th class="rent-th" style="width:' + w + 'px;min-width:40px">';
+    h += '<span>' + col.label + '</span>';
+    h += '<div class="rent-col-resizer" onmousedown="event.stopPropagation();_rentStartResize(event,&quot;' + col.key + '&quot;)"></div>';
+    h += '</th>';
+  });
+  h += '</tr></thead><tbody>';
 
   function renderGroup(g, depth) {
     var area = g.rows.reduce(function(s,r){return s+(r.area||0);}, 0);
@@ -3933,13 +3950,13 @@ function _buildGroupedRentTable(rows) {
       g.rows.forEach(function(row, i) {
         var bg = i % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-hover)';
         h += '<tr>';
-        h += '<td style="padding:4px 8px 4px ' + (10+indent+20) + 'px;border:1px solid var(--border);background:' + bg + '">';
+        h += '<td style="padding:4px 8px 4px ' + (10+indent+20) + 'px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">';
         h += '<a href="#" onclick="showEntity(' + row.contract_id + ');return false" style="color:var(--accent)">' + escapeHtml(row.contract_name || '') + '</a>';
         if (row.contract_date) h += ' <span style="color:var(--text-muted)">(' + _fmtRentDate(row.contract_date) + ')</span>';
         h += '</td>';
-        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + '">' + escapeHtml(row.contractor_name || '') + '</td>';
-        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + '">' + escapeHtml(row.object_type || '') + ' / ' + escapeHtml(row.building || '') + '</td>';
-        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';text-align:right">';
+        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(row.contractor_name || '') + '</td>';
+        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(row.object_type || '') + ' / ' + escapeHtml(row.building || '') + '</td>';
+        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';text-align:right;white-space:nowrap">';
         h += _fmtRentNum(row.area, 1) + ' \u043c\xb2 &middot; ' + _fmtRentNum(row.rent_rate, 0) + ' = ' + _fmtRentNum(row.monthly_amount, 0) + ' \u20bd/\u043c\u0435\u0441';
         h += '</td></tr>';
       });
