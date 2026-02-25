@@ -2177,7 +2177,7 @@ var AGG_HIERARCHY_FIELDS = [
 var AGG_AUTO_DRILL = [];
 // All fields for label lookup in tree rendering
 var AGG_ALL_FIELDS = AGG_HIERARCHY_FIELDS;
-var AGG_CONTRACT_TYPES = ['Подряда','Аренды','Субаренды','Услуг','Купли-продажи','Обслуживания'];
+var AGG_CONTRACT_TYPES = ['Подряда','Услуг','Купли-продажи','Обслуживания'];
 var _aggHierarchy = []; // ordered list of field names
 
 var _pivotRowFields = [];
