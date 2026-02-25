@@ -663,8 +663,8 @@ function _renderActItem(item, rowId) {
   h += '</select></div>';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">Сумма, ₽</label>';
   h += '<input type="number" class="act-item-amount" value="' + (item.amount || '') + '" placeholder="0" style="width:100%;margin-top:2px" oninput="recalcActTotal()"></div>';
-  h += '<div><label style="font-size:11px;color:var(--text-muted)">Описание работ</label>';
-  h += '<input class="act-item-desc" value="' + escapeHtml(item.description || '') + '" placeholder="что делали..." style="width:100%;margin-top:2px"></div>';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439</label>';
+  h += '<textarea class="act-item-desc" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:vertical;min-height:60px;font-size:12px">' + escapeHtml(item.description || '') + '</textarea></div>';
   h += '<button type="button" class="btn btn-sm" style="color:var(--danger);margin-bottom:2px" onclick="actItemRemove(this)">×</button>';
   h += '</div>';
   return h;
@@ -1947,7 +1947,7 @@ async function showEntity(id) {
           if (actView.length > 0) {
             html += '<div class="detail-section"><h3>Позиции акта</h3>';
             html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-            html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Оборудование</th><th style="text-align:right;padding:6px">Сумма, ₽</th><th style="text-align:left;padding:6px">Описание работ</th></tr></thead><tbody>';
+            html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435</th><th style="text-align:right;padding:6px">\u0421\u0443\u043c\u043c\u0430, \u20bd</th><th style="text-align:left;padding:6px">\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439</th></tr></thead><tbody>';
             var actTotal = 0;
             actView.forEach(function(item) {
               actTotal += item.amount || 0;
