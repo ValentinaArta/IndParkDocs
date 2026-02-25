@@ -154,6 +154,17 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
   .entity-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+.rent-filter-dropdown { position:absolute;top:100%;left:0;z-index:100;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:180px;max-width:280px;padding:6px 0; }
+.rent-filter-dropdown label { display:flex;align-items:center;gap:6px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.rent-filter-dropdown label:hover { background:var(--bg-hover); }
+.rent-th { position:relative;white-space:nowrap;padding:6px 8px;background:var(--bg-secondary);border:1px solid var(--border);font-size:12px;font-weight:600;user-select:none; }
+.rent-th-inner { display:flex;align-items:center;gap:4px;cursor:pointer; }
+.rent-th-inner:hover { color:var(--accent); }
+.rent-filter-btn { background:none;border:none;cursor:pointer;padding:1px 3px;color:var(--text-muted);font-size:11px;line-height:1;border-radius:3px; }
+.rent-filter-btn.active { color:var(--accent);background:rgba(99,102,241,.12); }
+.rent-group-tag { display:flex;align-items:center;gap:4px;padding:3px 8px 3px 10px;background:var(--accent);color:white;border-radius:12px;font-size:12px; }
+.rent-group-tag button { background:none;border:none;color:white;cursor:pointer;font-size:14px;line-height:1;padding:0 0 1px; }
+.rent-field-btn { font-size:11px;padding:3px 8px;border-radius:12px; }
 </style>
 </head>
 <body>
@@ -2210,6 +2221,7 @@ async function showReports() {
   html += '<button id="tabLinked" class="btn" data-tab="linked" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">По связям</button>';
   html += '<button id="tabAgg" class="btn btn-primary" data-tab="agg" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Анализ затрат</button>';
   html += '<button id="tabWorkHistory" class="btn" data-tab="workHistory" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">История работ</button>';
+  html += '<button id="tabRentAnalysis" class="btn" data-tab="rentAnalysis" onclick="switchReportTab(this.dataset.tab)" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">\u0410\u043d\u0430\u043b\u0438\u0437 \u0430\u0440\u0435\u043d\u0434\u044b</button>';
   html += '</div>';
 
   // Pivot section (drag-and-drop)
@@ -2327,6 +2339,28 @@ async function showReports() {
   html += '<div id="whResults"></div>';
   html += '</div>'; // end sectionWorkHistory
 
+  // Rent Analysis section
+  html += '<div id="sectionRentAnalysis" style="display:none">';
+  html += '<div class="detail-section">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px">';
+  html += '<div>';
+  html += '<h3 style="margin:0 0 4px">\u0410\u043d\u0430\u043b\u0438\u0437 \u0430\u0440\u0435\u043d\u0434\u044b</h3>';
+  html += '<p style="margin:0;font-size:12px;color:var(--text-muted)">\u0424\u0438\u043b\u044c\u0442\u0440\u044b + \u0433\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u043a\u0430 \u043f\u043e \u043b\u044e\u0431\u044b\u043c \u043f\u043e\u043b\u044f\u043c</p>';
+  html += '</div>';
+  html += '<button class="btn btn-primary" onclick="buildRentAnalysis()">\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435</button>';
+  html += '</div>';
+  // Group-by zone
+  html += '<div style="margin-bottom:12px">';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">\u0413\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u043a\u0430 \u0441\u0442\u0440\u043e\u043a \u043f\u043e:</div>';
+  html += '<div id="rentGroupZone" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:6px;border:2px dashed var(--border);border-radius:6px;background:var(--bg-secondary)">';
+  html += '<span style="color:var(--text-muted);font-size:12px;align-self:center">\u041d\u0430\u0436\u043c\u0438\u0442\u0435 + \u043f\u043e\u043b\u0435 \u043d\u0438\u0436\u0435 \u0447\u0442\u043e\u0431\u044b \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0443\u0440\u043e\u0432\u0435\u043d\u044c \u0433\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u043a\u0438</span>';
+  html += '</div>';
+  html += '<div id="rentGroupFieldBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>';
+  html += '</div>';
+  html += '</div>';
+  html += '<div id="rentResults"></div>';
+  html += '</div>'; // end sectionRentAnalysis
+
   html += '</div>';
   content.innerHTML = html;
   switchReportTab('agg');
@@ -2334,7 +2368,7 @@ async function showReports() {
 }
 
 function switchReportTab(tab) {
-  var tabs = ['pivot','linked','agg','workHistory'];
+  var tabs = ['pivot','linked','agg','workHistory','rentAnalysis'];
   tabs.forEach(function(t) {
     var btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     var sec = document.getElementById('section' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -3670,6 +3704,333 @@ async function _doSubmitCreateAct(parentContractId) {
   } catch(err) {
     alert('Ошибка сохранения акта: ' + (err && err.message ? err.message : JSON.stringify(err)));
   }
+}
+
+// ============ RENT ANALYSIS REPORT ============
+
+var _rentAllRows = [];
+var _rentFilters = {};   // { field: Set<string> | null }  null = all selected
+var _rentGroupBy = [];   // array of field keys
+var _rentSortField = null;
+var _rentSortAsc = true;
+
+var RENT_COLS = [
+  { key: 'contract_name',    label: '\u2116 \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430',   w: 180, link: true },
+  { key: 'contract_date',    label: '\u0414\u0430\u0442\u0430',           w: 90,  fmt: 'date' },
+  { key: 'our_legal_entity', label: '\u0410\u0440\u0435\u043d\u0434\u043e\u0434\u0430\u0442\u0435\u043b\u044c', w: 160 },
+  { key: 'contractor_name',  label: '\u0410\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440',    w: 160 },
+  { key: 'subtenant_name',   label: '\u0421\u0443\u0431\u0430\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440', w: 130 },
+  { key: 'object_type',      label: '\u0422\u0438\u043f',              w: 110 },
+  { key: 'building',         label: '\u041a\u043e\u0440\u043f\u0443\u0441',           w: 80 },
+  { key: 'area',             label: '\u041f\u043b\u043e\u0449\u0430\u0434\u044c, \u043c\xb2',    w: 80,  fmt: 'num1' },
+  { key: 'rent_rate',        label: '\u0421\u0442\u0430\u0432\u043a\u0430, \u20bd/\u043c\xb2',   w: 90,  fmt: 'num0' },
+  { key: 'annual_amount',    label: '\u0421\u0443\u043c\u043c\u0430/\u0433\u043e\u0434, \u20bd',  w: 110, fmt: 'num0' },
+  { key: 'monthly_amount',   label: '\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441, \u20bd',  w: 110, fmt: 'num0' },
+  { key: 'contract_end_date',label: '\u0421\u0440\u043e\u043a \u0434\u043e',       w: 90,  fmt: 'date' },
+  { key: 'comment',          label: '\u041f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435', w: 180 },
+];
+var RENT_GROUP_FIELDS = [
+  { key: 'our_legal_entity', label: '\u0410\u0440\u0435\u043d\u0434\u043e\u0434\u0430\u0442\u0435\u043b\u044c' },
+  { key: 'contractor_name',  label: '\u0410\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440' },
+  { key: 'building',         label: '\u041a\u043e\u0440\u043f\u0443\u0441' },
+  { key: 'object_type',      label: '\u0422\u0438\u043f \u043f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u044f' },
+  { key: 'contract_type',    label: '\u0422\u0438\u043f \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430' },
+];
+
+async function buildRentAnalysis() {
+  var resultsEl = document.getElementById('rentResults');
+  resultsEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...</div>';
+  try {
+    _rentAllRows = await api('/reports/rent-analysis');
+    _rentFilters = {};
+    _rentGroupBy = [];
+    _renderRentGroupZone();
+    _renderRentGroupFieldBtns();
+    _rentRender();
+  } catch(err) {
+    resultsEl.innerHTML = '<div style="color:red;padding:16px">\u041e\u0448\u0438\u0431\u043a\u0430: ' + escapeHtml(err.message || String(err)) + '</div>';
+  }
+}
+
+function _rentGetVisible() {
+  return _rentAllRows.filter(function(r) {
+    return Object.keys(_rentFilters).every(function(field) {
+      var set = _rentFilters[field];
+      if (!set || set.size === 0) return true;
+      return set.has(String(r[field] || ''));
+    });
+  });
+}
+
+function _rentRender() {
+  var visible = _rentGetVisible();
+  if (_rentSortField) {
+    visible = visible.slice().sort(function(a,b) {
+      var va = a[_rentSortField] || '', vb = b[_rentSortField] || '';
+      var n = parseFloat(va) - parseFloat(vb);
+      if (!isNaN(n)) return _rentSortAsc ? n : -n;
+      return _rentSortAsc ? String(va).localeCompare(String(vb), 'ru') : String(vb).localeCompare(String(va), 'ru');
+    });
+  }
+  document.getElementById('rentResults').innerHTML = _buildRentTableHtml(visible);
+}
+
+function _fmtRentNum(v, dec) {
+  if (!v && v !== 0) return '\u2014';
+  var n = parseFloat(v);
+  if (isNaN(n) || n === 0) return '\u2014';
+  return n.toLocaleString('ru-RU', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function _fmtRentDate(d) { return d ? d.split('-').reverse().join('.') : ''; }
+
+function _buildRentTableHtml(rows) {
+  var fmtVal = function(col, row) {
+    var v = row[col.key];
+    if (col.fmt === 'date') return _fmtRentDate(v);
+    if (col.fmt === 'num0') return _fmtRentNum(v, 0);
+    if (col.fmt === 'num1') return _fmtRentNum(v, 1);
+    if (col.link) return '<a href="#" onclick="showEntity(' + row.contract_id + ');return false" style="color:var(--accent)">' + escapeHtml(v || '') + '</a>';
+    return escapeHtml(v || '');
+  };
+
+  // Summary
+  var totalArea = rows.reduce(function(s,r){ return s + (r.area||0); }, 0);
+  var totalAnnual = rows.reduce(function(s,r){ return s + (r.annual_amount||0); }, 0);
+  var totalMonthly = totalAnnual / 12;
+
+  var h = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">';
+  h += '<div class="stat-card"><div class="stat-label">\u0421\u0442\u0440\u043e\u043a</div><div class="stat-value">' + rows.length + '</div></div>';
+  h += '<div class="stat-card"><div class="stat-label">\u041f\u043b\u043e\u0449\u0430\u0434\u044c, \u043c\xb2</div><div class="stat-value">' + _fmtRentNum(totalArea, 1) + '</div></div>';
+  h += '<div class="stat-card"><div class="stat-label">\u0421\u0443\u043c\u043c\u0430/\u0433\u043e\u0434, \u20bd</div><div class="stat-value">' + _fmtRentNum(totalAnnual, 0) + '</div></div>';
+  h += '<div class="stat-card"><div class="stat-label">\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441, \u20bd</div><div class="stat-value">' + _fmtRentNum(totalMonthly, 0) + '</div></div>';
+  h += '</div>';
+
+  if (_rentGroupBy.length > 0) {
+    h += _buildGroupedRentTable(rows);
+  } else {
+    h += _buildFlatRentTable(rows, fmtVal);
+  }
+  return h;
+}
+
+function _buildFlatRentTable(rows, fmtVal) {
+  var h = '<div style="overflow-x:auto">';
+  h += '<table style="border-collapse:collapse;font-size:12px;min-width:100%">';
+  h += '<thead><tr>';
+  h += '<th class="rent-th" style="min-width:36px">#</th>';
+  RENT_COLS.forEach(function(col) {
+    var isFiltered = _rentFilters[col.key] && _rentFilters[col.key].size > 0;
+    var sortIcon = _rentSortField === col.key ? (_rentSortAsc ? ' \u2191' : ' \u2193') : '';
+    h += '<th class="rent-th" style="min-width:' + col.w + 'px">';
+    h += '<div class="rent-th-inner" onclick="_rentSort(&quot;' + col.key + '&quot;)">';
+    h += '<span>' + col.label + sortIcon + '</span>';
+    h += '</div>';
+    h += '<button class="rent-filter-btn' + (isFiltered ? ' active' : '') + '" title="\u0424\u0438\u043b\u044c\u0442\u0440" onclick="event.stopPropagation();_rentOpenFilter(event,&quot;' + col.key + '&quot;)">\u25bc</button>';
+    h += '</th>';
+  });
+  h += '</tr></thead><tbody>';
+
+  rows.forEach(function(row, i) {
+    var bg = i % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)';
+    h += '<tr>';
+    h += '<td style="padding:5px 8px;border:1px solid var(--border);background:' + bg + ';color:var(--text-muted);text-align:right">' + (i+1) + '</td>';
+    RENT_COLS.forEach(function(col) {
+      var align = (col.fmt === 'num0' || col.fmt === 'num1') ? 'right' : 'left';
+      h += '<td style="padding:5px 8px;border:1px solid var(--border);background:' + bg + ';text-align:' + align + ';max-width:' + col.w + 'px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(String(row[col.key] || '')) + '">';
+      h += fmtVal(col, row) + '</td>';
+    });
+    h += '</tr>';
+  });
+
+  // Totals row
+  h += '<tr style="background:var(--bg-secondary);font-weight:700">';
+  h += '<td style="padding:5px 8px;border:1px solid var(--border)" colspan="8">\u0418\u0442\u043e\u0433\u043e (' + rows.length + ' \u0441\u0442\u0440\u043e\u043a)</td>';
+  h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">' + _fmtRentNum(rows.reduce(function(s,r){return s+(r.area||0);},0), 1) + '</td>';
+  h += '<td style="padding:5px 8px;border:1px solid var(--border)"></td>';
+  h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">' + _fmtRentNum(rows.reduce(function(s,r){return s+(r.annual_amount||0);},0), 0) + '</td>';
+  h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">' + _fmtRentNum(rows.reduce(function(s,r){return s+(r.annual_amount||0);},0)/12, 0) + '</td>';
+  h += '<td style="padding:5px 8px;border:1px solid var(--border)" colspan="2"></td>';
+  h += '</tr>';
+
+  h += '</tbody></table></div>';
+  return h;
+}
+
+function _buildGroupedRentTable(rows) {
+  // Group rows hierarchically by _rentGroupBy fields
+  function groupRows(arr, fields, depth) {
+    if (fields.length === 0) return null;
+    var field = fields[0];
+    var rest = fields.slice(1);
+    var groups = {};
+    var order = [];
+    arr.forEach(function(r) {
+      var v = String(r[field] || '\u2014');
+      if (!groups[v]) { groups[v] = []; order.push(v); }
+      groups[v].push(r);
+    });
+    return order.map(function(v) {
+      return { field: field, value: v, rows: groups[v], children: rest.length > 0 ? groupRows(groups[v], rest, depth+1) : null };
+    });
+  }
+
+  var grouped = groupRows(rows, _rentGroupBy, 0);
+  var fieldLabels = {};
+  RENT_GROUP_FIELDS.forEach(function(f) { fieldLabels[f.key] = f.label; });
+  RENT_COLS.forEach(function(c) { fieldLabels[c.key] = c.label; });
+
+  var h = '<div style="overflow-x:auto">';
+  h += '<table style="border-collapse:collapse;font-size:12px;width:100%"><tbody>';
+
+  function renderGroup(g, depth) {
+    var area = g.rows.reduce(function(s,r){return s+(r.area||0);}, 0);
+    var ann = g.rows.reduce(function(s,r){return s+(r.annual_amount||0);}, 0);
+    var indent = depth * 20;
+    h += '<tr style="background:var(--bg-secondary)">';
+    h += '<td colspan="4" style="padding:6px 10px 6px ' + (10+indent) + 'px;border:1px solid var(--border);font-weight:600">';
+    h += '<span style="color:var(--text-muted);font-size:11px">' + escapeHtml(fieldLabels[g.field] || g.field) + ': </span>';
+    h += escapeHtml(g.value);
+    h += ' <span style="font-size:11px;color:var(--text-muted)">(' + g.rows.length + ' \u0441\u0442\u0440.</span>';
+    h += ', \u043f\u043b. ' + _fmtRentNum(area, 1) + ' \u043c\xb2';
+    h += ', ' + _fmtRentNum(ann, 0) + ' \u20bd/\u0433\u043e\u0434';
+    h += ', ' + _fmtRentNum(ann/12, 0) + ' \u20bd/\u043c\u0435\u0441)';
+    h += '</td></tr>';
+    if (g.children) {
+      g.children.forEach(function(child) { renderGroup(child, depth+1); });
+    } else {
+      g.rows.forEach(function(row, i) {
+        var bg = i % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-hover)';
+        h += '<tr>';
+        h += '<td style="padding:4px 8px 4px ' + (10+indent+20) + 'px;border:1px solid var(--border);background:' + bg + '">';
+        h += '<a href="#" onclick="showEntity(' + row.contract_id + ');return false" style="color:var(--accent)">' + escapeHtml(row.contract_name || '') + '</a>';
+        if (row.contract_date) h += ' <span style="color:var(--text-muted)">(' + _fmtRentDate(row.contract_date) + ')</span>';
+        h += '</td>';
+        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + '">' + escapeHtml(row.contractor_name || '') + '</td>';
+        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + '">' + escapeHtml(row.object_type || '') + ' / ' + escapeHtml(row.building || '') + '</td>';
+        h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';text-align:right">';
+        h += _fmtRentNum(row.area, 1) + ' \u043c\xb2 &middot; ' + _fmtRentNum(row.rent_rate, 0) + ' = ' + _fmtRentNum(row.annual_amount, 0) + ' \u20bd';
+        h += '</td></tr>';
+      });
+    }
+  }
+
+  grouped.forEach(function(g) { renderGroup(g, 0); });
+  h += '</tbody></table></div>';
+  return h;
+}
+
+function _rentSort(field) {
+  if (_rentSortField === field) { _rentSortAsc = !_rentSortAsc; }
+  else { _rentSortField = field; _rentSortAsc = true; }
+  _rentRender();
+}
+
+var _rentFilterOpen = null;
+function _rentOpenFilter(event, field) {
+  // Close existing dropdown if any
+  var existing = document.getElementById('rentFilterDrop');
+  if (existing) { existing.parentNode.removeChild(existing); _rentFilterOpen = null; }
+  if (_rentFilterOpen === field) { _rentFilterOpen = null; return; }
+  _rentFilterOpen = field;
+
+  var uniqueVals = [];
+  var seen = {};
+  _rentAllRows.forEach(function(r) {
+    var v = String(r[field] || '');
+    if (!seen[v]) { seen[v] = true; uniqueVals.push(v); }
+  });
+  uniqueVals.sort(function(a,b) { return a.localeCompare(b, 'ru'); });
+
+  var active = _rentFilters[field] || null;
+  var d = document.createElement('div');
+  d.id = 'rentFilterDrop';
+  d.className = 'rent-filter-dropdown';
+  d.onclick = function(e) { e.stopPropagation(); };
+
+  var allChecked = !active || active.size === 0;
+  d.innerHTML = '<label style="font-weight:600;border-bottom:1px solid var(--border);margin-bottom:4px"><input type="checkbox" id="rfAll" ' + (allChecked ? 'checked' : '') + '> \u0412\u0441\u0435</label>' +
+    uniqueVals.map(function(v) {
+      var chk = allChecked || (active && active.has(v));
+      return '<label><input type="checkbox" class="rfVal" value="' + escapeHtml(v) + '" ' + (chk ? 'checked' : '') + '> ' + escapeHtml(v || '(\u043f\u0443\u0441\u0442\u043e)') + '</label>';
+    }).join('') +
+    '<div style="padding:6px 10px;border-top:1px solid var(--border);margin-top:4px;display:flex;gap:6px">' +
+    '<button class="btn btn-primary btn-sm" onclick="_rentApplyFilter(&quot;' + field + '&quot;)">OK</button>' +
+    '<button class="btn btn-sm" onclick="_rentClearFilter(&quot;' + field + '&quot;)">\u0421\u0431\u0440\u043e\u0441</button></div>';
+
+  d.querySelector('#rfAll').addEventListener('change', function() {
+    d.querySelectorAll('.rfVal').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
+  });
+
+  event.currentTarget.parentNode.appendChild(d);
+  // Close on outside click
+  setTimeout(function() {
+    document.addEventListener('click', function handler() {
+      if (document.getElementById('rentFilterDrop')) {
+        document.getElementById('rentFilterDrop').remove();
+      }
+      _rentFilterOpen = null;
+      document.removeEventListener('click', handler);
+    });
+  }, 0);
+}
+
+function _rentApplyFilter(field) {
+  var d = document.getElementById('rentFilterDrop');
+  if (!d) return;
+  var allCb = d.querySelector('#rfAll');
+  if (allCb && allCb.checked) {
+    delete _rentFilters[field];
+  } else {
+    var checked = Array.from(d.querySelectorAll('.rfVal:checked')).map(function(cb) { return cb.value; });
+    if (checked.length === 0) { delete _rentFilters[field]; }
+    else { _rentFilters[field] = new Set(checked); }
+  }
+  d.remove();
+  _rentFilterOpen = null;
+  _rentRender();
+}
+
+function _rentClearFilter(field) {
+  delete _rentFilters[field];
+  var d = document.getElementById('rentFilterDrop');
+  if (d) d.remove();
+  _rentFilterOpen = null;
+  _rentRender();
+}
+
+function _renderRentGroupZone() {
+  var zone = document.getElementById('rentGroupZone');
+  if (!zone) return;
+  if (_rentGroupBy.length === 0) {
+    zone.innerHTML = '<span style="color:var(--text-muted);font-size:12px;align-self:center">\u041d\u0430\u0436\u043c\u0438\u0442\u0435 + \u043f\u043e\u043b\u0435 \u043d\u0438\u0436\u0435 \u0447\u0442\u043e\u0431\u044b \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0443\u0440\u043e\u0432\u0435\u043d\u044c \u0433\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u043a\u0438</span>';
+    return;
+  }
+  var labels = {};
+  RENT_GROUP_FIELDS.forEach(function(f) { labels[f.key] = f.label; });
+  zone.innerHTML = _rentGroupBy.map(function(k) {
+    return '<span class="rent-group-tag">' + escapeHtml(labels[k] || k) + '<button onclick="_rentRemoveGroup(&quot;' + k + '&quot;)">&times;</button></span>';
+  }).join('');
+}
+
+function _renderRentGroupFieldBtns() {
+  var el = document.getElementById('rentGroupFieldBtns');
+  if (!el) return;
+  el.innerHTML = RENT_GROUP_FIELDS.map(function(f) {
+    var active = _rentGroupBy.indexOf(f.key) >= 0;
+    return '<button class="btn btn-sm rent-field-btn' + (active ? ' btn-primary' : '') + '" onclick="_rentToggleGroup(&quot;' + f.key + '&quot;)">+ ' + escapeHtml(f.label) + '</button>';
+  }).join('');
+}
+
+function _rentToggleGroup(field) {
+  if (_rentGroupBy.indexOf(field) >= 0) { _rentRemoveGroup(field); }
+  else { _rentGroupBy.push(field); _renderRentGroupZone(); _renderRentGroupFieldBtns(); _rentRender(); }
+}
+
+function _rentRemoveGroup(field) {
+  _rentGroupBy = _rentGroupBy.filter(function(k) { return k !== field; });
+  _renderRentGroupZone();
+  _renderRentGroupFieldBtns();
+  _rentRender();
 }
 
 // ============ WORK HISTORY REPORT ============

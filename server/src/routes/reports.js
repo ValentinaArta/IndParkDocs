@@ -290,6 +290,68 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
   res.json([...rows1, ...rows2]);
 }));
 
+// GET /api/reports/rent-analysis — flat rows from Аренды/Субаренды contracts, expanded from rent_objects
+router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
+  const sql = `
+    SELECT e.id, e.name,
+      e.properties->>'contract_type'     AS contract_type,
+      e.properties->>'number'            AS contract_number,
+      e.properties->>'contract_date'     AS contract_date,
+      e.properties->>'contract_end_date' AS contract_end_date,
+      e.properties->>'our_legal_entity'  AS our_legal_entity,
+      e.properties->>'contractor_name'   AS contractor_name,
+      e.properties->>'subtenant_name'    AS subtenant_name,
+      e.properties->>'vat_rate'          AS vat_rate,
+      e.properties->>'rent_objects'      AS rent_objects
+    FROM entities e
+    JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'contract'
+    WHERE e.deleted_at IS NULL
+      AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
+    ORDER BY e.properties->>'contract_date', e.name`;
+
+  const result = await pool.query(sql);
+  const rows = [];
+  let seq = 0;
+
+  result.rows.forEach(function(c) {
+    let roList = [];
+    try { roList = JSON.parse(c.rent_objects || '[]'); } catch(e) {}
+    if (!Array.isArray(roList) || roList.length === 0) {
+      // Contract with no rent_objects — include as single row
+      seq++;
+      rows.push({
+        seq, contract_id: c.id, contract_name: c.name,
+        contract_type: c.contract_type || '', contract_number: c.contract_number || '',
+        contract_date: c.contract_date || '', contract_end_date: c.contract_end_date || '',
+        our_legal_entity: c.our_legal_entity || '', contractor_name: c.contractor_name || '',
+        subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
+        object_type: '', building: '', rent_scope: '',
+        area: 0, rent_rate: 0, annual_amount: 0, monthly_amount: 0, comment: ''
+      });
+      return;
+    }
+    roList.forEach(function(ro) {
+      seq++;
+      const area = parseFloat(ro.area) || 0;
+      const rate = parseFloat(ro.rent_rate) || 0;
+      const annual = area * rate;
+      rows.push({
+        seq, contract_id: c.id, contract_name: c.name,
+        contract_type: c.contract_type || '', contract_number: c.contract_number || '',
+        contract_date: c.contract_date || '', contract_end_date: c.contract_end_date || '',
+        our_legal_entity: c.our_legal_entity || '', contractor_name: c.contractor_name || '',
+        subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
+        object_type: ro.object_type || '', building: ro.building || '',
+        rent_scope: ro.rent_scope || '',
+        area, rent_rate: rate, annual_amount: annual, monthly_amount: annual / 12,
+        comment: ro.comment || '', room: ro.room || ''
+      });
+    });
+  });
+
+  res.json(rows);
+}));
+
 // GET /api/reports/work-history — equipment × act work descriptions matrix
 router.get('/work-history', authenticate, asyncHandler(async (req, res) => {
   const { category, building_id, date_from, date_to } = req.query;
