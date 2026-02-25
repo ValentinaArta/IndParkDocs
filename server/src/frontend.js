@@ -1137,7 +1137,7 @@ function renderRentObjectBlock(index, obj) {
 
   var h = '<div class="rent-object-block" id="rent_obj_' + index + '" style="border-left:3px solid var(--accent);padding-left:12px;margin-bottom:12px;position:relative">';
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-  h += '<strong>Позиция ' + (index + 1) + '</strong>';
+  h += '<strong>Помещение ' + (index + 1) + '</strong>';
   h += '<button type="button" class="btn btn-sm btn-danger" onclick="removeRentObject(' + index + ')" style="padding:2px 8px;font-size:11px">✕</button>';
   h += '</div>';
 
