@@ -3489,12 +3489,18 @@ async function _doSubmitEdit(id) {
     properties.owner_name = e.properties.owner_name;
   }
 
-  // Auto-generate name for contracts
+  // Auto-generate name for contracts and acts
   let name = document.getElementById('f_name').value.trim();
   if (isContractLike) {
     const num = properties.number || '?';
     const contractor = properties.contractor_name || '';
     name = (e.type_name === 'supplement' ? 'ДС' : 'Договор') + ' №' + num + (contractor ? ' — ' + contractor : '');
+  }
+  if (e.type_name === 'act') {
+    var actNum = (properties.act_number || '').trim() || '\u0431/\u043d';
+    var actDate = properties.act_date || '';
+    var actContract = (properties.parent_contract_name || (e.properties || {}).parent_contract_name || '').trim();
+    name = '\u0410\u043a\u0442 \u2116' + actNum + (actDate ? ' \u043e\u0442 ' + actDate : '') + (actContract ? ' \u2014 ' + actContract : '');
   }
 
   await api('/entities/' + id, { method: 'PUT', body: JSON.stringify({ name, properties, parent_id }) });
