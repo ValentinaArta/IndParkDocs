@@ -2200,10 +2200,14 @@ async function showEntity(id) {
     ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '';
   bcParts.push(e.icon + ' ' + escapeHtml(e.name) + _eEmergencyBadge);
   document.getElementById('breadcrumb').innerHTML = bcParts.join(' › ');
-  document.getElementById('topActions').innerHTML =
-    '<button class="btn btn-sm" onclick="openEditModal(' + id + ')">Редактировать</button>' +
+  var _topAct = '<button class="btn btn-sm" onclick="openEditModal(' + id + ')">Редактировать</button>' +
     '<button class="btn btn-sm" onclick="openRelationModal(' + id + ')">+ Связь</button>' +
     '<button class="btn btn-sm btn-danger" onclick="deleteEntity(' + id + ')">Удалить</button>';
+  var _ePropsForBtn = e.properties || {};
+  if (e.type_name === 'contract' && (_ePropsForBtn.contract_type === 'Аренды' || _ePropsForBtn.contract_type === 'Субаренды')) {
+    _topAct = '<button class="btn btn-sm btn-primary" onclick="openContractCard(' + id + ')">📋 Карточка</button>' + _topAct;
+  }
+  document.getElementById('topActions').innerHTML = _topAct;
 
   let html = '';
 
@@ -3774,6 +3778,132 @@ async function _doSubmitCreate(typeName) {
 
   closeModal();
   showEntityList(typeName);
+}
+
+// ── Contract rental card ─────────────────────────────────────────────────────
+function _ccFmtDate(d) { return d ? d.split('-').reverse().join('.') : '—'; }
+function _ccFmtNum(v) { return v ? Number(v).toLocaleString('ru-RU', {maximumFractionDigits:2}) : '0'; }
+
+function renderContractCard(data) {
+  var h = '';
+  // ── Header ─────────────────────────────────────────────────────────────────
+  var titleParts = [];
+  if (data.contractor_name) titleParts.push(data.contractor_name);
+  if (data.subtenant_name)  titleParts.push(data.subtenant_name);
+  if (data.number)          titleParts.push('№' + data.number);
+  if (data.date)            titleParts.push(_ccFmtDate(data.date));
+  h += '<div style="margin-bottom:20px">';
+  h += '<h2 style="font-size:1.3rem;font-weight:700;margin:0 0 4px">' + escapeHtml(titleParts.join(', ')) + '</h2>';
+  h += '<span style="font-size:13px;color:var(--text-secondary)">' + escapeHtml(data.contract_type || '') + '</span>';
+  h += '</div>';
+
+  // ── Main info ──────────────────────────────────────────────────────────────
+  h += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;font-size:14px">';
+  if (data.our_legal_entity) {
+    h += '<div><span style="color:var(--text-secondary)">Арендодатель:</span> <strong>' + escapeHtml(data.our_legal_entity) + '</strong></div>';
+  }
+  if (data.contract_end_date) {
+    h += '<div><span style="color:var(--text-secondary)">Срок действия до:</span> <strong>' + escapeHtml(_ccFmtDate(data.contract_end_date)) + '</strong></div>';
+  }
+  h += '</div>';
+
+  // ── Помещения: описания ────────────────────────────────────────────────────
+  var roomDescs = data.rent_rows.filter(function(r) { return r.description; });
+  if (roomDescs.length) {
+    h += '<div style="margin-bottom:16px">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">ПОМЕЩЕНИЯ</div>';
+    h += '<ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.7">';
+    roomDescs.forEach(function(r) {
+      h += '<li>' + escapeHtml(r.description) + '</li>';
+    });
+    h += '</ul></div>';
+  }
+
+  // ── Таблица помещений ──────────────────────────────────────────────────────
+  if (data.rent_rows.length) {
+    var srcNote = data.rent_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">(из ' + escapeHtml(data.rent_source_name) + ')</span>' : '';
+    h += '<div style="margin-bottom:16px">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">ТЕКУЩИЕ УСЛОВИЯ' + srcNote + '</div>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    h += '<thead><tr style="background:#4F6BCC;color:#fff">';
+    h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 4px">Название помещения</th>';
+    h += '<th style="padding:8px 10px;text-align:right">Площадь, м²</th>';
+    h += '<th style="padding:8px 10px;text-align:right;border-radius:0 4px 4px 0">Ставка (руб/м²/мес)</th>';
+    h += '</tr></thead><tbody>';
+    data.rent_rows.forEach(function(r, i) {
+      var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+      h += '<tr style="' + bg + '">';
+      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(r.room_name || '—') + '</td>';
+      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (r.area ? _ccFmtNum(r.area) : '—') + '</td>';
+      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (r.rate ? _ccFmtNum(r.rate) : '—') + '</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    if (data.total_monthly > 0) {
+      h += '<div style="text-align:right;font-size:14px;font-weight:600;margin-top:8px">';
+      h += 'Ежемесячный платёж: ' + _ccFmtNum(data.total_monthly) + ' руб.';
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+
+  // ── Переданное оборудование (collapsible) ──────────────────────────────────
+  if (data.equipment_list && data.equipment_list.length) {
+    var eqSrcNote = data.transfer_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">(из ' + escapeHtml(data.transfer_source_name) + ')</span>' : '';
+    h += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+    h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
+    h += '<span>⚙️ Переданное оборудование (' + data.equipment_list.length + ')' + eqSrcNote + '</span><span>▼</span>';
+    h += '</button>';
+    h += '<div style="display:none;padding:12px 14px">';
+    data.equipment_list.forEach(function(eq) {
+      var isEmerg = eq.is_emergency;
+      var style = isEmerg ? 'color:#b85c5c;font-weight:600' : '';
+      h += '<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;' + style + '">';
+      h += escapeHtml(eq.name || '—');
+      if (eq.kind || eq.category) h += ' <span style="color:var(--text-secondary);font-size:12px">(' + escapeHtml((eq.kind || eq.category || '')) + ')</span>';
+      if (eq.location) h += ' — ' + escapeHtml(eq.location);
+      if (isEmerg) h += ' <span style="background:#fef2f2;color:#b85c5c;font-size:11px;padding:1px 5px;border-radius:3px;border:1px solid #b85c5c">⚠ Аварийное</span>';
+      h += '</div>';
+    });
+    h += '</div></div>';
+  }
+
+  // ── История ДС (collapsible) ───────────────────────────────────────────────
+  if (data.history && data.history.length) {
+    h += '<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+    h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
+    h += '<span>📎 История ДопСоглашений (' + (data.history.length - 1) + ')</span><span>▼</span>';
+    h += '</button>';
+    h += '<div style="display:none;padding:12px 14px">';
+    data.history.forEach(function(s) {
+      h += '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">';
+      if (s.is_contract) {
+        h += '<strong>' + escapeHtml(s.name) + '</strong>';
+        if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
+        h += ' <span style="color:var(--text-secondary);font-size:12px">— Основной договор</span>';
+      } else {
+        h += '<a href="#" onclick="closeModal();showEntity(' + s.id + ');return false" style="color:var(--accent)">';
+        h += escapeHtml(s.name) + (s.number ? ' №' + escapeHtml(s.number) : '');
+        h += '</a>';
+        if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
+        if (s.changes) h += ' — <span style="color:var(--text-secondary)">' + escapeHtml(s.changes) + '</span>';
+      }
+      h += '</div>';
+    });
+    h += '</div></div>';
+  }
+
+  return h;
+}
+
+async function openContractCard(id) {
+  setModalContent('<div style="text-align:center;padding:40px;color:var(--text-secondary)">Загрузка карточки...</div>');
+  try {
+    var data = await api('/reports/contract-card/' + id);
+    setModalContent(renderContractCard(data));
+  } catch(e) {
+    setModalContent('<div style="color:#dc2626;padding:20px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>');
+  }
 }
 
 async function openEditModal(id) {

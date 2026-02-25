@@ -508,4 +508,137 @@ router.get('/broken-equipment', authenticate, asyncHandler(async (req, res) => {
   res.json(brokenIds);
 }));
 
+// GET /api/reports/contract-card/:id — full card for Аренды/Субаренды contract
+router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => {
+  const contractId = parseInt(req.params.id);
+
+  // 1. Load contract
+  const cRes = await pool.query(
+    `SELECT e.*, et.name as type_name FROM entities e
+     JOIN entity_types et ON e.entity_type_id = et.id
+     WHERE e.id = $1 AND e.deleted_at IS NULL`, [contractId]);
+  if (!cRes.rows.length) return res.status(404).json({ error: 'Not found' });
+  const contract = cRes.rows[0];
+  const cProps = contract.properties || {};
+
+  // 2. All supplements sorted by date asc
+  const sRes = await pool.query(
+    `SELECT e.id, e.name, e.properties
+     FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'supplement'
+     WHERE e.parent_id = $1 AND e.deleted_at IS NULL
+     ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`, [contractId]);
+  const supplements = sRes.rows;
+
+  // 3. Latest supplement with rent_objects
+  let rentObjects = [];
+  let rentSourceName = '';
+  for (let i = supplements.length - 1; i >= 0; i--) {
+    const sp = supplements[i];
+    const raw = (sp.properties || {}).rent_objects;
+    if (raw && raw !== '[]' && raw !== 'null') {
+      try {
+        const ro = JSON.parse(raw);
+        if (Array.isArray(ro) && ro.length > 0) { rentObjects = ro; rentSourceName = sp.name; break; }
+      } catch(e) {}
+    }
+  }
+  if (!rentObjects.length) {
+    try { rentObjects = JSON.parse(cProps.rent_objects || '[]'); } catch(e) {}
+  }
+
+  // 4. Latest supplement with transfer_equipment
+  let transferEquipment = [];
+  let transferSourceName = '';
+  for (let i = supplements.length - 1; i >= 0; i--) {
+    const sp = supplements[i];
+    const p = sp.properties || {};
+    if (p.transfer_equipment === 'true' || p.transfer_equipment === true) {
+      try {
+        const eqList = JSON.parse(p.equipment_list || '[]');
+        if (Array.isArray(eqList) && eqList.length > 0) {
+          transferEquipment = eqList; transferSourceName = sp.name; break;
+        }
+      } catch(e) {}
+    }
+  }
+
+  // 5. Room descriptions
+  const roomIds = [...new Set(rentObjects.map(ro => parseInt(ro.room_id)).filter(id => id > 0))];
+  const roomMap = {};
+  if (roomIds.length) {
+    const rRes = await pool.query(
+      'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [roomIds]);
+    rRes.rows.forEach(r => { roomMap[r.id] = { name: r.name, props: r.properties || {} }; });
+  }
+
+  // 6. Equipment details + located_in
+  const eqIds = [...new Set(transferEquipment.map(eq => parseInt(eq.equipment_id)).filter(id => id > 0))];
+  const eqMap = {};
+  if (eqIds.length) {
+    const eRes = await pool.query(
+      'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [eqIds]);
+    eRes.rows.forEach(eq => { eqMap[eq.id] = { name: eq.name, props: eq.properties || {}, location: '' }; });
+    const locRes = await pool.query(
+      `SELECT r.from_entity_id AS eq_id, t.name AS loc
+       FROM relations r JOIN entities t ON t.id = r.to_entity_id AND t.deleted_at IS NULL
+       WHERE r.from_entity_id = ANY($1) AND r.relation_type = 'located_in'
+       ORDER BY r.id DESC`, [eqIds]);
+    const locMap = {};
+    locRes.rows.forEach(r => { if (!locMap[r.eq_id]) locMap[r.eq_id] = r.loc; });
+    Object.keys(eqMap).forEach(id => { eqMap[id].location = locMap[parseInt(id)] || ''; });
+  }
+
+  // 7. Build rent rows
+  const rentRows = rentObjects.map(ro => {
+    const roomId = parseInt(ro.room_id) || 0;
+    const rd = roomMap[roomId] || {};
+    const area = parseFloat(ro.area) || 0;
+    const rate = parseFloat(ro.rent_rate) || 0;
+    return {
+      room_name: ro.room || rd.name || '',
+      description: (rd.props || {}).description || '',
+      area, rate, monthly: area * rate,
+      object_type: ro.object_type || '',
+    };
+  });
+  const totalMonthly = rentRows.reduce((s, r) => s + r.monthly, 0);
+
+  // 8. Build equipment list
+  const eqList = transferEquipment.map(eq => {
+    const id = parseInt(eq.equipment_id);
+    const d = eqMap[id] || {};
+    const p = d.props || {};
+    return {
+      name: eq.equipment_name || d.name || '',
+      category: p.equipment_category || '', kind: p.equipment_kind || '',
+      location: d.location || '', status: p.status || '',
+      is_emergency: p.status === 'Аварийное',
+    };
+  });
+
+  // 9. Supplements history (contract first, then supplements)
+  const history = [
+    { id: contract.id, name: contract.name, number: cProps.number || '',
+      date: cProps.contract_date || '', changes: 'Основной договор', is_contract: true },
+    ...supplements.map(sp => {
+      const p = sp.properties || {};
+      return { id: sp.id, name: sp.name, number: p.number || '',
+        date: p.contract_date || '', changes: p.changes_description || '', is_contract: false };
+    }),
+  ];
+
+  res.json({
+    id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
+    number: cProps.number || '', date: cProps.contract_date || '',
+    our_legal_entity: cProps.our_legal_entity || '',
+    contractor_name: cProps.contractor_name || '',
+    subtenant_name: cProps.subtenant_name || '',
+    contract_end_date: cProps.contract_end_date || '',
+    rent_source_name: rentSourceName,
+    transfer_source_name: transferSourceName,
+    rent_rows: rentRows, total_monthly: totalMonthly,
+    equipment_list: eqList, history,
+  });
+}));
+
 module.exports = router;
