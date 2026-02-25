@@ -2029,7 +2029,11 @@ async function showEntity(id) {
 
     // Acts section
     const allActs = await api('/entities?type=act&limit=200');
-    const acts = allActs.filter(function(a) { return a.parent_id === e.id; });
+    const acts = allActs.filter(function(a) {
+      if (a.parent_id === e.id) return true;
+      var pc = (a.properties || {}).parent_contract_id;
+      return pc && parseInt(pc) === e.id;
+    });
     html += '<div class="detail-section"><h3>Акты</h3>';
     if (acts.length > 0) {
       html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">';
