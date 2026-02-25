@@ -4046,9 +4046,19 @@ function _rentOpenFilter(event, field) {
     });
   });
 
+  // Position fixed relative to button, attached to body so it escapes table overflow
+  var rect = event.currentTarget.getBoundingClientRect();
+  d.style.position = 'fixed';
+  d.style.top = (rect.bottom + 4) + 'px';
+  var left = rect.left;
+  // Adjust if would overflow right edge
+  document.body.appendChild(d);
+  var dropW = d.offsetWidth || 240;
+  if (left + dropW > window.innerWidth - 8) left = Math.max(8, window.innerWidth - dropW - 8);
+  d.style.left = left + 'px';
+
   setTimeout(function() { var s = d.querySelector('#rfSearch'); if (s) s.focus(); }, 50);
 
-  event.currentTarget.parentNode.appendChild(d);
   // Close on outside click
   setTimeout(function() {
     document.addEventListener('click', function handler() {
