@@ -676,7 +676,7 @@ function _renderActItem(item, rowId) {
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0430\u0431\u043e\u0442</label>';
   h += '<textarea class="act-item-desc" placeholder="\u0447\u0442\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e..." style="width:100%;margin-top:2px;resize:vertical;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.description || '') + '</textarea></div>';
-  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439</label>';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u0420\u0430\u0431\u043e\u0442\u044b/\u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f</label>';
   h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:vertical;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
   h += '</div>';
   h += '</div>';
@@ -784,6 +784,8 @@ function renderFieldInput(f, value) {
     return '<input type="date" id="' + id + '" value="' + val + '">';
   } else if (f.field_type === 'number') {
     return '<input type="number" id="' + id + '" value="' + val + '">';
+  } else if (f.field_type === 'textarea') {
+    return '<textarea id="' + id + '" style="width:100%;resize:vertical;min-height:72px;box-sizing:border-box">' + escapeHtml(String(val)) + '</textarea>';
   } else {
     return '<input id="' + id + '" value="' + escapeHtml(String(val)) + '">';
   }
@@ -1900,6 +1902,11 @@ async function showEntity(id) {
       if (f.field_type === 'boolean') {
         html += '<div class="prop-item"><div class="prop-label">' + label + '</div>' +
           '<div class="prop-value">' + (val === 'true' ? '✅ Да' : '—') + '</div></div>';
+        return;
+      }
+      if (f.field_type === 'textarea') {
+        html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
+          '<div class="prop-value" style="white-space:pre-wrap">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
         return;
       }
       html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
@@ -3673,6 +3680,7 @@ async function openCreateActModal(parentContractId) {
   html += '<div class="form-group"><label>Номер акта *</label><input id="f_act_number" placeholder="№ акта"></div>';
   html += '<div class="form-group"><label>Дата акта</label><input type="date" id="f_act_date"></div>';
   html += '<div class="form-group"><label>Комментарий</label><input id="f_comment" placeholder="примечание к акту"></div>';
+  html += '<div class="form-group"><label>Заключение</label><textarea id="f_conclusion" placeholder="итоговое заключение по акту..." style="width:100%;resize:vertical;min-height:72px;box-sizing:border-box"></textarea></div>';
   html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="0" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
   html += '<div class="form-group"><label>Оборудование и работы *</label>' + renderActItemsField([]) + '</div>';
 
@@ -3692,6 +3700,7 @@ async function _doSubmitCreateAct(parentContractId) {
 
     var actDate = (document.getElementById('f_act_date') || {}).value || '';
     var comment = (document.getElementById('f_comment') || {}).value || '';
+    var conclusion = (document.getElementById('f_conclusion') || {}).value || '';
     var total = actItems.reduce(function(s, i) { return s + (i.amount || 0); }, 0);
     var parentEntity = await api('/entities/' + parentContractId);
 
@@ -3699,6 +3708,7 @@ async function _doSubmitCreateAct(parentContractId) {
       act_number: actNumber.trim(),
       act_date: actDate,
       comment: comment,
+      conclusion: conclusion,
       parent_contract_id: String(parentContractId),
       parent_contract_name: parentEntity.name,
       act_items: JSON.stringify(actItems),

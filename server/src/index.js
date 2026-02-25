@@ -312,7 +312,25 @@ async function runMigration009() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => {
+async function runMigration010() {
+  const pool = require('./db');
+  try {
+    const actId = (await pool.query("SELECT id FROM entity_types WHERE name='act'")).rows[0]?.id;
+    if (!actId) { console.log('Migration 010: act type not found, skipping'); return; }
+    // Add conclusion field to act (sort_order 7)
+    await pool.query(
+      `INSERT INTO field_definitions (entity_type_id,name,name_ru,field_type,options,sort_order)
+       VALUES ($1,'conclusion','Заключение','textarea',NULL,7)
+       ON CONFLICT (entity_type_id,name) DO NOTHING`,
+      [actId]
+    );
+    console.log('Migration 010 applied successfully');
+  } catch(e) {
+    console.error('Migration 010 error (non-fatal):', e.message);
+  }
+}
+
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 
