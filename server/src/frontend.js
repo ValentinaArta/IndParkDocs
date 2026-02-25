@@ -2507,10 +2507,14 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
     }
     if (node.contracts) {
       node.contracts.forEach(function(r) {
-        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px" onclick="showEntity(' + r.contract_id + ')">';
-        h += '<span>📄</span>';
-        h += '<span style="flex:1">' + escapeHtml(r.contract_name) + '</span>';
-        if (r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + r.contract_date + '</span>';
+        var eqId = r.eq_id || r.contract_id;
+        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px" onclick="showEntity(' + eqId + ')">';
+        h += '<span>⚙️</span>';
+        h += '<span style="flex:1">';
+        h += escapeHtml(r.eq_name || r.contract_name);
+        if (r.act_name) h += '<span style="font-size:11px;color:var(--text-muted);margin-left:6px">' + escapeHtml(r.act_name) + '</span>';
+        h += '</span>';
+        if (r.act_date || r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + (r.act_date || r.contract_date) + '</span>';
         h += '<span class="agg-total">' + _fmtNum(r[metric]) + ' ₽</span>';
         h += '</div>';
       });
