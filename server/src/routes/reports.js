@@ -307,6 +307,12 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
       WHERE s.deleted_at IS NULL
         AND s.properties->>'rent_objects' IS NOT NULL
         AND s.properties->>'rent_objects' NOT IN ('', '[]', 'null')
+        AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements((s.properties->>'rent_objects')::jsonb) AS obj
+          WHERE (obj->>'rent_rate' IS NOT NULL AND obj->>'rent_rate' NOT IN ('', '0', '0.0', '0.00'))
+             OR (obj->>'area'      IS NOT NULL AND obj->>'area'      NOT IN ('', '0', '0.0', '0.00'))
+        )
       ORDER BY s.parent_id,
                s.properties->>'contract_date' DESC NULLS LAST,
                s.id DESC
