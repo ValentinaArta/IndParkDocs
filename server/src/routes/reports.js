@@ -346,6 +346,9 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         object_type: ro.object_type || '', building: ro.building || '',
         rent_scope: ro.rent_scope || '',
         area, rent_rate: rate, annual_amount: annual, monthly_amount: monthly,
+        net_rate: parseFloat(ro.net_rate) || 0,
+        utility_rate: ro.utility_rate || '',
+        external_rental: ro.external_rental === 'true' || ro.external_rental === true,
         comment: ro.comment || '', room: ro.room || ''
       });
     });

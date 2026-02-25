@@ -1102,6 +1102,13 @@ function renderRentObjectBlock(index, obj) {
 
     // Comment
     h += '<div class="form-group"><label>Комментарий</label><input class="ro-field" data-idx="' + index + '" data-name="comment" value="' + escapeHtml(obj.comment || '') + '"></div>';
+    // Additional rate/type fields
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    h += '<div class="form-group"><label style="font-size:12px">\u0421\u0442\u0430\u0432\u043a\u0430 \u0447\u0438\u0441\u0442\u0430\u044f, \u0440\u0443\u0431/\u043c\xb2/\u043c\u0435\u0441</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="net_rate" value="' + escapeHtml(obj.net_rate || '') + '" placeholder="0"></div>';
+    h += '<div class="form-group"><label style="font-size:12px">\u041a\u0423 \u0432 \u043f\u043b\u0430\u0442\u0435\u0436\u0435/\u0441\u0442\u0430\u0432\u043a\u0435</label><input class="ro-field" data-idx="' + index + '" data-name="utility_rate" value="' + escapeHtml(obj.utility_rate || '') + '" placeholder="\u043e\u043f\u0438\u0448\u0438\u0442\u0435 \u0438\u043b\u0438 \u0441\u0443\u043c\u043c\u0430"></div>';
+    h += '</div>';
+    var extChecked = (obj.external_rental === 'true') ? ' checked' : '';
+    h += '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="ro-field" data-idx="' + index + '" data-name="external_rental"' + extChecked + '> \u0410\u0440\u0435\u043d\u0434\u0430 \u0432\u043d\u0435\u0448\u043d\u044f\u044f</label></div>';
   }
 
   h += '</div>';
@@ -1233,6 +1240,7 @@ function collectRentObjectData(index) {
     var name = el.getAttribute('data-name');
     if (!name) return;
     if (el.tagName === 'SELECT' && el.value === '__new__') return;
+    if (el.type === 'checkbox') { obj[name] = el.checked ? 'true' : 'false'; return; }
     obj[name] = el.value;
   });
   // Resolve entity names from IDs
@@ -3755,18 +3763,20 @@ var _rentColWidths = {}; // col.key -> px width (user-resized)
 
 var RENT_COLS = [
   { key: 'contract_name',    label: '\u2116 \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430',   w: 180, link: true },
-  { key: 'contract_date',    label: '\u0414\u0430\u0442\u0430',           w: 90,  fmt: 'date' },
-  { key: 'our_legal_entity', label: '\u0410\u0440\u0435\u043d\u0434\u043e\u0434\u0430\u0442\u0435\u043b\u044c', w: 160 },
-  { key: 'contractor_name',  label: '\u0410\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440',    w: 160 },
-  { key: 'subtenant_name',   label: '\u0421\u0443\u0431\u0430\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440', w: 130 },
-  { key: 'object_type',      label: '\u0422\u0438\u043f',              w: 110 },
-  { key: 'building',         label: '\u041a\u043e\u0440\u043f\u0443\u0441',           w: 80 },
-  { key: 'area',             label: '\u041f\u043b\u043e\u0449\u0430\u0434\u044c, \u043c\xb2',    w: 80,  fmt: 'num1' },
-  { key: 'rent_rate',        label: '\u0421\u0442\u0430\u0432\u043a\u0430, \u20bd/\u043c\xb2/\u043c\u0435\u0441', w: 100, fmt: 'num0' },
-  { key: 'annual_amount',    label: '\u0421\u0443\u043c\u043c\u0430/\u0433\u043e\u0434, \u20bd',  w: 110, fmt: 'num0' },
-  { key: 'monthly_amount',   label: '\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441, \u20bd',  w: 110, fmt: 'num0' },
-  { key: 'contract_end_date',label: '\u0421\u0440\u043e\u043a \u0434\u043e',       w: 90,  fmt: 'date' },
-  { key: 'comment',          label: '\u041f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435', w: 180 },
+  { key: 'contract_date',    label: '\u0414\u0430\u0442\u0430',                                   w: 90,  fmt: 'date' },
+  { key: 'our_legal_entity', label: '\u0410\u0440\u0435\u043d\u0434\u043e\u0434\u0430\u0442\u0435\u043b\u044c',                             w: 160 },
+  { key: 'contractor_name',  label: '\u0410\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440',     w: 160 },
+  { key: 'subtenant_name',   label: '\u0421\u0443\u0431\u0430\u0440\u0435\u043d\u0434\u0430\u0442\u043e\u0440',                             w: 130 },
+  { key: 'object_type',      label: '\u0422\u0438\u043f',                                         w: 110 },
+  { key: 'building',         label: '\u041a\u043e\u0440\u043f\u0443\u0441',                       w: 80  },
+  { key: 'area',             label: '\u041f\u043b\u043e\u0449\u0430\u0434\u044c, \u043c\xb2',     w: 80,  fmt: 'num1' },
+  { key: 'rent_rate',        label: '\u0421\u0442\u0430\u0432\u043a\u0430, \u20bd/\u043c\xb2/\u043c\u0435\u0441',                           w: 100, fmt: 'num0' },
+  { key: 'net_rate',         label: '\u0421\u0442\u0430\u0432\u043a\u0430 \u0447\u0438\u0441\u0442\u0430\u044f, \u20bd/\u043c\xb2/\u043c\u0435\u0441', w: 120, fmt: 'num0' },
+  { key: 'utility_rate',     label: '\u041a\u0423 \u0432 \u043f\u043b\u0430\u0442\u0435\u0436\u0435/\u0441\u0442\u0430\u0432\u043a\u0435',  w: 130 },
+  { key: 'external_rental',  label: '\u0410\u0440\u0435\u043d\u0434\u0430 \u0432\u043d\u0435\u0448\u043d\u044f\u044f',                      w: 100, fmt: 'bool' },
+  { key: 'monthly_amount',   label: '\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441, \u20bd', w: 110, fmt: 'num0' },
+  { key: 'contract_end_date',label: '\u0421\u0440\u043e\u043a \u0434\u043e',                      w: 90,  fmt: 'date' },
+  { key: 'comment',          label: '\u041f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435',                                         w: 180 },
 ];
 var RENT_GROUP_FIELDS = [
   { key: 'our_legal_entity', label: '\u0410\u0440\u0435\u043d\u0434\u043e\u0434\u0430\u0442\u0435\u043b\u044c' },
@@ -3774,6 +3784,7 @@ var RENT_GROUP_FIELDS = [
   { key: 'building',         label: '\u041a\u043e\u0440\u043f\u0443\u0441' },
   { key: 'object_type',      label: '\u0422\u0438\u043f \u043f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u044f' },
   { key: 'contract_type',    label: '\u0422\u0438\u043f \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430' },
+  { key: 'external_rental',  label: '\u0410\u0440\u0435\u043d\u0434\u0430 \u0432\u043d\u0435\u0448\u043d\u044f\u044f' },
 ];
 
 async function buildRentAnalysis() {
@@ -3826,21 +3837,20 @@ function _buildRentTableHtml(rows) {
   var fmtVal = function(col, row) {
     var v = row[col.key];
     if (col.fmt === 'date') return _fmtRentDate(v);
-    if (col.fmt === 'num0') return _fmtRentNum(v, 0);
-    if (col.fmt === 'num1') return _fmtRentNum(v, 1);
+    if (col.fmt === 'num0') return v ? _fmtRentNum(v, 0) : '<span style="color:var(--text-muted)">—</span>';
+    if (col.fmt === 'num1') return v ? _fmtRentNum(v, 1) : '<span style="color:var(--text-muted)">—</span>';
+    if (col.fmt === 'bool') return (v === true || v === 'true') ? '\u2705 \u0414\u0430' : '<span style="color:var(--text-muted)">\u041d\u0435\u0442</span>';
     if (col.link) return '<a href="#" onclick="showEntity(' + row.contract_id + ');return false" style="color:var(--accent)">' + escapeHtml(v || '') + '</a>';
     return escapeHtml(v || '');
   };
 
   // Summary
   var totalArea = rows.reduce(function(s,r){ return s + (r.area||0); }, 0);
-  var totalAnnual = rows.reduce(function(s,r){ return s + (r.annual_amount||0); }, 0);
-  var totalMonthly = totalAnnual / 12;
+  var totalMonthly = rows.reduce(function(s,r){ return s + (r.monthly_amount||0); }, 0);
 
   var h = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">';
   h += '<div class="stat-card"><div class="stat-label">\u0421\u0442\u0440\u043e\u043a</div><div class="stat-value">' + rows.length + '</div></div>';
   h += '<div class="stat-card"><div class="stat-label">\u041f\u043b\u043e\u0449\u0430\u0434\u044c, \u043c\xb2</div><div class="stat-value">' + _fmtRentNum(totalArea, 1) + '</div></div>';
-  h += '<div class="stat-card"><div class="stat-label">\u0421\u0443\u043c\u043c\u0430/\u0433\u043e\u0434, \u20bd</div><div class="stat-value">' + _fmtRentNum(totalAnnual, 0) + '</div></div>';
   h += '<div class="stat-card"><div class="stat-label">\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441, \u20bd</div><div class="stat-value">' + _fmtRentNum(totalMonthly, 0) + '</div></div>';
   h += '</div>';
 
@@ -3884,14 +3894,18 @@ function _buildFlatRentTable(rows, fmtVal) {
     h += '</tr>';
   });
 
-  // Totals row
+  // Totals row — dynamic by RENT_COLS
+  var SUMABLE = { area: 1, rent_rate: 0, net_rate: 0, monthly_amount: 0 };
   h += '<tr style="background:var(--bg-secondary);font-weight:700">';
-  h += '<td style="padding:5px 8px;border:1px solid var(--border)" colspan="8">\u0418\u0442\u043e\u0433\u043e (' + rows.length + ' \u0441\u0442\u0440\u043e\u043a)</td>';
-  h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">' + _fmtRentNum(rows.reduce(function(s,r){return s+(r.area||0);},0), 1) + '</td>';
-  h += '<td style="padding:5px 8px;border:1px solid var(--border)"></td>';
-  h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">' + _fmtRentNum(rows.reduce(function(s,r){return s+(r.annual_amount||0);},0), 0) + '</td>';
-  h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">' + _fmtRentNum(rows.reduce(function(s,r){return s+(r.annual_amount||0);},0)/12, 0) + '</td>';
-  h += '<td style="padding:5px 8px;border:1px solid var(--border)" colspan="2"></td>';
+  h += '<td style="padding:5px 8px;border:1px solid var(--border)">\u0418\u0442\u043e\u0433\u043e (' + rows.length + ' \u0441\u0442\u0440\u043e\u043a)</td>';
+  RENT_COLS.forEach(function(col) {
+    h += '<td style="padding:5px 8px;border:1px solid var(--border);text-align:right">';
+    if (col.key in SUMABLE) {
+      var tot = rows.reduce(function(s,r){ return s + (parseFloat(r[col.key])||0); }, 0);
+      h += tot > 0 ? _fmtRentNum(tot, SUMABLE[col.key]) : '';
+    }
+    h += '</td>';
+  });
   h += '</tr>';
 
   h += '</tbody></table></div>';
@@ -3943,7 +3957,7 @@ function _buildGroupedRentTable(rows) {
 
   function renderGroup(g, depth) {
     var area = g.rows.reduce(function(s,r){return s+(r.area||0);}, 0);
-    var ann = g.rows.reduce(function(s,r){return s+(r.annual_amount||0);}, 0);
+    var mon = g.rows.reduce(function(s,r){return s+(r.monthly_amount||0);}, 0);
     var indent = depth * 20;
     h += '<tr style="background:var(--bg-secondary)">';
     h += '<td colspan="4" style="padding:6px 10px 6px ' + (10+indent) + 'px;border:1px solid var(--border);font-weight:600">';
@@ -3951,8 +3965,7 @@ function _buildGroupedRentTable(rows) {
     h += escapeHtml(g.value);
     h += ' <span style="font-size:11px;color:var(--text-muted)">(' + g.rows.length + ' \u0441\u0442\u0440.</span>';
     h += ', \u043f\u043b. ' + _fmtRentNum(area, 1) + ' \u043c\xb2';
-    h += ', ' + _fmtRentNum(ann, 0) + ' \u20bd/\u0433\u043e\u0434';
-    h += ', ' + _fmtRentNum(ann/12, 0) + ' \u20bd/\u043c\u0435\u0441)';
+    h += ', ' + _fmtRentNum(mon, 0) + ' \u20bd/\u043c\u0435\u0441)';
     h += '</td></tr>';
     if (g.children) {
       g.children.forEach(function(child) { renderGroup(child, depth+1); });
