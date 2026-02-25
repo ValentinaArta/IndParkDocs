@@ -661,7 +661,9 @@ var _actEquipmentList = null;  // filtered to contract's equipment when creating
 
 function _renderActItem(item, rowId) {
   var eqList = _actEquipmentList || _equipment;
-  var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover)">';
+  var rowBg = item.broken ? 'rgba(239,68,68,.08)' : 'var(--bg-hover)';
+  var rowBorder = item.broken ? '#dc2626' : 'var(--border)';
+  var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:8px;padding:10px;border:1px solid ' + rowBorder + ';border-radius:6px;background:' + rowBg + '">';
   // Row 1: equipment + amount + delete
   h += '<div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 *</label>';
@@ -717,15 +719,13 @@ function actItemAdd() {
 
 function _onActItemBrokenChange(cb) {
   var label = cb.closest('.act-item-broken-label');
-  if (!label) return;
+  var row = cb.closest('.act-item-row');
   if (cb.checked) {
-    label.style.borderColor = 'var(--danger)';
-    label.style.background = 'rgba(239,68,68,.08)';
-    label.style.color = 'var(--danger)';
+    if (label) { label.style.borderColor = 'var(--danger)'; label.style.background = 'rgba(239,68,68,.15)'; label.style.color = 'var(--danger)'; }
+    if (row) { row.style.background = 'rgba(239,68,68,.08)'; row.style.borderColor = '#dc2626'; }
   } else {
-    label.style.borderColor = 'var(--border)';
-    label.style.background = 'transparent';
-    label.style.color = '';
+    if (label) { label.style.borderColor = 'transparent'; label.style.background = 'transparent'; label.style.color = 'var(--text-muted)'; }
+    if (row) { row.style.background = 'var(--bg-hover)'; row.style.borderColor = 'var(--border)'; }
   }
 }
 
