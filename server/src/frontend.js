@@ -1111,11 +1111,10 @@ function closeRoComment(index) {
 function _roRoomCreateMiniForm(index) {
   var h = '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
   h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">🚪 Новое помещение</div>';
-  h += '<div class="form-group"><label>Тип помещения</label>';
-  h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%" onchange="onRoRoomTypeChange(this,' + index + ')"><option value="">—</option>';
-  ROOM_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
-  h += '<option value="__custom__">Другое...</option></select>';
-  h += '<input class="ro-room-type-custom" data-idx="' + index + '" placeholder="Введите тип" style="display:none;margin-top:4px;width:100%"></div>';
+  h += '<div class="form-group"><label>Тип объекта</label>';
+  h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
+  OBJECT_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
+  h += '</select></div>';
   h += '<div class="form-group"><label>Корпус</label><select class="ro-room-building" data-idx="' + index + '" style="width:100%"><option value="">— не указан —</option>';
   _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
   h += '</select></div>';
@@ -1378,7 +1377,7 @@ async function submitRentEquipmentCreate(el) {
 // ─── Room select (no __new__ — uses dedicated create button) ───
 function renderRoRoomSelect(index, selectedId) {
   var selId = parseInt(selectedId) || 0;
-  var h = '<select class="ro-field" data-idx="' + index + '" data-name="room_id" style="width:100%">';
+  var h = '<select class="ro-field" data-idx="' + index + '" data-name="room_id" style="width:100%" onchange="onRoRoomSelect(this,' + index + ')">';
   h += '<option value="">— выберите помещение —</option>';
   _rooms.forEach(function(e) {
     var sel = (e.id === selId) ? ' selected' : '';
@@ -1386,6 +1385,23 @@ function renderRoRoomSelect(index, selectedId) {
   });
   h += '</select>';
   return h;
+}
+
+function onRoRoomSelect(sel, index) {
+  var roomId = parseInt(sel.value) || 0;
+  if (!roomId) return;
+  var room = _rooms.find(function(r) { return r.id === roomId; });
+  if (!room || !room.properties) return;
+  var objType = room.properties.object_type || '';
+  if (!objType) return;
+  var typeSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type"]');
+  if (!typeSel) return;
+  if (!Array.from(typeSel.options).some(function(o) { return o.value === objType; })) {
+    var opt = document.createElement('option');
+    opt.value = objType; opt.textContent = objType;
+    typeSel.appendChild(opt);
+  }
+  typeSel.value = objType;
 }
 
 function onRoRoomTypeChange(sel, index) {
@@ -1411,7 +1427,7 @@ async function submitRentRoomCreate(btn, index) {
   if (!block) return;
   var typeEl = block.querySelector('.ro-room-type');
   var typeCustomEl = block.querySelector('.ro-room-type-custom');
-  var roomType = (typeEl && typeEl.value === '__custom__') ? (typeCustomEl ? typeCustomEl.value.trim() : '') : (typeEl ? typeEl.value : '');
+  var roomType = typeEl ? typeEl.value : '';
   var bldEl = block.querySelector('.ro-room-building');
   var descEl = block.querySelector('.ro-room-desc');
   var areaEl = block.querySelector('.ro-room-area');
@@ -1429,7 +1445,7 @@ async function submitRentRoomCreate(btn, index) {
   var roomTypeObj = entityTypes.find(function(t) { return t.name === 'room'; });
   if (!roomTypeObj) return alert('\u0422\u0438\u043f \u041f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u0435 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d');
   var props = {};
-  if (roomType) props.room_type = roomType;
+  if (roomType) props.object_type = roomType;
   if (descEl && descEl.value.trim()) props.description = descEl.value.trim();
   if (areaEl && areaEl.value) props.area = parseFloat(areaEl.value) || 0;
   if (floorEl && floorEl.value.trim()) props.floor = floorEl.value.trim();
@@ -2218,20 +2234,8 @@ async function showEntity(id) {
           '<div class="prop-value" style="white-space:pre-wrap">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
         return;
       }
-      // Company name lookup (fix: old data may store ID instead of name)
-      var _dispVal = val;
-      if (f.name === 'our_legal_entity' && props.our_legal_entity_id) {
-        var _ownCo = (_ownCompanies || []).find(function(c) { return c.id === parseInt(props.our_legal_entity_id); });
-        if (_ownCo) _dispVal = _ownCo.name;
-      } else if (f.name === 'contractor_name' && props.contractor_id) {
-        var _contrCo = (_allCompanies || []).find(function(c) { return c.id === parseInt(props.contractor_id); });
-        if (_contrCo) _dispVal = _contrCo.name;
-      } else if (f.name === 'subtenant_name' && props.subtenant_id) {
-        var _subCo = (_allCompanies || []).find(function(c) { return c.id === parseInt(props.subtenant_id); });
-        if (_subCo) _dispVal = _subCo.name;
-      }
       html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
-        '<div class="prop-value">' + (_dispVal ? escapeHtml(String(_dispVal)) : '—') + '</div></div>';
+        '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });
     // Show dynamic contract-type fields in detail
     if ((e.type_name === 'contract' || e.type_name === 'supplement') && props.contract_type) {
@@ -2239,29 +2243,6 @@ async function showEntity(id) {
       var isLand = (props.object_type === 'Земельный участок');
       var hasExtra = (props.extra_services === 'true');
       var durType = props.duration_type || '';
-      // Pre-resolve equipment list: find latest supplement (for this contract) with equipment defined
-      var _eqListFromSupp = null;
-      var _eqListSuppNote = '';
-      if (['Аренды', 'Субаренды'].includes(props.contract_type)) {
-        var _suppContractId = (e.type_name === 'contract') ? e.id : e.parent_id;
-        if (_suppContractId) {
-          try {
-            var _allSuppForEq = await api('/entities?type=supplement');
-            var _suppWithEq = _allSuppForEq
-              .filter(function(s) { return s.parent_id === _suppContractId && s.properties && (s.properties.transfer_equipment === 'true' || s.properties.equipment_list); })
-              .sort(function(a, b) { var da = a.properties.contract_date || ''; var db = b.properties.contract_date || ''; return db > da ? 1 : db < da ? -1 : 0; });
-            if (_suppWithEq.length > 0) {
-              var _latestSuppEq = _suppWithEq[0];
-              var _parsedEq = [];
-              try { var _rawEq = _latestSuppEq.properties.equipment_list; _parsedEq = typeof _rawEq === 'string' ? JSON.parse(_rawEq || '[]') : (_rawEq || []); } catch(ex2) {}
-              if (_parsedEq.length > 0) {
-                _eqListFromSupp = _parsedEq;
-                if (e.id !== _latestSuppEq.id) _eqListSuppNote = 'из ДС от ' + (_latestSuppEq.properties.contract_date || '—');
-              }
-            }
-          } catch(ex) {}
-        }
-      }
       extraFields.forEach(function(f) {
         var val = props[f.name];
         var group = f._group || '';
@@ -2330,16 +2311,9 @@ async function showEntity(id) {
         } else if (f.field_type === 'equipment_list') {
           var eqView = [];
           try { if (typeof val === 'string' && val) eqView = JSON.parse(val); else if (Array.isArray(val)) eqView = val; } catch(ex) {}
-          // Fallback: use equipment from latest supplement if current entity has none
-          var _eqFromSuppUsed = false;
-          if (eqView.length === 0 && _eqListFromSupp && _eqListFromSupp.length > 0) {
-            eqView = _eqListFromSupp;
-            _eqFromSuppUsed = !!_eqListSuppNote;
-          }
           // Fallback: show old plain-text equipment value if no equipment_list
           var oldEqText = props.equipment || '';
-          var _eqLabelHtml = (f.name_ru || f.name) + (_eqFromSuppUsed ? ' <span style="font-size:11px;color:var(--text-muted)">(' + escapeHtml(_eqListSuppNote) + ')</span>' : '');
-          html += '<div class="prop-item"><div class="prop-label">' + _eqLabelHtml + '</div><div class="prop-value">';
+          html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div><div class="prop-value">';
           if (eqView.length > 0) {
             eqView.forEach(function(eq, i) {
               if (i > 0) html += '<br>';
@@ -2372,14 +2346,6 @@ async function showEntity(id) {
             '</div></div>';
         } else if (f.name === 'rent_monthly') {
           return; // shown together with vat_rate above
-        } else if (f.name === 'transfer_equipment') {
-          // Show effective state: true if this supplement OR any supplement has equipment
-          var _effTransfer = val === 'true' || (_eqListFromSupp && _eqListFromSupp.length > 0);
-          html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
-            '<div class="prop-value">' + (_effTransfer ? '✅ Да' : '—') + '</div></div>';
-        } else if (f.field_type === 'checkbox') {
-          html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
-            '<div class="prop-value">' + (val === 'true' ? '✅ Да' : '—') + '</div></div>';
         } else {
           html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
             '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';

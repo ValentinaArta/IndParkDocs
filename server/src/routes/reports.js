@@ -347,6 +347,14 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
     ORDER BY e.properties->>'contract_date', e.name`;
 
   const result = await pool.query(sql);
+  // Pre-load room properties for object_type enrichment
+  const roomsRes = await pool.query(
+    `SELECT e.id, e.properties FROM entities e
+     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'room'
+     WHERE e.deleted_at IS NULL`);
+  const roomPropsMap = {};
+  roomsRes.rows.forEach(function(r) { roomPropsMap[r.id] = r.properties || {}; });
+
   const rows = [];
   let seq = 0;
 
@@ -383,7 +391,11 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         contract_date: c.contract_date || '', contract_end_date: c.contract_end_date || '',
         our_legal_entity: c.our_legal_entity || '', contractor_name: c.contractor_name || '',
         subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
-        object_type: ro.object_type || (ro.item_type === 'room' ? 'Помещение' : ro.item_type === 'equipment' ? 'Оборудование' : ro.item_type === 'land_plot' ? 'Земельный участок' : '') || '', building: ro.building || '',
+        object_type: (function() {
+          var rId = parseInt(ro.room_id) || 0;
+          var rType = (rId && roomPropsMap[rId]) ? (roomPropsMap[rId].object_type || '') : '';
+          return rType || ro.object_type || (ro.item_type === 'room' ? 'Помещение' : ro.item_type === 'equipment' ? 'Оборудование' : ro.item_type === 'land_plot' ? 'Земельный участок' : '') || '';
+        })(), building: ro.building || '',
         rent_scope: ro.rent_scope || '',
         area, rent_rate: rate, annual_amount: annual, monthly_amount: monthly,
         net_rate: parseFloat(ro.net_rate) || 0,
