@@ -2737,23 +2737,68 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
       });
     }
     if (node.contracts) {
+      // Group rows by equipment so each unit appears once with total, expandable per-document
+      var eqGroups = {}, eqOrder = [];
       node.contracts.forEach(function(r) {
-        var eqId = r.eq_id || r.contract_id;
-        var isEqBroken = _brokenEqIds.has(parseInt(eqId));
-        var isEmergencyLeaf = (r.eq_status === 'Аварийное');
-        var leafBg = isEqBroken ? 'background:rgba(239,68,68,.09);border-radius:4px;'
-          : (isEmergencyLeaf ? 'background:rgba(184,92,92,.06);border-radius:4px;' : '');
-        h += '<div class="agg-tree-leaf" style="margin-left:' + (depth * 18) + 'px;' + leafBg + '" onclick="showEntity(' + eqId + ')">';
-        h += '<span>⚙️</span>';
-        var leafColor = isEqBroken ? 'color:#dc2626;font-weight:500;' : (isEmergencyLeaf ? 'color:#b85c5c;' : '');
+        var key = 'eq_' + (r.eq_id || r.contract_id);
+        if (!eqGroups[key]) {
+          eqGroups[key] = { eq_id: r.eq_id, contract_id: r.contract_id,
+            eq_name: r.eq_name || r.contract_name, eq_status: r.eq_status, total: 0, docs: [] };
+          eqOrder.push(key);
+        }
+        eqGroups[key].total += (r[metric] || 0);
+        eqGroups[key].docs.push(r);
+      });
+
+      eqOrder.forEach(function(key) {
+        var grp = eqGroups[key];
+        var eqId = grp.eq_id || grp.contract_id;
+        var isBroken = _brokenEqIds.has(parseInt(eqId));
+        var isEmerg = (grp.eq_status === 'Аварийное');
+        var leafBg = isBroken ? 'background:rgba(239,68,68,.09);border-radius:4px;'
+          : (isEmerg ? 'background:rgba(184,92,92,.06);border-radius:4px;' : '');
+        var leafColor = isBroken ? 'color:#dc2626;font-weight:500;' : (isEmerg ? 'color:#b85c5c;' : '');
+        var hasMulti = grp.docs.length > 1;
+        var detId = 'eqd_' + (++_uid);
+
+        h += '<div style="margin-left:' + (depth * 18) + 'px">';
+        // Summary row
+        h += '<div class="agg-tree-leaf" style="' + leafBg + '" onclick="' +
+          (hasMulti ? 'aggToggle(\'' + detId + '\')' : 'showEntity(' + eqId + ')') + '">';
+        if (hasMulti) h += '<span id="' + detId + '_ico" style="font-size:10px;color:var(--text-muted);width:12px">\u25b6</span>';
+        else h += '<span style="width:12px">\u2003</span>';
+        h += '<span>\u2699\ufe0f</span>';
         h += '<span style="flex:1;' + leafColor + '">';
-        h += escapeHtml(r.eq_name || r.contract_name);
-        if (isEqBroken) h += '<span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>';
-        else if (isEmergencyLeaf) h += '<span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>';
-        if (r.act_name) h += '<span style="font-size:11px;color:var(--text-muted);margin-left:6px">' + escapeHtml(r.act_name) + '</span>';
+        h += escapeHtml(grp.eq_name);
+        if (isBroken) h += '<span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>';
+        else if (isEmerg) h += '<span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>';
+        if (hasMulti) {
+          h += '<span style="font-size:11px;color:var(--text-muted);margin-left:6px">' + grp.docs.length + ' \u0434\u043e\u043a.</span>';
+        } else {
+          var r0 = grp.docs[0];
+          if (r0.act_name) h += '<span style="font-size:11px;color:var(--text-muted);margin-left:6px">' + escapeHtml(r0.act_name) + '</span>';
+        }
         h += '</span>';
-        if (r.act_date || r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + (r.act_date || r.contract_date) + '</span>';
-        h += '<span class="agg-total">' + _fmtNum(r[metric]) + ' ₽</span>';
+        if (!hasMulti) {
+          var r1 = grp.docs[0];
+          if (r1.act_date || r1.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + (r1.act_date || r1.contract_date) + '</span>';
+        }
+        h += '<span class="agg-total">' + _fmtNum(grp.total) + ' \u20bd</span>';
+        h += '</div>';
+
+        // Expandable detail rows
+        if (hasMulti) {
+          h += '<div id="' + detId + '" style="display:none">';
+          grp.docs.forEach(function(r) {
+            h += '<div class="agg-tree-leaf" style="margin-left:20px;opacity:.85" onclick="showEntity(' + (r.act_id || r.contract_id) + ')">';
+            h += '<span style="width:12px"></span><span>\ud83d\udcc4</span>';
+            h += '<span style="flex:1;font-size:12px;color:var(--text-secondary)">' + escapeHtml(r.act_name || r.contract_name) + '</span>';
+            if (r.act_date || r.contract_date) h += '<span style="font-size:11px;color:var(--text-muted);margin-right:8px">' + (r.act_date || r.contract_date) + '</span>';
+            h += '<span class="agg-total">' + _fmtNum(r[metric]) + ' \u20bd</span>';
+            h += '</div>';
+          });
+          h += '</div>';
+        }
         h += '</div>';
       });
     }
@@ -2763,7 +2808,8 @@ function renderAggTree(rows, hierarchy, metric, metricLabel) {
   var totalFmt = _fmtNum(tree.total);
   var h = '<div class="detail-section" style="margin-top:16px">';
   h += '<div style="display:flex;justify-content:space-between;margin-bottom:12px;font-weight:600">';
-  h += '<span>' + rows.length + ' связей</span><span>' + escapeHtml(metricLabel) + ': ' + totalFmt + ' ₽</span>';
+  var _uniqueEq = new Set(rows.map(function(r) { return r.eq_id || r.contract_id; })).size;
+  h += '<span>' + _uniqueEq + ' \u0435\u0434. \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f (' + rows.length + ' \u0437\u0430\u043f\u0438\u0441\u0435\u0439)</span><span>' + escapeHtml(metricLabel) + ': ' + totalFmt + ' \u20bd</span>';
   h += '</div>';
   h += renderNode(tree, 0);
   h += '</div>';
