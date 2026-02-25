@@ -2176,7 +2176,9 @@ async function searchEntities(q) {
 
 var _allEntitiesForParent = [];
 
-async function showEntity(id) {
+function showEntityDetail(id) { return showEntity(id, true); }
+
+async function showEntity(id, _forceDetail) {
   currentView = 'detail';
   currentEntityId = id;
   const e = await api('/entities/' + id);
@@ -2200,14 +2202,28 @@ async function showEntity(id) {
     ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '';
   bcParts.push(e.icon + ' ' + escapeHtml(e.name) + _eEmergencyBadge);
   document.getElementById('breadcrumb').innerHTML = bcParts.join(' › ');
+  var _ePropsForBtn = e.properties || {};
+  var _isRentalContract = (e.type_name === 'contract' && (_ePropsForBtn.contract_type === 'Аренды' || _ePropsForBtn.contract_type === 'Субаренды'));
   var _topAct = '<button class="btn btn-sm" onclick="openEditModal(' + id + ')">Редактировать</button>' +
     '<button class="btn btn-sm" onclick="openRelationModal(' + id + ')">+ Связь</button>' +
     '<button class="btn btn-sm btn-danger" onclick="deleteEntity(' + id + ')">Удалить</button>';
-  var _ePropsForBtn = e.properties || {};
-  if (e.type_name === 'contract' && (_ePropsForBtn.contract_type === 'Аренды' || _ePropsForBtn.contract_type === 'Субаренды')) {
-    _topAct = '<button class="btn btn-sm btn-primary" onclick="openContractCard(' + id + ')">📋 Карточка</button>' + _topAct;
+  if (_isRentalContract) {
+    _topAct = '<button class="btn btn-sm" onclick="showEntityDetail(' + id + ')">⚙ Детали</button>' + _topAct;
   }
   document.getElementById('topActions').innerHTML = _topAct;
+
+  // For rental contracts — show card inline, not the standard detail view
+  if (_isRentalContract && !_forceDetail) {
+    var contentEl = document.getElementById('content');
+    contentEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)">Загрузка...</div>';
+    try {
+      var cardData = await api('/reports/contract-card/' + id);
+      contentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderContractCard(cardData) + '</div>';
+    } catch(cardErr) {
+      contentEl.innerHTML = '<div style="color:#dc2626;padding:20px">Ошибка загрузки карточки: ' + escapeHtml(cardErr.message || String(cardErr)) + '</div>';
+    }
+    return;
+  }
 
   let html = '';
 
