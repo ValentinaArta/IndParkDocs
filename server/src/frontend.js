@@ -3470,7 +3470,20 @@ async function _doSubmitCreateAct(parentContractId) {
     if (!actType) { alert('Тип "Акт" не найден в entity-types. Попробуйте обновить страницу.'); return; }
 
     var actName = 'Акт №' + actNumber.trim() + (actDate ? ' от ' + actDate : '') + ' — ' + parentEntity.name;
-    await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: actType.id, name: actName, properties: properties, parent_id: parentContractId }) });
+    var created;
+    try {
+      created = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: actType.id, name: actName, properties: properties, parent_id: parentContractId }) });
+    } catch(postErr) {
+      if (postErr.status === 409 && postErr.data && postErr.data.existing) {
+        var ex = postErr.data.existing;
+        if (confirm('Акт с таким номером и датой уже существует:\n«' + ex.name + '»\n\nОткрыть существующий акт?')) {
+          closeModal();
+          showEntity(ex.id);
+        }
+        return;
+      }
+      throw postErr;
+    }
     closeModal();
     showEntity(parentContractId);
   } catch(err) {
