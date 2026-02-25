@@ -327,6 +327,7 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
       e.properties->>'contractor_name'   AS contractor_name,
       e.properties->>'subtenant_name'    AS subtenant_name,
       e.properties->>'vat_rate'          AS vat_rate,
+      e.properties->>'external_rental'   AS external_rental,
       COALESCE(ls.rent_objects, e.properties->>'rent_objects') AS rent_objects,
       ls.supp_id   IS NOT NULL  AS from_supplement,
       ls.supp_name              AS supp_name,
@@ -354,8 +355,10 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         contract_date: c.contract_date || '', contract_end_date: c.contract_end_date || '',
         our_legal_entity: c.our_legal_entity || '', contractor_name: c.contractor_name || '',
         subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
-        object_type: '', building: '', rent_scope: '',
-        area: 0, rent_rate: 0, annual_amount: 0, monthly_amount: 0, comment: ''
+        object_type: '', building: '',
+        area: 0, rent_rate: 0, annual_amount: 0, monthly_amount: 0,
+        external_rental: c.external_rental === 'true' || c.external_rental === true,
+        net_rate: 0, utility_rate: '', comment: '', room: ''
       });
       return;
     }
@@ -378,7 +381,8 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         area, rent_rate: rate, annual_amount: annual, monthly_amount: monthly,
         net_rate: parseFloat(ro.net_rate) || 0,
         utility_rate: ro.utility_rate || '',
-        external_rental: ro.external_rental === 'true' || ro.external_rental === true,
+        // external_rental is contract-level; fallback to per-object for old data
+        external_rental: c.external_rental === 'true' || c.external_rental === true || ro.external_rental === 'true' || ro.external_rental === true,
         comment: ro.comment || '', room: ro.room || '',
         from_supplement: fromSupp,
         supp_name: fromSupp ? (c.supp_name || '') : '',

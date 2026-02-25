@@ -257,6 +257,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
     { name: 'rent_comments', name_ru: 'Комментарии', field_type: 'multi_comments', _group: 'all' },
     { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
+    { name: 'external_rental', name_ru: 'Аренда внешняя', field_type: 'checkbox', _group: 'all' },
     { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
     { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
     { name: 'extra_services_cost', name_ru: 'Стоимость в месяц', field_type: 'number', _group: 'extra' },
@@ -278,6 +279,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
     { name: 'rent_comments', name_ru: 'Комментарии', field_type: 'multi_comments', _group: 'all' },
     { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
+    { name: 'external_rental', name_ru: 'Аренда внешняя', field_type: 'checkbox', _group: 'all' },
     { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
     { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
     { name: 'extra_services_cost', name_ru: 'Стоимость в месяц', field_type: 'number', _group: 'extra' },
@@ -885,7 +887,8 @@ function renderDynamicFields(contractType, props) {
 }
 
 var _rentObjectCounter = 0;
-var OBJECT_TYPES = ['Производство класс B', 'Производство класс С', 'Офис', 'Административно-бытовые', 'Земельный участок', 'Оборудование'];
+var OBJECT_TYPES = ['Производство класс B', 'Производство класс С', 'Офис', 'Административно-бытовые', 'Склад', 'Земельный участок', 'Оборудование'];
+var ROOM_TYPES = ['Производственное', 'Офисное', 'Складское', 'Административно-бытовое', 'Техническое'];
 var EQUIPMENT_CATEGORIES = ['Электрооборудование','Газовое','Тепловое','Крановое хозяйство','Машины и механизмы','ИК оборудование'];
 
 // Returns base categories + any custom ones already saved in the registry
@@ -966,6 +969,11 @@ function renderRentFields(container, allFields, props) {
     html += '<div class="form-group"><label>Срок действия (текст)</label>' +
       '<input id="f_duration_text" value="' + escapeHtml(props.duration_text || '') + '"></div>';
   }
+
+  // External rental checkbox (contract-level, not per object)
+  var externalRental = props.external_rental === 'true' || props.external_rental === true;
+  html += '<div class="form-group" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+    '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + '> Аренда внешняя</label></div>';
 
   // Transfer equipment section
   var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
@@ -1071,9 +1079,11 @@ function renderRentObjectBlock(index, obj) {
   h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" onchange="onRentObjectTypeChange(' + index + ')">';
   h += '<option value="">—</option>';
   OBJECT_TYPES.forEach(function(ot) { h += '<option value="' + escapeHtml(ot) + '"' + (obj.object_type === ot ? ' selected' : '') + '>' + escapeHtml(ot) + '</option>'; });
-  h += '<option value="__custom__"' + (obj.object_type && !OBJECT_TYPES.includes(obj.object_type) ? ' selected' : '') + '>Другое...</option></select>';
-  if (obj.object_type && !OBJECT_TYPES.includes(obj.object_type)) {
-    h += '<input class="ro-field" data-idx="' + index + '" data-name="object_type_custom" value="' + escapeHtml(obj.object_type) + '" placeholder="Введите тип" style="margin-top:4px">';
+  var _showCustom = obj._showCustomInput || (obj.object_type && !OBJECT_TYPES.includes(obj.object_type));
+  h += '<option value="__custom__"' + (_showCustom ? ' selected' : '') + '>Другое...</option></select>';
+  if (_showCustom) {
+    var _customVal = (!obj._showCustomInput && obj.object_type) ? obj.object_type : '';
+    h += '<input class="ro-field" data-idx="' + index + '" data-name="object_type_custom" value="' + escapeHtml(_customVal) + '" placeholder="Введите тип" style="margin-top:4px;width:100%" onblur="onObjectTypeCustomBlur(this,' + index + ')">';
   }
   h += '</div>';
 
@@ -1106,11 +1116,33 @@ function renderRentObjectBlock(index, obj) {
       // Building & room from real entities
       h += '<div class="form-group"><label>Корпус</label>' + renderRoEntitySelect(index, 'building_id', _buildings, obj.building_id, 'выберите корпус') +
         '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
-      h += '<div class="form-group"><label>Помещение</label>' + renderRoEntitySelect(index, 'room_id', _rooms, obj.room_id, 'выберите помещение') +
-        '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '"></div>';
-      h += '<div class="form-group"><label>Часть/Целиком</label><select class="ro-field" data-idx="' + index + '" data-name="rent_scope">';
-      h += '<option value="">—</option><option value="Целиком"' + (obj.rent_scope === 'Целиком' ? ' selected' : '') + '>Целиком</option>';
-      h += '<option value="Часть"' + (obj.rent_scope === 'Часть' ? ' selected' : '') + '>Часть</option></select></div>';
+      // Room: select from registry + inline create form
+      h += '<div class="form-group"><label>Помещение</label>';
+      h += renderRoRoomSelect(index, obj.room_id);
+      h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '">';
+      h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
+      h += '</div>';
+      // Inline room create mini-form
+      h += '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
+      h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">🚪 Новое помещение</div>';
+      h += '<div class="form-group"><label>Тип помещения</label>';
+      h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%" onchange="onRoRoomTypeChange(this,' + index + ')">';
+      h += '<option value="">—</option>';
+      ROOM_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
+      h += '<option value="__custom__">Другое...</option></select>';
+      h += '<input class="ro-room-type-custom" data-idx="' + index + '" placeholder="Введите тип" style="display:none;margin-top:4px;width:100%"></div>';
+      h += '<div class="form-group"><label>Корпус</label><select class="ro-room-building" data-idx="' + index + '" style="width:100%"><option value="">— не указан —</option>';
+      _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
+      h += '</select></div>';
+      h += '<div class="form-group"><label>Описание помещения</label><input class="ro-room-desc" data-idx="' + index + '" style="width:100%"></div>';
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+      h += '<div class="form-group"><label>Площадь, м²</label><input type="number" class="ro-room-area" data-idx="' + index + '" style="width:100%"></div>';
+      h += '<div class="form-group"><label>Этаж</label><input class="ro-room-floor" data-idx="' + index + '" style="width:100%"></div>';
+      h += '</div>';
+      h += '<div style="display:flex;gap:8px;margin-top:8px">';
+      h += '<button type="button" class="btn btn-primary btn-sm" onclick="submitRentRoomCreate(this,' + index + ')">Создать и выбрать</button>';
+      h += '<button type="button" class="btn btn-sm" onclick="toggleRentRoomCreate(this,' + index + ')">Отмена</button>';
+      h += '</div></div>';
     } else {
       h += '<div class="form-group"><label>Местоположение ЗУ</label><input class="ro-field" data-idx="' + index + '" data-name="land_location" value="' + escapeHtml(obj.land_location || '') + '"></div>';
     }
@@ -1124,7 +1156,7 @@ function renderRentObjectBlock(index, obj) {
       h += '<div class="form-group"><label>Площадь (м²)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="area" value="' + (obj.area || '') + '" oninput="recalcRentMonthly()"></div>';
       h += '<div class="form-group"><label>Арендная ставка (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
       var objTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
-      if (objTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + objTotal.toFixed(2) + ' руб.</div>';
+      if (objTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + _fmtNum(objTotal) + ' руб.</div>';
     } else {
       h += '<div class="form-group"><label>Арендная плата</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="fixed_rent" value="' + (obj.fixed_rent || '') + '" oninput="recalcRentMonthly()"></div>';
     }
@@ -1136,8 +1168,7 @@ function renderRentObjectBlock(index, obj) {
     h += '<div class="form-group"><label style="font-size:12px">\u0421\u0442\u0430\u0432\u043a\u0430 \u0447\u0438\u0441\u0442\u0430\u044f, \u0440\u0443\u0431/\u043c\xb2/\u043c\u0435\u0441</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="net_rate" value="' + escapeHtml(obj.net_rate || '') + '" placeholder="0"></div>';
     h += '<div class="form-group"><label style="font-size:12px">\u041a\u0423 \u0432 \u043f\u043b\u0430\u0442\u0435\u0436\u0435/\u0441\u0442\u0430\u0432\u043a\u0435</label><input class="ro-field" data-idx="' + index + '" data-name="utility_rate" value="' + escapeHtml(obj.utility_rate || '') + '" placeholder="\u043e\u043f\u0438\u0448\u0438\u0442\u0435 \u0438\u043b\u0438 \u0441\u0443\u043c\u043c\u0430"></div>';
     h += '</div>';
-    var extChecked = (obj.external_rental === 'true') ? ' checked' : '';
-    h += '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="ro-field" data-idx="' + index + '" data-name="external_rental"' + extChecked + '> \u0410\u0440\u0435\u043d\u0434\u0430 \u0432\u043d\u0435\u0448\u043d\u044f\u044f</label></div>';
+    // external_rental moved to contract level (renderRentFields)
   }
 
   h += '</div>';
@@ -1163,15 +1194,21 @@ function onRentObjectTypeChange(index) {
   if (!sel) return;
   var obj = collectRentObjectData(index);
   if (sel.value === '__custom__') {
-    obj.object_type = '';
+    obj._showCustomInput = true;
+    obj.object_type = obj.object_type_custom || '';
   } else {
     obj.object_type = sel.value;
+    delete obj._showCustomInput;
   }
   var block = document.getElementById('rent_obj_' + index);
   if (block) {
     var div = document.createElement('div');
     div.innerHTML = renderRentObjectBlock(index, obj);
     block.replaceWith(div.firstChild);
+    if (obj._showCustomInput) {
+      var customIn = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type_custom"]');
+      if (customIn) customIn.focus();
+    }
   }
 }
 
@@ -1262,6 +1299,103 @@ async function submitRentEquipmentCreate(el) {
     }
   }
 }
+
+// ─── Room select (no __new__ — uses dedicated create button) ───
+function renderRoRoomSelect(index, selectedId) {
+  var selId = parseInt(selectedId) || 0;
+  var h = '<select class="ro-field" data-idx="' + index + '" data-name="room_id" style="width:100%">';
+  h += '<option value="">— выберите помещение —</option>';
+  _rooms.forEach(function(e) {
+    var sel = (e.id === selId) ? ' selected' : '';
+    h += '<option value="' + e.id + '"' + sel + '>🚪 ' + escapeHtml(e.name) + '</option>';
+  });
+  h += '</select>';
+  return h;
+}
+
+function onRoRoomTypeChange(sel, index) {
+  var customEl = document.querySelector('.ro-room-type-custom[data-idx="' + index + '"]');
+  if (customEl) customEl.style.display = (sel.value === '__custom__') ? '' : 'none';
+}
+
+function toggleRentRoomCreate(btn, index) {
+  var block = document.getElementById('ro_room_create_' + index);
+  if (!block) return;
+  var isOpen = block.style.display !== 'none';
+  block.style.display = isOpen ? 'none' : '';
+  if (!isOpen) {
+    // Pre-fill building from the rent object's currently selected building
+    var bldSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="building_id"]');
+    var roomBldSel = block.querySelector('.ro-room-building');
+    if (bldSel && roomBldSel && bldSel.value) roomBldSel.value = bldSel.value;
+  }
+}
+
+async function submitRentRoomCreate(btn, index) {
+  var block = document.getElementById('ro_room_create_' + index);
+  if (!block) return;
+  var typeEl = block.querySelector('.ro-room-type');
+  var typeCustomEl = block.querySelector('.ro-room-type-custom');
+  var roomType = (typeEl && typeEl.value === '__custom__') ? (typeCustomEl ? typeCustomEl.value.trim() : '') : (typeEl ? typeEl.value : '');
+  var bldEl = block.querySelector('.ro-room-building');
+  var descEl = block.querySelector('.ro-room-desc');
+  var areaEl = block.querySelector('.ro-room-area');
+  var floorEl = block.querySelector('.ro-room-floor');
+  var buildingId = bldEl ? (parseInt(bldEl.value) || null) : null;
+  var building = buildingId ? (_buildings.find(function(b) { return b.id === buildingId; }) || {}).name || '' : '';
+  // Build a default name
+  var parts = [];
+  if (roomType) parts.push(roomType);
+  if (floorEl && floorEl.value.trim()) parts.push('\u044d\u0442.' + floorEl.value.trim()); // эт.N
+  if (building) parts.push(building);
+  var defaultName = parts.join(', ') || '\u041d\u043e\u0432\u043e\u0435 \u043f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u0435';
+  var roomName = prompt('\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u044f:', defaultName);
+  if (!roomName || !roomName.trim()) return;
+  var roomTypeObj = entityTypes.find(function(t) { return t.name === 'room'; });
+  if (!roomTypeObj) return alert('\u0422\u0438\u043f \u041f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u0435 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d');
+  var props = {};
+  if (roomType) props.room_type = roomType;
+  if (descEl && descEl.value.trim()) props.description = descEl.value.trim();
+  if (areaEl && areaEl.value) props.area = parseFloat(areaEl.value) || 0;
+  if (floorEl && floorEl.value.trim()) props.floor = floorEl.value.trim();
+  if (building) props.building = building;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    var body = { entity_type_id: roomTypeObj.id, name: roomName.trim(), properties: props };
+    if (buildingId) body.parent_id = buildingId;
+    var newRoom = await api('/entities', { method: 'POST', body: JSON.stringify(body) });
+    _rooms.push(newRoom); clearEntityCache();
+    var roomSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="room_id"]');
+    if (roomSel) {
+      var opt = document.createElement('option');
+      opt.value = newRoom.id; opt.textContent = '\ud83d\udeaa ' + roomName.trim(); opt.selected = true;
+      Array.from(roomSel.options).forEach(function(o) { o.selected = false; });
+      roomSel.appendChild(opt);
+    }
+    block.style.display = 'none';
+  } catch(e) { alert('\u041e\u0448\u0438\u0431\u043a\u0430: ' + (e.message || e)); }
+  finally { btn.disabled = false; btn.textContent = '\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u0438 \u0432\u044b\u0431\u0440\u0430\u0442\u044c'; }
+}
+
+function onObjectTypeCustomBlur(input, index) {
+  var val = input.value.trim();
+  if (!val) return;
+  if (OBJECT_TYPES.indexOf(val) < 0) OBJECT_TYPES.push(val);
+  // Add option to all object_type selects
+  document.querySelectorAll('.ro-field[data-name="object_type"]').forEach(function(sel) {
+    if (!Array.from(sel.options).some(function(o) { return o.value === val; })) {
+      var customOpt = sel.querySelector('option[value="__custom__"]');
+      var newOpt = document.createElement('option');
+      newOpt.value = val; newOpt.textContent = val;
+      if (customOpt) sel.insertBefore(newOpt, customOpt); else sel.appendChild(newOpt);
+    }
+    if (sel.getAttribute('data-idx') === String(index)) sel.value = val;
+  });
+  // Re-render the block with the new selected type
+  onRentObjectTypeChange(index);
+}
+
+// ─────────────────────────────────────────────
 
 function collectRentObjectData(index) {
   var obj = {};
@@ -1356,8 +1490,8 @@ function updateVatDisplay() {
   var rent = parseFloat(rentEl ? rentEl.value : 0) || 0;
   var vat = parseFloat(vatEl ? vatEl.value : 22) || 0;
   if (rent > 0 && vat > 0) {
-    var vatAmount = (rent * vat / (100 + vat)).toFixed(2);
-    display.textContent = 'в т.ч. НДС (' + vat + '%) = ' + vatAmount + ' руб.';
+    var vatAmount = rent * vat / (100 + vat);
+    display.textContent = 'в т.ч. НДС (' + vat + '%) = ' + _fmtNum(vatAmount) + ' руб.';
   } else {
     display.textContent = '';
   }
@@ -2003,7 +2137,7 @@ async function showEntity(id) {
               html += '<div class="prop-item" style="border-left:2px solid var(--accent);padding-left:8px;margin-bottom:4px"><div class="prop-label">Объект ' + (ri+1) + ': ' + escapeHtml(ro.object_type || '') + '</div><div class="prop-value">';
               if (ro.building) html += 'Корпус: ' + escapeHtml(ro.building) + '<br>';
               if (ro.room) html += 'Помещение: ' + escapeHtml(ro.room) + '<br>';
-              if (ro.rent_scope) html += escapeHtml(ro.rent_scope) + '<br>';
+              // rent_scope removed
               if (ro.land_location) html += 'Местоположение: ' + escapeHtml(ro.land_location) + '<br>';
               if (ro.calc_mode === 'fixed') {
                 html += 'Аренда: ' + (ro.fixed_rent || '—') + ' руб.<br>';
@@ -2011,7 +2145,7 @@ async function showEntity(id) {
                 if (ro.area) html += 'Площадь: ' + escapeHtml(String(ro.area)) + ' м²<br>';
                 if (ro.rent_rate) html += 'Ставка: ' + escapeHtml(String(ro.rent_rate)) + ' руб/м²<br>';
                 var ot = (parseFloat(ro.area)||0) * (parseFloat(ro.rent_rate)||0);
-                if (ot > 0) html += '= ' + ot.toFixed(2) + ' руб.<br>';
+                if (ot > 0) html += '= ' + _fmtNum(ot) + ' руб.<br>';
               }
               if (ro.comment) html += '<em>' + escapeHtml(ro.comment) + '</em>';
               html += '</div></div>';
@@ -2069,7 +2203,7 @@ async function showEntity(id) {
         } else if (f.name === 'vat_rate' && props.rent_monthly) {
           var rent = parseFloat(props.rent_monthly) || 0;
           var vat = parseFloat(val) || 0;
-          var vatAmount = rent > 0 && vat > 0 ? (rent * vat / (100 + vat)).toFixed(2) : '—';
+          var vatAmount = rent > 0 && vat > 0 ? _fmtNum(rent * vat / (100 + vat)) : '—';
           html += '<div class="prop-item"><div class="prop-label">Арендная плата</div>' +
             '<div class="prop-value">' + escapeHtml(String(props.rent_monthly)) + ' руб./мес.' +
             (vat > 0 ? '<br><span style="font-size:12px;color:var(--text-secondary)">в т.ч. НДС (' + vat + '%) = ' + vatAmount + ' руб.</span>' : '') +
