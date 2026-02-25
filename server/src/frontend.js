@@ -1111,11 +1111,10 @@ function closeRoComment(index) {
 function _roRoomCreateMiniForm(index) {
   var h = '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
   h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">🚪 Новое помещение</div>';
-  h += '<div class="form-group"><label>Тип помещения</label>';
-  h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%" onchange="onRoRoomTypeChange(this,' + index + ')"><option value="">—</option>';
-  ROOM_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
-  h += '<option value="__custom__">Другое...</option></select>';
-  h += '<input class="ro-room-type-custom" data-idx="' + index + '" placeholder="Введите тип" style="display:none;margin-top:4px;width:100%"></div>';
+  h += '<div class="form-group"><label>Тип объекта</label>';
+  h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
+  OBJECT_TYPES.forEach(function(rt) { h += '<option value="' + escapeHtml(rt) + '">' + escapeHtml(rt) + '</option>'; });
+  h += '</select></div>';
   h += '<div class="form-group"><label>Корпус</label><select class="ro-room-building" data-idx="' + index + '" style="width:100%"><option value="">— не указан —</option>';
   _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
   h += '</select></div>';
@@ -1378,7 +1377,7 @@ async function submitRentEquipmentCreate(el) {
 // ─── Room select (no __new__ — uses dedicated create button) ───
 function renderRoRoomSelect(index, selectedId) {
   var selId = parseInt(selectedId) || 0;
-  var h = '<select class="ro-field" data-idx="' + index + '" data-name="room_id" style="width:100%">';
+  var h = '<select class="ro-field" data-idx="' + index + '" data-name="room_id" style="width:100%" onchange="onRoRoomSelect(this,' + index + ')">';
   h += '<option value="">— выберите помещение —</option>';
   _rooms.forEach(function(e) {
     var sel = (e.id === selId) ? ' selected' : '';
@@ -1386,6 +1385,23 @@ function renderRoRoomSelect(index, selectedId) {
   });
   h += '</select>';
   return h;
+}
+
+function onRoRoomSelect(sel, index) {
+  var roomId = parseInt(sel.value) || 0;
+  if (!roomId) return;
+  var room = _rooms.find(function(r) { return r.id === roomId; });
+  if (!room || !room.properties) return;
+  var objType = room.properties.object_type || '';
+  if (!objType) return;
+  var typeSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type"]');
+  if (!typeSel) return;
+  if (!Array.from(typeSel.options).some(function(o) { return o.value === objType; })) {
+    var opt = document.createElement('option');
+    opt.value = objType; opt.textContent = objType;
+    typeSel.appendChild(opt);
+  }
+  typeSel.value = objType;
 }
 
 function onRoRoomTypeChange(sel, index) {
@@ -1411,7 +1427,7 @@ async function submitRentRoomCreate(btn, index) {
   if (!block) return;
   var typeEl = block.querySelector('.ro-room-type');
   var typeCustomEl = block.querySelector('.ro-room-type-custom');
-  var roomType = (typeEl && typeEl.value === '__custom__') ? (typeCustomEl ? typeCustomEl.value.trim() : '') : (typeEl ? typeEl.value : '');
+  var roomType = typeEl ? typeEl.value : '';
   var bldEl = block.querySelector('.ro-room-building');
   var descEl = block.querySelector('.ro-room-desc');
   var areaEl = block.querySelector('.ro-room-area');
@@ -1429,7 +1445,7 @@ async function submitRentRoomCreate(btn, index) {
   var roomTypeObj = entityTypes.find(function(t) { return t.name === 'room'; });
   if (!roomTypeObj) return alert('\u0422\u0438\u043f \u041f\u043e\u043c\u0435\u0449\u0435\u043d\u0438\u0435 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d');
   var props = {};
-  if (roomType) props.room_type = roomType;
+  if (roomType) props.object_type = roomType;
   if (descEl && descEl.value.trim()) props.description = descEl.value.trim();
   if (areaEl && areaEl.value) props.area = parseFloat(areaEl.value) || 0;
   if (floorEl && floorEl.value.trim()) props.floor = floorEl.value.trim();
