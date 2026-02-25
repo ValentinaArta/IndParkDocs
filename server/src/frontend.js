@@ -658,19 +658,27 @@ var _actEquipmentList = null;  // filtered to contract's equipment when creating
 
 function _renderActItem(item, rowId) {
   var eqList = _actEquipmentList || _equipment;
-  var h = '<div class="act-item-row" data-row="' + rowId + '" style="display:grid;grid-template-columns:2fr 1fr 3fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover)">';
-  h += '<div><label style="font-size:11px;color:var(--text-muted)">Оборудование *</label>';
+  var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover)">';
+  // Row 1: equipment + amount + delete
+  h += '<div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 *</label>';
   h += '<select class="act-item-eq" style="width:100%;margin-top:2px"><option value="">— выберите —</option>';
   eqList.forEach(function(e) {
     var sel = (e.id === parseInt(item.equipment_id)) ? ' selected' : '';
     h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
   });
   h += '</select></div>';
-  h += '<div><label style="font-size:11px;color:var(--text-muted)">Сумма, ₽</label>';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u0421\u0443\u043c\u043c\u0430, \u20bd</label>';
   h += '<input type="number" class="act-item-amount" value="' + (item.amount || '') + '" placeholder="0" style="width:100%;margin-top:2px" oninput="recalcActTotal()"></div>';
+  h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="actItemRemove(this)">\xd7</button>';
+  h += '</div>';
+  // Row 2: description + comment side by side
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0430\u0431\u043e\u0442</label>';
+  h += '<textarea class="act-item-desc" placeholder="\u0447\u0442\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e..." style="width:100%;margin-top:2px;resize:vertical;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.description || '') + '</textarea></div>';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439</label>';
-  h += '<textarea class="act-item-desc" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:vertical;min-height:60px;font-size:12px">' + escapeHtml(item.description || '') + '</textarea></div>';
-  h += '<button type="button" class="btn btn-sm" style="color:var(--danger);margin-bottom:2px" onclick="actItemRemove(this)">×</button>';
+  h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:vertical;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
+  h += '</div>';
   h += '</div>';
   return h;
 }
@@ -703,7 +711,7 @@ function actItemRemove(btn) {
   var rows = container.querySelectorAll('.act-item-row');
   if (rows.length <= 1) {
     var row0 = btn.closest('.act-item-row');
-    if (row0) { row0.querySelector('.act-item-eq').value = ''; row0.querySelector('.act-item-amount').value = ''; row0.querySelector('.act-item-desc').value = ''; }
+    if (row0) { row0.querySelector('.act-item-eq').value = ''; row0.querySelector('.act-item-amount').value = ''; row0.querySelector('.act-item-desc').value = ''; var cmt = row0.querySelector('.act-item-comment'); if (cmt) cmt.value = ''; }
     recalcActTotal(); return;
   }
   var row = btn.closest('.act-item-row');
@@ -728,7 +736,8 @@ function getActItemsValue() {
     if (!eqSel || !eqSel.value) return;
     var eqId = parseInt(eqSel.value);
     var eqEnt = _equipment.find(function(e) { return e.id === eqId; });
-    result.push({ equipment_id: eqId, equipment_name: eqEnt ? eqEnt.name : '', amount: parseFloat(amtEl ? amtEl.value : 0) || 0, description: descEl ? descEl.value.trim() : '' });
+    var cmtEl = row.querySelector('.act-item-comment');
+    result.push({ equipment_id: eqId, equipment_name: eqEnt ? eqEnt.name : '', amount: parseFloat(amtEl ? amtEl.value : 0) || 0, description: descEl ? descEl.value.trim() : '', comment: cmtEl ? cmtEl.value.trim() : '' });
   });
   return result;
 }
@@ -4181,12 +4190,17 @@ function renderWorkHistoryTable(rows) {
     }
     var date = r.act_date || '';
     if (!eqMap[r.eq_id].cells[date]) {
-      eqMap[r.eq_id].cells[date] = { descriptions: [], amount: 0, actIds: [], actNames: [] };
+      eqMap[r.eq_id].cells[date] = { descriptions: [], comments: [], amount: 0, actIds: [], actNames: [] };
     }
     var cell = eqMap[r.eq_id].cells[date];
     if (r.description && r.description.trim()) {
       if (cell.descriptions.indexOf(r.description.trim()) < 0) {
         cell.descriptions.push(r.description.trim());
+      }
+    }
+    if (r.comment && r.comment.trim()) {
+      if (cell.comments.indexOf(r.comment.trim()) < 0) {
+        cell.comments.push(r.comment.trim());
       }
     }
     cell.amount += r.amount || 0;
@@ -4231,15 +4245,23 @@ function renderWorkHistoryTable(rows) {
     // Date cells
     dates.forEach(function(date) {
       var cell = eq.cells[date];
-      if (!cell || (cell.descriptions.length === 0 && cell.amount === 0)) {
+      if (!cell || (cell.descriptions.length === 0 && (!cell.comments || cell.comments.length === 0) && cell.amount === 0)) {
         h += '<td style="padding:8px 12px;border:1px solid var(--border);background:' + bg + ';text-align:center;color:var(--text-muted);vertical-align:top">\u2014</td>';
       } else {
         h += '<td style="padding:8px 12px;border:1px solid var(--border);background:' + bg + ';vertical-align:top">';
-        // List of work descriptions
+        // Описание работ
         if (cell.descriptions.length > 0) {
           h += '<div style="font-size:12px;line-height:1.5">';
           cell.descriptions.forEach(function(desc) {
             h += '<div style="margin-bottom:2px">' + escapeHtml(desc) + '</div>';
+          });
+          h += '</div>';
+        }
+        // Комментарий
+        if (cell.comments && cell.comments.length > 0) {
+          h += '<div style="font-size:11px;color:var(--text-muted);margin-top:3px;font-style:italic">';
+          cell.comments.forEach(function(c) {
+            h += '<div>' + escapeHtml(c) + '</div>';
           });
           h += '</div>';
         }

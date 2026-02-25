@@ -409,6 +409,7 @@ router.get('/work-history', authenticate, asyncHandler(async (req, res) => {
       act_date: r.act_date || '',
       act_number: r.act_number || '',
       description: item ? (item.description || '') : '',
+      comment: item ? (item.comment || '') : '',
       amount: item ? (parseFloat(item.amount) || 0) : 0,
     };
   });
