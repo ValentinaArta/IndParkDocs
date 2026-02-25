@@ -324,6 +324,11 @@ async function runMigration010() {
        ON CONFLICT (entity_type_id,name) DO NOTHING`,
       [actId]
     );
+    // Change comment field to textarea for better UX on long texts
+    await pool.query(
+      `UPDATE field_definitions SET field_type='textarea' WHERE entity_type_id=$1 AND name='comment'`,
+      [actId]
+    );
     console.log('Migration 010 applied successfully');
   } catch(e) {
     console.error('Migration 010 error (non-fatal):', e.message);

@@ -672,12 +672,12 @@ function _renderActItem(item, rowId) {
   h += '<input type="number" class="act-item-amount" value="' + (item.amount || '') + '" placeholder="0" style="width:100%;margin-top:2px" oninput="recalcActTotal()"></div>';
   h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="actItemRemove(this)">\xd7</button>';
   h += '</div>';
-  // Row 2: description + comment side by side
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  // Row 2: description + comment stacked (full width, both-resizable)
+  h += '<div style="display:flex;flex-direction:column;gap:6px">';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0430\u0431\u043e\u0442</label>';
-  h += '<textarea class="act-item-desc" placeholder="\u0447\u0442\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e..." style="width:100%;margin-top:2px;resize:vertical;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.description || '') + '</textarea></div>';
+  h += '<textarea class="act-item-desc" placeholder="\u0447\u0442\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e..." style="width:100%;margin-top:2px;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.description || '') + '</textarea></div>';
   h += '<div><label style="font-size:11px;color:var(--text-muted)">\u0420\u0430\u0431\u043e\u0442\u044b/\u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f</label>';
-  h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:vertical;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
+  h += '<textarea class="act-item-comment" placeholder="\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435, \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f..." style="width:100%;margin-top:2px;resize:both;min-height:56px;font-size:12px;box-sizing:border-box">' + escapeHtml(item.comment || '') + '</textarea></div>';
   h += '</div>';
   h += '</div>';
   return h;
@@ -785,7 +785,7 @@ function renderFieldInput(f, value) {
   } else if (f.field_type === 'number') {
     return '<input type="number" id="' + id + '" value="' + val + '">';
   } else if (f.field_type === 'textarea') {
-    return '<textarea id="' + id + '" style="width:100%;resize:vertical;min-height:72px;box-sizing:border-box">' + escapeHtml(String(val)) + '</textarea>';
+    return '<textarea id="' + id + '" style="width:100%;resize:both;min-height:72px;box-sizing:border-box">' + escapeHtml(String(val)) + '</textarea>';
   } else {
     return '<input id="' + id + '" value="' + escapeHtml(String(val)) + '">';
   }
@@ -3679,8 +3679,8 @@ async function openCreateActModal(parentContractId) {
   html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-hover);border-radius:6px">Договор-основание: <strong>' + escapeHtml(parentEntity.name) + '</strong><br>Оборудование: ' + eqNote + '</div>';
   html += '<div class="form-group"><label>Номер акта *</label><input id="f_act_number" placeholder="№ акта"></div>';
   html += '<div class="form-group"><label>Дата акта</label><input type="date" id="f_act_date"></div>';
-  html += '<div class="form-group"><label>Комментарий</label><input id="f_comment" placeholder="примечание к акту"></div>';
-  html += '<div class="form-group"><label>Заключение</label><textarea id="f_conclusion" placeholder="итоговое заключение по акту..." style="width:100%;resize:vertical;min-height:72px;box-sizing:border-box"></textarea></div>';
+  html += '<div class="form-group"><label>Комментарий</label><textarea id="f_comment" placeholder="примечание к акту" style="width:100%;resize:both;min-height:48px;box-sizing:border-box"></textarea></div>';
+  html += '<div class="form-group"><label>Заключение</label><textarea id="f_conclusion" placeholder="итоговое заключение по акту..." style="width:100%;resize:both;min-height:72px;box-sizing:border-box"></textarea></div>';
   html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="0" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
   html += '<div class="form-group"><label>Оборудование и работы *</label>' + renderActItemsField([]) + '</div>';
 
