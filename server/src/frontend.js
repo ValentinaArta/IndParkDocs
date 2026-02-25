@@ -1091,7 +1091,7 @@ function renderRentObjectBlock(index, obj) {
 
     if (calcMode === 'area_rate') {
       h += '<div class="form-group"><label>Площадь (м²)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="area" value="' + (obj.area || '') + '" oninput="recalcRentMonthly()"></div>';
-      h += '<div class="form-group"><label>Арендная ставка (руб/м²)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
+      h += '<div class="form-group"><label>Арендная ставка (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
       var objTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
       if (objTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + objTotal.toFixed(2) + ' руб.</div>';
     } else {
@@ -3752,7 +3752,7 @@ var RENT_COLS = [
   { key: 'object_type',      label: '\u0422\u0438\u043f',              w: 110 },
   { key: 'building',         label: '\u041a\u043e\u0440\u043f\u0443\u0441',           w: 80 },
   { key: 'area',             label: '\u041f\u043b\u043e\u0449\u0430\u0434\u044c, \u043c\xb2',    w: 80,  fmt: 'num1' },
-  { key: 'rent_rate',        label: '\u0421\u0442\u0430\u0432\u043a\u0430, \u20bd/\u043c\xb2',   w: 90,  fmt: 'num0' },
+  { key: 'rent_rate',        label: '\u0421\u0442\u0430\u0432\u043a\u0430, \u20bd/\u043c\xb2/\u043c\u0435\u0441', w: 100, fmt: 'num0' },
   { key: 'annual_amount',    label: '\u0421\u0443\u043c\u043c\u0430/\u0433\u043e\u0434, \u20bd',  w: 110, fmt: 'num0' },
   { key: 'monthly_amount',   label: '\u0421\u0443\u043c\u043c\u0430/\u043c\u0435\u0441, \u20bd',  w: 110, fmt: 'num0' },
   { key: 'contract_end_date',label: '\u0421\u0440\u043e\u043a \u0434\u043e',       w: 90,  fmt: 'date' },
@@ -3940,7 +3940,7 @@ function _buildGroupedRentTable(rows) {
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + '">' + escapeHtml(row.contractor_name || '') + '</td>';
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + '">' + escapeHtml(row.object_type || '') + ' / ' + escapeHtml(row.building || '') + '</td>';
         h += '<td style="padding:4px 8px;border:1px solid var(--border);background:' + bg + ';text-align:right">';
-        h += _fmtRentNum(row.area, 1) + ' \u043c\xb2 &middot; ' + _fmtRentNum(row.rent_rate, 0) + ' = ' + _fmtRentNum(row.annual_amount, 0) + ' \u20bd';
+        h += _fmtRentNum(row.area, 1) + ' \u043c\xb2 &middot; ' + _fmtRentNum(row.rent_rate, 0) + ' = ' + _fmtRentNum(row.monthly_amount, 0) + ' \u20bd/\u043c\u0435\u0441';
         h += '</td></tr>';
       });
     }

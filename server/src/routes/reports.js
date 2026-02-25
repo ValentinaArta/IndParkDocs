@@ -334,7 +334,9 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
       seq++;
       const area = parseFloat(ro.area) || 0;
       const rate = parseFloat(ro.rent_rate) || 0;
-      const annual = area * rate;
+      // rent_rate is per m² per MONTH (same as contract form recalcRentMonthly)
+      const monthly = area * rate;
+      const annual = monthly * 12;
       rows.push({
         seq, contract_id: c.id, contract_name: c.name,
         contract_type: c.contract_type || '', contract_number: c.contract_number || '',
@@ -343,7 +345,7 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
         object_type: ro.object_type || '', building: ro.building || '',
         rent_scope: ro.rent_scope || '',
-        area, rent_rate: rate, annual_amount: annual, monthly_amount: annual / 12,
+        area, rent_rate: rate, annual_amount: annual, monthly_amount: monthly,
         comment: ro.comment || '', room: ro.room || ''
       });
     });
