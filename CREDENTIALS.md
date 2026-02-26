@@ -11,9 +11,12 @@
 
 ## Credentials
 
-### Neon PostgreSQL (добавлено 2026-02-26)
+### IndParkDocs — DATABASE_URL (Neon PostgreSQL, добавлено 2026-02-26)
 ```
 postgresql://neondb_owner:npg_qbJf1MtSTDe8@ep-ancient-math-alg2359y-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require
 ```
-- **Для чего**: уточнить у Валентины (Neon cloud DB, возможно для Metabase или новой инфраструктуры)
+- **Для чего**: Основная база данных IndParkDocs (DATABASE_URL в Render)
+- **Хост**: ep-ancient-math-alg2359y-pooler.c-3.eu-central-1.aws.neon.tech
+- **База**: neondb
+- **Пользователь**: neondb_owner
 - **Добавил**: 2026-02-26
