@@ -2846,18 +2846,18 @@ function _mapRenderShapes() {
     // Labels are rendered as HTML in _mapRenderLabels()
     // Edit + Delete handles in edit mode — placed at zone center so they don't block adjacent drawing
     if (_mapEditMode) {
-      var cr = (2.5/z).toFixed(3), cf = (3.2/z).toFixed(3);
-      var gap = (6/z);
+      var cr = (1.2/z).toFixed(3), cf = (1.6/z).toFixed(3);
+      var gap = (2.8/z);
       var bx = cx, by = cy;   // center of shape (cx/cy already computed above)
       // Edit button (pencil) — left of center
       h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapOpenEditModal('+i+')" style="cursor:pointer">'
-         + '<circle cx="'+(bx-gap/2)+'" cy="'+by+'" r="'+cr+'" fill="#3b82f6" stroke="rgba(255,255,255,0.8)" stroke-width="'+(0.5/z).toFixed(3)+'"/>'
-         + '<text x="'+(bx-gap/2)+'" y="'+(by+1/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">✎</text>'
+         + '<circle cx="'+(bx-gap/2)+'" cy="'+by+'" r="'+cr+'" fill="#3b82f6" stroke="rgba(255,255,255,0.7)" stroke-width="'+(0.3/z).toFixed(3)+'"/>'
+         + '<text x="'+(bx-gap/2)+'" y="'+(by+0.5/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">✎</text>'
          + '</g>';
       // Delete button (×) — right of center
       h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapDeleteHotspot('+i+')" style="cursor:pointer">'
-         + '<circle cx="'+(bx+gap/2)+'" cy="'+by+'" r="'+cr+'" fill="#ef4444" stroke="rgba(255,255,255,0.8)" stroke-width="'+(0.5/z).toFixed(3)+'"/>'
-         + '<text x="'+(bx+gap/2)+'" y="'+(by+1/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">×</text>'
+         + '<circle cx="'+(bx+gap/2)+'" cy="'+by+'" r="'+cr+'" fill="#ef4444" stroke="rgba(255,255,255,0.7)" stroke-width="'+(0.3/z).toFixed(3)+'"/>'
+         + '<text x="'+(bx+gap/2)+'" y="'+(by+0.5/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">×</text>'
          + '</g>';
     }
   });
