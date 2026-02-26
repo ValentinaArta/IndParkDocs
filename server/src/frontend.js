@@ -4868,7 +4868,8 @@ async function _doSubmitEdit(id) {
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
   const fParentEl = document.getElementById('f_parent');
   const parent_id = isContractLike ? (e.parent_id || null) : (e.type_name === 'act' ? e.parent_id : (fParentEl ? fParentEl.value || null : null));
-  const properties = {};
+  // Start with existing properties to preserve map coords, owner_id and other "extra" fields
+  const properties = Object.assign({}, e.properties || {});
   fields.forEach(f => { properties[f.name] = getFieldValue(f); });
   // For acts: preserve hidden service fields
   if (e.type_name === 'act') {
