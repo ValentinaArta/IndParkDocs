@@ -615,30 +615,39 @@ async function createBIViews() {
       WHERE et.name = 'supplement' AND e.deleted_at IS NULL`);
 
     // v_bi_rent_objects — rent objects array exploded (one row per rented object)
+    // Fix: rent_objects stored as JSON string → cast via ->>'rent_objects')::jsonb
+    // Fix: correct field names: area (not total_area), room (not object_name)
     await pool.query(`CREATE OR REPLACE VIEW v_bi_rent_objects AS
       SELECT
         e.id AS contract_id,
         e.name AS contract_name,
-        e.properties->>'contract_type'   AS contract_type,
-        e.properties->>'contractor_name' AS tenant_name,
+        e.properties->>'contract_type'    AS contract_type,
+        e.properties->>'contractor_name'  AS tenant_name,
         e.properties->>'our_legal_entity' AS landlord_name,
         e.properties->>'contract_date'    AS contract_date,
         e.properties->>'contract_end_date' AS contract_end_date,
         COALESCE(NULLIF(e.properties->>'vat_rate','')::numeric, 22) AS vat_rate,
-        obj->>'object_name'   AS object_name,
-        obj->>'object_type'   AS object_type,
-        NULLIF(obj->>'total_area','')::numeric   AS area_sqm,
-        NULLIF(obj->>'rent_rate','')::numeric     AS rate_per_sqm,
-        NULLIF(obj->>'monthly_amount','')::numeric AS monthly_amount
+        obj->>'room'        AS room_name,
+        obj->>'building'    AS building_name,
+        obj->>'object_type' AS object_type,
+        obj->>'comment'     AS comment,
+        NULLIF(obj->>'area','')::numeric       AS area_sqm,
+        NULLIF(obj->>'rent_rate','')::numeric   AS rate_per_sqm,
+        ROUND(
+          COALESCE(NULLIF(obj->>'area','')::numeric, 0)
+          * COALESCE(NULLIF(obj->>'rent_rate','')::numeric, 0),
+          2
+        ) AS monthly_amount_net
       FROM entities e
       JOIN entity_types et ON e.entity_type_id = et.id
       CROSS JOIN LATERAL jsonb_array_elements(
-        CASE WHEN jsonb_typeof(e.properties->'rent_objects')='array'
-             THEN e.properties->'rent_objects' ELSE '[]'::jsonb END
+        (e.properties->>'rent_objects')::jsonb
       ) AS obj
       WHERE et.name IN ('contract','supplement')
         AND e.deleted_at IS NULL
-        AND jsonb_typeof(e.properties->'rent_objects') = 'array'`);
+        AND e.properties->>'rent_objects' IS NOT NULL
+        AND e.properties->>'rent_objects' != ''
+        AND e.properties->>'rent_objects' != '[]'`);
 
     // v_bi_equipment — equipment with building and owner
     await pool.query(`CREATE OR REPLACE VIEW v_bi_equipment AS
