@@ -2834,21 +2834,20 @@ function _mapRenderShapes() {
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
     // Labels are rendered as HTML in _mapRenderLabels()
-    // Edit + Delete handles in edit mode
+    // Edit + Delete handles in edit mode — placed at zone center so they don't block adjacent drawing
     if (_mapEditMode) {
-      var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
-      var dy = hs.shape==='rect' ? hs.y         : hs.points[0][1];
-      var cr = (2/z).toFixed(3), cf = (3/z).toFixed(3);
-      var gap = (5/z);
-      // Edit button (pencil) — to the left of delete
+      var cr = (2.5/z).toFixed(3), cf = (3.2/z).toFixed(3);
+      var gap = (6/z);
+      var bx = cx, by = cy;   // center of shape (cx/cy already computed above)
+      // Edit button (pencil) — left of center
       h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapOpenEditModal('+i+')" style="cursor:pointer">'
-         + '<circle cx="'+(dx-gap)+'" cy="'+dy+'" r="'+cr+'" fill="#3b82f6"/>'
-         + '<text x="'+(dx-gap)+'" y="'+(dy+0.7/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">✎</text>'
+         + '<circle cx="'+(bx-gap/2)+'" cy="'+by+'" r="'+cr+'" fill="#3b82f6" stroke="rgba(255,255,255,0.8)" stroke-width="'+(0.5/z).toFixed(3)+'"/>'
+         + '<text x="'+(bx-gap/2)+'" y="'+(by+1/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">✎</text>'
          + '</g>';
-      // Delete button (×)
+      // Delete button (×) — right of center
       h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapDeleteHotspot('+i+')" style="cursor:pointer">'
-         + '<circle cx="'+dx+'" cy="'+dy+'" r="'+cr+'" fill="#ef4444"/>'
-         + '<text x="'+dx+'" y="'+(dy+0.7/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">×</text>'
+         + '<circle cx="'+(bx+gap/2)+'" cy="'+by+'" r="'+cr+'" fill="#ef4444" stroke="rgba(255,255,255,0.8)" stroke-width="'+(0.5/z).toFixed(3)+'"/>'
+         + '<text x="'+(bx+gap/2)+'" y="'+(by+1/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">×</text>'
          + '</g>';
     }
   });
