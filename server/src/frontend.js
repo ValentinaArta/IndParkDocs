@@ -2500,13 +2500,12 @@ function _mapRenderShapes() {
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
     var lbl = escapeHtml(hs.entity_name);
-    var fs = (0.95/z).toFixed(3);
-    var tW = Math.max(lbl.length * 0.52/z + 1.2/z, 5/z);
-    var tH = 1.9/z;
-    h += '<rect x="'+(cx-tW/2)+'" y="'+(cy-tH/2)+'" width="'+tW+'" height="'+tH+'"'
-       + ' rx="'+(0.4/z)+'" ry="'+(0.4/z)+'" fill="rgba(255,255,255,0.88)" style="pointer-events:none"/>';
+    var fs = (3.5/z).toFixed(3);
+    var sw2 = (0.6/z).toFixed(3);
     h += '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="middle"'
-       + ' font-size="'+fs+'" font-weight="600" fill="#1a1a2e" style="pointer-events:none">'+lbl+'</text>';
+       + ' font-size="'+fs+'" font-weight="700" fill="white"'
+       + ' stroke="#1a1a2e" stroke-width="'+sw2+'" paint-order="stroke fill"'
+       + ' style="pointer-events:none">'+lbl+'</text>';
     // Delete handle in edit mode
     if (_mapEditMode) {
       var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
