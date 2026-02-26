@@ -32,6 +32,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .nav-item .icon { font-size: 16px; width: 24px; text-align: center; }
 .nav-item .count { margin-left: auto; background: rgba(255,255,255,0.15); padding: 1px 8px; border-radius: 10px; font-size: 11px; }
 .nav-section { padding: 16px 12px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.3); }
+.nav-sub-item { padding: 5px 8px 5px 28px; font-size: 12px; cursor: pointer; color: rgba(255,255,255,0.65); border-radius: 4px; margin: 1px 4px; display: flex; align-items: center; gap: 4px; }
+.nav-sub-item:hover { background: rgba(255,255,255,0.1); color: white; }
+.nav-sub-item.active { background: rgba(255,255,255,0.15); color: white; }
 
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .topbar { padding: 16px 24px; background: var(--bg-card); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
@@ -201,7 +204,6 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       <div class="nav-item active" onclick="showDashboard()">
         <span class="icon">📊</span> Обзор
       </div>
-      <div class="nav-section">Типы сущностей</div>
       <div id="typeNav"></div>
       <div class="nav-section" style="margin-top:12px">Аналитика</div>
       <div class="nav-item" onclick="showReports()">
@@ -2065,28 +2067,104 @@ async function init() {
   }
 }
 
+// Navigation tree state
+var _navParentType = { room: 'building', land_plot_part: 'land_plot' };
+
+function _navGroupHtml(name, icon, label) {
+  return '<div style="margin:0 4px 1px">' +
+    '<div class="nav-item" data-type="' + name + '" style="display:flex;align-items:center;padding:0">' +
+      '<span id="navArrow_' + name + '" data-group="' + name + '"' +
+        ' onclick="event.stopPropagation();toggleNavGroup(this.dataset.group)"' +
+        ' style="width:22px;text-align:center;font-size:10px;color:rgba(255,255,255,0.4);cursor:pointer;flex-shrink:0;padding:8px 0">▶</span>' +
+      '<span style="flex:1;padding:8px 4px 8px 2px;cursor:pointer" data-etype="' + name + '"' +
+        ' onclick="showEntityList(this.dataset.etype)">' + icon + ' ' + label + '</span>' +
+    '</div>' +
+    '<div id="navgroup_' + name + '" style="display:none"></div>' +
+  '</div>';
+}
+
+async function toggleNavGroup(name) {
+  var children = document.getElementById('navgroup_' + name);
+  var arrow = document.getElementById('navArrow_' + name);
+  if (!children) return;
+  var isOpen = children.style.display !== 'none';
+  children.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+  if (!isOpen && children.innerHTML.trim() === '') {
+    children.innerHTML = '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Загрузка...</div>';
+    try { await _navLoadGroupChildren(name, children); }
+    catch(e) { children.innerHTML = '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Ошибка загрузки</div>'; }
+  }
+}
+
+async function _navLoadGroupChildren(name, container) {
+  var h = '';
+  if (name === 'building') {
+    var buildings = await api('/entities?type=building');
+    if (buildings.length === 0) {
+      container.innerHTML = '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Нет корпусов</div>';
+      return;
+    }
+    buildings.forEach(function(b) {
+      h += '<div class="nav-sub-item" data-etype="room" data-parent="' + b.id + '" data-title="' + escapeHtml(b.name) + '" onclick="navSubClick(this)">' +
+        '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> ' + escapeHtml(b.name) + '</div>';
+    });
+  } else if (name === 'company') {
+    h = '<div class="nav-sub-item" data-etype="company" data-isown="true" onclick="navSubClick(this)">' +
+          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> 🏢 Наши</div>' +
+        '<div class="nav-sub-item" data-etype="company" data-isown="false" onclick="navSubClick(this)">' +
+          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> 🏛 Сторонние</div>';
+  } else if (name === 'land_plot') {
+    var plots = await api('/entities?type=land_plot');
+    if (plots.length === 0) {
+      container.innerHTML = '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Нет участков</div>';
+      return;
+    }
+    plots.forEach(function(p) {
+      h += '<div class="nav-sub-item" data-etype="land_plot_part" data-parent="' + p.id + '" data-title="' + escapeHtml(p.name) + '" onclick="navSubClick(this)">' +
+        '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> ' + escapeHtml(p.name) + '</div>';
+    });
+  }
+  container.innerHTML = h;
+}
+
+function navSubClick(el) {
+  document.querySelectorAll('.nav-sub-item').forEach(function(i) { i.classList.remove('active'); });
+  el.classList.add('active');
+  var type = el.dataset.etype;
+  var parentId = el.dataset.parent ? parseInt(el.dataset.parent) : null;
+  var isOwn = el.dataset.isown;
+  var opts = {};
+  if (parentId) opts.parentId = parentId;
+  if (el.dataset.title) opts.subtitle = el.dataset.title;
+  if (isOwn === 'true') opts.isOwn = true;
+  else if (isOwn === 'false') opts.isOwn = false;
+  showEntityList(type, opts);
+}
+
 function renderTypeNav() {
   const nav = document.getElementById('typeNav');
-  // Documents first, then the rest
-  const docTypes = entityTypes.filter(t => t.name === 'contract' || t.name === 'supplement');
-  const otherTypes = entityTypes.filter(t => t.name !== 'contract' && t.name !== 'supplement');
+  const T = function(name) { return entityTypes.find(function(t) { return t.name === name; }) || {name: name, icon: '📄', name_ru: name}; };
 
-  var html = '';
-  if (docTypes.length > 0) {
-    docTypes.forEach(function(t) {
-      html += '<div class="nav-item" data-type="' + t.name + '" onclick="showEntityList(\\'' + t.name + '\\')">' +
-        '<span class="icon">' + t.icon + '</span> ' + t.name_ru +
-        '<span class="count" id="count_' + t.name + '">-</span></div>';
-    });
-  }
-  if (otherTypes.length > 0) {
-    html += '<div class="nav-section" style="margin-top:8px">Реестры</div>';
-    otherTypes.forEach(function(t) {
-      html += '<div class="nav-item" data-type="' + t.name + '" onclick="showEntityList(\\'' + t.name + '\\')">' +
-        '<span class="icon">' + t.icon + '</span> ' + t.name_ru +
-        '<span class="count" id="count_' + t.name + '">-</span></div>';
-    });
-  }
+  var html = '<div class="nav-section" style="padding-top:12px">Документы</div>';
+
+  // Документы: договоры, ДС, акты, приказы
+  ['contract', 'supplement', 'act', 'order'].forEach(function(tn) {
+    var t = T(tn);
+    html += '<div class="nav-item" data-type="' + tn + '" data-etype="' + tn + '" onclick="showEntityList(this.dataset.etype)">' +
+      '<span class="icon">' + escapeHtml(t.icon) + '</span> ' + escapeHtml(t.name_ru || tn) + '</div>';
+  });
+
+  // Реестры: корпуса (дерево), компании, ЗУ (дерево), оборудование
+  html += '<div class="nav-section" style="margin-top:8px">Реестры</div>';
+  html += _navGroupHtml('building', '🏢', 'Корпуса');
+  html += _navGroupHtml('company', '🏛', 'Компании');
+  html += _navGroupHtml('land_plot', '🌍', 'Земельные участки');
+
+  var eq = T('equipment');
+  html += '<div class="nav-item" data-type="equipment" data-etype="equipment" onclick="showEntityList(this.dataset.etype)">' +
+    '<span class="icon">' + escapeHtml(eq.icon) + '</span> ' + escapeHtml(eq.name_ru || 'Оборудование') + '</div>';
+
   nav.innerHTML = html;
 }
 
@@ -2153,18 +2231,32 @@ async function saveParent(entityId) {
 
 // ============ ENTITY LIST ============
 
-async function showEntityList(typeName) {
+async function showEntityList(typeName, opts) {
+  opts = opts || {};
   currentView = 'list';
   currentTypeFilter = typeName;
   const type = entityTypes.find(t => t.name === typeName);
-  setActive('[data-type="' + typeName + '"]');
-  document.getElementById('pageTitle').textContent = type ? type.name_ru : typeName;
-  document.getElementById('breadcrumb').textContent = '';
+
+  // Highlight parent group in nav when showing filtered sub-list
+  var activeType = (_navParentType[typeName] && opts.parentId != null) ? _navParentType[typeName] : typeName;
+  setActive('[data-type="' + activeType + '"]');
+
+  // Page title
+  var title = type ? type.name_ru : typeName;
+  if (opts.isOwn === true) title = 'Наши компании';
+  else if (opts.isOwn === false) title = 'Сторонние компании';
+  document.getElementById('pageTitle').textContent = title;
+  document.getElementById('breadcrumb').textContent = opts.subtitle ? opts.subtitle : '';
   document.getElementById('topActions').innerHTML =
     '<input class="search-bar" placeholder="Поиск..." oninput="searchEntities(this.value)">' +
     '<button class="btn btn-primary" onclick="openCreateModal(\\'' + typeName + '\\')">+ Добавить</button>';
 
-  const entities = await api('/entities?type=' + typeName);
+  var url = '/entities?type=' + typeName;
+  if (opts.parentId) url += '&parent_id=' + opts.parentId;
+  if (opts.isOwn === true) url += '&is_own=true';
+  else if (opts.isOwn === false) url += '&is_own=false';
+
+  const entities = await api(url);
   if (typeName === 'equipment') await loadBrokenEquipment();
   renderEntityGrid(entities);
 }
