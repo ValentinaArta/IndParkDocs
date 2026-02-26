@@ -2304,6 +2304,7 @@ async function showMapPage() {
   html += '<defs></defs>';
   html += '<g id="mapShapes"></g><g id="mapDrawPreview"></g>';
   html += '</svg>';
+  html += '<div id="mapLabels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></div>';
   html += '</div></div></div>';
 
   document.getElementById('content').innerHTML = html;
@@ -2499,24 +2500,7 @@ function _mapRenderShapes() {
       cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
-    var lbl = escapeHtml(hs.entity_name);
-    // Adaptive font-size: fits within zone width and height
-    var zoneW, zoneH;
-    if (hs.shape === 'rect') {
-      zoneW = hs.w; zoneH = hs.h;
-    } else {
-      var xs = hs.points.map(function(p){return p[0];}), ys = hs.points.map(function(p){return p[1];});
-      zoneW = Math.max.apply(null,xs) - Math.min.apply(null,xs);
-      zoneH = Math.max.apply(null,ys) - Math.min.apply(null,ys);
-    }
-    var fitByW = zoneW / (hs.entity_name.length * 0.58);
-    var fitByH = zoneH * 0.22;
-    var fs = (Math.max(0.6, Math.min(fitByW, fitByH, 4)) / z).toFixed(3);
-    var sw2 = (parseFloat(fs) * 0.18).toFixed(3);
-    h += '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="middle"'
-       + ' font-size="'+fs+'" font-weight="700" fill="white"'
-       + ' stroke="rgba(0,0,0,0.7)" stroke-width="'+sw2+'" paint-order="stroke fill"'
-       + ' style="pointer-events:none">'+lbl+'</text>';
+    // Labels are rendered as HTML in _mapRenderLabels()
     // Delete handle in edit mode
     if (_mapEditMode) {
       var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
@@ -2529,6 +2513,30 @@ function _mapRenderShapes() {
     }
   });
   layer.innerHTML = h;
+  _mapRenderLabels();
+}
+
+// ── HTML labels (fixed pixel size, positioned by %) ───────────────────────────
+function _mapRenderLabels() {
+  var container = document.getElementById('mapLabels');
+  if (!container) return;
+  var h = '';
+  _mapHotspots.forEach(function(hs) {
+    var cx, cy;
+    if (hs.shape === 'rect') {
+      cx = hs.x + hs.w/2; cy = hs.y + hs.h/2;
+    } else {
+      cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
+      cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
+    }
+    h += '<div style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
+       + 'transform:translate(-50%,-50%);'
+       + 'font-size:13px;font-weight:700;color:white;line-height:1.2;text-align:center;'
+       + 'text-shadow:0 0 4px rgba(0,0,0,0.9),0 1px 3px rgba(0,0,0,0.8);'
+       + 'white-space:nowrap;pointer-events:none">'
+       + escapeHtml(hs.entity_name) + '</div>';
+  });
+  container.innerHTML = h;
 }
 
 // ── Render drawing preview ────────────────────────────────────────────────────
