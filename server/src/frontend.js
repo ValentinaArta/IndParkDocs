@@ -188,11 +188,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 /* Map page */
 .map-container { position:relative;display:inline-block;user-select:none; }
 .map-container img { display:block;max-width:100%;height:auto; }
-.map-hotspot { position:absolute;border:2px solid rgba(255,255,255,0.5);border-radius:4px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center; }
-.map-hotspot:hover { border-color:white;box-shadow:0 0 0 1px rgba(0,0,0,0.3);z-index:10; }
-.map-hotspot-label { font-size:9px;font-weight:600;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.8);text-align:center;padding:2px;line-height:1.2;pointer-events:none; }
-.map-hotspot-draw { position:absolute;border:2px dashed var(--accent);background:rgba(99,102,241,.15);pointer-events:none;z-index:20; }
 .map-editor-bar { display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap; }
+.map-shape { transition:fill-opacity .15s; }
+.map-shape:hover { fill-opacity:.65 !important; }
 </style>
 </head>
 <body>
@@ -2247,270 +2245,328 @@ function toggleSidebar() {
 // ============ INTERACTIVE MAP ============
 
 var _mapEditMode = false;
-var _mapHotspots = []; // [{entity_id, entity_name, type_name, x, y, w, h, color}]
-var _mapDrawing = null; // {startX, startY} during draw
+var _mapDrawTool  = 'rect';   // 'rect' | 'poly'
+var _mapHotspots  = [];       // [{shape, entity_id, entity_name, ...}]
+var _mapRectDraw  = null;     // {startX,startY,curX,curY} during rect drag
+var _mapPolyPts   = [];       // [[x,y],...] accumulating polygon vertices
+var _mapMousePos  = {x:0,y:0};// current cursor on map (% coords)
 
 async function showMapPage() {
   currentView = 'map';
   currentTypeFilter = null;
+  _mapEditMode = false; _mapDrawTool = 'rect'; _mapPolyPts = []; _mapRectDraw = null;
   setActive('.nav-item[onclick*="showMapPage"]');
   document.getElementById('pageTitle').textContent = 'Карта территории';
   document.getElementById('breadcrumb').textContent = '';
   document.getElementById('topActions').innerHTML = '';
 
-  // Load buildings and land_plots with map coordinates
   var buildings = await api('/entities?type=building');
-  var landPlots = await api('/entities?type=land_plot');
+  var landPlots  = await api('/entities?type=land_plot');
   _mapHotspots = [];
-
   buildings.concat(landPlots).forEach(function(e) {
     var p = e.properties || {};
-    if (p.map_x != null && p.map_y != null && p.map_w != null && p.map_h != null) {
-      _mapHotspots.push({
-        entity_id: e.id, entity_name: e.name, type_name: e.type_name,
-        x: parseFloat(p.map_x), y: parseFloat(p.map_y),
-        w: parseFloat(p.map_w), h: parseFloat(p.map_h),
-        color: p.map_color || 'rgba(99,102,241,0.3)'
-      });
+    if (p.map_shape === 'polygon' && p.map_points) {
+      try { var pts = JSON.parse(p.map_points);
+        _mapHotspots.push({ shape:'polygon', entity_id:e.id, entity_name:e.name, type_name:e.type_name, points:pts, color:p.map_color||'rgba(99,102,241,0.35)' });
+      } catch(ex) {}
+    } else if (p.map_x != null) {
+      _mapHotspots.push({ shape:'rect', entity_id:e.id, entity_name:e.name, type_name:e.type_name,
+        x:parseFloat(p.map_x), y:parseFloat(p.map_y), w:parseFloat(p.map_w), h:parseFloat(p.map_h), color:p.map_color||'rgba(99,102,241,0.35)' });
     }
   });
 
   var html = '<div style="padding:16px">';
   html += '<div class="map-editor-bar">';
-  html += '<button class="btn btn-sm" id="mapEditBtn" onclick="_mapToggleEdit()">' + icon('pencil', 14) + ' Разметить</button>';
-  html += '<span id="mapEditHint" style="display:none;font-size:12px;color:var(--text-muted)">Рисуйте прямоугольник мышью на карте, затем выберите объект</span>';
+  html += '<button class="btn btn-sm" id="mapEditBtn" onclick="_mapToggleEdit()">' + icon('pencil',14) + ' Разметить</button>';
+  html += '<span id="mapEditTools" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">';
+  html += '<button class="btn btn-sm btn-primary" id="mapToolRect" onclick="_mapSetTool(\\'rect\\')">' + icon('square',13) + ' Прямоугольник</button>';
+  html += '<button class="btn btn-sm" id="mapToolPoly" onclick="_mapSetTool(\\'poly\\')">' + icon('pentagon',13) + ' Многоугольник</button>';
+  html += '<span id="mapPolyStatus" style="font-size:12px;color:var(--text-muted);display:none"></span>';
+  html += '<button id="mapPolyCancelBtn" class="btn btn-sm" style="display:none" onclick="_mapPolyCancelDraw()">Отмена</button>';
+  html += '</span>';
   html += '</div>';
-  html += '<div class="map-container" id="mapContainer" style="position:relative;max-width:100%;overflow:auto">';
-  html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;max-width:100%;height:auto" draggable="false" onload="_mapRenderHotspots()">';
-  html += '<div id="mapOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>';
-  html += '<div id="mapDrawBox" class="map-hotspot-draw" style="display:none"></div>';
-  html += '</div>';
-  html += '</div>';
+  html += '<div class="map-container" id="mapContainer" style="position:relative;display:inline-block;max-width:100%;overflow:auto;cursor:default">';
+  html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;max-width:100%;height:auto;user-select:none" draggable="false">';
+  html += '<svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"';
+  html += ' style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
+  html += '<defs><filter id="mapTxtShadow" x="-20%" y="-20%" width="140%" height="140%">';
+  html += '<feDropShadow dx="0" dy="0.4" stdDeviation="0.7" flood-color="#000" flood-opacity="0.85"/></filter></defs>';
+  html += '<g id="mapShapes"></g><g id="mapDrawPreview"></g>';
+  html += '</svg>';
+  html += '</div></div>';
 
   document.getElementById('content').innerHTML = html;
   renderIcons();
-  _mapRenderHotspots();
-}
-
-function _mapRenderHotspots() {
-  var overlay = document.getElementById('mapOverlay');
-  if (!overlay) return;
-  var h = '';
-  _mapHotspots.forEach(function(hs, i) {
-    h += '<div class="map-hotspot" data-idx="' + i + '" ' +
-      'style="left:' + hs.x + '%;top:' + hs.y + '%;width:' + hs.w + '%;height:' + hs.h + '%;background:' + hs.color + '" ' +
-      'onclick="_mapHotspotClick(' + i + ')" ' +
-      'title="' + escapeHtml(hs.entity_name) + '">' +
-      '<span class="map-hotspot-label">' + escapeHtml(hs.entity_name) + '</span>';
-    if (_mapEditMode) {
-      h += '<button onclick="event.stopPropagation();_mapDeleteHotspot(' + i + ')" ' +
-        'style="position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:var(--red);color:white;border:none;cursor:pointer;font-size:11px;line-height:1;padding:0">×</button>';
-    }
-    h += '</div>';
-  });
-  overlay.innerHTML = h;
-}
-
-function _mapToggleEdit() {
-  _mapEditMode = !_mapEditMode;
-  var btn = document.getElementById('mapEditBtn');
-  var hint = document.getElementById('mapEditHint');
-  if (_mapEditMode) {
-    btn.classList.add('btn-primary');
-    btn.innerHTML = icon('check', 14) + ' Готово';
-    hint.style.display = '';
-    _mapBindDrawEvents();
-  } else {
-    btn.classList.remove('btn-primary');
-    btn.innerHTML = icon('pencil', 14) + ' Разметить';
-    hint.style.display = 'none';
-    _mapUnbindDrawEvents();
-  }
-  renderIcons();
-  _mapRenderHotspots();
-}
-
-function _mapBindDrawEvents() {
-  var container = document.getElementById('mapContainer');
-  container.style.cursor = 'crosshair';
-  container._onMouseDown = function(e) { _mapOnMouseDown(e); };
-  container._onMouseMove = function(e) { _mapOnMouseMove(e); };
-  container._onMouseUp = function(e) { _mapOnMouseUp(e); };
-  container.addEventListener('mousedown', container._onMouseDown);
-  container.addEventListener('mousemove', container._onMouseMove);
-  container.addEventListener('mouseup', container._onMouseUp);
-}
-
-function _mapUnbindDrawEvents() {
-  var container = document.getElementById('mapContainer');
-  container.style.cursor = '';
-  if (container._onMouseDown) container.removeEventListener('mousedown', container._onMouseDown);
-  if (container._onMouseMove) container.removeEventListener('mousemove', container._onMouseMove);
-  if (container._onMouseUp) container.removeEventListener('mouseup', container._onMouseUp);
-}
-
-function _mapGetPercent(e) {
   var img = document.getElementById('mapImg');
-  var rect = img.getBoundingClientRect();
+  img.addEventListener('load', _mapRenderShapes);
+  if (img.complete) _mapRenderShapes();
+  _mapBindEvents();
+}
+
+// ── Coordinate helper ───────────────────────────────────────────────────────
+function _mapPct(e) {
+  var img = document.getElementById('mapImg');
+  var r   = img.getBoundingClientRect();
   return {
-    x: ((e.clientX - rect.left) / rect.width) * 100,
-    y: ((e.clientY - rect.top) / rect.height) * 100
+    x: Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width)  * 100)),
+    y: Math.max(0, Math.min(100, ((e.clientY - r.top)  / r.height) * 100))
   };
 }
 
-function _mapOnMouseDown(e) {
-  if (e.target.closest('.map-hotspot') || e.target.tagName === 'BUTTON') return;
+// ── Event binding ────────────────────────────────────────────────────────────
+function _mapBindEvents() {
+  var c = document.getElementById('mapContainer');
+  if (!c) return;
+  c.addEventListener('mousedown',    _mapEvtDown);
+  c.addEventListener('mousemove',    _mapEvtMove);
+  c.addEventListener('mouseup',      _mapEvtUp);
+  c.addEventListener('click',        _mapEvtClick);
+  c.addEventListener('dblclick',     _mapEvtDbl);
+  c.addEventListener('contextmenu',  function(e){ if(_mapPolyPts.length){ e.preventDefault(); _mapPolyCancelDraw(); } });
+}
+
+function _mapEvtDown(e) {
+  if (!_mapEditMode || _mapDrawTool !== 'rect') return;
+  if (e.target.closest('[data-mapbtn]')) return;
   e.preventDefault();
-  var pos = _mapGetPercent(e);
-  _mapDrawing = { startX: pos.x, startY: pos.y };
-  var box = document.getElementById('mapDrawBox');
-  box.style.display = 'block';
-  box.style.left = pos.x + '%';
-  box.style.top = pos.y + '%';
-  box.style.width = '0%';
-  box.style.height = '0%';
+  var p = _mapPct(e);
+  _mapRectDraw = { sx:p.x, sy:p.y, cx:p.x, cy:p.y };
+  _mapRenderPreview();
+}
+function _mapEvtMove(e) {
+  var p = _mapPct(e); _mapMousePos = p;
+  if (_mapEditMode && _mapDrawTool === 'rect' && _mapRectDraw) {
+    _mapRectDraw.cx = p.x; _mapRectDraw.cy = p.y; _mapRenderPreview();
+  }
+  if (_mapEditMode && _mapDrawTool === 'poly' && _mapPolyPts.length) _mapRenderPreview();
+}
+function _mapEvtUp(e) {
+  if (!_mapEditMode || _mapDrawTool !== 'rect' || !_mapRectDraw) return;
+  if (e.target.closest('[data-mapbtn]')) return;
+  var p = _mapPct(e);
+  var x = Math.min(_mapRectDraw.sx, p.x), y = Math.min(_mapRectDraw.sy, p.y);
+  var w = Math.abs(p.x - _mapRectDraw.sx),  h = Math.abs(p.y - _mapRectDraw.sy);
+  _mapRectDraw = null; _mapRenderPreview();
+  if (w < 0.8 || h < 0.8) return;
+  _mapOpenAssignModal({ shape:'rect', x:parseFloat(x.toFixed(2)), y:parseFloat(y.toFixed(2)), w:parseFloat(w.toFixed(2)), h:parseFloat(h.toFixed(2)) });
+}
+function _mapEvtClick(e) {
+  if (!_mapEditMode || _mapDrawTool !== 'poly') return;
+  if (e.target.closest('[data-mapbtn]')) return;
+  if (e.detail >= 2) return; // let dblclick handle
+  e.preventDefault();
+  var p = _mapPct(e);
+  _mapPolyPts.push([parseFloat(p.x.toFixed(2)), parseFloat(p.y.toFixed(2))]);
+  _mapPolyStatus(); _mapRenderPreview();
+}
+function _mapEvtDbl(e) {
+  if (!_mapEditMode || _mapDrawTool !== 'poly') return;
+  if (e.target.closest('[data-mapbtn]')) return;
+  e.preventDefault();
+  if (_mapPolyPts.length < 3) { alert('Минимум 3 вершины'); return; }
+  var pts = _mapPolyPts.slice(); _mapPolyPts = [];
+  _mapPolyStatus(); _mapRenderPreview();
+  _mapOpenAssignModal({ shape:'polygon', points:pts });
+}
+function _mapPolyCancelDraw() { _mapPolyPts = []; _mapPolyStatus(); _mapRenderPreview(); }
+function _mapPolyStatus() {
+  var s = document.getElementById('mapPolyStatus');
+  var b = document.getElementById('mapPolyCancelBtn');
+  if (!s) return;
+  if (_mapDrawTool === 'poly' && _mapPolyPts.length) {
+    s.style.display = ''; s.textContent = 'Вершин: ' + _mapPolyPts.length + ' · двойной клик — закрыть';
+    if (b) b.style.display = '';
+  } else { s.style.display = 'none'; if (b) b.style.display = 'none'; }
 }
 
-function _mapOnMouseMove(e) {
-  if (!_mapDrawing) return;
-  var pos = _mapGetPercent(e);
-  var box = document.getElementById('mapDrawBox');
-  var x = Math.min(_mapDrawing.startX, pos.x);
-  var y = Math.min(_mapDrawing.startY, pos.y);
-  var w = Math.abs(pos.x - _mapDrawing.startX);
-  var h = Math.abs(pos.y - _mapDrawing.startY);
-  box.style.left = x + '%';
-  box.style.top = y + '%';
-  box.style.width = w + '%';
-  box.style.height = h + '%';
+// ── Toolbar ──────────────────────────────────────────────────────────────────
+function _mapToggleEdit() {
+  _mapEditMode = !_mapEditMode;
+  _mapPolyPts = []; _mapRectDraw = null;
+  var btn   = document.getElementById('mapEditBtn');
+  var tools = document.getElementById('mapEditTools');
+  var cont  = document.getElementById('mapContainer');
+  if (_mapEditMode) {
+    btn.classList.add('btn-primary');
+    btn.innerHTML = icon('check',14) + ' Готово';
+    if (tools) { tools.style.display = 'flex'; }
+    if (cont)  cont.style.cursor = 'crosshair';
+  } else {
+    btn.classList.remove('btn-primary');
+    btn.innerHTML = icon('pencil',14) + ' Разметить';
+    if (tools) tools.style.display = 'none';
+    if (cont)  cont.style.cursor = 'default';
+  }
+  renderIcons(); _mapRenderShapes(); _mapRenderPreview();
+}
+function _mapSetTool(t) {
+  _mapDrawTool = t; _mapPolyPts = []; _mapPolyStatus(); _mapRenderPreview();
+  var r = document.getElementById('mapToolRect'), p = document.getElementById('mapToolPoly');
+  if (r) r.className = 'btn btn-sm' + (t==='rect'?' btn-primary':'');
+  if (p) p.className = 'btn btn-sm' + (t==='poly'?' btn-primary':'');
 }
 
-function _mapOnMouseUp(e) {
-  if (!_mapDrawing) return;
-  var pos = _mapGetPercent(e);
-  var x = Math.min(_mapDrawing.startX, pos.x);
-  var y = Math.min(_mapDrawing.startY, pos.y);
-  var w = Math.abs(pos.x - _mapDrawing.startX);
-  var h = Math.abs(pos.y - _mapDrawing.startY);
-  _mapDrawing = null;
-  document.getElementById('mapDrawBox').style.display = 'none';
-
-  // Ignore tiny accidental clicks
-  if (w < 1 || h < 1) return;
-
-  _mapShowAssignModal(x, y, w, h);
-}
-
-async function _mapShowAssignModal(x, y, w, h) {
-  // Load entities that can be placed on the map
-  var buildings = await api('/entities?type=building');
-  var landPlots = await api('/entities?type=land_plot');
-  var allEntities = buildings.concat(landPlots);
-
-  // Filter out those already placed
-  var placedIds = new Set(_mapHotspots.map(function(hs) { return hs.entity_id; }));
-  var available = allEntities.filter(function(e) { return !placedIds.has(e.id); });
-
-  var modalHtml = '<h3>Назначить объект</h3>';
-  modalHtml += '<div class="form-group"><label>Объект</label><select id="mapAssignEntity" class="form-input">';
-  modalHtml += '<option value="">— выберите —</option>';
-  available.forEach(function(e) {
-    modalHtml += '<option value="' + e.id + '">' + escapeHtml(e.name) + ' (' + (e.type_name_ru || e.type_name) + ')</option>';
+// ── Render hotspot shapes (SVG) ───────────────────────────────────────────────
+function _mapRenderShapes() {
+  var layer = document.getElementById('mapShapes');
+  if (!layer) return;
+  var h = '';
+  _mapHotspots.forEach(function(hs, i) {
+    var fill = hs.color, stroke = 'rgba(255,255,255,0.6)', sw = '0.35';
+    var cur  = _mapEditMode ? 'default' : 'pointer';
+    var clk  = '_mapHotspotClick(' + i + ')';
+    var cx, cy;
+    if (hs.shape === 'rect') {
+      h += '<rect class="map-shape" x="'+hs.x+'" y="'+hs.y+'" width="'+hs.w+'" height="'+hs.h+'"'
+         + ' fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"'
+         + ' onclick="'+clk+'" style="cursor:'+cur+'"/>';
+      cx = hs.x + hs.w/2; cy = hs.y + hs.h/2;
+    } else {
+      var pts = hs.points.map(function(p){return p[0]+','+p[1];}).join(' ');
+      h += '<polygon class="map-shape" points="'+pts+'"'
+         + ' fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"'
+         + ' onclick="'+clk+'" style="cursor:'+cur+'"/>';
+      cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
+      cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
+    }
+    h += '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="middle"'
+       + ' font-size="1.8" font-weight="600" fill="white" style="pointer-events:none"'
+       + ' filter="url(#mapTxtShadow)">'+escapeHtml(hs.entity_name)+'</text>';
+    // Delete handle in edit mode
+    if (_mapEditMode) {
+      var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
+      var dy = hs.shape==='rect' ? hs.y         : hs.points[0][1];
+      h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapDeleteHotspot('+i+')" style="cursor:pointer">'
+         + '<circle cx="'+dx+'" cy="'+dy+'" r="2" fill="#ef4444"/>'
+         + '<text x="'+dx+'" y="'+(dy+0.7)+'" text-anchor="middle" font-size="3" fill="white" style="pointer-events:none">×</text>'
+         + '</g>';
+    }
   });
-  modalHtml += '</select></div>';
+  layer.innerHTML = h;
+}
 
-  modalHtml += '<div class="form-group"><label>Цвет зоны</label>';
-  modalHtml += '<div style="display:flex;gap:6px;flex-wrap:wrap" id="mapColorPicker">';
+// ── Render drawing preview ────────────────────────────────────────────────────
+function _mapRenderPreview() {
+  var layer = document.getElementById('mapDrawPreview');
+  if (!layer) return;
+  var h = '';
+  // Rectangle drag preview
+  if (_mapRectDraw) {
+    var x = Math.min(_mapRectDraw.sx,_mapRectDraw.cx), y = Math.min(_mapRectDraw.sy,_mapRectDraw.cy);
+    var w = Math.abs(_mapRectDraw.cx-_mapRectDraw.sx), hh = Math.abs(_mapRectDraw.cy-_mapRectDraw.sy);
+    h += '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+hh+'"'
+       + ' fill="rgba(99,102,241,0.12)" stroke="rgba(99,102,241,0.8)" stroke-width="0.4" stroke-dasharray="2,1" style="pointer-events:none"/>';
+  }
+  // Polygon drawing preview
+  if (_mapDrawTool === 'poly' && _mapPolyPts.length) {
+    var pts = _mapPolyPts, m = _mapMousePos;
+    // Completed edges
+    if (pts.length > 1) {
+      h += '<polyline points="'+pts.map(function(p){return p[0]+','+p[1];}).join(' ')+'"'
+         + ' fill="none" stroke="rgba(99,102,241,0.85)" stroke-width="0.4" stroke-dasharray="2,1" style="pointer-events:none"/>';
+    }
+    // Preview line to cursor
+    var last = pts[pts.length-1];
+    h += '<line x1="'+last[0]+'" y1="'+last[1]+'" x2="'+m.x+'" y2="'+m.y+'"'
+       + ' stroke="rgba(99,102,241,0.7)" stroke-width="0.35" stroke-dasharray="1.5,1" style="pointer-events:none"/>';
+    // Closing hint (>=3 pts)
+    if (pts.length >= 3) {
+      h += '<line x1="'+m.x+'" y1="'+m.y+'" x2="'+pts[0][0]+'" y2="'+pts[0][1]+'"'
+         + ' stroke="rgba(99,102,241,0.3)" stroke-width="0.25" stroke-dasharray="1,1" style="pointer-events:none"/>';
+    }
+    // Vertex dots
+    pts.forEach(function(p,i){
+      h += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+(i===0?'1.3':'0.8')+'"'
+         + ' fill="'+(i===0?'rgba(99,102,241,0.9)':'white')+'"'
+         + ' stroke="'+(i===0?'white':'rgba(99,102,241,0.8)')+'" stroke-width="0.25" style="pointer-events:none"/>';
+    });
+  }
+  layer.innerHTML = h;
+}
+
+// ── Assign modal ──────────────────────────────────────────────────────────────
+async function _mapOpenAssignModal(shapeData) {
+  var buildings  = await api('/entities?type=building');
+  var landPlots  = await api('/entities?type=land_plot');
+  var placedIds  = new Set(_mapHotspots.map(function(hs){return hs.entity_id;}));
+  var available  = buildings.concat(landPlots).filter(function(e){return !placedIds.has(e.id);});
+
   var colors = [
-    {name: 'Голубой', val: 'rgba(168,216,234,0.45)'},
-    {name: 'Зелёный', val: 'rgba(144,238,144,0.45)'},
-    {name: 'Розовый', val: 'rgba(255,182,193,0.45)'},
-    {name: 'Жёлтый', val: 'rgba(249,243,176,0.45)'},
-    {name: 'Оранжевый', val: 'rgba(255,200,150,0.45)'},
-    {name: 'Бежевый', val: 'rgba(222,209,189,0.45)'},
-    {name: 'Серый', val: 'rgba(180,180,180,0.35)'},
-    {name: 'Фиолетовый', val: 'rgba(180,160,220,0.45)'},
+    {n:'Голубой',    v:'rgba(168,216,234,0.45)'},
+    {n:'Зелёный',    v:'rgba(144,238,144,0.45)'},
+    {n:'Розовый',    v:'rgba(255,182,193,0.45)'},
+    {n:'Жёлтый',     v:'rgba(249,243,176,0.45)'},
+    {n:'Оранжевый',  v:'rgba(255,200,150,0.45)'},
+    {n:'Бежевый',    v:'rgba(222,209,189,0.45)'},
+    {n:'Серый',      v:'rgba(180,180,180,0.35)'},
+    {n:'Фиолетовый', v:'rgba(180,160,220,0.45)'},
   ];
-  colors.forEach(function(c, i) {
-    modalHtml += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer">' +
-      '<input type="radio" name="mapColor" value="' + c.val + '"' + (i === 0 ? ' checked' : '') + '>' +
-      '<span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:' + c.val + ';border:1px solid var(--border)"></span>' +
-      '<span style="font-size:12px">' + c.name + '</span></label>';
+
+  var m = '<h3>Назначить объект</h3>';
+  m += '<div class="form-group"><label>Объект</label><select id="mapSelEnt" class="form-input">';
+  m += '<option value="">— выберите —</option>';
+  available.forEach(function(e){ m += '<option value="'+e.id+'">'+escapeHtml(e.name)+' ('+escapeHtml(e.type_name_ru||e.type_name)+')</option>'; });
+  m += '</select></div>';
+  m += '<div class="form-group"><label>Цвет зоны</label><div style="display:flex;gap:6px;flex-wrap:wrap">';
+  colors.forEach(function(c,i){
+    m += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer">'
+       + '<input type="radio" name="mapColor" value="'+c.v+'"'+(i===0?' checked':'')+'>'
+       + '<span style="width:20px;height:20px;border-radius:4px;background:'+c.v+';border:1px solid var(--border);display:inline-block"></span>'
+       + '<span style="font-size:12px">'+c.n+'</span></label>';
   });
-  modalHtml += '</div></div>';
+  m += '</div></div>';
+  m += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>';
+  m += '<button class="btn btn-primary" onclick="_mapSaveHotspot()">Сохранить</button></div>';
 
-  modalHtml += '<div class="modal-actions">';
-  modalHtml += '<button class="btn" onclick="closeModal()">Отмена</button>';
-  modalHtml += '<button class="btn btn-primary" onclick="_mapSaveHotspot(' +
-    x.toFixed(2) + ',' + y.toFixed(2) + ',' + w.toFixed(2) + ',' + h.toFixed(2) + ')">Сохранить</button>';
-  modalHtml += '</div>';
-
-  setModalContent(modalHtml);
+  window._mapPendingShape = shapeData;
+  setModalContent(m);
 }
 
-async function _mapSaveHotspot(x, y, w, h) {
-  var sel = document.getElementById('mapAssignEntity');
-  var entityId = parseInt(sel.value);
-  if (!entityId) return alert('Выберите объект');
-
+async function _mapSaveHotspot() {
+  var sel = document.getElementById('mapSelEnt');
+  var eid = parseInt(sel.value);
+  if (!eid) return alert('Выберите объект');
   var colorEl = document.querySelector('input[name="mapColor"]:checked');
-  var color = colorEl ? colorEl.value : 'rgba(99,102,241,0.3)';
-
-  // Save to entity properties
-  var entity = null;
+  var color   = colorEl ? colorEl.value : 'rgba(99,102,241,0.35)';
+  var sd      = window._mapPendingShape;
+  if (!sd) return;
   try {
-    entity = await api('/entities/' + entityId);
-  } catch(e) { return alert('Ошибка загрузки объекта'); }
-
-  var props = entity.properties || {};
-  props.map_x = x.toFixed(2);
-  props.map_y = y.toFixed(2);
-  props.map_w = w.toFixed(2);
-  props.map_h = h.toFixed(2);
-  props.map_color = color;
-
-  await api('/entities/' + entityId, {
-    method: 'PATCH',
-    body: JSON.stringify({ properties: props })
-  });
-
-  // Add to local hotspots
-  _mapHotspots.push({
-    entity_id: entityId, entity_name: sel.options[sel.selectedIndex].text.replace(/ \\(.*\\)$/, ''),
-    type_name: entity.type_name, x: x, y: y, w: w, h: h, color: color
-  });
-
-  closeModal();
-  _mapRenderHotspots();
+    var entity = await api('/entities/' + eid);
+    var props  = entity.properties || {};
+    ['map_x','map_y','map_w','map_h','map_points','map_shape','map_color'].forEach(function(k){delete props[k];});
+    props.map_color = color;
+    if (sd.shape === 'rect') {
+      props.map_shape = 'rect'; props.map_x = String(sd.x); props.map_y = String(sd.y);
+      props.map_w = String(sd.w); props.map_h = String(sd.h);
+    } else {
+      props.map_shape = 'polygon'; props.map_points = JSON.stringify(sd.points);
+    }
+    await api('/entities/' + eid, { method:'PATCH', body:JSON.stringify({properties:props}) });
+    var rawName = sel.options[sel.selectedIndex].text;
+    var dispIdx = rawName.lastIndexOf(' (');
+    var dispName = dispIdx > -1 ? rawName.substring(0, dispIdx) : rawName;
+    _mapHotspots.push(Object.assign({ entity_id:eid, entity_name:dispName, type_name:entity.type_name, color:color }, sd));
+  } catch(e) { return alert('Ошибка: ' + e.message); }
+  window._mapPendingShape = null;
+  closeModal(); _mapRenderShapes();
 }
 
 async function _mapDeleteHotspot(idx) {
   var hs = _mapHotspots[idx];
   if (!confirm('Удалить зону «' + hs.entity_name + '» с карты?')) return;
-
-  // Remove map coordinates from entity properties
   try {
     var entity = await api('/entities/' + hs.entity_id);
-    var props = entity.properties || {};
-    delete props.map_x;
-    delete props.map_y;
-    delete props.map_w;
-    delete props.map_h;
-    delete props.map_color;
-    await api('/entities/' + hs.entity_id, {
-      method: 'PATCH',
-      body: JSON.stringify({ properties: props })
-    });
-  } catch(e) { console.error('Failed to remove hotspot:', e); }
-
+    var props  = entity.properties || {};
+    ['map_x','map_y','map_w','map_h','map_points','map_shape','map_color'].forEach(function(k){delete props[k];});
+    await api('/entities/' + hs.entity_id, { method:'PATCH', body:JSON.stringify({properties:props}) });
+  } catch(e) { console.error(e); }
   _mapHotspots.splice(idx, 1);
-  _mapRenderHotspots();
+  _mapRenderShapes();
 }
 
 function _mapHotspotClick(idx) {
-  if (_mapEditMode) return; // In edit mode, don't navigate
-  var hs = _mapHotspots[idx];
-  showEntity(hs.entity_id);
+  if (_mapEditMode) return;
+  showEntity(_mapHotspots[idx].entity_id);
 }
 
 // ============ DASHBOARD ============
