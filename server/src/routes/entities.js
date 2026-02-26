@@ -40,8 +40,12 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     sql += ` AND e.parent_id = $${params.length}`;
   }
   if (search) {
-    params.push('%' + search.replace(/[%_]/g, '\\$&') + '%');
-    sql += ` AND (e.name ILIKE $${params.length})`;
+    const pi = params.push('%' + search.replace(/[%_]/g, '\\$&') + '%');
+    sql += ` AND (e.name ILIKE $${pi}
+      OR e.properties->>'subtenant_name' ILIKE $${pi}
+      OR e.properties->>'contractor_name' ILIKE $${pi}
+      OR e.properties->>'our_legal_entity' ILIKE $${pi}
+      OR e.properties->>'contractor_role_label' ILIKE $${pi})`;
   }
   if (req.query.is_own === 'true') {
     sql += ` AND (e.properties->>'is_own' = 'true')`;

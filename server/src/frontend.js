@@ -4396,8 +4396,10 @@ async function openCreateModal(typeName, preParentId) {
     if (f.sort_order >= 999) return; // hidden field (room_number, room_type etc.)
     if (f.name === 'balance_owner' || f.name === 'owner') {
       var fieldId = f.name === 'owner' ? 'f_owner' : 'f_balance_owner';
+      // balance_owner = наши организации; owner = все компании
+      var ownerList = (f.name === 'balance_owner') ? (_ownCompanies||_allCompanies) : _allCompanies;
       html += '<div class="form-group"><label>Собственник</label>' +
-        renderEntitySelect(fieldId, _allCompanies, '', '', 'выберите организацию') + '</div>';
+        renderEntitySelect(fieldId, ownerList, '', '', 'выберите наше юр. лицо') + '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, '') + '</div>';
     }
@@ -4449,6 +4451,14 @@ async function _doSubmitCreate(typeName) {
     var ownerEnt = _allCompanies.find(function(c) { return c.id === parseInt(ownerEl.value); });
     if (ownerEnt) { properties.owner_id = ownerEnt.id; properties.owner_name = ownerEnt.name; }
     delete properties.owner;
+  }
+  // Collect balance_owner entity (land_plot, building — stored as id+name)
+  var balanceOwnerEl = document.getElementById('f_balance_owner');
+  if (balanceOwnerEl && balanceOwnerEl.value) {
+    var boId = parseInt(balanceOwnerEl.value);
+    var boEnt = (_ownCompanies||[]).concat(_allCompanies||[]).find(function(c){ return c.id === boId; });
+    if (boEnt) { properties.balance_owner_id = boId; properties.balance_owner_name = boEnt.name; }
+    delete properties.balance_owner;
   }
 
   // Auto-generate name for contracts

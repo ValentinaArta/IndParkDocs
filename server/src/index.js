@@ -510,6 +510,23 @@ async function runMigration017() {
   }
 }
 
+async function runMigration018() {
+  const pool = require('./db');
+  try {
+    // Update area field label to кв.м. for land_plot
+    const res = await pool.query("SELECT id FROM entity_types WHERE name='land_plot'");
+    if (res.rows.length === 0) return;
+    const typeId = res.rows[0].id;
+    await pool.query(
+      `UPDATE field_definitions SET name_ru = 'Площадь, кв.м.'
+       WHERE entity_type_id=$1 AND name='area' AND name_ru != 'Площадь, кв.м.'`,
+      [typeId]);
+    console.log('Migration 018: area field unit updated to кв.м.');
+  } catch(e) {
+    console.error('Migration 018 error (non-fatal):', e.message);
+  }
+}
+
 // One-time data fix: merge "ОРР Веста" → "ОРР Веста, АО"
 async function mergeORRVesta() {
   const pool = require('./db');
@@ -558,7 +575,7 @@ async function mergeORRVesta() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => mergeORRVesta()).then(() => {
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => mergeORRVesta()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 
