@@ -582,18 +582,23 @@ async function createBIViews() {
     await pool.query(`CREATE OR REPLACE VIEW v_bi_contracts AS
       SELECT
         e.id, e.name, e.created_at,
-        e.properties->>'contract_type'   AS contract_type,
-        e.properties->>'number'          AS contract_number,
-        e.properties->>'our_legal_entity' AS our_legal_entity,
-        e.properties->>'contractor_name'  AS contractor_name,
-        e.properties->>'contract_date'    AS contract_date,
-        e.properties->>'contract_end_date' AS contract_end_date,
-        NULLIF(e.properties->>'contract_amount','')::numeric AS contract_amount,
-        NULLIF(e.properties->>'rent_monthly','')::numeric    AS rent_monthly,
-        NULLIF(e.properties->>'advance_amount','')::numeric  AS advance_amount,
-        NULLIF(e.properties->>'vat_rate','')::numeric        AS vat_rate,
-        e.properties->>'subject'          AS subject,
-        e.properties->>'service_subject'  AS service_subject
+        e.properties->>'contract_type'       AS contract_type,
+        e.properties->>'number'              AS contract_number,
+        e.properties->>'our_legal_entity'    AS our_legal_entity,
+        e.properties->>'our_role_label'      AS our_role,
+        e.properties->>'contractor_name'     AS contractor_name,
+        e.properties->>'contractor_role_label' AS contractor_role,
+        e.properties->>'subtenant_name'      AS subtenant_name,
+        e.properties->>'contract_date'       AS contract_date,
+        e.properties->>'contract_end_date'   AS contract_end_date,
+        NULLIF(e.properties->>'contract_amount','')::numeric  AS contract_amount,
+        NULLIF(e.properties->>'rent_monthly','')::numeric     AS rent_monthly,
+        NULLIF(e.properties->>'advance_amount','')::numeric   AS advance_amount,
+        NULLIF(e.properties->>'vat_rate','')::numeric         AS vat_rate,
+        e.properties->>'subject'             AS subject,
+        e.properties->>'service_subject'     AS service_subject,
+        e.properties->>'building'            AS building,
+        e.properties->>'completion_deadline' AS completion_deadline
       FROM entities e
       JOIN entity_types et ON e.entity_type_id = et.id
       WHERE et.name = 'contract' AND e.deleted_at IS NULL`);
@@ -602,13 +607,16 @@ async function createBIViews() {
     await pool.query(`CREATE OR REPLACE VIEW v_bi_supplements AS
       SELECT
         e.id, e.name, e.parent_id AS contract_id, e.created_at,
-        e.properties->>'contract_type'   AS contract_type,
-        e.properties->>'number'          AS supplement_number,
-        e.properties->>'contractor_name' AS contractor_name,
-        e.properties->>'contract_date'   AS contract_date,
-        NULLIF(e.properties->>'contract_amount','')::numeric AS contract_amount,
-        NULLIF(e.properties->>'rent_monthly','')::numeric    AS rent_monthly,
-        NULLIF(e.properties->>'vat_rate','')::numeric        AS vat_rate,
+        e.properties->>'contract_type'       AS contract_type,
+        e.properties->>'number'              AS supplement_number,
+        e.properties->>'our_legal_entity'    AS our_legal_entity,
+        e.properties->>'contractor_name'     AS contractor_name,
+        e.properties->>'subtenant_name'      AS subtenant_name,
+        e.properties->>'contract_date'       AS contract_date,
+        e.properties->>'contract_end_date'   AS contract_end_date,
+        NULLIF(e.properties->>'contract_amount','')::numeric  AS contract_amount,
+        NULLIF(e.properties->>'rent_monthly','')::numeric     AS rent_monthly,
+        NULLIF(e.properties->>'vat_rate','')::numeric         AS vat_rate,
         e.properties->>'changes_description' AS changes_description
       FROM entities e
       JOIN entity_types et ON e.entity_type_id = et.id
@@ -649,17 +657,19 @@ async function createBIViews() {
         AND e.properties->>'rent_objects' != ''
         AND e.properties->>'rent_objects' != '[]'`);
 
-    // v_bi_equipment — equipment with building and owner
+    // v_bi_equipment — equipment with building, owner, all fields
     await pool.query(`CREATE OR REPLACE VIEW v_bi_equipment AS
       SELECT
-        e.id, e.name,
+        e.id, e.name, e.created_at,
         e.properties->>'equipment_category' AS category,
         e.properties->>'equipment_kind'     AS kind,
         e.properties->>'status'             AS status,
         e.properties->>'inv_number'         AS inv_number,
+        e.properties->>'serial_number'      AS serial_number,
         e.properties->>'year'               AS manufacture_year,
         e.properties->>'manufacturer'       AS manufacturer,
         e.properties->>'balance_owner_name' AS owner,
+        e.properties->>'note'               AS note,
         bld.name  AS building_name,
         par.name  AS parent_name
       FROM entities e
@@ -670,14 +680,19 @@ async function createBIViews() {
       LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
       WHERE et.name = 'equipment' AND e.deleted_at IS NULL`);
 
-    // v_bi_buildings — buildings with owner and land plot
+    // v_bi_buildings — buildings with owner, land plot, all cadastral fields
     await pool.query(`CREATE OR REPLACE VIEW v_bi_buildings AS
       SELECT
-        e.id, e.name,
-        e.properties->>'balance_owner_name' AS owner,
+        e.id, e.name, e.created_at,
+        e.properties->>'address'            AS address,
         e.properties->>'short_name'         AS short_name,
+        NULLIF(e.properties->>'total_area','')::numeric       AS total_area_sqm,
+        e.properties->>'cadastral_number'   AS cadastral_number,
+        NULLIF(e.properties->>'cadastral_value','')::numeric  AS cadastral_value,
+        e.properties->>'cadastral_value_date' AS cadastral_value_date,
+        e.properties->>'balance_owner_name' AS owner,
         lp.name AS land_plot_name,
-        lp.properties->>'cadastral_number'  AS cadastral_number,
+        lp.properties->>'cadastral_number'  AS land_cadastral_number,
         NULLIF(lp.properties->>'area','')::numeric AS land_area_sqm
       FROM entities e
       JOIN entity_types et ON e.entity_type_id = et.id
@@ -686,16 +701,65 @@ async function createBIViews() {
       LEFT JOIN entities lp ON lp.id = r_loc.to_entity_id AND lp.deleted_at IS NULL
       WHERE et.name = 'building' AND e.deleted_at IS NULL`);
 
-    // v_bi_acts — acts with contract and amounts
+    // v_bi_land_plots — land plots with all fields
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_land_plots AS
+      SELECT
+        e.id, e.name, e.created_at,
+        e.properties->>'address'              AS address,
+        e.properties->>'short_name'           AS short_name,
+        e.properties->>'cadastral_number'     AS cadastral_number,
+        NULLIF(e.properties->>'area','')::numeric               AS area_sqm,
+        NULLIF(e.properties->>'cadastral_value','')::numeric    AS cadastral_value,
+        e.properties->>'cadastral_value_date' AS cadastral_value_date,
+        e.properties->>'purpose'              AS purpose,
+        e.properties->>'balance_owner_name'   AS owner,
+        e.properties->>'owner_name'           AS owner_alt
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      WHERE et.name = 'land_plot' AND e.deleted_at IS NULL`);
+
+    // v_bi_companies — companies (contractors + own legal entities)
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_companies AS
+      SELECT
+        e.id, e.name, e.created_at,
+        CASE WHEN (e.properties->>'is_own') = 'true' THEN 'Наше юрлицо' ELSE 'Контрагент' END AS company_type,
+        e.properties->>'inn'            AS inn,
+        e.properties->>'contact_person' AS contact_person,
+        e.properties->>'phone'          AS phone,
+        e.properties->>'email'          AS email
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      WHERE et.name = 'company' AND e.deleted_at IS NULL`);
+
+    // v_bi_rooms — rooms with building and type
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_rooms AS
+      SELECT
+        e.id, e.name, e.created_at,
+        e.properties->>'object_type'  AS room_type,
+        e.properties->>'description'  AS description,
+        NULLIF(e.properties->>'area','')::numeric AS area_sqm,
+        e.properties->>'floor'        AS floor,
+        par.name AS building_name,
+        par.id   AS building_id
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
+      WHERE et.name = 'room' AND e.deleted_at IS NULL`);
+
+    // v_bi_acts — acts with contract, amounts, all fields
     await pool.query(`CREATE OR REPLACE VIEW v_bi_acts AS
       SELECT
         e.id AS act_id, e.name AS act_name, e.created_at,
-        e.properties->>'contract_date'  AS act_date,
+        e.properties->>'act_number'    AS act_number,
+        e.properties->>'act_date'      AS act_date,
         NULLIF(e.properties->>'total_amount','')::numeric AS total_amount,
-        e.properties->>'service_subject' AS subject,
+        e.properties->>'comment'       AS comment,
+        e.properties->>'conclusion'    AS conclusion,
+        e.properties->>'parent_contract_name' AS parent_contract_name,
         ctr.id   AS contract_id,
         ctr.name AS contract_name,
-        ctr.properties->>'contractor_name' AS contractor_name
+        ctr.properties->>'contractor_name'  AS contractor_name,
+        ctr.properties->>'contract_type'    AS contract_type
       FROM entities e
       JOIN entity_types et ON e.entity_type_id = et.id
       LEFT JOIN relations r_s ON r_s.from_entity_id = e.id
@@ -703,7 +767,7 @@ async function createBIViews() {
       LEFT JOIN entities ctr ON ctr.id = r_s.to_entity_id AND ctr.deleted_at IS NULL
       WHERE et.name = 'act' AND e.deleted_at IS NULL`);
 
-    console.log('BI views created: v_bi_contracts, v_bi_supplements, v_bi_rent_objects, v_bi_equipment, v_bi_buildings, v_bi_acts');
+    console.log('BI views created/updated: contracts, supplements, rent_objects, equipment, buildings, land_plots, companies, rooms, acts');
   } catch(e) {
     console.error('createBIViews error (non-fatal):', e.message);
   }
