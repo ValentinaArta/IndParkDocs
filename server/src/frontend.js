@@ -2705,7 +2705,7 @@ function renderContractFormFields(fields, props, headerHtml) {
     '<button class="btn btn-primary" onclick="submitCreate(\\''+typeName+'\\')">Создать</button></div>';
 
   setModalContent(html);
-  _srchInitAll(); eqInitFilter(); // init searchable selects + eq filter
+  _srchInitAll();
 
   // Attach contract_type change handler
   var ctEl = document.getElementById('f_contract_type');
@@ -2725,6 +2725,8 @@ function renderContractFormFields(fields, props, headerHtml) {
   if (contractType) {
     renderDynamicFields(contractType, props);
   }
+  // eqInitFilter AFTER renderDynamicFields — equipment section lives inside dynamic fields for rent contracts
+  eqInitFilter();
 }
 
 function getSelectedContractType() {
@@ -2765,6 +2767,8 @@ function onContractTypeChange() {
 
   // Render dynamic fields
   renderDynamicFields(contractType, {});
+  // Refresh equipment category filter after dynamic fields are rendered
+  eqInitFilter();
 }
 
 function updatePartyLabels() {
@@ -5871,7 +5875,7 @@ async function openEditModal(id) {
       '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
 
     setModalContent(editHtml);
-    _srchInitAll(); eqInitFilter();
+    _srchInitAll();
 
     var ctEl = document.getElementById('f_contract_type');
     if (ctEl) {
@@ -5884,6 +5888,8 @@ async function openEditModal(id) {
     var contrRE = document.getElementById('f_contractor_role_label');
     if (contrRE) contrRE.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
     if (contractType) renderDynamicFields(contractType, props);
+    // eqInitFilter AFTER renderDynamicFields — equipment section lives inside dynamic fields for rent contracts
+    eqInitFilter();
 
     return;
   }
@@ -6156,7 +6162,7 @@ async function openCreateSupplementModal(parentContractId) {
     '<button class="btn btn-primary" onclick="submitCreateSupplement(' + parentContractId + ')">Создать</button></div>';
 
   setModalContent(html);
-  _srchInitAll(); eqInitFilter();
+  _srchInitAll();
 
   var ctEl = document.getElementById('f_contract_type');
   if (ctEl) {
@@ -6169,6 +6175,8 @@ async function openCreateSupplementModal(parentContractId) {
   var contrRE2 = document.getElementById('f_contractor_role_label');
   if (contrRE2) contrRE2.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
   if (contractType) renderDynamicFields(contractType, parentProps);
+  // eqInitFilter AFTER renderDynamicFields — equipment section is rendered inside it for rent contracts
+  eqInitFilter();
 }
 
 async function submitCreateSupplement(parentContractId) {
