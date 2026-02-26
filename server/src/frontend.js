@@ -9,6 +9,7 @@ const FRONTEND_HTML = `<!DOCTYPE html>
 <title>IndParkDocs</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#1E293B">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
 :root {
   --bg: #F8FAFC; --bg-card: #FFFFFF; --bg-sidebar: #1E293B; --bg-hover: #F1F5F9;
@@ -179,6 +180,19 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .eq-broken-row td:first-child a, .eq-broken-cell a { color:#dc2626 !important; }
 .eq-broken-badge { display:inline-block;font-size:10px;background:#dc2626;color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle; }
 .eq-emergency-badge { display:inline-block;font-size:10px;background:#b85c5c;color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle; }
+/* Lucide icons */
+.lucide { width:16px;height:16px;vertical-align:-3px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0; }
+.nav-item .lucide { width:15px;height:15px;opacity:.8; }
+.nav-item:hover .lucide, .nav-item.active .lucide { opacity:1; }
+.nav-section-title .lucide { width:13px;height:13px;opacity:.6; }
+/* Map page */
+.map-container { position:relative;display:inline-block;user-select:none; }
+.map-container img { display:block;max-width:100%;height:auto; }
+.map-hotspot { position:absolute;border:2px solid rgba(255,255,255,0.5);border-radius:4px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center; }
+.map-hotspot:hover { border-color:white;box-shadow:0 0 0 1px rgba(0,0,0,0.3);z-index:10; }
+.map-hotspot-label { font-size:9px;font-weight:600;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.8);text-align:center;padding:2px;line-height:1.2;pointer-events:none; }
+.map-hotspot-draw { position:absolute;border:2px dashed var(--accent);background:rgba(99,102,241,.15);pointer-events:none;z-index:20; }
+.map-editor-bar { display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap; }
 </style>
 </head>
 <body>
@@ -202,19 +216,22 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
     </div>
     <div class="sidebar-nav" id="sidebarNav">
       <div class="nav-item active" onclick="showDashboard()">
-        <span class="icon">📊</span> Обзор
+        <i data-lucide="layout-dashboard" class="lucide"></i> Обзор
+      </div>
+      <div class="nav-item" onclick="showMapPage()">
+        <i data-lucide="map" class="lucide"></i> Карта
       </div>
       <div id="typeNav"></div>
       <div class="nav-section" style="margin-top:12px">Аналитика</div>
       <div class="nav-item" onclick="showReports()">
-        <span class="icon">📋</span> Отчёты
+        <i data-lucide="bar-chart-2" class="lucide"></i> Отчёты
       </div>
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
-        <span class="icon">⚙️</span> Типы и поля
+        <i data-lucide="settings" class="lucide"></i> Типы и поля
       </div>
       <div class="nav-item" onclick="logout()" style="margin-top:auto;color:rgba(255,255,255,0.4)">
-        <span class="icon">🚪</span> Выход
+        <i data-lucide="log-out" class="lucide"></i> Выход
       </div>
     </div>
   </div>
@@ -235,6 +252,14 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 </div>
 
 <script>
+// ── Icon helper (Lucide) ──────────────────────────────────────────────────
+function icon(name, size) {
+  var s = size ? ' style="width:' + size + 'px;height:' + size + 'px"' : '';
+  return '<i data-lucide="' + name + '" class="lucide"' + s + '></i>';
+}
+function renderIcons() { if (window.lucide) lucide.createIcons(); }
+// ─────────────────────────────────────────────────────────────────────────
+
 const API = window.location.origin + '/api';
 let entityTypes = [];
 let relationTypes = [];
@@ -323,7 +348,7 @@ function renderEntitySelect(id, entities, selectedId, selectedName, placeholder,
   h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
   entities.forEach(function(e) {
     var sel = (e.id === selId) ? ' selected' : '';
-    h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
+    h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
   });
   h += '<option value="__new__">Другое...</option>';
   h += '</select>';
@@ -387,9 +412,9 @@ function renderRoEntitySelect(index, fieldName, entities, selectedId, placeholde
   h += '<option value="">— ' + (placeholder || 'выберите') + ' —</option>';
   entities.forEach(function(e) {
     var sel = (e.id === selId) ? ' selected' : '';
-    h += '<option value="' + e.id + '"' + sel + '>' + (e.icon || '') + ' ' + escapeHtml(e.name) + '</option>';
+    h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
   });
-  h += '<option value="__new__">➕ Создать новый...</option>';
+  h += '<option value="__new__">+ Создать новый...</option>';
   h += '</select>';
   return h;
 }
@@ -442,7 +467,7 @@ function renderRegistrySelectField(fieldId, entities, val, placeholder) {
   h += '<option value="">—</option>';
   entities.forEach(function(ent) {
     var name = ent.name || '';
-    h += '<option value="' + escapeHtml(name) + '"' + (name === val ? ' selected' : '') + '>' + (ent.icon || '') + ' ' + escapeHtml(name) + '</option>';
+    h += '<option value="' + escapeHtml(name) + '"' + (name === val ? ' selected' : '') + '>' + escapeHtml(name) + '</option>';
   });
   h += '<option value="__custom__"' + (isCustom ? ' selected' : '') + '>Другое...</option>';
   h += '</select>';
@@ -518,7 +543,7 @@ function _renderEqListItem(item, rowId) {
   h += '</div>';
   // Inline create panel (hidden)
   h += '<div class="eq-list-create-panel" id="eq_create_' + rowId + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
-  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙️ Новое оборудование</div>';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">Новое оборудование</div>';
   h += '<div class="form-group"><label>Название *</label><input class="eq-create-name" data-row="' + rowId + '" placeholder="Введите название" style="width:100%"></div>';
   h += '<div class="form-group"><label>Категория</label><select class="eq-create-cat" data-row="' + rowId + '" onchange="onEqCatChange(this)"><option value="">—</option>';
   getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
@@ -1002,13 +1027,13 @@ function renderRentFields(container, allFields, props) {
     } catch(ex) {}
     html += '<div class="form-group" style="margin-top:8px;border-left:3px solid var(--accent);padding-left:12px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
-    html += '<label style="font-weight:600">⚙️ Передача оборудования</label>';
+    html += '<label style="font-weight:600">Передача оборудования</label>';
     html += '<button type="button" onclick="disableEquipmentTransfer()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer">✕ Убрать</button>';
     html += '</div>';
     html += renderEquipmentListField(transferItems);
     html += '</div>';
   } else {
-    html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">⚙️ + Передача оборудования по договору</button></div>';
+    html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">+ Передача оборудования по договору</button></div>';
   }
 
   container.innerHTML = html;
@@ -1113,7 +1138,7 @@ function _roCalcFields(index, obj, calcMode) {
   h += '<input class="ro-field" data-idx="' + index + '" data-name="comment" id="ro_cmt_in_' + index + '" value="' + escapeHtml(obj.comment || '') + '" style="width:100%;box-sizing:border-box">';
   h += '</div>';
   h += '<button type="button" id="ro_cmt_btn_' + index + '" onclick="showRoComment(' + index + ')"' +
-    ' style="font-size:11px;background:none;border:1px dashed var(--border);color:var(--text-secondary);border-radius:4px;padding:2px 10px;cursor:pointer;margin-top:2px' + (hasCmt ? ';display:none' : '') + '">💬 Добавить комментарий</button>';
+    ' style="font-size:11px;background:none;border:1px dashed var(--border);color:var(--text-secondary);border-radius:4px;padding:2px 10px;cursor:pointer;margin-top:2px' + (hasCmt ? ';display:none' : '') + '">Добавить комментарий</button>';
   h += '</div>';
   return h;
 }
@@ -1138,7 +1163,7 @@ function closeRoComment(index) {
 
 function _roRoomCreateMiniForm(index) {
   var h = '<div id="ro_room_create_' + index + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg-secondary)">';
-  h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">🚪 Новое помещение — полная форма</div>';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">Новое помещение — полная форма</div>';
   h += '<div class="form-group"><label>Название / Номер помещения</label><input class="ro-room-name" data-idx="' + index + '" placeholder="Кабинет 101, Склад №3..." style="width:100%"></div>';
   h += '<div class="form-group"><label>Тип помещения</label>';
   h += '<select class="ro-room-type" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
@@ -1161,7 +1186,7 @@ function _roRoomCreateMiniForm(index) {
 
 function _roEqCreateMiniForm(index, eqTypeId) {
   var h = '<div id="ro_eq_create_' + index + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg-secondary)">';
-  h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">⚙️ Новая единица оборудования — полная форма</div>';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">Новая единица оборудования — полная форма</div>';
   h += '<div class="form-group"><label>Название *</label><input class="ro-eq-name" data-idx="' + index + '" placeholder="Название оборудования" style="width:100%"></div>';
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   h += '<div class="form-group"><label>Категория</label><select class="ro-eq-cat" data-idx="' + index + '" onchange="onEqCatChange(this)" style="width:100%"><option value="">—</option>';
@@ -1433,7 +1458,7 @@ function renderRoRoomSelect(index, selectedId) {
   h += '<option value="">— выберите помещение —</option>';
   _rooms.forEach(function(e) {
     var sel = (e.id === selId) ? ' selected' : '';
-    h += '<option value="' + e.id + '"' + sel + '>🚪 ' + escapeHtml(e.name) + '</option>';
+    h += '<option value="' + e.id + '"' + sel + '>'+escapeHtml(e.name) + '</option>';
   });
   h += '</select>';
   return h;
@@ -2083,6 +2108,7 @@ async function startApp() {
 }
 
 async function init() {
+  renderIcons(); // Initialize Lucide icons in static sidebar HTML
   if (TOKEN) {
     document.getElementById('loginScreen').style.display = 'none';
     document.querySelector('.app').style.display = 'flex';
@@ -2095,14 +2121,14 @@ async function init() {
 // Navigation tree state
 var _navParentType = { room: 'building', land_plot_part: 'land_plot' };
 
-function _navGroupHtml(name, icon, label) {
+function _navGroupHtml(name, iconName, label) {
   return '<div style="margin:0 4px 1px">' +
     '<div class="nav-item" data-type="' + name + '" style="display:flex;align-items:center;padding:0">' +
       '<span id="navArrow_' + name + '" data-group="' + name + '"' +
         ' onclick="event.stopPropagation();toggleNavGroup(this.dataset.group)"' +
         ' style="width:22px;text-align:center;font-size:10px;color:rgba(255,255,255,0.4);cursor:pointer;flex-shrink:0;padding:8px 0">▶</span>' +
-      '<span style="flex:1;padding:8px 4px 8px 2px;cursor:pointer" data-etype="' + name + '"' +
-        ' onclick="showEntityList(this.dataset.etype)">' + icon + ' ' + label + '</span>' +
+      '<span style="flex:1;padding:8px 4px 8px 2px;cursor:pointer;display:flex;align-items:center;gap:8px" data-etype="' + name + '"' +
+        ' onclick="showEntityList(this.dataset.etype)">' + icon(iconName) + ' ' + label + '</span>' +
     '</div>' +
     '<div id="navgroup_' + name + '" style="display:none"></div>' +
   '</div>';
@@ -2139,9 +2165,9 @@ async function _navLoadGroupChildren(name, container) {
     });
   } else if (name === 'company') {
     h = '<div class="nav-sub-item" data-etype="company" data-isown="true" onclick="navSubClick(this)">' +
-          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> 🏢 Наши</div>' +
+          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> Наши</div>' +
         '<div class="nav-sub-item" data-etype="company" data-isown="false" onclick="navSubClick(this)">' +
-          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> 🏛 Сторонние</div>';
+          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> Сторонние</div>';
   } else if (name === 'land_plot') {
     var plots = await api('/entities?type=land_plot');
     if (plots.length === 0) {
@@ -2170,9 +2196,18 @@ function navSubClick(el) {
   showEntityList(type, opts);
 }
 
+// Lucide icon mapping for entity types
+var ENTITY_TYPE_ICONS = {
+  building: 'building-2', workshop: 'warehouse', room: 'door-open',
+  land_plot: 'map-pin', land_plot_part: 'map-pin', company: 'landmark',
+  contract: 'file-text', supplement: 'paperclip', equipment: 'cog',
+  order: 'scroll', document: 'file', crane_track: 'move-horizontal', act: 'file-check'
+};
+function entityIcon(typeName, size) { return icon(ENTITY_TYPE_ICONS[typeName] || 'file', size); }
+
 function renderTypeNav() {
   const nav = document.getElementById('typeNav');
-  const T = function(name) { return entityTypes.find(function(t) { return t.name === name; }) || {name: name, icon: '📄', name_ru: name}; };
+  const T = function(name) { return entityTypes.find(function(t) { return t.name === name; }) || {name: name, icon: '', name_ru: name}; };
 
   var html = '<div class="nav-section" style="padding-top:12px">Документы</div>';
 
@@ -2180,20 +2215,21 @@ function renderTypeNav() {
   ['contract', 'supplement', 'act', 'order'].forEach(function(tn) {
     var t = T(tn);
     html += '<div class="nav-item" data-type="' + tn + '" data-etype="' + tn + '" onclick="showEntityList(this.dataset.etype)">' +
-      '<span class="icon">' + escapeHtml(t.icon) + '</span> ' + escapeHtml(t.name_ru || tn) + '</div>';
+      entityIcon(tn) + ' ' + escapeHtml(t.name_ru || tn) + '</div>';
   });
 
   // Реестры: корпуса (дерево), компании, ЗУ (дерево), оборудование
   html += '<div class="nav-section" style="margin-top:8px">Реестры</div>';
-  html += _navGroupHtml('building', '🏢', 'Корпуса');
-  html += _navGroupHtml('company', '🏛', 'Компании');
-  html += _navGroupHtml('land_plot', '🌍', 'Земельные участки');
+  html += _navGroupHtml('building', 'building-2', 'Корпуса');
+  html += _navGroupHtml('company', 'landmark', 'Компании');
+  html += _navGroupHtml('land_plot', 'map-pin', 'Земельные участки');
 
   var eq = T('equipment');
   html += '<div class="nav-item" data-type="equipment" data-etype="equipment" onclick="showEntityList(this.dataset.etype)">' +
-    '<span class="icon">' + escapeHtml(eq.icon) + '</span> ' + escapeHtml(eq.name_ru || 'Оборудование') + '</div>';
+    entityIcon('equipment') + ' ' + escapeHtml(eq.name_ru || 'Оборудование') + '</div>';
 
   nav.innerHTML = html;
+  renderIcons();
 }
 
 function setActive(selector) {
@@ -2206,6 +2242,275 @@ function setActive(selector) {
 
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ============ INTERACTIVE MAP ============
+
+var _mapEditMode = false;
+var _mapHotspots = []; // [{entity_id, entity_name, type_name, x, y, w, h, color}]
+var _mapDrawing = null; // {startX, startY} during draw
+
+async function showMapPage() {
+  currentView = 'map';
+  currentTypeFilter = null;
+  setActive('.nav-item[onclick*="showMapPage"]');
+  document.getElementById('pageTitle').textContent = 'Карта территории';
+  document.getElementById('breadcrumb').textContent = '';
+  document.getElementById('topActions').innerHTML = '';
+
+  // Load buildings and land_plots with map coordinates
+  var buildings = await api('/entities?type=building');
+  var landPlots = await api('/entities?type=land_plot');
+  _mapHotspots = [];
+
+  buildings.concat(landPlots).forEach(function(e) {
+    var p = e.properties || {};
+    if (p.map_x != null && p.map_y != null && p.map_w != null && p.map_h != null) {
+      _mapHotspots.push({
+        entity_id: e.id, entity_name: e.name, type_name: e.type_name,
+        x: parseFloat(p.map_x), y: parseFloat(p.map_y),
+        w: parseFloat(p.map_w), h: parseFloat(p.map_h),
+        color: p.map_color || 'rgba(99,102,241,0.3)'
+      });
+    }
+  });
+
+  var html = '<div style="padding:16px">';
+  html += '<div class="map-editor-bar">';
+  html += '<button class="btn btn-sm" id="mapEditBtn" onclick="_mapToggleEdit()">' + icon('pencil', 14) + ' Разметить</button>';
+  html += '<span id="mapEditHint" style="display:none;font-size:12px;color:var(--text-muted)">Рисуйте прямоугольник мышью на карте, затем выберите объект</span>';
+  html += '</div>';
+  html += '<div class="map-container" id="mapContainer" style="position:relative;max-width:100%;overflow:auto">';
+  html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;max-width:100%;height:auto" draggable="false" onload="_mapRenderHotspots()">';
+  html += '<div id="mapOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>';
+  html += '<div id="mapDrawBox" class="map-hotspot-draw" style="display:none"></div>';
+  html += '</div>';
+  html += '</div>';
+
+  document.getElementById('content').innerHTML = html;
+  renderIcons();
+  _mapRenderHotspots();
+}
+
+function _mapRenderHotspots() {
+  var overlay = document.getElementById('mapOverlay');
+  if (!overlay) return;
+  var h = '';
+  _mapHotspots.forEach(function(hs, i) {
+    h += '<div class="map-hotspot" data-idx="' + i + '" ' +
+      'style="left:' + hs.x + '%;top:' + hs.y + '%;width:' + hs.w + '%;height:' + hs.h + '%;background:' + hs.color + '" ' +
+      'onclick="_mapHotspotClick(' + i + ')" ' +
+      'title="' + escapeHtml(hs.entity_name) + '">' +
+      '<span class="map-hotspot-label">' + escapeHtml(hs.entity_name) + '</span>';
+    if (_mapEditMode) {
+      h += '<button onclick="event.stopPropagation();_mapDeleteHotspot(' + i + ')" ' +
+        'style="position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:var(--red);color:white;border:none;cursor:pointer;font-size:11px;line-height:1;padding:0">×</button>';
+    }
+    h += '</div>';
+  });
+  overlay.innerHTML = h;
+}
+
+function _mapToggleEdit() {
+  _mapEditMode = !_mapEditMode;
+  var btn = document.getElementById('mapEditBtn');
+  var hint = document.getElementById('mapEditHint');
+  if (_mapEditMode) {
+    btn.classList.add('btn-primary');
+    btn.innerHTML = icon('check', 14) + ' Готово';
+    hint.style.display = '';
+    _mapBindDrawEvents();
+  } else {
+    btn.classList.remove('btn-primary');
+    btn.innerHTML = icon('pencil', 14) + ' Разметить';
+    hint.style.display = 'none';
+    _mapUnbindDrawEvents();
+  }
+  renderIcons();
+  _mapRenderHotspots();
+}
+
+function _mapBindDrawEvents() {
+  var container = document.getElementById('mapContainer');
+  container.style.cursor = 'crosshair';
+  container._onMouseDown = function(e) { _mapOnMouseDown(e); };
+  container._onMouseMove = function(e) { _mapOnMouseMove(e); };
+  container._onMouseUp = function(e) { _mapOnMouseUp(e); };
+  container.addEventListener('mousedown', container._onMouseDown);
+  container.addEventListener('mousemove', container._onMouseMove);
+  container.addEventListener('mouseup', container._onMouseUp);
+}
+
+function _mapUnbindDrawEvents() {
+  var container = document.getElementById('mapContainer');
+  container.style.cursor = '';
+  if (container._onMouseDown) container.removeEventListener('mousedown', container._onMouseDown);
+  if (container._onMouseMove) container.removeEventListener('mousemove', container._onMouseMove);
+  if (container._onMouseUp) container.removeEventListener('mouseup', container._onMouseUp);
+}
+
+function _mapGetPercent(e) {
+  var img = document.getElementById('mapImg');
+  var rect = img.getBoundingClientRect();
+  return {
+    x: ((e.clientX - rect.left) / rect.width) * 100,
+    y: ((e.clientY - rect.top) / rect.height) * 100
+  };
+}
+
+function _mapOnMouseDown(e) {
+  if (e.target.closest('.map-hotspot') || e.target.tagName === 'BUTTON') return;
+  e.preventDefault();
+  var pos = _mapGetPercent(e);
+  _mapDrawing = { startX: pos.x, startY: pos.y };
+  var box = document.getElementById('mapDrawBox');
+  box.style.display = 'block';
+  box.style.left = pos.x + '%';
+  box.style.top = pos.y + '%';
+  box.style.width = '0%';
+  box.style.height = '0%';
+}
+
+function _mapOnMouseMove(e) {
+  if (!_mapDrawing) return;
+  var pos = _mapGetPercent(e);
+  var box = document.getElementById('mapDrawBox');
+  var x = Math.min(_mapDrawing.startX, pos.x);
+  var y = Math.min(_mapDrawing.startY, pos.y);
+  var w = Math.abs(pos.x - _mapDrawing.startX);
+  var h = Math.abs(pos.y - _mapDrawing.startY);
+  box.style.left = x + '%';
+  box.style.top = y + '%';
+  box.style.width = w + '%';
+  box.style.height = h + '%';
+}
+
+function _mapOnMouseUp(e) {
+  if (!_mapDrawing) return;
+  var pos = _mapGetPercent(e);
+  var x = Math.min(_mapDrawing.startX, pos.x);
+  var y = Math.min(_mapDrawing.startY, pos.y);
+  var w = Math.abs(pos.x - _mapDrawing.startX);
+  var h = Math.abs(pos.y - _mapDrawing.startY);
+  _mapDrawing = null;
+  document.getElementById('mapDrawBox').style.display = 'none';
+
+  // Ignore tiny accidental clicks
+  if (w < 1 || h < 1) return;
+
+  _mapShowAssignModal(x, y, w, h);
+}
+
+async function _mapShowAssignModal(x, y, w, h) {
+  // Load entities that can be placed on the map
+  var buildings = await api('/entities?type=building');
+  var landPlots = await api('/entities?type=land_plot');
+  var allEntities = buildings.concat(landPlots);
+
+  // Filter out those already placed
+  var placedIds = new Set(_mapHotspots.map(function(hs) { return hs.entity_id; }));
+  var available = allEntities.filter(function(e) { return !placedIds.has(e.id); });
+
+  var modalHtml = '<h3>Назначить объект</h3>';
+  modalHtml += '<div class="form-group"><label>Объект</label><select id="mapAssignEntity" class="form-input">';
+  modalHtml += '<option value="">— выберите —</option>';
+  available.forEach(function(e) {
+    modalHtml += '<option value="' + e.id + '">' + escapeHtml(e.name) + ' (' + (e.type_name_ru || e.type_name) + ')</option>';
+  });
+  modalHtml += '</select></div>';
+
+  modalHtml += '<div class="form-group"><label>Цвет зоны</label>';
+  modalHtml += '<div style="display:flex;gap:6px;flex-wrap:wrap" id="mapColorPicker">';
+  var colors = [
+    {name: 'Голубой', val: 'rgba(168,216,234,0.45)'},
+    {name: 'Зелёный', val: 'rgba(144,238,144,0.45)'},
+    {name: 'Розовый', val: 'rgba(255,182,193,0.45)'},
+    {name: 'Жёлтый', val: 'rgba(249,243,176,0.45)'},
+    {name: 'Оранжевый', val: 'rgba(255,200,150,0.45)'},
+    {name: 'Бежевый', val: 'rgba(222,209,189,0.45)'},
+    {name: 'Серый', val: 'rgba(180,180,180,0.35)'},
+    {name: 'Фиолетовый', val: 'rgba(180,160,220,0.45)'},
+  ];
+  colors.forEach(function(c, i) {
+    modalHtml += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer">' +
+      '<input type="radio" name="mapColor" value="' + c.val + '"' + (i === 0 ? ' checked' : '') + '>' +
+      '<span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:' + c.val + ';border:1px solid var(--border)"></span>' +
+      '<span style="font-size:12px">' + c.name + '</span></label>';
+  });
+  modalHtml += '</div></div>';
+
+  modalHtml += '<div class="modal-actions">';
+  modalHtml += '<button class="btn" onclick="closeModal()">Отмена</button>';
+  modalHtml += '<button class="btn btn-primary" onclick="_mapSaveHotspot(' +
+    x.toFixed(2) + ',' + y.toFixed(2) + ',' + w.toFixed(2) + ',' + h.toFixed(2) + ')">Сохранить</button>';
+  modalHtml += '</div>';
+
+  setModalContent(modalHtml);
+}
+
+async function _mapSaveHotspot(x, y, w, h) {
+  var sel = document.getElementById('mapAssignEntity');
+  var entityId = parseInt(sel.value);
+  if (!entityId) return alert('Выберите объект');
+
+  var colorEl = document.querySelector('input[name="mapColor"]:checked');
+  var color = colorEl ? colorEl.value : 'rgba(99,102,241,0.3)';
+
+  // Save to entity properties
+  var entity = null;
+  try {
+    entity = await api('/entities/' + entityId);
+  } catch(e) { return alert('Ошибка загрузки объекта'); }
+
+  var props = entity.properties || {};
+  props.map_x = x.toFixed(2);
+  props.map_y = y.toFixed(2);
+  props.map_w = w.toFixed(2);
+  props.map_h = h.toFixed(2);
+  props.map_color = color;
+
+  await api('/entities/' + entityId, {
+    method: 'PATCH',
+    body: JSON.stringify({ properties: props })
+  });
+
+  // Add to local hotspots
+  _mapHotspots.push({
+    entity_id: entityId, entity_name: sel.options[sel.selectedIndex].text.replace(/ \\(.*\\)$/, ''),
+    type_name: entity.type_name, x: x, y: y, w: w, h: h, color: color
+  });
+
+  closeModal();
+  _mapRenderHotspots();
+}
+
+async function _mapDeleteHotspot(idx) {
+  var hs = _mapHotspots[idx];
+  if (!confirm('Удалить зону «' + hs.entity_name + '» с карты?')) return;
+
+  // Remove map coordinates from entity properties
+  try {
+    var entity = await api('/entities/' + hs.entity_id);
+    var props = entity.properties || {};
+    delete props.map_x;
+    delete props.map_y;
+    delete props.map_w;
+    delete props.map_h;
+    delete props.map_color;
+    await api('/entities/' + hs.entity_id, {
+      method: 'PATCH',
+      body: JSON.stringify({ properties: props })
+    });
+  } catch(e) { console.error('Failed to remove hotspot:', e); }
+
+  _mapHotspots.splice(idx, 1);
+  _mapRenderHotspots();
+}
+
+function _mapHotspotClick(idx) {
+  if (_mapEditMode) return; // In edit mode, don't navigate
+  var hs = _mapHotspots[idx];
+  showEntity(hs.entity_id);
 }
 
 // ============ DASHBOARD ============
@@ -2224,7 +2529,7 @@ async function showDashboard() {
   let html = '<div class="stats-grid">';
   stats.types.forEach(t => {
     html += '<div class="stat-card" onclick="showEntityList(\\'' + t.name + '\\')">' +
-      '<div class="stat-icon">' + t.icon + '</div>' +
+      '<div class="stat-icon">' + entityIcon(t.name, 24) + '</div>' +
       '<div class="stat-count" style="color:' + t.color + '">' + t.count + '</div>' +
       '<div class="stat-label">' + t.name_ru + '</div></div>';
     const countEl = document.getElementById('count_' + t.name);
@@ -2237,6 +2542,7 @@ async function showDashboard() {
     ' <span style="color:var(--text-secondary);font-size:13px">связей</span></div>';
 
   content.innerHTML = html;
+  renderIcons();
 }
 
 // ============ ENTITY LIST ============
@@ -2295,7 +2601,7 @@ function renderEntityGrid(entities) {
     var titleStyle = (!isEqBroken && isEmergency) ? ' style="color:#b85c5c"' : '';
     html += '<div class="entity-card"' + cardStyle + ' onclick="showEntity(' + e.id + ')">' +
       '<div class="card-header">' +
-      '<div class="card-icon" style="background:' + e.color + '20;color:' + e.color + '">' + e.icon + '</div>' +
+      '<div class="card-icon" style="background:' + e.color + '20;color:' + e.color + '">' + entityIcon(e.type_name, 20) + '</div>' +
       '<div><div class="card-title"' + titleStyle + '>' + escapeHtml(e.name) + nameBadge + '</div>' +
       '<div class="card-type">' + e.type_name_ru + (e.parent_name ? ' · ' + escapeHtml(e.parent_name) : '') + '</div></div>' +
       '</div>' +
@@ -2304,6 +2610,7 @@ function renderEntityGrid(entities) {
   });
   html += '</div>';
   content.innerHTML = html;
+  renderIcons();
 }
 
 let searchTimeout;
@@ -2339,12 +2646,12 @@ async function showEntity(id, _forceDetail) {
   setActive('[data-type="' + e.type_name + '"]');
   document.getElementById('pageTitle').textContent = '';
   var bcParts = (e.ancestry || []).map(function(a) {
-    return '<a href="#" onclick="showEntity(' + a.id + ');return false" style="color:var(--accent)">' + a.icon + ' ' + escapeHtml(a.name) + '</a>';
+    return '<a href="#" onclick="showEntity(' + a.id + ');return false" style="color:var(--accent)">' + escapeHtml(a.name) + '</a>';
   });
   var _eProps = e.properties || {};
   var _eEmergencyBadge = (e.type_name === 'equipment' && _eProps.status === 'Аварийное')
     ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '';
-  bcParts.push(e.icon + ' ' + escapeHtml(e.name) + _eEmergencyBadge);
+  bcParts.push(escapeHtml(e.name) + _eEmergencyBadge);
   document.getElementById('breadcrumb').innerHTML = bcParts.join(' › ');
   var _ePropsForBtn = e.properties || {};
   var _isRentalContract = (e.type_name === 'contract' && (_ePropsForBtn.contract_type === 'Аренды' || _ePropsForBtn.contract_type === 'Субаренды'));
@@ -2352,7 +2659,7 @@ async function showEntity(id, _forceDetail) {
     '<button class="btn btn-sm" onclick="openRelationModal(' + id + ')">+ Связь</button>' +
     '<button class="btn btn-sm btn-danger" onclick="deleteEntity(' + id + ')">Удалить</button>';
   if (_isRentalContract) {
-    _topAct = '<button class="btn btn-sm" onclick="showEntityDetail(' + id + ')">⚙ Детали</button>' + _topAct;
+    _topAct = '<button class="btn btn-sm" onclick="showEntityDetail(' + id + ')">Детали</button>' + _topAct;
   }
   document.getElementById('topActions').innerHTML = _topAct;
 
@@ -2391,7 +2698,7 @@ async function showEntity(id, _forceDetail) {
       // Boolean display
       if (f.field_type === 'boolean') {
         html += '<div class="prop-item"><div class="prop-label">' + label + '</div>' +
-          '<div class="prop-value">' + (val === 'true' ? '✅ Да' : '—') + '</div></div>';
+          '<div class="prop-value">' + (val === 'true' ? 'Да' : '—') + '</div></div>';
         return;
       }
       if (f.field_type === 'textarea') {
@@ -2464,7 +2771,7 @@ async function showEntity(id, _forceDetail) {
             actView.forEach(function(item) {
               actTotal += item.amount || 0;
               html += '<tr style="border-bottom:1px solid var(--border)">';
-              html += '<td style="padding:6px"><a href="#" onclick="showEntity(' + (item.equipment_id || 0) + ');return false" style="color:var(--accent)">⚙️ ' + escapeHtml(item.equipment_name || '—') + '</a></td>';
+              html += '<td style="padding:6px"><a href="#" onclick="showEntity(' + (item.equipment_id || 0) + ');return false" style="color:var(--accent)">' + escapeHtml(item.equipment_name || '—') + '</a></td>';
               html += '<td style="text-align:right;padding:6px;font-weight:500">' + _fmtNum(item.amount || 0) + ' ₽</td>';
               html += '<td style="padding:6px;color:var(--text-secondary)">' + escapeHtml(item.description || '—') + '</td>';
               html += '</tr>';
@@ -2482,7 +2789,7 @@ async function showEntity(id, _forceDetail) {
           if (eqView.length > 0) {
             eqView.forEach(function(eq, i) {
               if (i > 0) html += '<br>';
-              html += '⚙️ <a href="#" onclick="showEntity(' + eq.equipment_id + ');return false" style="color:var(--accent);text-decoration:underline">' + escapeHtml(eq.equipment_name || ('ID:' + eq.equipment_id)) + '</a>';
+              html += '<a href="#" onclick="showEntity(' + eq.equipment_id + ');return false" style="color:var(--accent);text-decoration:underline">' + escapeHtml(eq.equipment_name || ('ID:' + eq.equipment_id)) + '</a>';
             });
           } else if (oldEqText) {
             html += '<span style="color:var(--text-muted);font-size:12px">' + escapeHtml(oldEqText) + ' <em>(текст, не связан с реестром)</em></span>';
@@ -2530,7 +2837,7 @@ async function showEntity(id, _forceDetail) {
       supplements.forEach(function(s) {
         const sp = s.properties || {};
         html += '<div class="child-card" onclick="showEntity(' + s.id + ')">' +
-          '<span style="font-size:18px">📎</span>' +
+          '<span>' + icon('paperclip', 18) + '</span>' +
           '<div><div style="font-weight:500;font-size:13px">' + escapeHtml(s.name) + '</div>' +
           '<div style="font-size:11px;color:var(--text-muted)">' + (sp.number || '') + (sp.contract_date ? ' от ' + sp.contract_date : '') + '</div></div></div>';
       });
@@ -2556,7 +2863,7 @@ async function showEntity(id, _forceDetail) {
         try { items = JSON.parse(ap.act_items || '[]'); } catch(ex) {}
         var total = items.reduce(function(s, i) { return s + (parseFloat(i.amount) || 0); }, 0);
         html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="showEntity(' + a.id + ')">';
-        html += '<td style="padding:6px">📝 ' + escapeHtml(a.name) + '</td>';
+        html += '<td style="padding:6px">' + escapeHtml(a.name) + '</td>';
         html += '<td style="padding:6px;color:var(--text-muted)">' + (ap.act_date || '—') + '</td>';
         html += '<td style="text-align:right;padding:6px;font-weight:500">' + (total > 0 ? _fmtNum(total) + ' ₽' : '—') + '</td>';
         html += '</tr>';
@@ -2579,7 +2886,7 @@ async function showEntity(id, _forceDetail) {
       parts.forEach(function(p) {
         var pp = p.properties || {};
         html += '<div class="child-card" onclick="showEntity(' + p.id + ')">' +
-          '<span style="font-size:18px">🗺</span>' +
+          '<span>' + icon('map', 18) + '</span>' +
           '<div><div style="font-weight:500;font-size:13px">' + escapeHtml(p.name) + '</div>' +
           '<div style="font-size:11px;color:var(--text-muted)">' + (pp.area ? pp.area + ' га' : '') + (pp.description ? (pp.area ? ' · ' : '') + pp.description : '') + '</div></div></div>';
       });
@@ -2606,7 +2913,7 @@ async function showEntity(id, _forceDetail) {
         var myItem = items.find(function(it) { return parseInt(it.equipment_id) === e.id; });
         var contractRel = (actData.relations || []).find(function(r) { return r.relation_type === 'supplement_to' && r.from_entity_id === actData.id; });
         html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="showEntity(' + actData.id + ')">';
-        html += '<td style="padding:6px">📝 ' + escapeHtml(actData.name) + (contractRel ? '<br><span style="font-size:11px;color:var(--text-muted)">→ ' + escapeHtml(contractRel.to_entity_name || '') + '</span>' : '') + '</td>';
+        html += '<td style="padding:6px">' + escapeHtml(actData.name) + (contractRel ? '<br><span style="font-size:11px;color:var(--text-muted)">→ ' + escapeHtml(contractRel.to_entity_name || '') + '</span>' : '') + '</td>';
         html += '<td style="padding:6px;color:var(--text-muted)">' + (ap.act_date || '—') + '</td>';
         html += '<td style="text-align:right;padding:6px;font-weight:500">' + (myItem && myItem.amount ? _fmtNum(myItem.amount) + ' ₽' : '—') + '</td>';
         html += '<td style="padding:6px;color:var(--text-secondary);font-size:12px">' + escapeHtml(myItem ? (myItem.description || '') : '') + '</td>';
@@ -2629,7 +2936,7 @@ async function showEntity(id, _forceDetail) {
         var lpRel = lpRels[0];
         html += '<div class="detail-section">';
         html += '<h3>Земельный участок</h3>';
-        html += '<a href="#" onclick="showEntity(' + lpRel.to_entity_id + ');return false" style="color:var(--accent)">🌍 ' + escapeHtml(lpRel.to_name || 'Земельный участок') + '</a>';
+        html += '<a href="#" onclick="showEntity(' + lpRel.to_entity_id + ');return false" style="color:var(--accent)">'+escapeHtml(lpRel.to_name || 'Земельный участок') + '</a>';
         html += '</div>';
       }
     }
@@ -2640,10 +2947,9 @@ async function showEntity(id, _forceDetail) {
       html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
       e.ancestry.forEach(function(a, i) {
         if (i > 0) html += '<span style="color:var(--text-muted)">›</span>';
-        html += '<a href="#" onclick="showEntity(' + a.id + ');return false" style="display:flex;align-items:center;gap:4px;color:var(--accent);text-decoration:none">' +
-          '<span>' + a.icon + '</span><span>' + escapeHtml(a.name) + '</span></a>';
+        html += '<a href="#" onclick="showEntity(' + a.id + ');return false" style="color:var(--accent);text-decoration:none">' + escapeHtml(a.name) + '</a>';
       });
-      html += '<span style="color:var(--text-muted)">›</span><strong>' + e.icon + ' ' + escapeHtml(e.name) + '</strong>';
+      html += '<span style="color:var(--text-muted)">›</span><strong>' + escapeHtml(e.name) + '</strong>';
       html += '</div>';
     } else {
       html += '<span style="color:var(--text-muted);font-size:13px">Не привязано ни к какому объекту</span>';
@@ -2661,7 +2967,7 @@ async function showEntity(id, _forceDetail) {
       var cCardStyle = cIsBroken ? 'border-left:3px solid #dc2626;background:rgba(239,68,68,.06);' : (cIsEmerg ? 'border-left:3px solid #b85c5c;background:rgba(184,92,92,.05);' : '');
       var cBadge = cIsBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>' : (cIsEmerg ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '');
       html += '<div class="child-card" onclick="showEntity(' + c.id + ')" style="' + cCardStyle + '">' +
-        '<span style="font-size:18px">' + c.icon + '</span>' +
+        entityIcon(c.type_name, 18) +
         '<div><div style="font-weight:500;font-size:13px">' + escapeHtml(c.name) + cBadge + '</div>' +
         '<div style="font-size:11px;color:var(--text-muted)">' + c.type_name_ru + '</div></div></div>';
     });
@@ -2679,7 +2985,6 @@ async function showEntity(id, _forceDetail) {
       const linkedType = isFrom ? r.to_type_ru : r.from_type_ru;
       const relColor = r.relation_color || '#94A3B8';
       html += '<div class="relation-item" onclick="showEntity(' + linkedId + ')">' +
-        '<span style="font-size:18px">' + linkedIcon + '</span>' +
         '<div><div class="relation-name">' + escapeHtml(linkedName) + '</div>' +
         '<div class="relation-type-label">' + linkedType + '</div></div>' +
         '<span class="relation-badge" style="background:' + relColor + '">' + (r.relation_name_ru || r.relation_type) + '</span>' +
@@ -2690,6 +2995,7 @@ async function showEntity(id, _forceDetail) {
   }
 
   document.getElementById('content').innerHTML = html;
+  renderIcons();
 }
 
 // ============ REPORTS ============
@@ -2782,12 +3088,12 @@ async function showReports() {
   html += '<div class="detail-section"><h3>Отчёты по связям</h3>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:16px">';
   var linkedReports = [
-    { type: 'equipment_by_location', icon: '🏢', title: 'Оборудование по корпусам', desc: 'Где установлено каждое оборудование' },
-    { type: 'equipment_by_tenant',   icon: '🏛', title: 'Оборудование у арендаторов', desc: 'Какое оборудование в арендуемых помещениях' },
+    { type: 'equipment_by_location', lucide: 'building-2', title: 'Оборудование по корпусам', desc: 'Где установлено каждое оборудование' },
+    { type: 'equipment_by_tenant',   lucide: 'landmark',   title: 'Оборудование у арендаторов', desc: 'Какое оборудование в арендуемых помещениях' },
   ];
   linkedReports.forEach(function(r) {
     html += '<div class="child-card" onclick="runLinkedReport(&quot;' + r.type + '&quot;)" style="cursor:pointer;padding:14px">';
-    html += '<div style="font-size:24px;margin-bottom:6px">' + r.icon + '</div>';
+    html += '<div style="margin-bottom:6px;color:var(--accent)">' + icon(r.lucide, 24) + '</div>';
     html += '<div style="font-weight:600;margin-bottom:4px">' + r.title + '</div>';
     html += '<div style="font-size:12px;color:var(--text-muted)">' + r.desc + '</div>';
     html += '</div>';
@@ -2893,6 +3199,7 @@ async function showReports() {
 
   html += '</div>';
   content.innerHTML = html;
+  renderIcons();
   switchReportTab('agg');
   updatePivotFieldPool(); // fill pool for default entity type
 }
@@ -3561,7 +3868,7 @@ function showPivotCellDetail(el) {
   html += '<h3>' + escapeHtml(rk) + colLabel + ' <span style="font-size:13px;font-weight:400;color:var(--text-muted)">(' + entityList.length + ')</span></h3>';
   entityList.forEach(function(e) {
     html += '<div class="child-card" onclick="showEntity(' + e.id + ')" style="cursor:pointer;padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;gap:8px">';
-    html += '<span>' + (e.icon || '📄') + '</span>';
+    html += entityIcon(e.type_name || 'contract');
     html += '<span style="font-weight:500">' + escapeHtml(e.name) + '</span>';
     var p = e.properties || {};
     var tags = [];
@@ -3595,7 +3902,7 @@ async function runLinkedReport(type) {
     groups.forEach(function(g) {
       html += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">';
       html += '<div style="background:var(--bg-hover);padding:10px 14px;font-weight:600;display:flex;justify-content:space-between">';
-      html += '<span>' + escapeHtml(g.icon || '🏢') + ' ' + escapeHtml(g.name) + ' <span style="font-size:11px;color:var(--text-muted);font-weight:400">(' + (g.type || '') + ')</span></span>';
+      html += '<span style="display:flex;align-items:center;gap:6px">' + entityIcon('building') + ' ' + escapeHtml(g.name) + ' <span style="font-size:11px;color:var(--text-muted);font-weight:400">(' + (g.type || '') + ')</span></span>';
       html += '<span style="font-size:12px;color:var(--text-muted)">' + g.items.length + ' ед.</span></div>';
       html += '<div style="padding:8px 14px">';
       if (g.items.length === 0) {
@@ -3611,7 +3918,7 @@ async function runLinkedReport(type) {
           if (p.status && p.status !== 'В работе') tags.push(p.status);
           var nameColor = isBroken ? '#dc2626' : (isEmerg ? '#b85c5c' : '');
           html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px' + (isBroken ? ';background:rgba(239,68,68,.07)' : (isEmerg ? ';background:rgba(184,92,92,.05)' : '')) + '">';
-          html += '<span>' + (item.icon || '⚙️') + '</span>';
+          html += entityIcon('equipment');
           html += '<span style="font-weight:500;font-size:13px' + (nameColor ? ';color:' + nameColor : '') + '">' + escapeHtml(item.name) + (isBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>' : (isEmerg ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '')) + '</span>';
           if (tags.length) html += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(tags.join(' · ')) + '</span>';
           html += '</div>';
@@ -3625,14 +3932,14 @@ async function runLinkedReport(type) {
     groups.forEach(function(g) {
       html += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">';
       html += '<div style="background:var(--bg-hover);padding:10px 14px;font-weight:600;display:flex;justify-content:space-between">';
-      html += '<span>🏛 ' + escapeHtml(g.name) + '</span>';
+      html += '<span style="display:flex;align-items:center;gap:6px">' + entityIcon('company') + ' ' + escapeHtml(g.name) + '</span>';
       html += '<span style="font-size:12px;color:var(--text-muted)">' + g.items.length + ' ед. оборудования · ' + (g.contracts || []).length + ' договоров</span></div>';
       html += '<div style="padding:8px 14px">';
       // Show contracts
       if (g.contracts && g.contracts.length > 0) {
         html += '<div style="margin-bottom:8px">';
         g.contracts.forEach(function(c) {
-          html += '<div style="font-size:12px;color:var(--text-secondary);padding:2px 0">📄 <a href="#" onclick="showEntity(' + c.id + ');return false" style="color:var(--accent)">' + escapeHtml(c.name) + '</a></div>';
+          html += '<div style="font-size:12px;color:var(--text-secondary);padding:2px 0"><a href="#" onclick="showEntity(' + c.id + ');return false" style="color:var(--accent)">' + escapeHtml(c.name) + '</a></div>';
         });
         html += '</div>';
       }
@@ -3649,7 +3956,7 @@ async function runLinkedReport(type) {
           if (p.status && p.status !== 'В работе') tags.push(p.status);
           var nameColor = isBroken ? '#dc2626' : (isEmerg ? '#b85c5c' : '');
           html += '<div class="child-card" onclick="showEntity(' + item.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px;display:flex;align-items:center;gap:8px' + (isBroken ? ';background:rgba(239,68,68,.07)' : (isEmerg ? ';background:rgba(184,92,92,.05)' : '')) + '">';
-          html += '<span>' + (item.icon || '⚙️') + '</span>';
+          html += entityIcon('equipment');
           html += '<span style="font-weight:500;font-size:13px' + (nameColor ? ';color:' + nameColor : '') + '">' + escapeHtml(item.name) + (isBroken ? ' <span class="eq-broken-badge">\u26a0 \u041d\u0435\u0440\u0430\u0431\u043e\u0447\u0438\u0439</span>' : (isEmerg ? ' <span class="eq-emergency-badge">\u26a0 \u0410\u0432\u0430\u0440\u0438\u044f</span>' : '')) + '</span>';
           if (tags.length) html += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(tags.join(' · ')) + '</span>';
           html += '</div>';
@@ -3661,6 +3968,7 @@ async function runLinkedReport(type) {
 
   html += '</div>';
   resultsEl.innerHTML = html;
+  renderIcons();
 }
 
 // Which entity type owns each groupBy field (fields inside contract props/rent_objects)
@@ -3721,10 +4029,10 @@ async function runReport() {
     Object.keys(byType).forEach(function(typeName) {
       var bt = byType[typeName];
       html += '<div style="margin-bottom:8px">';
-      html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">' + bt.icon + ' ' + bt.name_ru + ' (' + bt.items.length + ')</div>';
+      html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:flex;align-items:center;gap:4px">' + entityIcon(typeName) + ' ' + bt.name_ru + ' (' + bt.items.length + ')</div>';
       bt.items.forEach(function(e) {
         html += '<div class="child-card" onclick="showEntity(' + e.id + ')" style="margin-bottom:4px;cursor:pointer;padding:6px 10px">';
-        html += '<span style="font-size:14px">' + bt.icon + '</span> ';
+        html += entityIcon(typeName);
         html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(e.name) + '</span>';
         // Show key properties
         var props = e.properties || {};
@@ -3766,6 +4074,7 @@ function setModalContent(html) {
   el.querySelectorAll('[data-modal-size]').forEach(function(btn) {
     btn.addEventListener('click', function() { setModalSize(btn.getAttribute('data-modal-size')); });
   });
+  renderIcons();
 }
 
 function setModalSize(size) {
@@ -4049,7 +4358,7 @@ function renderContractCard(data) {
     var eqSrcNote = data.transfer_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">(из ' + escapeHtml(data.transfer_source_name) + ')</span>' : '';
     h += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
     h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
-    h += '<span>⚙️ Переданное оборудование (' + data.equipment_list.length + ')' + eqSrcNote + '</span><span>▼</span>';
+    h += '<span>Переданное оборудование (' + data.equipment_list.length + ')' + eqSrcNote + '</span><span>▼</span>';
     h += '</button>';
     h += '<div style="display:none;padding:12px 14px">';
     data.equipment_list.forEach(function(eq) {
@@ -4072,7 +4381,7 @@ function renderContractCard(data) {
   if (data.history && data.history.length) {
     h += '<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
     h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
-    h += '<span>📎 История ДопСоглашений (' + (data.history.length - 1) + ')</span><span>▼</span>';
+    h += '<span>История ДопСоглашений (' + (data.history.length - 1) + ')</span><span>▼</span>';
     h += '</button>';
     h += '<div style="display:none;padding:12px 14px">';
     data.history.forEach(function(s) {
@@ -4080,13 +4389,13 @@ function renderContractCard(data) {
       if (s.is_contract) {
         // Основной договор — кликабельный
         h += '<a href="#" onclick="openContractCard(' + s.id + ');return false" style="color:var(--accent);font-weight:600">';
-        h += '📄 ' + escapeHtml(s.name);
+        h += escapeHtml(s.name);
         h += '</a>';
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         h += ' <span style="background:var(--bg-hover);color:var(--text-secondary);font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px">Основной договор</span>';
       } else {
         h += '<a href="#" onclick="openSupplementCard(' + s.id + ');return false" style="color:var(--accent)">';
-        h += '📎 ' + escapeHtml(s.name) + (s.number ? ' №' + escapeHtml(s.number) : '');
+        h += escapeHtml(s.name) + (s.number ? ' №' + escapeHtml(s.number) : '');
         h += '</a>';
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         if (s.changes) h += ' — <span style="color:var(--text-secondary)">' + escapeHtml(s.changes) + '</span>';
@@ -4129,7 +4438,7 @@ async function openSupplementCard(id) {
     var h = '';
     // Header
     h += '<div style="margin-bottom:16px">';
-    h += '<h2 style="font-size:1.2rem;font-weight:700;margin:0 0 4px">📎 ' + escapeHtml(supp.name) + '</h2>';
+    h += '<h2 style="font-size:1.2rem;font-weight:700;margin:0 0 4px"' + escapeHtml(supp.name) + '</h2>';
     h += '<span style="font-size:13px;color:var(--text-secondary)">Доп. соглашение' + (sp.contract_type ? ' к договору ' + escapeHtml(sp.contract_type) : '') + '</span>';
     h += '</div>';
 
@@ -4138,7 +4447,7 @@ async function openSupplementCard(id) {
       h += '<div style="margin-bottom:12px;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px">';
       h += '<span style="color:var(--text-muted)">Основной договор:</span> ';
       h += '<a href="#" onclick="openContractCard(' + parentId + ');return false" style="color:var(--accent);font-weight:600">';
-      h += parentData ? escapeHtml(parentData.name) : '📄 Договор #' + parentId;
+      h += parentData ? escapeHtml(parentData.name) : ' Договор #' + parentId;
       h += '</a>';
       h += '</div>';
     }
@@ -4199,9 +4508,9 @@ async function openSupplementCard(id) {
 
     // Actions
     h += '<div style="margin-top:16px;display:flex;gap:8px">';
-    h += '<button class="btn btn-sm" onclick="closeModal();showEntity(' + id + ')">📋 Полные детали</button>';
+    h += '<button class="btn btn-sm" onclick="closeModal();showEntity(' + id + ')">Полные детали</button>';
     if (parentId) {
-      h += '<button class="btn btn-sm btn-primary" onclick="openContractCard(' + parentId + ')">← К договору</button>';
+      h += '<button class="btn btn-sm btn-primary" onclick="openContractCard(' + parentId + ')">К договору</button>';
     }
     h += '</div>';
 
@@ -5450,7 +5759,7 @@ async function openRelationModal(entityId) {
 
   html += '<div class="form-group"><label>Связать с</label><select id="r_target">';
   allEntities.filter(e => e.id !== entityId).forEach(e => {
-    html += '<option value="' + e.id + '">' + e.icon + ' ' + escapeHtml(e.name) + ' (' + e.type_name_ru + ')</option>';
+    html += '<option value="' + e.id + '">' + escapeHtml(e.name) + ' (' + e.type_name_ru + ')</option>';
   });
   html += '</select></div>';
 
@@ -5485,8 +5794,8 @@ function showSettings(tab) {
 
   // Tabs header
   var tabsHtml = '<div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--border)">';
-  tabsHtml += '<button id="stab_types" class="btn' + (tab==='types'?' btn-primary':'') + '" onclick="showSettings(\\'types\\')" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">⚙️ Типы и поля</button>';
-  tabsHtml += '<button id="stab_lists" class="btn' + (tab==='lists'?' btn-primary':'') + '" onclick="showSettings(\\'lists\\')" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">📋 Справочники</button>';
+  tabsHtml += '<button id="stab_types" class="btn' + (tab==='types'?' btn-primary':'') + '" onclick="showSettings(\\'types\\')" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Типы и поля</button>';
+  tabsHtml += '<button id="stab_lists" class="btn' + (tab==='lists'?' btn-primary':'') + '" onclick="showSettings(\\'lists\\')" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Справочники</button>';
   tabsHtml += '</div>';
 
   if (tab === 'types') {
@@ -5494,11 +5803,12 @@ function showSettings(tab) {
     let html = tabsHtml + '<div class="entity-grid">';
     entityTypes.forEach(t => {
       html += '<div class="entity-card" onclick="showTypeFields(' + t.id + ')">' +
-        '<div class="card-header"><div class="card-icon" style="background:' + t.color + '20;color:' + t.color + '">' + t.icon + '</div>' +
+        '<div class="card-header"><div class="card-icon" style="background:' + t.color + '20;color:' + t.color + '">' + entityIcon(t.name, 20) + '</div>' +
         '<div><div class="card-title">' + t.name_ru + '</div><div class="card-type">' + t.name + '</div></div></div></div>';
     });
     html += '</div>';
     document.getElementById('content').innerHTML = html;
+    renderIcons();
   } else {
     document.getElementById('topActions').innerHTML = '';
     document.getElementById('content').innerHTML = tabsHtml + '<div id="settingsListsContent"><div style="padding:40px;text-align:center;color:var(--text-muted)">Загрузка...</div></div>';
@@ -5527,13 +5837,14 @@ async function showTypeFields(typeId) {
   });
   html += '</div>';
   document.getElementById('content').innerHTML = html;
+  renderIcons();
 }
 
 function openAddTypeModal() {
   let html = '<h3>Новый тип сущности</h3>' +
     '<div class="form-group"><label>Системное имя (eng)</label><input id="t_name" placeholder="crane_track"></div>' +
     '<div class="form-group"><label>Название (рус)</label><input id="t_name_ru" placeholder="Подкрановый путь"></div>' +
-    '<div class="form-group"><label>Иконка</label><input id="t_icon" placeholder="🛤" maxlength="4"></div>' +
+    '<div class="form-group"><label>Иконка</label><input id="t_icon" placeholder="" maxlength="4"></div>' +
     '<div class="form-group"><label>Цвет</label><input type="color" id="t_color" value="#6366F1"></div>' +
     '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitAddType()">Создать</button></div>';
@@ -5543,10 +5854,10 @@ function openAddTypeModal() {
 async function submitAddType() {
   const name = document.getElementById('t_name').value.trim();
   const name_ru = document.getElementById('t_name_ru').value.trim();
-  const icon = document.getElementById('t_icon').value || '📄';
+  const typeIcon = document.getElementById('t_icon').value || '';
   const color = document.getElementById('t_color').value;
   if (!name || !name_ru) return alert('Заполните имя');
-  await api('/entity-types', { method: 'POST', body: JSON.stringify({ name, name_ru, icon, color }) });
+  await api('/entity-types', { method: 'POST', body: JSON.stringify({ name, name_ru, icon: typeIcon, color }) });
   entityTypes = await api('/entity-types');
   renderTypeNav();
   closeModal();
@@ -5630,7 +5941,7 @@ function renderSettingsLists() {
     var g = groups[typeName];
     h += '<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg-primary)">';
     h += '<div style="padding:12px 16px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">';
-    h += '<span style="font-size:18px">' + escapeHtml(g.icon) + '</span>';
+    h += entityIcon(typeName, 18);
     h += '<span style="font-weight:600;font-size:14px">' + escapeHtml(g.name_ru) + '</span>';
     h += '</div>';
     h += '<div style="padding:8px">';
@@ -5640,7 +5951,7 @@ function renderSettingsLists() {
       h += '<div style="margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary)">';
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
       h += '<span style="font-size:13px;font-weight:600">' + escapeHtml(f.name_ru || f.name) + '</span>';
-      h += '<button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px" onclick="openListEditor(' + f.id + ')">✏️ Редактировать</button>';
+      h += '<button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px" onclick="openListEditor(' + f.id + ')">Редактировать</button>';
       h += '</div>';
       h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
       opts.forEach(function(opt) {
@@ -5661,7 +5972,7 @@ function openListEditor(fieldId) {
   var opts = [];
   opts = Array.isArray(field.options) ? field.options : []; try { if (typeof field.options === 'string') opts = JSON.parse(field.options); } catch(ex) {}
 
-  var h = '<h3>✏️ ' + escapeHtml(field.name_ru || field.name) + '</h3>';
+  var h = '<h3>' + escapeHtml(field.name_ru || field.name) + '</h3>';
   h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Тип сущности: ' + escapeHtml(field.entity_type_name_ru) + '</div>';
 
   h += '<div id="listEditorItems" style="margin-bottom:12px">';
@@ -5677,7 +5988,7 @@ function openListEditor(fieldId) {
 
   h += '<div class="modal-actions">';
   h += '<button class="btn" onclick="closeModal()">Отмена</button>';
-  h += '<button class="btn btn-primary" onclick="saveListEditor(' + fieldId + ')">💾 Сохранить</button>';
+  h += '<button class="btn btn-primary" onclick="saveListEditor(' + fieldId + ')">Сохранить</button>';
   h += '</div>';
 
   setModalContent(h);
@@ -5687,7 +5998,7 @@ function _renderListEditorItem(text, idx) {
   return '<div class="list-editor-item" data-idx="' + idx + '" style="display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:4px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px">' +
     '<span style="color:var(--text-muted);cursor:grab;font-size:14px">⠿</span>' +
     '<span class="list-editor-text" style="flex:1;font-size:13px">' + escapeHtml(text) + '</span>' +
-    '<button class="btn btn-sm" style="padding:2px 6px;font-size:11px" onclick="listEditorInlineEdit(this)">✏️</button>' +
+    '<button class="btn btn-sm" style="padding:2px 6px;font-size:11px" onclick="listEditorInlineEdit(this)">Ред.</button>' +
     '<button class="btn btn-sm btn-danger" style="padding:2px 6px;font-size:11px" onclick="listEditorRemove(this)">×</button>' +
     '</div>';
 }

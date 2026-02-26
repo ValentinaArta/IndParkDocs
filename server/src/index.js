@@ -1,5 +1,6 @@
 require('dotenv').config({ path: __dirname + '/../.env' });
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const { apiLimiter } = require('./middleware/rateLimiter');
@@ -41,6 +42,9 @@ if (process.env.NODE_ENV === 'production') {
     next();
   });
 }
+
+// Static files (maps, etc.)
+app.use('/maps', express.static(path.join(__dirname, '../public/maps')));
 
 // Inline frontend
 const FRONTEND_HTML = require('./frontend');
