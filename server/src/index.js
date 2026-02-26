@@ -913,7 +913,48 @@ async function createBIViews() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => mergeORRVesta()).then(() => createBIViews()).then(() => {
+async function syncMetabase() {
+  const url = process.env.METABASE_URL;
+  const email = process.env.METABASE_EMAIL;
+  const password = process.env.METABASE_PASSWORD;
+  if (!url || !email || !password) {
+    console.log('syncMetabase: skipped (METABASE_URL/EMAIL/PASSWORD not set)');
+    return;
+  }
+  try {
+    // 1. Get session token (using Node 22 built-in fetch)
+    const sessRes = await fetch(`${url}/api/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: email, password })
+    });
+    if (!sessRes.ok) { console.log('syncMetabase: auth failed', sessRes.status); return; }
+    const { id: token } = await sessRes.json();
+
+    // 2. Find IndParkDocs database
+    const dbRes = await fetch(`${url}/api/database`, {
+      headers: { 'X-Metabase-Session': token }
+    });
+    const dbData = await dbRes.json();
+    const databases = dbData.data || dbData;
+    const db = databases.find(d => d.details && (
+      (d.details.host || '').includes('neon.tech') ||
+      (d.details.dbname || '') === 'neondb'
+    ));
+    if (!db) { console.log('syncMetabase: database not found in Metabase'); return; }
+
+    // 3. Trigger sync
+    await fetch(`${url}/api/database/${db.id}/sync_schema`, {
+      method: 'POST',
+      headers: { 'X-Metabase-Session': token }
+    });
+    console.log(`syncMetabase: sync triggered for database ${db.id} (${db.name})`);
+  } catch(e) {
+    console.error('syncMetabase error (non-fatal):', e.message);
+  }
+}
+
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => mergeORRVesta()).then(() => createBIViews()).then(() => syncMetabase()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 

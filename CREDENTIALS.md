@@ -12,7 +12,7 @@
 ## Credentials
 
 ### Metabase Cloud (добавлено 2026-02-26)
-- **URL**: https://metabase.com (cloud)
+- **URL**: https://benthic-hull.metabaseapp.com
 - **Email**: valentinke@gmail.com
 - **Пароль**: FPgCHlC6mo!DNyUG3VEJ3
 
