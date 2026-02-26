@@ -2305,7 +2305,7 @@ async function showMapPage() {
   html += '<defs></defs>';
   html += '<g id="mapShapes"></g><g id="mapDrawPreview"></g>';
   html += '</svg>';
-  html += '<div id="mapLabels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></div>';
+  html += '<div id="mapLabels" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none"></div>';
   html += '</div></div></div>';
 
   document.getElementById('content').innerHTML = html;
@@ -2484,7 +2484,11 @@ function _mapRenderShapes() {
   var z = _mapZoom || 1;   // scale-invariant factor: divide by z to keep screen-size constant
   var h = '';
   _mapHotspots.forEach(function(hs, i) {
-    var fill = hs.color, stroke = 'rgba(255,255,255,0.8)', sw = (0.5/z).toFixed(3);
+    // Boost fill opacity to minimum 0.65 so all zones look solid
+    var fill = hs.color.replace(/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/, function(_, r,g,b,a){
+      return 'rgba('+r+','+g+','+b+','+Math.max(parseFloat(a),0.65)+')';
+    });
+    var stroke = 'rgba(0,0,0,0.55)', sw = (0.7/z).toFixed(3);
     var cur  = _mapEditMode ? 'default' : 'pointer';
     var clk  = _mapEditMode ? '' : ' onclick="'+('_mapHotspotClick('+i+')')+'"';
     var title = '<title>'+escapeHtml(hs.entity_name)+'</title>';
@@ -2537,8 +2541,9 @@ function _mapRenderLabels() {
     h += '<div title="'+escapeHtml(hs.entity_name)+'"'
        + ' style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
        + 'transform:translate(-50%,-50%);'
-       + 'font-size:13px;font-weight:700;color:white;line-height:1;text-align:center;'
-       + 'background:rgba(0,0,0,0.45);border-radius:4px;padding:2px 6px;'
+       + 'font-size:13px;font-weight:800;color:#fff;line-height:1;text-align:center;'
+       + 'background:rgba(0,0,0,0.62);border-radius:5px;padding:3px 8px;'
+       + 'border:1px solid rgba(255,255,255,0.35);'
        + 'white-space:nowrap;pointer-events:none">'
        + escapeHtml(shortLbl) + '</div>';
   });
