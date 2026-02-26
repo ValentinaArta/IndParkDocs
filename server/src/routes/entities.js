@@ -286,6 +286,25 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
   res.json(rows[0]);
 }));
 
+// PATCH /api/entities/:id — alias for PUT (partial update)
+router.patch('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.entityUpdate), asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { name, properties, parent_id } = req.body;
+  const cleanProps = properties ? sanitizeObj(properties) : undefined;
+  const cleanName  = name ? xss(name) : undefined;
+  const sets = [], params = [];
+  if (cleanName  !== undefined) { params.push(cleanName);  sets.push(`name=$${params.length}`); }
+  if (cleanProps !== undefined) { params.push(cleanProps); sets.push(`properties=$${params.length}`); }
+  if (parent_id  !== undefined) { params.push(parent_id); sets.push(`parent_id=$${params.length}`); }
+  sets.push('updated_at=NOW()');
+  params.push(id);
+  const { rows } = await pool.query(
+    `UPDATE entities SET ${sets.join(',')} WHERE id=$${params.length} AND deleted_at IS NULL RETURNING *`, params
+  );
+  if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
+  res.json(rows[0]);
+}));
+
 // DELETE /api/entities/:id (soft delete)
 router.delete('/:id', authenticate, authorize('admin', 'editor'), asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
