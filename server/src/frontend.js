@@ -2500,11 +2500,22 @@ function _mapRenderShapes() {
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
     var lbl = escapeHtml(hs.entity_name);
-    var fs = (3.5/z).toFixed(3);
-    var sw2 = (0.6/z).toFixed(3);
+    // Adaptive font-size: fits within zone width and height
+    var zoneW, zoneH;
+    if (hs.shape === 'rect') {
+      zoneW = hs.w; zoneH = hs.h;
+    } else {
+      var xs = hs.points.map(function(p){return p[0];}), ys = hs.points.map(function(p){return p[1];});
+      zoneW = Math.max.apply(null,xs) - Math.min.apply(null,xs);
+      zoneH = Math.max.apply(null,ys) - Math.min.apply(null,ys);
+    }
+    var fitByW = zoneW / (hs.entity_name.length * 0.58);
+    var fitByH = zoneH * 0.22;
+    var fs = (Math.max(0.6, Math.min(fitByW, fitByH, 4)) / z).toFixed(3);
+    var sw2 = (parseFloat(fs) * 0.18).toFixed(3);
     h += '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="middle"'
        + ' font-size="'+fs+'" font-weight="700" fill="white"'
-       + ' stroke="#1a1a2e" stroke-width="'+sw2+'" paint-order="stroke fill"'
+       + ' stroke="rgba(0,0,0,0.7)" stroke-width="'+sw2+'" paint-order="stroke fill"'
        + ' style="pointer-events:none">'+lbl+'</text>';
     // Delete handle in edit mode
     if (_mapEditMode) {
