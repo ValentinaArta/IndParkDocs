@@ -2636,6 +2636,9 @@ function renderContractFormFields(fields, props, headerHtml) {
   var html = headerHtml || '';
 
   fields.forEach(function(f) {
+    // Skip hidden/справочник-only fields (sort_order >= 999)
+    if (f.sort_order >= 999) return;
+
     var val = props[f.name] || '';
     var ef = f;
 
@@ -6116,6 +6119,9 @@ async function openCreateSupplementModal(parentContractId) {
   var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
 
   fields.forEach(function(f) {
+    // Skip hidden/справочник-only fields (sort_order >= 999)
+    if (f.sort_order >= 999) return;
+
     var val = parentProps[f.name] || '';
     var ef = f;
 
