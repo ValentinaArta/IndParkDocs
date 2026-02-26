@@ -2522,6 +2522,29 @@ function _mapRenderShapes() {
   _mapRenderLabels();
 }
 
+// ── Signed-area centroid (correct for concave/L-shaped polygons) ─────────────
+function _polyAreaCentroid(pts) {
+  var n = pts.length;
+  if (n < 3) {
+    return [pts.reduce(function(s,p){return s+p[0];},0)/n,
+            pts.reduce(function(s,p){return s+p[1];},0)/n];
+  }
+  var area = 0, cx = 0, cy = 0;
+  for (var i = 0; i < n; i++) {
+    var j = (i + 1) % n;
+    var cross = pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+    area += cross;
+    cx += (pts[i][0] + pts[j][0]) * cross;
+    cy += (pts[i][1] + pts[j][1]) * cross;
+  }
+  area /= 2;
+  if (Math.abs(area) < 1e-10) {
+    return [pts.reduce(function(s,p){return s+p[0];},0)/n,
+            pts.reduce(function(s,p){return s+p[1];},0)/n];
+  }
+  return [cx / (6 * area), cy / (6 * area)];
+}
+
 // ── HTML labels (fixed pixel size, positioned by %) ───────────────────────────
 function _mapRenderLabels() {
   var container = document.getElementById('mapLabels');
@@ -2531,11 +2554,15 @@ function _mapRenderLabels() {
     try {
       var cx = 0, cy = 0;
       if (hs.shape === 'rect') {
-        cx = (hs.x||0) + (hs.w||0)/2;
-        cy = (hs.y||0) + (hs.h||0)/2;
-      } else if (hs.points && hs.points.length) {
-        cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
-        cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
+        var rx = isNaN(hs.x) ? 0 : (hs.x||0);
+        var ry = isNaN(hs.y) ? 0 : (hs.y||0);
+        var rw = isNaN(hs.w) ? 0 : (hs.w||0);
+        var rh = isNaN(hs.h) ? 0 : (hs.h||0);
+        cx = rx + rw/2;
+        cy = ry + rh/2;
+      } else if (hs.points && hs.points.length >= 2) {
+        var c = _polyAreaCentroid(hs.points);
+        cx = c[0]; cy = c[1];
       }
       if (isNaN(cx) || isNaN(cy)) return;
       var name = hs.entity_name || '';
