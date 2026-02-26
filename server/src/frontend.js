@@ -533,8 +533,12 @@ function quickCreateLandPlot() {
   formHtml += '<div class="form-group" style="margin:0"><label style="font-size:12px">Кадастровый номер</label><input id="qlp_cadastral"></div>';
   formHtml += '<div class="form-group" style="margin:0"><label style="font-size:12px">Площадь, кв.м.</label><input id="qlp_area" type="number"></div>';
   formHtml += '<div class="form-group" style="margin:0"><label style="font-size:12px">Собственник</label><select id="qlp_owner"><option value="">—</option>' + ownerOpts + '</select></div>';
+  formHtml += '<div class="form-group" style="margin:0"><label style="font-size:12px">Кадастровая стоимость</label><input id="qlp_cad_value" type="number" placeholder="0.00"></div>';
+  formHtml += '<div class="form-group" style="margin:0"><label style="font-size:12px">Дата кад. стоимости</label><input id="qlp_cad_value_date" type="date"></div>';
   formHtml += '</div>';
   formHtml += '<div class="form-group" style="margin:8px 0 0"><label style="font-size:12px">Адрес</label><input id="qlp_address" placeholder="адрес"></div>';
+  formHtml += '<div class="form-group" style="margin:8px 0 0"><label style="font-size:12px">Разрешённое использование</label><input id="qlp_purpose" placeholder=""></div>';
+  formHtml += '<div class="form-group" style="margin:8px 0 0"><label style="font-size:12px">Короткое имя (для карты)</label><input id="qlp_short_name" placeholder="напр. уч.15"></div>';
   formHtml += '<div style="margin-top:8px;display:flex;gap:6px"><button type="button" class="btn btn-primary btn-sm" onclick="submitQuickLandPlot()">Создать ЗУ</button>';
   formHtml += '<button type="button" class="btn btn-sm" data-action="hide-lp-panel">Отмена</button></div>';
   formHtml += '</div>';
@@ -553,6 +557,10 @@ async function submitQuickLandPlot() {
   var cn = document.getElementById('qlp_cadastral'); if (cn && cn.value.trim()) props.cadastral_number = cn.value.trim();
   var ar = document.getElementById('qlp_area'); if (ar && ar.value) props.area = ar.value;
   var ad = document.getElementById('qlp_address'); if (ad && ad.value.trim()) props.address = ad.value.trim();
+  var cv = document.getElementById('qlp_cad_value'); if (cv && cv.value) props.cadastral_value = cv.value;
+  var cvd = document.getElementById('qlp_cad_value_date'); if (cvd && cvd.value) props.cadastral_value_date = cvd.value;
+  var pu = document.getElementById('qlp_purpose'); if (pu && pu.value.trim()) props.purpose = pu.value.trim();
+  var sn = document.getElementById('qlp_short_name'); if (sn && sn.value.trim()) props.short_name = sn.value.trim();
   var ow = document.getElementById('qlp_owner');
   if (ow && ow.value) {
     var owEnt = (_ownCompanies||[]).find(function(c){ return c.id === parseInt(ow.value); });
