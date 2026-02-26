@@ -1220,6 +1220,13 @@ function getFieldValue(f) {
     return null;
   }
   if (f.field_type === 'checkbox' || f.field_type === 'boolean') {
+    // external_rental is auto-computed: true if contractor is not one of our companies
+    if (f.name === 'external_rental') {
+      var contractorEl = document.getElementById('f_contractor_name');
+      var contractorId = contractorEl ? parseInt(contractorEl.value) || 0 : 0;
+      var isOwnContractor = contractorId > 0 && (_ownCompanies||[]).some(function(c){ return c.id === contractorId; });
+      return String(contractorId > 0 && !isOwnContractor);
+    }
     const cb = document.getElementById('f_' + f.name);
     return cb ? String(cb.checked) : 'false';
   }
@@ -1752,15 +1759,8 @@ function renderRentFields(container, allFields, props) {
   // Comments
   html += '<div class="form-group"><label>Комментарии</label>' + renderCommentsBlock(props.rent_comments) + '</div>';
 
-  // External rental checkbox — hidden in supplement (#5: inherited from contract)
-  var externalRental = props.external_rental === 'true' || props.external_rental === true;
-  if (_contractFormTypeName !== 'supplement') {
-    html += '<div class="form-group" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
-      '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + '> Аренда внешняя</label></div>';
-  } else {
-    // Hidden checkbox to preserve value (inherited from contract, not editable in supplement)
-    html += '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + ' style="display:none">';
-  }
+  // External rental — always hidden, auto-computed at submission: true if contractor is not own company
+  html += '<input type="checkbox" id="f_external_rental" style="display:none">';
 
   // Transfer equipment — button instead of checkbox (#6)
   var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
