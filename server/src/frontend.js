@@ -23,7 +23,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 
 .app { display: flex; height: 100vh; }
 .sidebar { width: 260px; background: var(--bg-sidebar); color: white; display: flex; flex-direction: column; flex-shrink: 0; }
-.sidebar-header { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.sidebar-header { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); position: relative; }
 .sidebar-header h1 { font-size: 18px; font-weight: 700; }
 .sidebar-header p { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; }
 .sidebar-nav { flex: 1; overflow-y: auto; padding: 8px; }
@@ -160,10 +160,19 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .child-card { display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; }
 .child-card:hover { background: var(--bg-hover); }
 
+/* Mobile sidebar toggle */
+.menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 4px 6px; color: var(--text); border-radius: 6px; }
+.menu-btn:hover { background: var(--bg-hover); }
+.sidebar-close-btn { display: none; position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.12); border: none; cursor: pointer; padding: 6px; border-radius: 6px; color: rgba(255,255,255,0.8); line-height: 0; }
+.sidebar-close-btn:hover { background: rgba(255,255,255,0.2); }
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 49; }
 /* Responsive */
 @media (max-width: 768px) {
+  .menu-btn { display: flex; align-items: center; }
   .sidebar { display: none; }
-  .sidebar.open { display: flex; position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; }
+  .sidebar.open { display: flex; position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; width: 280px; }
+  .sidebar.open .sidebar-close-btn { display: flex; align-items: center; justify-content: center; }
+  .sidebar-overlay.visible { display: block; }
   .topbar { padding: 12px 16px; }
   .content { padding: 16px; }
   .entity-grid { grid-template-columns: 1fr; }
@@ -223,6 +232,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
     <div class="sidebar-header">
       <h1>IndParkDocs</h1>
       <p>Документы и связи</p>
+      <button class="sidebar-close-btn" onclick="toggleSidebar()" title="Скрыть меню"><i data-lucide="x" style="width:16px;height:16px"></i></button>
     </div>
     <div class="sidebar-nav" id="sidebarNav">
       <div class="nav-item active" onclick="showDashboard()">
@@ -245,10 +255,11 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       </div>
     </div>
   </div>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
   <div class="main">
     <div class="topbar" id="topbar">
-      <button class="btn btn-sm" onclick="toggleSidebar()" style="display:none" id="menuBtn">☰</button>
+      <button class="menu-btn" onclick="toggleSidebar()" title="Меню"><i data-lucide="menu" style="width:22px;height:22px"></i></button>
       <h2 id="pageTitle">Обзор</h2>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="actions" id="topActions"></div>
@@ -2267,7 +2278,18 @@ async function startApp() {
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
   showDashboard();
-  if (window.innerWidth <= 768) document.getElementById('menuBtn').style.display = '';
+  // Auto-close sidebar on mobile when nav item is clicked
+  var nav = document.getElementById('sidebarNav');
+  if (nav) {
+    nav.addEventListener('click', function(e) {
+      if (window.innerWidth <= 768) {
+        var sidebar = document.getElementById('sidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('visible');
+      }
+    });
+  }
 }
 
 async function init() {
@@ -2404,7 +2426,10 @@ function setActive(selector) {
 }
 
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.toggle('open');
+  if (overlay) overlay.classList.toggle('visible', sidebar.classList.contains('open'));
 }
 
 // ============ INTERACTIVE MAP ============
