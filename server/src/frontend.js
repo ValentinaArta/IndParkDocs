@@ -2289,8 +2289,7 @@ async function showMapPage() {
   html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;max-width:100%;height:auto;user-select:none" draggable="false">';
   html += '<svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"';
   html += ' style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
-  html += '<defs><filter id="mapTxtShadow" x="-20%" y="-20%" width="140%" height="140%">';
-  html += '<feDropShadow dx="0" dy="0.4" stdDeviation="0.7" flood-color="#000" flood-opacity="0.85"/></filter></defs>';
+  html += '<defs></defs>';
   html += '<g id="mapShapes"></g><g id="mapDrawPreview"></g>';
   html += '</svg>';
   html += '</div></div>';
@@ -2430,8 +2429,8 @@ function _mapRenderShapes() {
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
     h += '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="middle"'
-       + ' font-size="1.8" font-weight="600" fill="white" style="pointer-events:none"'
-       + ' filter="url(#mapTxtShadow)">'+escapeHtml(hs.entity_name)+'</text>';
+       + ' font-size="1.8" font-weight="700" fill="#1a1a2e" stroke="white" stroke-width="0.6"'
+       + ' paint-order="stroke fill" style="pointer-events:none">'+escapeHtml(hs.entity_name)+'</text>';
     // Delete handle in edit mode
     if (_mapEditMode) {
       var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
