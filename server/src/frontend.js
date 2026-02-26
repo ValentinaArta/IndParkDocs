@@ -415,6 +415,11 @@ function _srchInitAll() {
     textEl.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') { dropEl.style.display = 'none'; textEl.blur(); }
       if (e.key === 'ArrowDown') { e.preventDefault(); var first = dropEl.querySelector('.srch-item'); if (first) first.focus(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var first = dropEl.querySelector('[data-srch-pick]');
+        if (first) { _srchPick(id, parseInt(first.dataset.srchPick)); }
+      }
     });
     // Close on click outside
     document.addEventListener('mousedown', function(e) {
@@ -445,11 +450,28 @@ function _srchFilter(id) {
   h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
   dropEl.innerHTML = h;
   dropEl.style.display = '';
-  // Bind click handlers via delegation
+
+  // Bind click + keyboard handlers on each item
   dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
+    el.setAttribute('tabindex', '0');
     el.addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPick(id, parseInt(el.dataset.srchPick)); });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _srchPick(id, parseInt(el.dataset.srchPick)); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); var next = el.nextElementSibling; if (next) next.focus(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); var prev = el.previousElementSibling; if (prev && prev.getAttribute('tabindex')) prev.focus(); else { var textEl2 = document.getElementById(id + '_text'); if (textEl2) textEl2.focus(); } }
+      if (e.key === 'Escape') { dropEl.style.display = 'none'; var textEl3 = document.getElementById(id + '_text'); if (textEl3) textEl3.focus(); }
+    });
   });
-  dropEl.querySelector('[data-srch-new]').addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPickNew(id); });
+  var newBtn = dropEl.querySelector('[data-srch-new]');
+  if (newBtn) {
+    newBtn.setAttribute('tabindex', '0');
+    newBtn.addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPickNew(id); });
+    newBtn.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _srchPickNew(id); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); var prev2 = newBtn.previousElementSibling; if (prev2 && prev2.getAttribute('tabindex')) prev2.focus(); else { var textEl4 = document.getElementById(id + '_text'); if (textEl4) textEl4.focus(); } }
+      if (e.key === 'Escape') { dropEl.style.display = 'none'; var textEl5 = document.getElementById(id + '_text'); if (textEl5) textEl5.focus(); }
+    });
+  }
 }
 
 function _srchPick(id, entityId) {
