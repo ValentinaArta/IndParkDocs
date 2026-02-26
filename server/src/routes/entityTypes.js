@@ -55,4 +55,33 @@ router.delete('/fields/:id', authenticate, authorize('admin'), asyncHandler(asyn
   res.json({ ok: true });
 }));
 
+// ── Справочники (Reference Lists) ───────────────────────────────────────────
+// GET /api/entity-types/settings/lists — all editable select/select_or_custom fields
+router.get('/settings/lists', authenticate, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT fd.id, fd.name, fd.name_ru, fd.field_type, fd.options, fd.sort_order,
+           et.id AS entity_type_id, et.name AS entity_type_name, et.name_ru AS entity_type_name_ru, et.icon
+    FROM field_definitions fd
+    JOIN entity_types et ON et.id = fd.entity_type_id
+    WHERE fd.field_type IN ('select', 'select_or_custom')
+      AND fd.options IS NOT NULL
+      AND fd.options::text != '[]'
+      AND fd.options::text != 'null'
+    ORDER BY et.sort_order, fd.sort_order
+  `);
+  res.json(rows);
+}));
+
+// PATCH /api/entity-types/settings/lists/:fieldId — update options for a field
+router.patch('/settings/lists/:fieldId', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
+  const { options } = req.body;
+  if (!Array.isArray(options)) return res.status(400).json({ error: 'options must be array' });
+  const { rows } = await pool.query(
+    'UPDATE field_definitions SET options=$1::jsonb WHERE id=$2 RETURNING *',
+    [JSON.stringify(options), req.params.fieldId]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
+  res.json(rows[0]);
+}));
+
 module.exports = router;
