@@ -483,6 +483,32 @@ async function runMigration016() {
   }
 }
 
+async function runMigration017() {
+  const pool = require('./db');
+  try {
+    for (const typeName of ['building', 'land_plot']) {
+      const res = await pool.query("SELECT id FROM entity_types WHERE name=$1", [typeName]);
+      if (res.rows.length === 0) continue;
+      const typeId = res.rows[0].id;
+      // Check if field already exists
+      const exists = await pool.query(
+        "SELECT id FROM field_definitions WHERE entity_type_id=$1 AND name='short_name'", [typeId]);
+      if (exists.rows.length > 0) { console.log(`Migration 017: short_name already exists for ${typeName}`); continue; }
+      // Get max sort_order to insert after all existing fields (but before hidden ones)
+      const maxRes = await pool.query(
+        "SELECT MAX(sort_order) as mx FROM field_definitions WHERE entity_type_id=$1 AND sort_order < 900", [typeId]);
+      const nextOrder = (maxRes.rows[0].mx || 0) + 1;
+      await pool.query(
+        `INSERT INTO field_definitions (entity_type_id, name, label, field_type, sort_order, is_required)
+         VALUES ($1, 'short_name', 'Короткое имя (для карты)', 'text', $2, false)`,
+        [typeId, nextOrder]);
+      console.log(`Migration 017: added short_name to ${typeName} at sort_order ${nextOrder}`);
+    }
+  } catch(e) {
+    console.error('Migration 017 error (non-fatal):', e.message);
+  }
+}
+
 // One-time data fix: merge "ОРР Веста" → "ОРР Веста, АО"
 async function mergeORRVesta() {
   const pool = require('./db');
@@ -531,7 +557,7 @@ async function mergeORRVesta() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => mergeORRVesta()).then(() => {
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => mergeORRVesta()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 

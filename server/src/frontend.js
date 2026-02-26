@@ -2273,10 +2273,10 @@ async function showMapPage() {
     var p = e.properties || {};
     if (p.map_shape === 'polygon' && p.map_points) {
       try { var pts = JSON.parse(p.map_points);
-        _mapHotspots.push({ shape:'polygon', entity_id:e.id, entity_name:e.name, type_name:e.type_name, points:pts, color:p.map_color||'rgba(99,102,241,0.35)' });
+        _mapHotspots.push({ shape:'polygon', entity_id:e.id, entity_name:e.name, short_name:p.short_name||'', type_name:e.type_name, points:pts, color:p.map_color||'rgba(99,102,241,0.35)' });
       } catch(ex) {}
     } else if (p.map_x != null) {
-      _mapHotspots.push({ shape:'rect', entity_id:e.id, entity_name:e.name, type_name:e.type_name,
+      _mapHotspots.push({ shape:'rect', entity_id:e.id, entity_name:e.name, short_name:p.short_name||'', type_name:e.type_name,
         x:parseFloat(p.map_x), y:parseFloat(p.map_y), w:parseFloat(p.map_w), h:parseFloat(p.map_h), color:p.map_color||'rgba(99,102,241,0.35)' });
     }
   });
@@ -2539,8 +2539,9 @@ function _mapRenderLabels() {
       }
       if (isNaN(cx) || isNaN(cy)) return;
       var name = hs.entity_name || '';
-      var m = name.match(/\(([^)]+)\)/);
-      var shortLbl = m ? m[1] : name;
+      // Priority: 1) short_name field, 2) text in brackets, 3) full name
+      var shortLbl = hs.short_name || '';
+      if (!shortLbl) { var m = name.match(/\(([^)]+)\)/); shortLbl = m ? m[1] : name; }
       if (!shortLbl) return;
       h += '<div title="'+escapeHtml(name)+'"'
          + ' style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
