@@ -2448,6 +2448,8 @@ function _mapApplyTransform() {
   if (zd) zd.textContent = Math.round(_mapZoom*100)+'%';
   var vp = document.getElementById('mapViewport');
   if (vp && !_mapPanDrag) vp.style.cursor = _mapEditMode ? 'crosshair' : (_mapZoom > 1 ? 'grab' : 'default');
+  _mapRenderShapes();
+  _mapRenderPreview();
 }
 function _mapZoomIn()    { _mapZoomTo(_mapZoom * 1.4); }
 function _mapZoomOut()   { _mapZoomTo(_mapZoom / 1.4); }
@@ -2477,9 +2479,10 @@ function _mapEvtWheel(e) {
 function _mapRenderShapes() {
   var layer = document.getElementById('mapShapes');
   if (!layer) return;
+  var z = _mapZoom || 1;   // scale-invariant factor: divide by z to keep screen-size constant
   var h = '';
   _mapHotspots.forEach(function(hs, i) {
-    var fill = hs.color, stroke = 'rgba(255,255,255,0.6)', sw = '0.35';
+    var fill = hs.color, stroke = 'rgba(255,255,255,0.6)', sw = (0.35/z).toFixed(3);
     var cur  = _mapEditMode ? 'default' : 'pointer';
     var clk  = '_mapHotspotClick(' + i + ')';
     var cx, cy;
@@ -2497,18 +2500,21 @@ function _mapRenderShapes() {
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
     var lbl = escapeHtml(hs.entity_name);
-    var tW = Math.max(lbl.length * 0.52 + 1.2, 5); var tH = 1.9;
+    var fs = (0.95/z).toFixed(3);
+    var tW = Math.max(lbl.length * 0.52/z + 1.2/z, 5/z);
+    var tH = 1.9/z;
     h += '<rect x="'+(cx-tW/2)+'" y="'+(cy-tH/2)+'" width="'+tW+'" height="'+tH+'"'
-       + ' rx="0.4" ry="0.4" fill="rgba(255,255,255,0.88)" style="pointer-events:none"/>';
+       + ' rx="'+(0.4/z)+'" ry="'+(0.4/z)+'" fill="rgba(255,255,255,0.88)" style="pointer-events:none"/>';
     h += '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="middle"'
-       + ' font-size="0.95" font-weight="600" fill="#1a1a2e" style="pointer-events:none">'+lbl+'</text>';
+       + ' font-size="'+fs+'" font-weight="600" fill="#1a1a2e" style="pointer-events:none">'+lbl+'</text>';
     // Delete handle in edit mode
     if (_mapEditMode) {
       var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
       var dy = hs.shape==='rect' ? hs.y         : hs.points[0][1];
+      var cr = (2/z).toFixed(3), cf = (3/z).toFixed(3);
       h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapDeleteHotspot('+i+')" style="cursor:pointer">'
-         + '<circle cx="'+dx+'" cy="'+dy+'" r="2" fill="#ef4444"/>'
-         + '<text x="'+dx+'" y="'+(dy+0.7)+'" text-anchor="middle" font-size="3" fill="white" style="pointer-events:none">×</text>'
+         + '<circle cx="'+dx+'" cy="'+dy+'" r="'+cr+'" fill="#ef4444"/>'
+         + '<text x="'+dx+'" y="'+(dy+0.7/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">×</text>'
          + '</g>';
     }
   });
@@ -2519,36 +2525,39 @@ function _mapRenderShapes() {
 function _mapRenderPreview() {
   var layer = document.getElementById('mapDrawPreview');
   if (!layer) return;
+  var z = _mapZoom || 1;
   var h = '';
   // Rectangle drag preview
   if (_mapRectDraw) {
     var x = Math.min(_mapRectDraw.sx,_mapRectDraw.cx), y = Math.min(_mapRectDraw.sy,_mapRectDraw.cy);
     var w = Math.abs(_mapRectDraw.cx-_mapRectDraw.sx), hh = Math.abs(_mapRectDraw.cy-_mapRectDraw.sy);
     h += '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+hh+'"'
-       + ' fill="rgba(99,102,241,0.12)" stroke="rgba(99,102,241,0.8)" stroke-width="0.4" stroke-dasharray="2,1" style="pointer-events:none"/>';
+       + ' fill="rgba(99,102,241,0.12)" stroke="rgba(99,102,241,0.8)"'
+       + ' stroke-width="'+(0.4/z).toFixed(3)+'" stroke-dasharray="'+(2/z)+','+(1/z)+'" style="pointer-events:none"/>';
   }
   // Polygon drawing preview
   if (_mapDrawTool === 'poly' && _mapPolyPts.length) {
     var pts = _mapPolyPts, m = _mapMousePos;
-    // Completed edges
     if (pts.length > 1) {
       h += '<polyline points="'+pts.map(function(p){return p[0]+','+p[1];}).join(' ')+'"'
-         + ' fill="none" stroke="rgba(99,102,241,0.85)" stroke-width="0.4" stroke-dasharray="2,1" style="pointer-events:none"/>';
+         + ' fill="none" stroke="rgba(99,102,241,0.85)"'
+         + ' stroke-width="'+(0.4/z).toFixed(3)+'" stroke-dasharray="'+(2/z)+','+(1/z)+'" style="pointer-events:none"/>';
     }
-    // Preview line to cursor
     var last = pts[pts.length-1];
     h += '<line x1="'+last[0]+'" y1="'+last[1]+'" x2="'+m.x+'" y2="'+m.y+'"'
-       + ' stroke="rgba(99,102,241,0.7)" stroke-width="0.35" stroke-dasharray="1.5,1" style="pointer-events:none"/>';
-    // Closing hint (>=3 pts)
+       + ' stroke="rgba(99,102,241,0.7)" stroke-width="'+(0.35/z).toFixed(3)+'"'
+       + ' stroke-dasharray="'+(1.5/z)+','+(1/z)+'" style="pointer-events:none"/>';
     if (pts.length >= 3) {
       h += '<line x1="'+m.x+'" y1="'+m.y+'" x2="'+pts[0][0]+'" y2="'+pts[0][1]+'"'
-         + ' stroke="rgba(99,102,241,0.3)" stroke-width="0.25" stroke-dasharray="1,1" style="pointer-events:none"/>';
+         + ' stroke="rgba(99,102,241,0.3)" stroke-width="'+(0.25/z).toFixed(3)+'"'
+         + ' stroke-dasharray="'+(1/z)+','+(1/z)+'" style="pointer-events:none"/>';
     }
-    // Vertex dots
+    // Vertex dots — fixed screen size regardless of zoom
     pts.forEach(function(p,i){
-      h += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+(i===0?'1.3':'0.8')+'"'
+      h += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+((i===0?1.3:0.8)/z).toFixed(3)+'"'
          + ' fill="'+(i===0?'rgba(99,102,241,0.9)':'white')+'"'
-         + ' stroke="'+(i===0?'white':'rgba(99,102,241,0.8)')+'" stroke-width="0.25" style="pointer-events:none"/>';
+         + ' stroke="'+(i===0?'white':'rgba(99,102,241,0.8)')+'"'
+         + ' stroke-width="'+(0.25/z).toFixed(3)+'" style="pointer-events:none"/>';
     });
   }
   layer.innerHTML = h;
