@@ -3705,6 +3705,22 @@ function renderEntityGrid(entities) {
               + escapeHtml(String(f.val).length > 50 ? String(f.val).substring(0,50)+'…' : String(f.val))
               + '</span>';
       });
+    } else if (e.type_name === 'equipment') {
+      // Structured display for equipment
+      var eqFields = [
+        props.equipment_category  ? { label: 'Категория',   val: props.equipment_category }                              : null,
+        props.status              ? { label: 'Статус',      val: props.status }                                          : null,
+        props.balance_owner_name  ? { label: 'Собственник', val: props.balance_owner_name }                              : null,
+        { label: 'Арендатор', val: e.equipment_tenant || 'нет' },
+      ].filter(Boolean);
+      eqFields.forEach(function(f) {
+        var isNone = (f.label === 'Арендатор' && f.val === 'нет');
+        tags += '<span class="prop-tag" title="' + escapeHtml(f.label) + '">'
+              + '<span style="color:var(--text-muted);font-size:10px;margin-right:3px">' + escapeHtml(f.label) + ':</span>'
+              + '<span style="' + (isNone ? 'color:var(--text-muted)' : '') + '">'
+              + escapeHtml(String(f.val).length > 40 ? String(f.val).substring(0,40)+'…' : String(f.val))
+              + '</span></span>';
+      });
     } else {
       Object.entries(props).forEach(([k, v]) => {
         if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';

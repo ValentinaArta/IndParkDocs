@@ -34,7 +34,14 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
      JOIN entities b ON r.from_entity_id = b.id
      JOIN entity_types bet ON b.entity_type_id = bet.id
      WHERE r.to_entity_id = e.id AND r.relation_type = 'located_on'
-       AND bet.name IN ('building','workshop') AND b.deleted_at IS NULL) as buildings_on_plot
+       AND bet.name IN ('building','workshop') AND b.deleted_at IS NULL) as buildings_on_plot,
+    (SELECT c.properties->>'contractor_name'
+     FROM relations r JOIN entities c ON r.to_entity_id = c.id
+     JOIN entity_types ct ON c.entity_type_id = ct.id
+     WHERE r.from_entity_id = e.id AND r.relation_type = 'subject_of'
+       AND ct.name = 'contract'
+       AND c.properties->>'contract_type' IN ('Аренды','Субаренды')
+       AND c.deleted_at IS NULL LIMIT 1) as equipment_tenant
     FROM entities e
     JOIN entity_types et ON e.entity_type_id = et.id
     LEFT JOIN entities p ON e.parent_id = p.id
