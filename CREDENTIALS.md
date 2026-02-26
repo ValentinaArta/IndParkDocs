@@ -11,6 +11,11 @@
 
 ## Credentials
 
+### Metabase Cloud (добавлено 2026-02-26)
+- **URL**: https://metabase.com (cloud)
+- **Email**: (уточнить у Валентины)
+- **Пароль**: FPgCHlC6moDNyUG3VEJ3
+
 ### IndParkDocs — DATABASE_URL (Neon PostgreSQL, добавлено 2026-02-26)
 ```
 postgresql://neondb_owner:npg_qbJf1MtSTDe8@ep-ancient-math-alg2359y-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require
