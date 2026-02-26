@@ -2537,8 +2537,8 @@ function _mapRenderLabels() {
     h += '<div title="'+escapeHtml(hs.entity_name)+'"'
        + ' style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
        + 'transform:translate(-50%,-50%);'
-       + 'font-size:14px;font-weight:700;color:white;line-height:1.2;text-align:center;'
-       + 'text-shadow:0 0 5px rgba(0,0,0,1),0 1px 4px rgba(0,0,0,0.9);'
+       + 'font-size:13px;font-weight:700;color:white;line-height:1;text-align:center;'
+       + 'background:rgba(0,0,0,0.45);border-radius:4px;padding:2px 6px;'
        + 'white-space:nowrap;pointer-events:none">'
        + escapeHtml(shortLbl) + '</div>';
   });
