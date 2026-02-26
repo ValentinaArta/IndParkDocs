@@ -189,8 +189,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .map-container { position:relative;display:inline-block;user-select:none; }
 .map-container img { display:block;max-width:100%;height:auto; }
 .map-editor-bar { display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap; }
-.map-shape { transition:fill-opacity .15s; }
-.map-shape:hover { fill-opacity:.65 !important; }
+.map-shape { transition:filter .15s,stroke-width .15s; }
+.map-shape[style*="pointer"] { cursor:pointer; }
+.map-shape:hover { filter:brightness(1.15) saturate(1.2); }
 </style>
 </head>
 <body>
@@ -2483,20 +2484,21 @@ function _mapRenderShapes() {
   var z = _mapZoom || 1;   // scale-invariant factor: divide by z to keep screen-size constant
   var h = '';
   _mapHotspots.forEach(function(hs, i) {
-    var fill = hs.color, stroke = 'rgba(255,255,255,0.6)', sw = (0.35/z).toFixed(3);
+    var fill = hs.color, stroke = 'rgba(255,255,255,0.8)', sw = (0.5/z).toFixed(3);
     var cur  = _mapEditMode ? 'default' : 'pointer';
-    var clk  = '_mapHotspotClick(' + i + ')';
+    var clk  = _mapEditMode ? '' : ' onclick="'+('_mapHotspotClick('+i+')')+'"';
+    var title = '<title>'+escapeHtml(hs.entity_name)+'</title>';
     var cx, cy;
     if (hs.shape === 'rect') {
       h += '<rect class="map-shape" x="'+hs.x+'" y="'+hs.y+'" width="'+hs.w+'" height="'+hs.h+'"'
          + ' fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"'
-         + ' onclick="'+clk+'" style="cursor:'+cur+'"/>';
+         + clk+' style="cursor:'+cur+'">'+title+'</rect>';
       cx = hs.x + hs.w/2; cy = hs.y + hs.h/2;
     } else {
       var pts = hs.points.map(function(p){return p[0]+','+p[1];}).join(' ');
       h += '<polygon class="map-shape" points="'+pts+'"'
          + ' fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"'
-         + ' onclick="'+clk+'" style="cursor:'+cur+'"/>';
+         + clk+' style="cursor:'+cur+'">'+title+'</polygon>';
       cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
@@ -2529,12 +2531,16 @@ function _mapRenderLabels() {
       cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
-    h += '<div style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
+    // Show only text in parentheses if present, else full name
+    var m = hs.entity_name.match(/\(([^)]+)\)/);
+    var shortLbl = m ? m[1] : hs.entity_name;
+    h += '<div title="'+escapeHtml(hs.entity_name)+'"'
+       + ' style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
        + 'transform:translate(-50%,-50%);'
-       + 'font-size:13px;font-weight:700;color:white;line-height:1.2;text-align:center;'
-       + 'text-shadow:0 0 4px rgba(0,0,0,0.9),0 1px 3px rgba(0,0,0,0.8);'
+       + 'font-size:14px;font-weight:700;color:white;line-height:1.2;text-align:center;'
+       + 'text-shadow:0 0 5px rgba(0,0,0,1),0 1px 4px rgba(0,0,0,0.9);'
        + 'white-space:nowrap;pointer-events:none">'
-       + escapeHtml(hs.entity_name) + '</div>';
+       + escapeHtml(shortLbl) + '</div>';
   });
   container.innerHTML = h;
 }
@@ -2589,14 +2595,16 @@ async function _mapOpenAssignModal(shapeData) {
   var available  = buildings.concat(landPlots).filter(function(e){return !placedIds.has(e.id);});
 
   var colors = [
-    {n:'Голубой',    v:'rgba(168,216,234,0.45)'},
-    {n:'Зелёный',    v:'rgba(144,238,144,0.45)'},
-    {n:'Розовый',    v:'rgba(255,182,193,0.45)'},
-    {n:'Жёлтый',     v:'rgba(249,243,176,0.45)'},
-    {n:'Оранжевый',  v:'rgba(255,200,150,0.45)'},
-    {n:'Бежевый',    v:'rgba(222,209,189,0.45)'},
-    {n:'Серый',      v:'rgba(180,180,180,0.35)'},
-    {n:'Фиолетовый', v:'rgba(180,160,220,0.45)'},
+    {n:'Синий',      v:'rgba(59,130,246,0.65)'},
+    {n:'Голубой',    v:'rgba(100,200,230,0.60)'},
+    {n:'Зелёный',    v:'rgba(34,197,94,0.65)'},
+    {n:'Тёмно-зел.', v:'rgba(22,163,74,0.65)'},
+    {n:'Жёлтый',     v:'rgba(234,179,8,0.65)'},
+    {n:'Оранжевый',  v:'rgba(249,115,22,0.60)'},
+    {n:'Красный',    v:'rgba(239,68,68,0.55)'},
+    {n:'Фиолетовый', v:'rgba(139,92,246,0.60)'},
+    {n:'Серый',      v:'rgba(107,114,128,0.55)'},
+    {n:'Бирюзовый',  v:'rgba(20,184,166,0.60)'},
   ];
 
   var m = '<h3>Назначить объект</h3>';
