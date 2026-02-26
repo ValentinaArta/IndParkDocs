@@ -10,4 +10,10 @@
 - Формат: название, значение, дата добавления, для чего используется
 
 ## Credentials
-_(пока пусто — бот заполнит автоматически при получении ключей)_
+
+### Neon PostgreSQL (добавлено 2026-02-26)
+```
+postgresql://neondb_owner:npg_qbJf1MtSTDe8@ep-ancient-math-alg2359y-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require
+```
+- **Для чего**: уточнить у Валентины (Neon cloud DB, возможно для Metabase или новой инфраструктуры)
+- **Добавил**: 2026-02-26
