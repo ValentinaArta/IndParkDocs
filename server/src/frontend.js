@@ -2101,8 +2101,11 @@ async function _navLoadGroupChildren(name, container) {
   var h = '';
   if (name === 'building') {
     var buildings = await api('/entities?type=building');
+    // "Все помещения" — всегда первым, чтобы помещения без корпуса были доступны
+    h += '<div class="nav-sub-item" data-etype="room" data-title="" onclick="navSubClick(this)" style="color:rgba(255,255,255,0.45);font-style:italic">' +
+      '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> все помещения</div>';
     if (buildings.length === 0) {
-      container.innerHTML = '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Нет корпусов</div>';
+      container.innerHTML = h + '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Нет корпусов</div>';
       return;
     }
     buildings.forEach(function(b) {
