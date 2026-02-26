@@ -5475,7 +5475,7 @@ function renderSettingsLists() {
     h += '<div style="padding:8px">';
     g.fields.forEach(function(f) {
       var opts = [];
-      try { opts = JSON.parse(f.options || '[]'); } catch(ex) {}
+      opts = Array.isArray(f.options) ? f.options : []; try { if (typeof f.options === 'string') opts = JSON.parse(f.options); } catch(ex) {}
       h += '<div style="margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary)">';
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
       h += '<span style="font-size:13px;font-weight:600">' + escapeHtml(f.name_ru || f.name) + '</span>';
@@ -5498,7 +5498,7 @@ function openListEditor(fieldId) {
   var field = _settingsLists.find(function(f) { return f.id === fieldId; });
   if (!field) return;
   var opts = [];
-  try { opts = JSON.parse(field.options || '[]'); } catch(ex) {}
+  opts = Array.isArray(field.options) ? field.options : []; try { if (typeof field.options === 'string') opts = JSON.parse(field.options); } catch(ex) {}
 
   var h = '<h3>✏️ ' + escapeHtml(field.name_ru || field.name) + '</h3>';
   h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Тип сущности: ' + escapeHtml(field.entity_type_name_ru) + '</div>';
