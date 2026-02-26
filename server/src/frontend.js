@@ -246,6 +246,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       <div class="nav-item" onclick="showReports()">
         <i data-lucide="bar-chart-2" class="lucide"></i> Отчёты
       </div>
+      <div class="nav-item" onclick="showBIPage()">
+        <i data-lucide="pie-chart" class="lucide"></i> BI-дашборды
+      </div>
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
         <i data-lucide="settings" class="lucide"></i> Типы и поля
@@ -3535,6 +3538,59 @@ var _reportFieldLabels = {
   equipment: 'Оборудование', rent_scope: 'Часть/Целиком',
   our_role_label: 'Роль нашей стороны', contractor_role_label: 'Роль контрагента',
 };
+
+function showBIPage() {
+  currentView = 'bi';
+  setActive('.nav-item[onclick*="showBIPage"]');
+  document.getElementById('pageTitle').textContent = 'BI-дашборды';
+  var mainContent = document.getElementById('mainContent');
+  if (!mainContent) return;
+
+  var url = (typeof _biDashboardUrl !== 'undefined' && _biDashboardUrl) ? _biDashboardUrl : '';
+
+  var h = '<div style="display:flex;flex-direction:column;height:calc(100vh - 80px);gap:0">';
+
+  if (!url) {
+    h += '<div style="padding:24px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">';
+    h += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">Настройка BI-дашборда</div>';
+    h += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Вставьте публичную ссылку из Metabase (Поделиться → Публичная ссылка)</div>';
+    h += '<div style="display:flex;gap:8px">';
+    h += '<input id="biUrlInput" placeholder="https://xxx.metabaseapp.com/public/dashboard/..." style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">';
+    h += '<button class="btn btn-primary" onclick="saveBIUrl()">Сохранить</button>';
+    h += '</div></div>';
+    h += '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:14px">Добавьте ссылку на дашборд выше</div>';
+  } else {
+    h += '<div style="display:flex;justify-content:flex-end;padding:4px 0;gap:8px">';
+    h += '<button class="btn btn-sm" onclick="editBIUrl()">Изменить URL</button>';
+    h += '</div>';
+    h += '<div id="biUrlEditPanel" style="display:none;padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;margin-bottom:8px">';
+    h += '<div style="display:flex;gap:8px">';
+    h += '<input id="biUrlInput" value="' + escapeHtml(url) + '" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">';
+    h += '<button class="btn btn-primary btn-sm" onclick="saveBIUrl()">Сохранить</button>';
+    h += '<button class="btn btn-sm" onclick="editBIUrl()">Отмена</button>';
+    h += '</div></div>';
+    h += '<iframe src="' + escapeHtml(url) + '" style="flex:1;border:none;border-radius:8px;width:100%;min-height:600px" allowtransparency></iframe>';
+  }
+
+  h += '</div>';
+  mainContent.innerHTML = h;
+  renderIcons();
+}
+
+function saveBIUrl() {
+  var input = document.getElementById('biUrlInput');
+  if (!input || !input.value.trim()) return;
+  _biDashboardUrl = input.value.trim();
+  localStorage.setItem('bi_dashboard_url', _biDashboardUrl);
+  showBIPage();
+}
+
+function editBIUrl() {
+  var panel = document.getElementById('biUrlEditPanel');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+var _biDashboardUrl = localStorage.getItem('bi_dashboard_url') || '';
 
 async function showReports() {
   currentView = 'reports';
