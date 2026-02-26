@@ -570,6 +570,8 @@ async function submitQuickLandPlot() {
     var created = await api('/entities', { method: 'POST', body: JSON.stringify({
       entity_type_id: lpType.id, name: name, properties: props
     }) });
+    // Invalidate land_plot cache so the new entry is fetched
+    delete _entityCache['/entities?type=land_plot&limit=200'];
     _landPlots = await loadEntitiesByType('land_plot');
     var sel = document.getElementById('f_land_plot_id');
     if (sel) {
