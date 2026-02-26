@@ -15,6 +15,8 @@
 - **URL**: https://benthic-hull.metabaseapp.com
 - **Email**: valentinke@gmail.com
 - **Пароль**: FPgCHlC6mo!DNyUG3VEJ3
+- **Dashboard "IndParkDocs — Обзор" ID**: 12
+- **Публичная ссылка**: https://benthic-hull.metabaseapp.com/public/dashboard/17e56021-56da-4579-a085-e31dde6c0b7c
 
 ### Render API Key (добавлено 2026-02-26)
 - **Ключ**: rnd_wcJfwhDQEtSWZGJDR6RjOOrHxJCP
