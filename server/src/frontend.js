@@ -2303,7 +2303,8 @@ function collectDynamicFieldValues(contractType) {
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
   const result = {};
   extraFields.forEach(function(f) {
-    result[f.name] = getFieldValue(f);
+    var v = getFieldValue(f);
+    if (v !== null && v !== undefined) result[f.name] = v;
   });
   return result;
 }
@@ -5507,6 +5508,9 @@ async function _doSubmitCreateSupplement(parentContractId) {
   const fields = await api('/entity-types/' + suppType.id + '/fields');
   const properties = {};
   fields.forEach(f => { const v = getFieldValue(f); if (v) properties[f.name] = v; });
+
+  // Resolve entity IDs to names (our_legal_entity, contractor_name, subtenant_name)
+  collectEntityIds(properties);
 
   if (properties.contract_type) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
