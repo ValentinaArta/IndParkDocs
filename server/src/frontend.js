@@ -5026,6 +5026,14 @@ async function openCreateSupplementModal(parentContractId) {
   if (!suppType) return alert('Тип "Доп. соглашение" не найден');
   const fields = await api('/entity-types/' + suppType.id + '/fields');
 
+  // Auto-number: find max existing supplement number for this contract
+  var existingSupps = [];
+  try { existingSupps = await api('/entities?type=supplement&parent_id=' + parentContractId + '&limit=200'); } catch(ex) {}
+  var maxSuppNum = existingSupps.reduce(function(mx, s) {
+    var n = parseInt(((s.properties||{}).number)||'0')||0; return n > mx ? n : mx;
+  }, 0);
+  var autoSuppNum = String(maxSuppNum + 1);
+
   var html = '<h3>Новое доп. соглашение</h3>';
   html += '<input type="hidden" id="f_name" value="">';
   html += '<input type="hidden" id="f_parent" value="' + parentContractId + '">';
@@ -5038,7 +5046,10 @@ async function openCreateSupplementModal(parentContractId) {
     var val = parentProps[f.name] || '';
     var ef = f;
 
-    if (f.name === 'contract_type') {
+    if (f.name === 'number') {
+      // Auto-number: next ДС number for this contract
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, autoSuppNum) + '</div>';
+    } else if (f.name === 'contract_type') {
       // ДС наследует тип от родительского договора — не редактируется
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
       html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
@@ -5065,6 +5076,13 @@ async function openCreateSupplementModal(parentContractId) {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
     }
   });
+
+  // НДС (%) — show for all supplement types (Аренда/Субаренда get it via renderDynamicFields)
+  if (contractType !== 'Аренды' && contractType !== 'Субаренды') {
+    var vatVal = parentProps.vat_rate || '22';
+    html += '<div class="form-group"><label>НДС (%)</label>' +
+      '<input type="number" id="f_vat_rate" value="' + escapeHtml(vatVal) + '" style="width:80px" min="0" max="100"></div>';
+  }
 
   html += '<div id="dynamicFieldsContainer"></div>';
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
@@ -5100,6 +5118,9 @@ async function _doSubmitCreateSupplement(parentContractId) {
   if (properties.contract_type) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
   }
+  // Always capture vat_rate if field is visible (e.g. for non-Аренда supplement types)
+  var vatEl = document.getElementById('f_vat_rate');
+  if (vatEl && vatEl.value) properties.vat_rate = vatEl.value;
 
   const num = properties.number || '?';
   const contractor = properties.contractor_name || '';
