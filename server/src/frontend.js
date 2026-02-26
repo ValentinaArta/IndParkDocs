@@ -432,6 +432,25 @@ function enrichFieldOptions(f) {
   return f;
 }
 
+// Render a select_or_custom dropdown backed by a registry (entities list)
+// Stores entity NAME as value (backward compat with string fields like building, tenant)
+function renderRegistrySelectField(fieldId, entities, val, placeholder) {
+  var inList = entities.find(function(e) { return e.name === val; });
+  var isCustom = val && !inList;
+  var h = '<div style="display:flex;gap:6px;align-items:center">';
+  h += '<select id="' + fieldId + '" onchange="toggleCustomInput(this)" style="flex:1">';
+  h += '<option value="">—</option>';
+  entities.forEach(function(ent) {
+    var name = ent.name || '';
+    h += '<option value="' + escapeHtml(name) + '"' + (name === val ? ' selected' : '') + '>' + (ent.icon || '') + ' ' + escapeHtml(name) + '</option>';
+  });
+  h += '<option value="__custom__"' + (isCustom ? ' selected' : '') + '>Другое...</option>';
+  h += '</select>';
+  h += '<input id="' + fieldId + '_custom" placeholder="' + escapeHtml(placeholder || 'Введите значение') + '" value="' + (isCustom ? escapeHtml(val) : '') + '" style="flex:1;' + (isCustom ? '' : 'display:none') + '">';
+  h += '</div>';
+  return h;
+}
+
 let _advanceCounter = 0;
 
 function renderAdvancesBlock(existingAdvances) {
@@ -884,7 +903,13 @@ function renderDynamicFields(contractType, props) {
   let html = '';
   extraFields.forEach(function(f) {
     const val = props ? (props[f.name] || '') : '';
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
+    if (f.name === 'building') {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderRegistrySelectField('f_building', _buildings, val, 'Введите название корпуса') + '</div>';
+    } else if (f.name === 'tenant') {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderRegistrySelectField('f_tenant', _allCompanies, val, 'Введите название арендатора') + '</div>';
+    } else {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
+    }
   });
   container.innerHTML = html;
 }
@@ -1817,7 +1842,7 @@ function renderContractFormFields(fields, props, headerHtml) {
 
   fields.forEach(function(f) {
     var val = props[f.name] || '';
-    var ef = enrichFieldOptions(f);
+    var ef = f;
 
     // contract_type — first, with onchange
     if (f.name === 'contract_type') {
@@ -2212,24 +2237,6 @@ async function showDashboard() {
     ' <span style="color:var(--text-secondary);font-size:13px">связей</span></div>';
 
   content.innerHTML = html;
-}
-
-function toggleParentEdit(entityId) {
-  var block = document.getElementById('parentEditBlock');
-  if (!block) return;
-  block.style.display = block.style.display === 'none' ? 'block' : 'none';
-}
-
-async function saveParent(entityId) {
-  var sel = document.getElementById('parentSelectInline');
-  if (!sel) return;
-  var newParentId = sel.value ? parseInt(sel.value) : null;
-  try {
-    await api('/entities/' + entityId, { method: 'PUT', body: JSON.stringify({ parent_id: newParentId }) });
-    await showEntity(entityId);
-  } catch(ex) {
-    alert('Ошибка сохранения: ' + (ex.message || ex));
-  }
 }
 
 // ============ ENTITY LIST ============
@@ -2628,8 +2635,7 @@ async function showEntity(id, _forceDetail) {
     }
 
     html += '<div class="detail-section" id="locationBlock">';
-    html += '<h3 style="display:flex;justify-content:space-between;align-items:center">' + locationTitle;
-    html += '<button class="btn btn-sm" onclick="toggleParentEdit(' + e.id + ')">✏️ Изменить</button></h3>';
+    html += '<h3>' + locationTitle + '</h3>';
     if (e.ancestry && e.ancestry.length > 0) {
       html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
       e.ancestry.forEach(function(a, i) {
@@ -2642,34 +2648,6 @@ async function showEntity(id, _forceDetail) {
     } else {
       html += '<span style="color:var(--text-muted);font-size:13px">Не привязано ни к какому объекту</span>';
     }
-    html += '<div id="parentEditBlock" style="display:none;margin-top:12px">';
-    if (isBuildingType) {
-      html += '<div class="form-group"><label>Собственник</label>';
-      html += '<select id="parentSelectInline" style="width:100%"><option value="">— не указано —</option>';
-      (_allCompanies || []).forEach(function(c) {
-        html += '<option value="' + c.id + '"' + (e.parent_id === c.id ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
-      });
-      html += '</select></div>';
-    } else if (isRoomType) {
-      html += '<div class="form-group"><label>Находится в корпусе</label>';
-      html += '<select id="parentSelectInline" style="width:100%"><option value="">— не указано —</option>';
-      (_buildings || []).forEach(function(b) {
-        html += '<option value="' + b.id + '"' + (e.parent_id === b.id ? ' selected' : '') + '>' + escapeHtml(b.name) + '</option>';
-      });
-      html += '</select></div>';
-    } else {
-      html += '<div class="form-group"><label>Входит в</label>';
-      html += '<select id="parentSelectInline" style="width:100%"><option value="">— нет (корневой объект) —</option>';
-      (_allEntitiesForParent || []).forEach(function(x) {
-        if (x.id === e.id) return; // can't be own parent
-        html += '<option value="' + x.id + '"' + (e.parent_id === x.id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
-      });
-      html += '</select></div>';
-    }
-    html += '<div style="display:flex;gap:8px">';
-    html += '<button class="btn btn-primary btn-sm" onclick="saveParent(' + e.id + ')">Сохранить</button>';
-    html += '<button class="btn btn-sm" onclick="toggleParentEdit(' + e.id + ')">Отмена</button>';
-    html += '</div></div>';
     html += '</div>';
   }
 
@@ -3909,7 +3887,7 @@ async function openCreateModal(typeName, preParentId) {
       html += '<div class="form-group"><label>Собственник</label>' +
         renderEntitySelect(fieldId, _allCompanies, '', '', 'выберите организацию') + '</div>';
     } else {
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), '') + '</div>';
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, '') + '</div>';
     }
   });
 
@@ -4262,7 +4240,7 @@ async function openEditModal(id) {
 
     fields.forEach(function(f) {
       var val = props[f.name] || '';
-      var ef = enrichFieldOptions(f);
+      var ef = f;
 
       if (f.name === 'contract_type') {
         if (e.type_name === 'supplement') {
@@ -4378,7 +4356,7 @@ async function openEditModal(id) {
       html += '<div class="form-group"><label>Собственник</label>' +
         renderEntitySelect('f_owner', _allCompanies, props.owner_id || '', props.owner_name || '', 'выберите организацию') + '</div>';
     } else {
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(enrichFieldOptions(f), val) + '</div>';
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
     }
   });
 
@@ -4535,7 +4513,7 @@ async function openCreateSupplementModal(parentContractId) {
 
   fields.forEach(function(f) {
     var val = parentProps[f.name] || '';
-    var ef = enrichFieldOptions(f);
+    var ef = f;
 
     if (f.name === 'contract_type') {
       // ДС наследует тип от родительского договора — не редактируется
