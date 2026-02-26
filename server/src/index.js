@@ -499,8 +499,9 @@ async function runMigration017() {
         "SELECT MAX(sort_order) as mx FROM field_definitions WHERE entity_type_id=$1 AND sort_order < 900", [typeId]);
       const nextOrder = (maxRes.rows[0].mx || 0) + 1;
       await pool.query(
-        `INSERT INTO field_definitions (entity_type_id, name, label, field_type, sort_order, is_required)
-         VALUES ($1, 'short_name', 'Короткое имя (для карты)', 'text', $2, false)`,
+        `INSERT INTO field_definitions (entity_type_id, name, name_ru, field_type, sort_order)
+         VALUES ($1, 'short_name', 'Короткое имя (для карты)', 'text', $2)
+         ON CONFLICT (entity_type_id, name) DO NOTHING`,
         [typeId, nextOrder]);
       console.log(`Migration 017: added short_name to ${typeName} at sort_order ${nextOrder}`);
     }
