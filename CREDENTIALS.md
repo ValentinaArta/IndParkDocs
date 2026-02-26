@@ -13,7 +13,7 @@
 
 ### Metabase Cloud (добавлено 2026-02-26)
 - **URL**: https://metabase.com (cloud)
-- **Email**: (уточнить у Валентины)
+- **Email**: valentinke@gmail.com
 - **Пароль**: FPgCHlC6mo!DNyUG3VEJ3
 
 ### IndParkDocs — DATABASE_URL (Neon PostgreSQL, добавлено 2026-02-26)
