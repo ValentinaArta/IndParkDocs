@@ -16,6 +16,14 @@
 - **Email**: valentinke@gmail.com
 - **Пароль**: FPgCHlC6mo!DNyUG3VEJ3
 
+### Render API Key (добавлено 2026-02-26)
+- **Ключ**: rnd_wcJfwhDQEtSWZGJDR6RjOOrHxJCP
+- **Для чего**: управление Render (env vars, деплои, сервисы)
+- **Service ID IndParkDocs**: srv-d6bg74ili9vc73dgo550
+
+### IndParkDocs — JWT_SECRET
+- **Значение**: k8Xp2mQ9vR4wZ7nB3jF6hT1yU5aE0cG8
+
 ### IndParkDocs — DATABASE_URL (Neon PostgreSQL, добавлено 2026-02-26)
 ```
 postgresql://neondb_owner:npg_qbJf1MtSTDe8@ep-ancient-math-alg2359y-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require
