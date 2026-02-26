@@ -329,6 +329,18 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: PAYMENT_FREQUENCIES },
     { name: 'service_comment', name_ru: 'Комментарий', field_type: 'text' },
   ],
+  'Услуг': [
+    { name: 'service_items',       name_ru: 'Перечень услуг',         field_type: 'service_items' },
+    { name: 'contract_amount',     name_ru: 'Сумма договора',         field_type: 'number' },
+    { name: 'service_deadline',    name_ru: 'Срок выполнения',        field_type: 'text' },
+    { name: 'advance_amount',      name_ru: 'Аванс',                  field_type: 'number' },
+    { name: 'advance_date',        name_ru: 'Дата оплаты аванса',     field_type: 'date' },
+    { name: 'payment_frequency',   name_ru: 'Периодичность оплаты',   field_type: 'select_or_custom', options: PAYMENT_FREQUENCIES },
+  ],
+  'Купли-продажи': [
+    { name: 'sale_items',          name_ru: 'Предметы договора',      field_type: 'sale_items' },
+    { name: 'payment_terms',       name_ru: 'Условия оплаты',         field_type: 'text' },
+  ],
   'Аренды': [
     { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },
     { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
@@ -1139,6 +1151,17 @@ function renderFieldInput(f, value) {
     return '<input type="number" id="' + id + '" value="' + val + '">';
   } else if (f.field_type === 'textarea') {
     return '<textarea id="' + id + '" style="width:100%;resize:both;min-height:72px;box-sizing:border-box">' + escapeHtml(String(val)) + '</textarea>';
+  } else if (f.field_type === 'service_items') {
+    return ''; // rendered by renderServiceFields
+  } else if (f.field_type === 'sale_items') {
+    return ''; // rendered by renderSaleFields
+  } else if (f.field_type === 'contacts') {
+    return renderContactsBlock(val, false);
+  } else if (f.field_type === 'company_name_ref') {
+    // Searchable select that stores company name as string
+    var company = (_allCompanies||[]).find(function(c){ return c.name === val; });
+    var cId = company ? company.id : 0;
+    return renderSearchableSelect(id, _allCompanies||[], cId, val, 'начните вводить название...');
   } else {
     return '<input id="' + id + '" value="' + escapeHtml(String(val)) + '">';
   }
@@ -1173,6 +1196,29 @@ function getFieldValue(f) {
     var cmts = collectComments();
     return cmts.length > 0 ? JSON.stringify(cmts) : null;
   }
+  if (f.field_type === 'service_items') {
+    var svcItems = collectServiceItems();
+    return svcItems.length > 0 ? JSON.stringify(svcItems) : null;
+  }
+  if (f.field_type === 'sale_items') {
+    var saleItems = collectSaleItems();
+    return saleItems.length > 0 ? JSON.stringify(saleItems) : null;
+  }
+  if (f.field_type === 'contacts') {
+    var cts = collectContacts();
+    return cts.length > 0 ? JSON.stringify(cts) : null;
+  }
+  if (f.field_type === 'company_name_ref') {
+    // Returns company name from text input (not the hidden ID)
+    var textEl = document.getElementById('f_' + f.name + '_text');
+    if (textEl && textEl.value.trim()) return textEl.value.trim();
+    var hiddenEl = document.getElementById('f_' + f.name);
+    if (hiddenEl && hiddenEl.value) {
+      var comp = (_allCompanies||[]).find(function(c){ return c.id === parseInt(hiddenEl.value); });
+      return comp ? comp.name : null;
+    }
+    return null;
+  }
   if (f.field_type === 'checkbox' || f.field_type === 'boolean') {
     const cb = document.getElementById('f_' + f.name);
     return cb ? String(cb.checked) : 'false';
@@ -1199,6 +1245,14 @@ function renderDynamicFields(contractType, props) {
     renderRentFields(container, extraFields, props);
     return;
   }
+  if (contractType === 'Услуг') {
+    renderServiceFields(container, props);
+    return;
+  }
+  if (contractType === 'Купли-продажи') {
+    renderSaleFields(container, props);
+    return;
+  }
 
   let html = '';
   extraFields.forEach(function(f) {
@@ -1217,11 +1271,424 @@ function renderDynamicFields(contractType, props) {
   container.innerHTML = html;
 }
 
+// ============ SERVICE ITEMS (Договор Услуг) ============
+var _svcItemCounter = 0;
+
+function renderServiceFields(container, props) {
+  props = props || {};
+  var items = [];
+  try {
+    var raw = props.service_items;
+    if (typeof raw === 'string' && raw) items = JSON.parse(raw);
+    else if (Array.isArray(raw)) items = raw;
+  } catch(e) {}
+  if (items.length === 0) items = [{}];
+
+  var h = '';
+  // Service items
+  h += '<div class="form-group"><label style="font-weight:600">Перечень услуг</label>';
+  h += '<div id="svc_items_container">';
+  _svcItemCounter = items.length;
+  items.forEach(function(item, i) { h += _renderSvcItem(i, item); });
+  h += '</div>';
+  h += '<button type="button" class="btn btn-sm" onclick="addSvcItem()" style="margin-top:6px">+ Добавить позицию</button></div>';
+
+  // Standalone fields
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+  h += '<div class="form-group" style="margin:0"><label>Сумма договора</label><input id="f_contract_amount" type="number" class="form-input" value="' + escapeHtml(props.contract_amount||'') + '"></div>';
+  h += '<div class="form-group" style="margin:0"><label>Аванс</label><input id="f_advance_amount" type="number" class="form-input" value="' + escapeHtml(props.advance_amount||'') + '"></div>';
+  h += '<div class="form-group" style="margin:0"><label>Дата оплаты аванса</label><input id="f_advance_date" type="date" class="form-input" value="' + escapeHtml(props.advance_date||'') + '"></div>';
+  h += '<div class="form-group" style="margin:0"><label>Срок выполнения</label><input id="f_service_deadline" type="text" class="form-input" value="' + escapeHtml(props.service_deadline||'') + '"></div>';
+  h += '</div>';
+  h += '<div class="form-group"><label>Периодичность оплаты</label>';
+  var pfVal = props.payment_frequency || '';
+  var pfOpts = '<option value="">—</option>';
+  PAYMENT_FREQUENCIES.forEach(function(p){ pfOpts += '<option value="'+escapeHtml(p)+'"'+(p===pfVal?' selected':'')+'>'+escapeHtml(p)+'</option>'; });
+  pfOpts += '<option value="__custom__"'+(pfVal&&!PAYMENT_FREQUENCIES.includes(pfVal)?' selected':'')+'>Другое...</option>';
+  h += '<select id="f_payment_frequency" class="form-input" onchange="toggleCustomInput(this)">'+pfOpts+'</select>';
+  if (pfVal && !PAYMENT_FREQUENCIES.includes(pfVal)) {
+    h += '<input id="f_payment_frequency_custom" class="form-input" value="'+escapeHtml(pfVal)+'" style="margin-top:4px">';
+  } else {
+    h += '<input id="f_payment_frequency_custom" class="form-input" style="display:none;margin-top:4px">';
+  }
+  h += '</div>';
+
+  container.innerHTML = h;
+}
+
+function _renderSvcItem(i, item) {
+  item = item || {};
+  var objType = item.object_type || '';
+  var objId   = item.object_id   || '';
+  var objName = item.object_name || '';
+  var svcObjTypes = [
+    {val:'equipment', label:'Оборудование'},
+    {val:'building',  label:'Корпус'},
+    {val:'room',      label:'Помещение'},
+    {val:'land_plot', label:'ЗУ'},
+  ];
+  var typeOpts = '<option value="">— не привязан —</option>';
+  svcObjTypes.forEach(function(t) { typeOpts += '<option value="'+t.val+'"'+(t.val===objType?' selected':'')+'>'+t.label+'</option>'; });
+
+  var h = '<div class="svc-item-block" id="svc_item_'+i+'" style="border-left:3px solid var(--accent);padding:10px 12px;margin-bottom:8px;background:var(--bg-secondary);border-radius:6px;position:relative">';
+  h += '<button type="button" onclick="removeSvcItem('+i+')" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">×</button>';
+  h += '<div class="form-group" style="margin:0 0 6px"><label style="font-size:12px">Предмет услуги</label>';
+  h += '<input class="svc-field form-input" data-idx="'+i+'" data-name="subject" value="'+escapeHtml(item.subject||'')+'" placeholder="Описание услуги/работы"></div>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">Привязка к объекту (необязательно)</label>';
+  h += '<select class="svc-field form-input" data-idx="'+i+'" data-name="object_type" onchange="onSvcObjTypeChange(this,'+i+')">'+typeOpts+'</select></div>';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">Стоимость</label>';
+  h += '<input class="svc-field form-input" data-idx="'+i+'" data-name="price" type="number" value="'+escapeHtml(item.price||'')+'"></div>';
+  h += '</div>';
+  // Object selector (shown when object_type selected)
+  h += '<div id="svc_obj_'+i+'" style="margin-top:6px;'+(objType?'':'display:none')+'">';
+  h += _renderSvcEntitySel(i, objType, parseInt(objId)||0, objName);
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
+function onSvcObjTypeChange(sel, idx) {
+  var wrap = document.getElementById('svc_obj_'+idx);
+  if (!wrap) return;
+  var objType = sel.value;
+  if (!objType) { wrap.style.display='none'; wrap.innerHTML=''; return; }
+  wrap.style.display='';
+  wrap.innerHTML = _renderSvcEntitySel(idx, objType, 0, '');
+  _srchInitAll();
+}
+
+function _renderSvcEntitySel(idx, objType, selectedId, selectedName) {
+  var list = objType==='equipment' ? (_equipment||[]) : objType==='building' ? (_buildings||[]) : objType==='room' ? (_rooms||[]) : (_landPlots||[]);
+  var label = objType==='equipment'?'Оборудование':objType==='building'?'Корпус':objType==='room'?'Помещение':'ЗУ';
+  var h = '<label style="font-size:12px">'+label+'</label>';
+  h += '<select class="svc-field form-input" data-idx="'+idx+'" data-name="object_id" onchange="onSvcEntitySel(this,'+idx+')">';
+  h += '<option value="">— выберите —</option>';
+  list.forEach(function(e) { h += '<option value="'+e.id+'"'+(e.id===selectedId?' selected':'')+'>'+escapeHtml(e.name)+'</option>'; });
+  h += '</select>';
+  return h;
+}
+
+function onSvcEntitySel(sel, idx) {
+  var nameField = document.querySelector('.svc-field[data-idx="'+idx+'"][data-name="object_name"]');
+  if (!nameField) {
+    var hidden = document.createElement('input');
+    hidden.type='hidden'; hidden.className='svc-field'; hidden.dataset.idx=idx; hidden.dataset.name='object_name';
+    sel.parentElement.appendChild(hidden);
+    nameField = hidden;
+  }
+  var opt = sel.options[sel.selectedIndex];
+  nameField.value = opt ? opt.text : '';
+}
+
+function addSvcItem() {
+  var container = document.getElementById('svc_items_container');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.innerHTML = _renderSvcItem(_svcItemCounter++, {});
+  container.appendChild(div.firstChild);
+}
+
+function removeSvcItem(idx) {
+  var block = document.getElementById('svc_item_'+idx);
+  if (block) block.remove();
+}
+
+function collectServiceItems() {
+  var items = [];
+  document.querySelectorAll('.svc-item-block').forEach(function(block) {
+    var idx = block.id.replace('svc_item_','');
+    var item = {};
+    block.querySelectorAll('.svc-field[data-name]').forEach(function(el) {
+      var name = el.dataset.name;
+      if (name) item[name] = el.value;
+    });
+    if (item.subject || item.price) items.push(item);
+  });
+  return items;
+}
+
+// ============ SALE ITEMS (Договор Купли-продажи) ============
+var _saleItemCounter = 0;
+
+function renderSaleFields(container, props) {
+  props = props || {};
+  var items = [];
+  try {
+    var raw = props.sale_items;
+    if (typeof raw === 'string' && raw) items = JSON.parse(raw);
+    else if (Array.isArray(raw)) items = raw;
+  } catch(e) {}
+  if (items.length === 0) items = [{}];
+
+  var h = '<div class="form-group"><label style="font-weight:600">Предметы договора</label>';
+  h += '<div id="sale_items_container">';
+  _saleItemCounter = items.length;
+  items.forEach(function(item, i) { h += _renderSaleItem(i, item); });
+  h += '</div>';
+  h += '<button type="button" class="btn btn-sm" onclick="addSaleItem()" style="margin-top:6px">+ Добавить предмет</button></div>';
+  h += '<div class="form-group"><label>Условия оплаты</label>';
+  h += '<input id="f_payment_terms" type="text" class="form-input" value="'+escapeHtml(props.payment_terms||'')+'" placeholder="Опишите условия оплаты"></div>';
+
+  container.innerHTML = h;
+}
+
+function _renderSaleItem(i, item) {
+  item = item || {};
+  var types = SALE_ITEM_TYPES.length ? SALE_ITEM_TYPES : ['Оборудование','Корпус','Прочее'];
+  var typeOpts = '<option value="">— тип —</option>';
+  types.forEach(function(t) { typeOpts += '<option value="'+escapeHtml(t)+'"'+(t===(item.item_type||'')?' selected':'')+'>'+escapeHtml(t)+'</option>'; });
+
+  var h = '<div class="sale-item-block" id="sale_item_'+i+'" style="border-left:3px solid var(--accent);padding:10px 12px;margin-bottom:8px;background:var(--bg-secondary);border-radius:6px;position:relative">';
+  h += '<button type="button" onclick="removeSaleItem('+i+')" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">×</button>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">Тип предмета</label>';
+  h += '<select class="sale-field form-input" data-idx="'+i+'" data-name="item_type" onchange="onSaleItemTypeChange(this,'+i+')">'+typeOpts+'</select></div>';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">Стоимость</label>';
+  h += '<input class="sale-field form-input" data-idx="'+i+'" data-name="price" type="number" value="'+escapeHtml(item.price||'')+'"></div>';
+  h += '</div>';
+  h += '<div class="form-group" style="margin:8px 0 0"><label style="font-size:12px">Описание / Название</label>';
+  h += '<input class="sale-field form-input" data-idx="'+i+'" data-name="item_name" value="'+escapeHtml(item.item_name||'')+'" placeholder="Наименование"></div>';
+  // Create entity button (for Оборудование / Корпус)
+  var itemType = item.item_type || '';
+  var showBtn = (itemType === 'Оборудование' || itemType === 'Корпус');
+  h += '<div id="sale_create_'+i+'" style="margin-top:6px;'+(showBtn?'':'display:none')+'">';
+  if (showBtn) h += _renderSaleCreateBtn(i, itemType, item.item_id);
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
+function _renderSaleCreateBtn(idx, itemType, linkedId) {
+  if (linkedId) {
+    var typeName = itemType === 'Оборудование' ? 'equipment' : 'building';
+    return '<span style="font-size:12px;color:var(--accent)">✓ Привязан (id='+linkedId+')</span>'
+         + ' <button type="button" class="btn btn-sm" onclick="unlinkSaleItem('+idx+')">Отвязать</button>';
+  }
+  var label = itemType === 'Оборудование' ? 'Создать оборудование в реестре' : 'Создать корпус в реестре';
+  return '<button type="button" class="btn btn-sm" onclick="createSaleEntity('+idx+',&quot;'+escapeHtml(itemType)+'&quot;)">+ '+label+'</button>';
+}
+
+function onSaleItemTypeChange(sel, idx) {
+  var wrap = document.getElementById('sale_create_'+idx);
+  var itemType = sel.value;
+  if (wrap) {
+    if (itemType === 'Оборудование' || itemType === 'Корпус') {
+      wrap.style.display = '';
+      wrap.innerHTML = _renderSaleCreateBtn(idx, itemType, null);
+    } else {
+      wrap.style.display = 'none';
+      wrap.innerHTML = '';
+    }
+  }
+}
+
+async function createSaleEntity(idx, itemType) {
+  var createId = 'sale_inline_' + idx;
+  var existing = document.getElementById(createId);
+  if (existing) { existing.style.display = existing.style.display === 'none' ? '' : 'none'; return; }
+
+  var typeName = itemType === 'Оборудование' ? 'equipment' : 'building';
+  var type = entityTypes.find(function(t){ return t.name === typeName; });
+  if (!type) return alert('Тип не найден');
+  var fields = await api('/entity-types/' + type.id + '/fields');
+  var prefix = 'si' + idx + '_'; // prefix to avoid ID conflicts with main form
+
+  var suggestedName = '';
+  var nameInput = document.querySelector('.sale-field[data-idx="'+idx+'"][data-name="item_name"]');
+  if (nameInput) suggestedName = nameInput.value.trim();
+
+  var skipTypes = ['contacts','service_items','sale_items','rent_objects','equipment_list','act_items','advances','multi_comments'];
+  var panelHtml = '<div id="'+createId+'" style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:8px;background:var(--bg-hover)">';
+  panelHtml += '<div style="font-weight:600;margin-bottom:10px;font-size:13px">Создать '+escapeHtml(itemType)+'</div>';
+  panelHtml += '<div class="form-group"><label style="font-size:12px">Название *</label><input id="'+prefix+'name" class="form-input" value="'+escapeHtml(suggestedName)+'"></div>';
+
+  fields.forEach(function(f) {
+    if (skipTypes.indexOf(f.field_type) >= 0) return;
+    var fCopy = Object.assign({}, f, {name: prefix + f.name});
+    panelHtml += '<div class="form-group" style="margin-bottom:8px"><label style="font-size:12px">'+escapeHtml(f.name_ru||f.name)+'</label>'+renderFieldInput(fCopy, '')+'</div>';
+  });
+
+  panelHtml += '<div style="display:flex;gap:8px;margin-top:10px">';
+  panelHtml += '<button type="button" class="btn btn-primary btn-sm" onclick="submitSaleInlineCreate('+idx+',&quot;'+typeName+'&quot;)">Создать</button>';
+  panelHtml += '<button type="button" class="btn btn-sm" onclick="document.getElementById(\\''+createId+'\\').remove()">Отмена</button>';
+  panelHtml += '</div></div>';
+
+  var wrap = document.getElementById('sale_create_'+idx);
+  if (wrap) wrap.insertAdjacentHTML('afterend', panelHtml);
+  _srchInitAll();
+}
+
+async function submitSaleInlineCreate(idx, typeName) {
+  var prefix = 'si' + idx + '_';
+  var createId = 'sale_inline_' + idx;
+  var nameEl = document.getElementById(prefix + 'name');
+  var name = nameEl ? nameEl.value.trim() : '';
+  if (!name) return alert('Введите название');
+
+  var type = entityTypes.find(function(t){ return t.name === typeName; });
+  var fields = await api('/entity-types/' + type.id + '/fields');
+  var skipTypes = ['contacts','service_items','sale_items','rent_objects','equipment_list','act_items','advances','multi_comments'];
+  var properties = {};
+
+  fields.forEach(function(f) {
+    if (skipTypes.indexOf(f.field_type) >= 0) return;
+    var fCopy = Object.assign({}, f, {name: prefix + f.name});
+    var v = getFieldValue(fCopy);
+    if (v !== null && v !== undefined) properties[f.name] = v;
+  });
+
+  // Auto-fill supplier for equipment from KP contractor
+  if (typeName === 'equipment') {
+    var contractorText = document.getElementById('f_contractor_name_text');
+    if (contractorText && contractorText.value.trim()) properties.supplier = contractorText.value.trim();
+  }
+
+  try {
+    var created = await api('/entities', {method:'POST', body:JSON.stringify({entity_type_id:type.id, name, properties})});
+
+    if (typeName === 'equipment') { delete _entityCache['/entities?type=equipment&limit=200']; _equipment = await loadEntitiesByType('equipment'); }
+    if (typeName === 'building')  { delete _entityCache['/entities?type=building&limit=200'];  _buildings = await loadEntitiesByType('building'); }
+
+    // Link entity id to sale item
+    var idField = document.querySelector('.sale-field[data-idx="'+idx+'"][data-name="item_id"]');
+    if (!idField) {
+      idField = document.createElement('input');
+      idField.type='hidden'; idField.className='sale-field';
+      idField.dataset.idx=String(idx); idField.dataset.name='item_id';
+      var block = document.getElementById('sale_item_'+idx);
+      if (block) block.appendChild(idField);
+    }
+    idField.value = String(created.id);
+
+    // Update visible name
+    var nameInputEl = document.querySelector('.sale-field[data-idx="'+idx+'"][data-name="item_name"]');
+    if (nameInputEl) nameInputEl.value = created.name;
+
+    // Show linked state
+    var typeEl = document.querySelector('.sale-field[data-idx="'+idx+'"][data-name="item_type"]');
+    var itemType = typeEl ? typeEl.value : '';
+    var wrap = document.getElementById('sale_create_'+idx);
+    if (wrap) wrap.innerHTML = _renderSaleCreateBtn(idx, itemType, created.id);
+
+    var panel = document.getElementById(createId);
+    if (panel) panel.remove();
+  } catch(err) { alert('Ошибка: ' + (err.message||String(err))); }
+}
+
+function unlinkSaleItem(idx) {
+  var idHidden = document.querySelector('.sale-field[data-idx="'+idx+'"][data-name="item_id"]');
+  if (idHidden) idHidden.value = '';
+  var typeEl = document.querySelector('.sale-field[data-idx="'+idx+'"][data-name="item_type"]');
+  var itemType = typeEl ? typeEl.value : '';
+  var wrap = document.getElementById('sale_create_'+idx);
+  if (wrap) wrap.innerHTML = _renderSaleCreateBtn(idx, itemType, null);
+}
+
+function addSaleItem() {
+  var container = document.getElementById('sale_items_container');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.innerHTML = _renderSaleItem(_saleItemCounter++, {});
+  container.appendChild(div.firstChild);
+}
+
+function removeSaleItem(idx) {
+  var block = document.getElementById('sale_item_'+idx);
+  if (block) block.remove();
+}
+
+function collectSaleItems() {
+  var items = [];
+  document.querySelectorAll('.sale-item-block').forEach(function(block) {
+    var idx = block.id.replace('sale_item_','');
+    var item = {};
+    block.querySelectorAll('.sale-field[data-name]').forEach(function(el) {
+      var name = el.dataset.name;
+      if (name) item[name] = el.value;
+    });
+    if (item.item_type || item.item_name || item.price) items.push(item);
+  });
+  return items;
+}
+
+// ============ CONTACTS BLOCK (Company) ============
+var _contactCounter = 0;
+
+function renderContactsBlock(existingContacts, readonly) {
+  var contacts = [];
+  try {
+    if (typeof existingContacts === 'string' && existingContacts) contacts = JSON.parse(existingContacts);
+    else if (Array.isArray(existingContacts)) contacts = existingContacts;
+  } catch(e) {}
+  _contactCounter = contacts.length;
+
+  if (readonly) {
+    if (!contacts.length) return '<div style="color:var(--text-muted);font-size:13px">—</div>';
+    var h = '<div style="display:flex;flex-direction:column;gap:10px">';
+    contacts.forEach(function(c) {
+      h += '<div style="background:var(--bg-secondary);border-radius:6px;padding:10px 12px">';
+      if (c.name)     h += '<div style="font-weight:600">' + escapeHtml(c.name) + '</div>';
+      if (c.position) h += '<div style="font-size:12px;color:var(--text-muted)">' + escapeHtml(c.position) + '</div>';
+      var contactLine = [c.phone, c.email].filter(Boolean).map(escapeHtml).join(' · ');
+      if (contactLine) h += '<div style="font-size:12px;margin-top:4px">' + contactLine + '</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+    return h;
+  }
+
+  var h = '<div id="contacts_container" style="display:flex;flex-direction:column;gap:8px">';
+  contacts.forEach(function(c, i) { h += _renderContactBlock(i, c); });
+  h += '</div>';
+  h += '<button type="button" class="btn btn-sm" onclick="addContactBlock()" style="margin-top:6px">+ Добавить контакт</button>';
+  return h;
+}
+
+function _renderContactBlock(i, c) {
+  c = c || {};
+  var h = '<div class="contact-block" id="contact_'+i+'" style="border:1px solid var(--border);border-radius:6px;padding:10px;position:relative">';
+  h += '<button type="button" onclick="removeContactBlock('+i+')" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px">×</button>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">ФИО</label><input class="contact-field form-input" data-idx="'+i+'" data-name="name" value="'+escapeHtml(c.name||'')+'"></div>';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">Должность</label><input class="contact-field form-input" data-idx="'+i+'" data-name="position" value="'+escapeHtml(c.position||'')+'"></div>';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">Телефон</label><input class="contact-field form-input" data-idx="'+i+'" data-name="phone" type="tel" value="'+escapeHtml(c.phone||'')+'"></div>';
+  h += '<div class="form-group" style="margin:0"><label style="font-size:12px">Email</label><input class="contact-field form-input" data-idx="'+i+'" data-name="email" type="email" value="'+escapeHtml(c.email||'')+'"></div>';
+  h += '</div></div>';
+  return h;
+}
+
+function addContactBlock() {
+  var container = document.getElementById('contacts_container');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.innerHTML = _renderContactBlock(_contactCounter++, {});
+  container.appendChild(div.firstChild);
+}
+
+function removeContactBlock(idx) {
+  var block = document.getElementById('contact_'+idx);
+  if (block) block.remove();
+}
+
+function collectContacts() {
+  var contacts = [];
+  document.querySelectorAll('.contact-block').forEach(function(block) {
+    var contact = {};
+    block.querySelectorAll('.contact-field[data-name]').forEach(function(el) {
+      contact[el.dataset.name] = el.value.trim();
+    });
+    if (contact.name || contact.phone || contact.email) contacts.push(contact);
+  });
+  return contacts;
+}
+
 var _rentObjectCounter = 0;
 var OBJECT_TYPES = []; // populated from справочник on startup
 var EQUIPMENT_CATEGORIES = []; // populated from справочник on startup
 var EQUIPMENT_STATUSES = [];   // populated from справочник on startup
 var PAYMENT_FREQUENCIES = []; // populated from справочник on startup
+var SALE_ITEM_TYPES = [];      // populated from справочник on startup
 
 // Returns base categories + any custom ones already saved in the registry
 function getEquipmentCategories() {
@@ -2406,6 +2873,7 @@ async function startApp() {
       else if (f.name === 'equipment_category') { EQUIPMENT_CATEGORIES.length = 0; items.forEach(function(i){ EQUIPMENT_CATEGORIES.push(i); }); }
       else if (f.name === 'status' && f.entity_type_name === 'equipment') { EQUIPMENT_STATUSES.length = 0; items.forEach(function(i){ EQUIPMENT_STATUSES.push(i); }); }
       else if (f.name === 'payment_frequency') { PAYMENT_FREQUENCIES.length = 0; items.forEach(function(i){ PAYMENT_FREQUENCIES.push(i); }); }
+      else if (f.name === 'sale_item_type') { SALE_ITEM_TYPES.length = 0; items.forEach(function(i){ SALE_ITEM_TYPES.push(i); }); }
     });
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
@@ -3360,6 +3828,18 @@ async function showEntity(id, _forceDetail) {
           '<div class="prop-value" style="white-space:pre-wrap">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
         return;
       }
+      if (f.field_type === 'contacts') {
+        html += '<div class="prop-item" style="align-items:flex-start"><div class="prop-label">' + escapeHtml(label) + '</div>' +
+          '<div class="prop-value">' + renderContactsBlock(val, true) + '</div></div>';
+        return;
+      }
+      if (f.field_type === 'company_name_ref') {
+        html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
+          '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
+        return;
+      }
+      // Skip internal/map fields in display
+      if (['map_x','map_y','map_w','map_h','map_shape','map_color','map_points'].indexOf(f.name) >= 0) return;
       html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
         '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });
@@ -3472,6 +3952,44 @@ async function showEntity(id, _forceDetail) {
             '</div></div>';
         } else if (f.name === 'rent_monthly') {
           return; // shown together with vat_rate above
+        } else if (f.field_type === 'service_items') {
+          var svcView = [];
+          try { if (typeof val === 'string' && val) svcView = JSON.parse(val); else if (Array.isArray(val)) svcView = val; } catch(ex) {}
+          if (svcView.length > 0) {
+            html += '<div class="detail-section"><h3>Перечень услуг</h3><table style="width:100%;border-collapse:collapse;font-size:13px">';
+            html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Предмет</th><th style="text-align:left;padding:6px">Объект</th><th style="text-align:right;padding:6px">Стоимость, ₽</th></tr></thead><tbody>';
+            var svcTotal = 0;
+            svcView.forEach(function(si) {
+              svcTotal += parseFloat(si.price)||0;
+              html += '<tr style="border-bottom:1px solid var(--border)">';
+              html += '<td style="padding:6px">' + escapeHtml(si.subject||'—') + '</td>';
+              html += '<td style="padding:6px;color:var(--text-secondary)">' + escapeHtml(si.object_name||'') + '</td>';
+              html += '<td style="text-align:right;padding:6px">' + (si.price ? _fmtNum(parseFloat(si.price)) : '—') + '</td>';
+              html += '</tr>';
+            });
+            if (svcTotal > 0) html += '<tr style="font-weight:600"><td colspan="2" style="padding:6px">Итого</td><td style="text-align:right;padding:6px">'+_fmtNum(svcTotal)+' ₽</td></tr>';
+            html += '</tbody></table></div>';
+          }
+          return;
+        } else if (f.field_type === 'sale_items') {
+          var saleView = [];
+          try { if (typeof val === 'string' && val) saleView = JSON.parse(val); else if (Array.isArray(val)) saleView = val; } catch(ex) {}
+          if (saleView.length > 0) {
+            html += '<div class="detail-section"><h3>Предметы договора</h3><table style="width:100%;border-collapse:collapse;font-size:13px">';
+            html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Тип</th><th style="text-align:left;padding:6px">Наименование</th><th style="text-align:right;padding:6px">Стоимость, ₽</th></tr></thead><tbody>';
+            var saleTotal = 0;
+            saleView.forEach(function(si) {
+              saleTotal += parseFloat(si.price)||0;
+              html += '<tr style="border-bottom:1px solid var(--border)">';
+              html += '<td style="padding:6px;color:var(--text-secondary)">' + escapeHtml(si.item_type||'—') + '</td>';
+              html += '<td style="padding:6px">' + escapeHtml(si.item_name||'—') + '</td>';
+              html += '<td style="text-align:right;padding:6px">' + (si.price ? _fmtNum(parseFloat(si.price)) : '—') + '</td>';
+              html += '</tr>';
+            });
+            if (saleTotal > 0) html += '<tr style="font-weight:600"><td colspan="2" style="padding:6px">Итого</td><td style="text-align:right;padding:6px">'+_fmtNum(saleTotal)+' ₽</td></tr>';
+            html += '</tbody></table></div>';
+          }
+          return;
         } else {
           html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div>' +
             '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';

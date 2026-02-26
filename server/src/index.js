@@ -971,7 +971,55 @@ async function syncMetabase() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => runMigration019()).then(() => mergeORRVesta()).then(() => createBIViews()).then(() => syncMetabase()).then(() => {
+async function runMigration020() {
+  const pool = require('./db');
+  try {
+    const { rows } = await pool.query(`SELECT id FROM entity_types WHERE name='company'`);
+    if (!rows.length) return;
+    const cId = rows[0].id;
+    await pool.query(`
+      INSERT INTO field_definitions (entity_type_id, name, name_ru, field_type, options, sort_order)
+      VALUES
+        ($1, 'ownership_structure', 'Структура владения', 'text', '[]'::jsonb, 20),
+        ($1, 'contacts', 'Контактные лица', 'contacts', '[]'::jsonb, 21)
+      ON CONFLICT DO NOTHING
+    `, [cId]);
+    console.log('runMigration020: company ownership_structure + contacts added');
+  } catch(e) { console.error('runMigration020 error (non-fatal):', e.message); }
+}
+
+async function runMigration021() {
+  const pool = require('./db');
+  try {
+    const { rows } = await pool.query(`SELECT id FROM entity_types WHERE name='equipment'`);
+    if (!rows.length) return;
+    const eId = rows[0].id;
+    await pool.query(`
+      INSERT INTO field_definitions (entity_type_id, name, name_ru, field_type, options, sort_order)
+      VALUES ($1, 'supplier', 'Поставщик', 'company_name_ref', '[]'::jsonb, 11)
+      ON CONFLICT DO NOTHING
+    `, [eId]);
+    console.log('runMigration021: equipment supplier field added');
+  } catch(e) { console.error('runMigration021 error (non-fatal):', e.message); }
+}
+
+async function runMigration022() {
+  const pool = require('./db');
+  try {
+    const { rows } = await pool.query(`SELECT id FROM entity_types WHERE name='contract'`);
+    if (!rows.length) return;
+    const ctId = rows[0].id;
+    await pool.query(`
+      INSERT INTO field_definitions (entity_type_id, name, name_ru, field_type, options, sort_order)
+      VALUES ($1, 'sale_item_type', 'Типы предметов КП', 'select',
+        '["Оборудование","Корпус","Прочее"]'::jsonb, 999)
+      ON CONFLICT DO NOTHING
+    `, [ctId]);
+    console.log('runMigration022: sale_item_type справочник field added');
+  } catch(e) { console.error('runMigration022 error (non-fatal):', e.message); }
+}
+
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => runMigration019()).then(() => runMigration020()).then(() => runMigration021()).then(() => runMigration022()).then(() => mergeORRVesta()).then(() => createBIViews()).then(() => syncMetabase()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 
