@@ -888,8 +888,7 @@ function renderDynamicFields(contractType, props) {
 }
 
 var _rentObjectCounter = 0;
-var OBJECT_TYPES = ['Производство класс В', 'Производство класс С', 'Офис', 'Склад', 'ЗУ', 'Вендомат'];
-var ROOM_TYPES = ['Производственное', 'Офисное', 'Складское', 'Административно-бытовое', 'Техническое'];
+var OBJECT_TYPES = []; // populated from справочник on startup
 var EQUIPMENT_CATEGORIES = ['Электрооборудование','Газовое','Тепловое','Крановое хозяйство','Машины и механизмы','ИК оборудование'];
 
 // Returns base categories + any custom ones already saved in the registry
@@ -2039,6 +2038,16 @@ async function startApp() {
   }
   entityTypes = await api('/entity-types');
   relationTypes = await api('/relations/types');
+  // Загружаем справочники — единственный источник истины для OBJECT_TYPES, EQUIPMENT_CATEGORIES и т.д.
+  try {
+    _settingsLists = await api('/entity-types/settings/lists');
+    _settingsLists.forEach(function(f) {
+      var items = Array.isArray(f.options) ? f.options : [];
+      try { if (typeof f.options === 'string') items = JSON.parse(f.options); } catch(ex) {}
+      if (f.name === 'object_type') { OBJECT_TYPES.length = 0; items.forEach(function(i){ OBJECT_TYPES.push(i); }); }
+      else if (f.name === 'equipment_category') { EQUIPMENT_CATEGORIES.length = 0; items.forEach(function(i){ EQUIPMENT_CATEGORIES.push(i); }); }
+    });
+  } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
   showDashboard();
   if (window.innerWidth <= 768) document.getElementById('menuBtn').style.display = '';
