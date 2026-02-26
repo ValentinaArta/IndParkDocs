@@ -137,7 +137,14 @@
 - **Красная подсветка аварийного оборудования** — теперь работает везде: карточка сущности + реестр (ранее только отчёты)
 
 ## Задеплоенный коммит
-`1b3959b` (main) — feat: create BI views for Metabase (v_bi_contracts, supplements, rent_objects, equipment, buildings, acts) (2026-02-26)
+`db09f74` (main) — fix: red highlighting for emergency/broken equipment everywhere (2026-02-26 поздно)
+
+**Промежуточные коммиты (dev→main сегодня):**
+- `e7b105d`, `438b7d7` — emergency/broken badges в agg report + entity registry
+- `980c31b` / `719e7ae` — duplicate equipment level fix (eqAlreadyGrouped)
+- `6ec6438` / `cb07486` — contract card view endpoint + frontend
+- `124b130` / `2502808` — contract card как default view для аренды
+- `8c9e3e3` / `db09f74` — emergency/broken везде включая бекенд
 
 ## ⚠️ КРИТИЧЕСКИЙ УРОК: `\'` внутри JS template literal
 - `\'` внутри template literal → производит `'` (слеш СЪЕДАЕТСЯ!) в HTML output
@@ -235,7 +242,16 @@
 - **Mobile sidebar toggle** (`419beb1`): hamburger + overlay на < 768px
 - **BI Views** (`1b3959b`): `v_bi_contracts`, `v_bi_supplements`, `v_bi_rent_objects`, `v_bi_equipment`, `v_bi_buildings`, `v_bi_acts` — PostgreSQL views для Metabase; Migration 020 в startup chain
 
+## Что реализовано (2026-02-26 поздно) — Contract card + Emergency highlighting
+- **Emergency/Broken highlighting везде**: `loadBrokenEquipment()` await в buildAggregateReport, runLinkedReport, showEntityList('equipment'); бейджи на листовых + eq_name узлах
+- **Duplicate eq level fix**: `eqAlreadyGrouped` — пропускает eqGroups когда eq_name уже в иерархии
+- **Contract card view**: `GET /api/reports/contract-card/:id` → renderContractCard(); collapsible секции; total_monthly; equipment_list с is_broken флагом
+- **Contract card как default**: `showEntity(id, _forceDetail)` для аренды→card; `showEntityDetail(id)` wrapper; кнопка "⚙ Детали" для raw view
+- **ER diagram**: `/root/workspace-indparkdocs/er-diagram.html`; скриншот отправлен Валентине
+
 ## 🚧 В очереди (не реализовано)
+- **🐛 Краны: нестинг в дереве** — все краны (id:30-41, `parent_id=29`) отображаются вложенными под первый кран в каком-то tree-widget во frontend; данные в БД ВЕРНЫЕ; баг в frontend tree-rendering; нужно найти и исправить
+- **Room form cleanup** — Migration 015: удалить `room_type` из field_definitions + добавить `room_number` (text, sort_order=4) с ON CONFLICT DO NOTHING
 - **Карта: полигоны (ПРЕРВАНО)** — SVG overlay; drag rect, click+dblclick polygon; секция ~2247–2515 в frontend.js
 - **BI/Metabase** — подключить когда база наполнится данными (views уже готовы)
 - **📊 Структура владения** *(ER → согласование)*
