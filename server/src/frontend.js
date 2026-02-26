@@ -2611,7 +2611,8 @@ async function showEntity(id, _forceDetail) {
   // Location block (for non-contract entities)
   if (e.type_name !== 'contract' && e.type_name !== 'supplement') {
     var isBuildingType = (e.type_name === 'building' || e.type_name === 'workshop');
-    var locationTitle = isBuildingType ? 'Собственник' : 'Расположение';
+    var isRoomType = (e.type_name === 'room');
+    var locationTitle = isBuildingType ? 'Собственник' : (isRoomType ? 'Находится в корпусе' : 'Расположение');
 
     // For buildings: also show land plot from relations
     if (isBuildingType) {
@@ -2646,6 +2647,13 @@ async function showEntity(id, _forceDetail) {
       html += '<select id="parentSelectInline" style="width:100%"><option value="">— не указано —</option>';
       (_allCompanies || []).forEach(function(c) {
         html += '<option value="' + c.id + '"' + (e.parent_id === c.id ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+      });
+      html += '</select></div>';
+    } else if (isRoomType) {
+      html += '<div class="form-group"><label>Находится в корпусе</label>';
+      html += '<select id="parentSelectInline" style="width:100%"><option value="">— не указано —</option>';
+      (_buildings || []).forEach(function(b) {
+        html += '<option value="' + b.id + '"' + (e.parent_id === b.id ? ' selected' : '') + '>' + escapeHtml(b.name) + '</option>';
       });
       html += '</select></div>';
     } else {
