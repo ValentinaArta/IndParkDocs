@@ -101,6 +101,14 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 /* Spinner */
 @keyframes _spin { to { transform: rotate(360deg); } }
 .spinner-ring { display: inline-block; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: _spin 0.7s linear infinite; }
+/* Searchable select */
+.srch-wrap { position:relative; }
+.srch-input { width:100%; box-sizing:border-box; }
+.srch-drop { position:absolute;top:100%;left:0;right:0;z-index:300;background:var(--bg);border:1px solid var(--primary);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+.srch-item { padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.srch-item:hover,.srch-item.srch-active { background:var(--bg-hover); }
+.srch-new { color:var(--primary);font-style:italic;border-top:1px solid var(--border); }
+.srch-custom { width:100%;box-sizing:border-box;margin-top:6px; }
 .modal h3 { font-size: 16px; margin-bottom: 16px; padding-right: 80px; }
 .modal .form-group { margin-bottom: 14px; }
 .modal label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
@@ -360,6 +368,97 @@ function renderEntitySelect(id, entities, selectedId, selectedName, placeholder,
     'onblur="onEntityCustomConfirm(this.dataset.field)">';
   h += '</div>';
   return h;
+}
+
+// Searchable select — text input + filtered dropdown + "Другое..." inline create
+function renderSearchableSelect(id, entities, selectedId, selectedName, placeholder, fieldName) {
+  var selId = parseInt(selectedId) || 0;
+  var fn = fieldName || id.replace(/^f_/, '');
+  var selName = '';
+  if (selId) {
+    var found = entities.find(function(e) { return e.id === selId; });
+    selName = found ? found.name : (selectedName || '');
+  }
+  var h = '<div class="srch-wrap" data-srch-id="' + id + '" data-srch-field="' + fn + '">';
+  h += '<input type="hidden" id="' + id + '" value="' + (selId || '') + '">';
+  h += '<input type="text" class="srch-input" id="' + id + '_text" value="' + escapeHtml(selName) + '" placeholder="' + escapeHtml(placeholder || 'начните вводить...') + '" autocomplete="off">';
+  h += '<div class="srch-drop" id="' + id + '_drop" style="display:none"></div>';
+  h += '<input class="srch-custom" id="' + id + '_custom" placeholder="Введите название новой" style="display:none" data-field="' + fn + '" onkeydown="onEntityCustomKeydown(event,this)" onblur="onEntityCustomConfirm(this.dataset.field)">';
+  h += '</div>';
+  return h;
+}
+
+// Init all searchable selects in the DOM after setModalContent
+function _srchInitAll() {
+  document.querySelectorAll('.srch-wrap').forEach(function(wrap) {
+    var id = wrap.dataset.srchId;
+    var textEl = document.getElementById(id + '_text');
+    var hiddenEl = document.getElementById(id);
+    var dropEl = document.getElementById(id + '_drop');
+    if (!textEl || !hiddenEl || !dropEl) return;
+    if (textEl._srchBound) return; // already bound
+    textEl._srchBound = true;
+
+    textEl.addEventListener('focus', function() { _srchFilter(id); });
+    textEl.addEventListener('input', function() { hiddenEl.value = ''; _srchFilter(id); });
+    textEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { dropEl.style.display = 'none'; textEl.blur(); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); var first = dropEl.querySelector('.srch-item'); if (first) first.focus(); }
+    });
+    // Close on click outside
+    document.addEventListener('mousedown', function(e) {
+      if (!wrap.contains(e.target)) dropEl.style.display = 'none';
+    });
+  });
+}
+
+function _srchGetList(id) {
+  var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
+  if (fn === 'our_legal_entity') return _ownCompanies || [];
+  if (fn === 'balance_owner') return _ownCompanies || [];
+  return _allCompanies || [];
+}
+
+function _srchFilter(id) {
+  var textEl = document.getElementById(id + '_text');
+  var dropEl = document.getElementById(id + '_drop');
+  if (!textEl || !dropEl) return;
+  var q = textEl.value.toLowerCase().trim();
+  var list = _srchGetList(id);
+  var filtered = q ? list.filter(function(e) { return e.name.toLowerCase().indexOf(q) >= 0; }) : list;
+  var h = '';
+  filtered.slice(0, 50).forEach(function(e) {
+    h += '<div class="srch-item" data-srch-pick="' + e.id + '">' + escapeHtml(e.name) + '</div>';
+  });
+  if (filtered.length > 50) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...</div>';
+  h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
+  dropEl.innerHTML = h;
+  dropEl.style.display = '';
+  // Bind click handlers via delegation
+  dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
+    el.addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPick(id, parseInt(el.dataset.srchPick)); });
+  });
+  dropEl.querySelector('[data-srch-new]').addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPickNew(id); });
+}
+
+function _srchPick(id, entityId) {
+  var list = _srchGetList(id);
+  var ent = list.find(function(e) { return e.id === entityId; });
+  if (!ent) return;
+  document.getElementById(id).value = String(entityId);
+  document.getElementById(id + '_text').value = ent.name;
+  document.getElementById(id + '_drop').style.display = 'none';
+  var customEl = document.getElementById(id + '_custom');
+  if (customEl) customEl.style.display = 'none';
+}
+
+function _srchPickNew(id) {
+  var wrap = document.querySelector('[data-srch-id="' + id + '"]');
+  var fn = wrap.dataset.srchField;
+  document.getElementById(id).value = '__new__';
+  document.getElementById(id + '_drop').style.display = 'none';
+  var customEl = document.getElementById(id + '_custom');
+  if (customEl) { customEl.style.display = ''; customEl.value = ''; customEl.focus(); }
 }
 
 function renderLandPlotSelectorField(selectedId) {
@@ -1788,15 +1887,7 @@ function onEntityCustomConfirm(fieldName) {
     method: 'POST',
     body: JSON.stringify({ entity_type_id: typeObj.id, name: name, properties: props })
   }).then(function(newEntity) {
-    var opt = document.createElement('option');
-    opt.value = newEntity.id;
-    opt.textContent = (typeObj.icon || '') + ' ' + name;
-    opt.selected = true;
-    var newOpt = el.querySelector('option[value="__new__"]');
-    el.insertBefore(opt, newOpt);
-    el.value = String(newEntity.id);
-    customEl.style.display = 'none';
-    customEl.disabled = false;
+    // Update caches
     clearEntityCache();
     if (entityType === 'company') {
       _allCompanies.push(newEntity);
@@ -1806,6 +1897,22 @@ function onEntityCustomConfirm(fieldName) {
     } else if (entityType === 'room') {
       _rooms.push(newEntity);
     }
+    // Handle both <select> and searchable <input type="hidden">
+    if (el.tagName === 'SELECT') {
+      var opt = document.createElement('option');
+      opt.value = newEntity.id;
+      opt.textContent = name;
+      opt.selected = true;
+      var newOpt = el.querySelector('option[value="__new__"]');
+      el.insertBefore(opt, newOpt);
+      el.value = String(newEntity.id);
+    } else {
+      el.value = String(newEntity.id);
+      var txtEl = document.getElementById('f_' + fieldName + '_text');
+      if (txtEl) txtEl.value = name;
+    }
+    customEl.style.display = 'none';
+    customEl.disabled = false;
   }).catch(function(err) {
     alert('Ошибка: ' + (err.message || err));
     el.value = '';
@@ -1891,27 +1998,27 @@ function renderContractFormFields(fields, props, headerHtml) {
       return;
     }
 
-    // our_legal_entity — entity selector from companies with is_own
+    // our_legal_entity — searchable selector from companies with is_own
     if (f.name === 'our_legal_entity') {
       var label = (props.our_role_label || roles.our);
       html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
-        renderEntitySelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, val, 'выберите', 'onEntitySelectChange(&quot;our_legal_entity&quot;)') + '</div>';
+        renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, val, 'начните вводить...', 'our_legal_entity') + '</div>';
       return;
     }
 
-    // contractor_name — entity selector from all companies
+    // contractor_name — searchable selector from all companies
     if (f.name === 'contractor_name') {
       var label = (props.contractor_role_label || roles.contractor);
       html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
-        renderEntitySelect('f_contractor_name', _allCompanies, props.contractor_id, val, 'выберите', 'onEntitySelectChange(&quot;contractor_name&quot;)') + '</div>';
+        renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, val, 'начните вводить...', 'contractor_name') + '</div>';
       return;
     }
 
-    // subtenant — entity selector, only for Субаренды
+    // subtenant — searchable selector, only for Субаренды
     if (f.name === 'subtenant_name') {
       var show = (contractType === 'Субаренды') || (roles.hasSubtenant);
       html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
-        renderEntitySelect('f_subtenant_name', _allCompanies, props.subtenant_id, '', 'выберите', 'onEntitySelectChange(&quot;subtenant_name&quot;)') + '</div>';
+        renderSearchableSelect('f_subtenant_name', _allCompanies, props.subtenant_id, '', 'начните вводить...', 'subtenant_name') + '</div>';
       return;
     }
 
@@ -1937,6 +2044,7 @@ function renderContractFormFields(fields, props, headerHtml) {
     '<button class="btn btn-primary" onclick="submitCreate(\\''+typeName+'\\')">Создать</button></div>';
 
   setModalContent(html);
+  _srchInitAll(); // init searchable selects
 
   // Attach contract_type change handler
   var ctEl = document.getElementById('f_contract_type');
@@ -4409,10 +4517,10 @@ async function openCreateModal(typeName, preParentId) {
     if (f.sort_order >= 999) return; // hidden field (room_number, room_type etc.)
     if (f.name === 'balance_owner' || f.name === 'owner') {
       var fieldId = f.name === 'owner' ? 'f_owner' : 'f_balance_owner';
-      // balance_owner = наши организации; owner = все компании
+      var fieldNameS = f.name === 'owner' ? 'owner' : 'balance_owner';
       var ownerList = (f.name === 'balance_owner') ? (_ownCompanies||_allCompanies) : _allCompanies;
       html += '<div class="form-group"><label>Собственник</label>' +
-        renderEntitySelect(fieldId, ownerList, '', '', 'выберите наше юр. лицо') + '</div>';
+        renderSearchableSelect(fieldId, ownerList, '', '', 'начните вводить...', fieldNameS) + '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, '') + '</div>';
     }
@@ -4427,6 +4535,7 @@ async function openCreateModal(typeName, preParentId) {
     '<button class="btn btn-primary" onclick="submitCreate(\\'' + typeName + '\\')">Создать</button></div>';
 
   setModalContent(html);
+  _srchInitAll();
   document.getElementById('f_name').focus();
 }
 
@@ -4798,15 +4907,15 @@ async function openEditModal(id) {
       } else if (f.name === 'our_legal_entity') {
         var label = (props.our_role_label || roles.our);
         editHtml += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
-          renderEntitySelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, val, 'выберите', 'onEntitySelectChange(&quot;our_legal_entity&quot;)') + '</div>';
+          renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, val, 'начните вводить...', 'our_legal_entity') + '</div>';
       } else if (f.name === 'contractor_name') {
         var label = (props.contractor_role_label || roles.contractor);
         editHtml += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
-          renderEntitySelect('f_contractor_name', _allCompanies, props.contractor_id, val, 'выберите', 'onEntitySelectChange(&quot;contractor_name&quot;)') + '</div>';
+          renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, val, 'начните вводить...', 'contractor_name') + '</div>';
       } else if (f.name === 'subtenant_name') {
         var show = (contractType === 'Субаренды');
         editHtml += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
-          renderEntitySelect('f_subtenant_name', _allCompanies, props.subtenant_id, val, 'выберите', 'onEntitySelectChange(&quot;subtenant_name&quot;)') + '</div>';
+          renderSearchableSelect('f_subtenant_name', _allCompanies, props.subtenant_id, val, 'начните вводить...', 'subtenant_name') + '</div>';
       } else {
         // Skip fields already covered by CONTRACT_TYPE_FIELDS for this type (e.g. vat_rate for Аренды)
         var ctTypeFieldsEdit = CONTRACT_TYPE_FIELDS[contractType] || [];
@@ -4822,6 +4931,7 @@ async function openEditModal(id) {
       '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
 
     setModalContent(editHtml);
+    _srchInitAll();
 
     var ctEl = document.getElementById('f_contract_type');
     if (ctEl) {
@@ -4887,10 +4997,10 @@ async function openEditModal(id) {
     }
     if (f.name === 'balance_owner') {
       html += '<div class="form-group"><label>Собственник</label>' +
-        renderEntitySelect('f_balance_owner', _ownCompanies, props.balance_owner_id || '', val, 'наше юр. лицо') + '</div>';
+        renderSearchableSelect('f_balance_owner', _ownCompanies, props.balance_owner_id || '', val, 'начните вводить...', 'balance_owner') + '</div>';
     } else if (f.name === 'owner') {
       html += '<div class="form-group"><label>Собственник</label>' +
-        renderEntitySelect('f_owner', _allCompanies, props.owner_id || '', props.owner_name || '', 'выберите организацию') + '</div>';
+        renderSearchableSelect('f_owner', _allCompanies, props.owner_id || '', props.owner_name || '', 'начните вводить...', 'owner') + '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
     }
@@ -4905,6 +5015,7 @@ async function openEditModal(id) {
     '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
 
   setModalContent(html);
+  _srchInitAll();
 }
 
 async function submitEdit(id) {
@@ -5079,15 +5190,15 @@ async function openCreateSupplementModal(parentContractId) {
     } else if (f.name === 'our_legal_entity') {
       var label = (parentProps.our_role_label || roles.our);
       html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
-        renderEntitySelect('f_our_legal_entity', _ownCompanies, parentProps.our_legal_entity_id, val, 'выберите', 'onEntitySelectChange(&quot;our_legal_entity&quot;)') + '</div>';
+        renderSearchableSelect('f_our_legal_entity', _ownCompanies, parentProps.our_legal_entity_id, val, 'начните вводить...', 'our_legal_entity') + '</div>';
     } else if (f.name === 'contractor_name') {
       var label = (parentProps.contractor_role_label || roles.contractor);
       html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
-        renderEntitySelect('f_contractor_name', _allCompanies, parentProps.contractor_id, val, 'выберите', 'onEntitySelectChange(&quot;contractor_name&quot;)') + '</div>';
+        renderSearchableSelect('f_contractor_name', _allCompanies, parentProps.contractor_id, val, 'начните вводить...', 'contractor_name') + '</div>';
     } else if (f.name === 'subtenant_name') {
       var show = (contractType === 'Субаренды');
       html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
-        renderEntitySelect('f_subtenant_name', _allCompanies, parentProps.subtenant_id, val, 'выберите', 'onEntitySelectChange(&quot;subtenant_name&quot;)') + '</div>';
+        renderSearchableSelect('f_subtenant_name', _allCompanies, parentProps.subtenant_id, val, 'начните вводить...', 'subtenant_name') + '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
     }
@@ -5105,6 +5216,7 @@ async function openCreateSupplementModal(parentContractId) {
     '<button class="btn btn-primary" onclick="submitCreateSupplement(' + parentContractId + ')">Создать</button></div>';
 
   setModalContent(html);
+  _srchInitAll();
 
   var ctEl = document.getElementById('f_contract_type');
   if (ctEl) {
