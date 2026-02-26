@@ -2471,7 +2471,7 @@ function _mapEvtWheel(e) {
   var r = document.getElementById('mapViewport').getBoundingClientRect();
   var cx = e.clientX - r.left;
   var cy = e.clientY - r.top;
-  var delta = e.deltaY > 0 ? 0.82 : 1.22;
+  var delta = e.deltaY > 0 ? 0.92 : 1.09;
   _mapZoomTo(_mapZoom * delta, cx, cy);
 }
 
