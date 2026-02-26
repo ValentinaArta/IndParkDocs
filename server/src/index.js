@@ -575,7 +575,132 @@ async function mergeORRVesta() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => mergeORRVesta()).then(() => {
+async function createBIViews() {
+  const pool = require('./db');
+  try {
+    // v_bi_contracts — all contracts, JSONB flattened to columns
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_contracts AS
+      SELECT
+        e.id, e.name, e.created_at,
+        e.properties->>'contract_type'   AS contract_type,
+        e.properties->>'number'          AS contract_number,
+        e.properties->>'our_legal_entity' AS our_legal_entity,
+        e.properties->>'contractor_name'  AS contractor_name,
+        e.properties->>'contract_date'    AS contract_date,
+        e.properties->>'contract_end_date' AS contract_end_date,
+        NULLIF(e.properties->>'contract_amount','')::numeric AS contract_amount,
+        NULLIF(e.properties->>'rent_monthly','')::numeric    AS rent_monthly,
+        NULLIF(e.properties->>'advance_amount','')::numeric  AS advance_amount,
+        NULLIF(e.properties->>'vat_rate','')::numeric        AS vat_rate,
+        e.properties->>'subject'          AS subject,
+        e.properties->>'service_subject'  AS service_subject
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      WHERE et.name = 'contract' AND e.deleted_at IS NULL`);
+
+    // v_bi_supplements — all supplements flat
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_supplements AS
+      SELECT
+        e.id, e.name, e.parent_id AS contract_id, e.created_at,
+        e.properties->>'contract_type'   AS contract_type,
+        e.properties->>'number'          AS supplement_number,
+        e.properties->>'contractor_name' AS contractor_name,
+        e.properties->>'contract_date'   AS contract_date,
+        NULLIF(e.properties->>'contract_amount','')::numeric AS contract_amount,
+        NULLIF(e.properties->>'rent_monthly','')::numeric    AS rent_monthly,
+        NULLIF(e.properties->>'vat_rate','')::numeric        AS vat_rate,
+        e.properties->>'changes_description' AS changes_description
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      WHERE et.name = 'supplement' AND e.deleted_at IS NULL`);
+
+    // v_bi_rent_objects — rent objects array exploded (one row per rented object)
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_rent_objects AS
+      SELECT
+        e.id AS contract_id,
+        e.name AS contract_name,
+        e.properties->>'contract_type'   AS contract_type,
+        e.properties->>'contractor_name' AS tenant_name,
+        e.properties->>'our_legal_entity' AS landlord_name,
+        e.properties->>'contract_date'    AS contract_date,
+        e.properties->>'contract_end_date' AS contract_end_date,
+        COALESCE(NULLIF(e.properties->>'vat_rate','')::numeric, 22) AS vat_rate,
+        obj->>'object_name'   AS object_name,
+        obj->>'object_type'   AS object_type,
+        NULLIF(obj->>'total_area','')::numeric   AS area_sqm,
+        NULLIF(obj->>'rent_rate','')::numeric     AS rate_per_sqm,
+        NULLIF(obj->>'monthly_amount','')::numeric AS monthly_amount
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE WHEN jsonb_typeof(e.properties->'rent_objects')='array'
+             THEN e.properties->'rent_objects' ELSE '[]'::jsonb END
+      ) AS obj
+      WHERE et.name IN ('contract','supplement')
+        AND e.deleted_at IS NULL
+        AND jsonb_typeof(e.properties->'rent_objects') = 'array'`);
+
+    // v_bi_equipment — equipment with building and owner
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_equipment AS
+      SELECT
+        e.id, e.name,
+        e.properties->>'equipment_category' AS category,
+        e.properties->>'equipment_kind'     AS kind,
+        e.properties->>'status'             AS status,
+        e.properties->>'inv_number'         AS inv_number,
+        e.properties->>'year'               AS manufacture_year,
+        e.properties->>'manufacturer'       AS manufacturer,
+        e.properties->>'balance_owner_name' AS owner,
+        bld.name  AS building_name,
+        par.name  AS parent_name
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      LEFT JOIN relations r_loc ON r_loc.from_entity_id = e.id
+        AND r_loc.relation_type = 'located_in' AND r_loc.deleted_at IS NULL
+      LEFT JOIN entities bld ON bld.id = r_loc.to_entity_id AND bld.deleted_at IS NULL
+      LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
+      WHERE et.name = 'equipment' AND e.deleted_at IS NULL`);
+
+    // v_bi_buildings — buildings with owner and land plot
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_buildings AS
+      SELECT
+        e.id, e.name,
+        e.properties->>'balance_owner_name' AS owner,
+        e.properties->>'short_name'         AS short_name,
+        lp.name AS land_plot_name,
+        lp.properties->>'cadastral_number'  AS cadastral_number,
+        NULLIF(lp.properties->>'area','')::numeric AS land_area_sqm
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      LEFT JOIN relations r_loc ON r_loc.from_entity_id = e.id
+        AND r_loc.relation_type = 'located_on' AND r_loc.deleted_at IS NULL
+      LEFT JOIN entities lp ON lp.id = r_loc.to_entity_id AND lp.deleted_at IS NULL
+      WHERE et.name = 'building' AND e.deleted_at IS NULL`);
+
+    // v_bi_acts — acts with contract and amounts
+    await pool.query(`CREATE OR REPLACE VIEW v_bi_acts AS
+      SELECT
+        e.id AS act_id, e.name AS act_name, e.created_at,
+        e.properties->>'contract_date'  AS act_date,
+        NULLIF(e.properties->>'total_amount','')::numeric AS total_amount,
+        e.properties->>'service_subject' AS subject,
+        ctr.id   AS contract_id,
+        ctr.name AS contract_name,
+        ctr.properties->>'contractor_name' AS contractor_name
+      FROM entities e
+      JOIN entity_types et ON e.entity_type_id = et.id
+      LEFT JOIN relations r_s ON r_s.from_entity_id = e.id
+        AND r_s.relation_type = 'supplement_to' AND r_s.deleted_at IS NULL
+      LEFT JOIN entities ctr ON ctr.id = r_s.to_entity_id AND ctr.deleted_at IS NULL
+      WHERE et.name = 'act' AND e.deleted_at IS NULL`);
+
+    console.log('BI views created: v_bi_contracts, v_bi_supplements, v_bi_rent_objects, v_bi_equipment, v_bi_buildings, v_bi_acts');
+  } catch(e) {
+    console.error('createBIViews error (non-fatal):', e.message);
+  }
+}
+
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => mergeORRVesta()).then(() => createBIViews()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 
