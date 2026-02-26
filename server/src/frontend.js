@@ -2250,11 +2250,16 @@ var _mapHotspots  = [];       // [{shape, entity_id, entity_name, ...}]
 var _mapRectDraw  = null;     // {startX,startY,curX,curY} during rect drag
 var _mapPolyPts   = [];       // [[x,y],...] accumulating polygon vertices
 var _mapMousePos  = {x:0,y:0};// current cursor on map (% coords)
+var _mapZoom      = 1;        // current zoom level
+var _mapPanX      = 0;        // pan offset X (px)
+var _mapPanY      = 0;        // pan offset Y (px)
+var _mapPanDrag   = null;     // {sx,sy} drag origin minus pan offset
 
 async function showMapPage() {
   currentView = 'map';
   currentTypeFilter = null;
   _mapEditMode = false; _mapDrawTool = 'rect'; _mapPolyPts = []; _mapRectDraw = null;
+  _mapZoom = 1; _mapPanX = 0; _mapPanY = 0; _mapPanDrag = null;
   setActive('.nav-item[onclick*="showMapPage"]');
   document.getElementById('pageTitle').textContent = 'Карта территории';
   document.getElementById('breadcrumb').textContent = '';
@@ -2278,6 +2283,12 @@ async function showMapPage() {
   var html = '<div style="padding:16px">';
   html += '<div class="map-editor-bar">';
   html += '<button class="btn btn-sm" id="mapEditBtn" onclick="_mapToggleEdit()">' + icon('pencil',14) + ' Разметить</button>';
+  html += '<div style="display:flex;align-items:center;gap:4px;margin-left:8px">';
+  html += '<button class="btn btn-sm" onclick="_mapZoomOut()" title="Уменьшить">' + icon('minus',13) + '</button>';
+  html += '<span id="mapZoomPct" style="font-size:12px;min-width:36px;text-align:center;color:var(--text-muted)">100%</span>';
+  html += '<button class="btn btn-sm" onclick="_mapZoomIn()" title="Увеличить">' + icon('plus',13) + '</button>';
+  html += '<button class="btn btn-sm" onclick="_mapZoomReset()" title="Сбросить масштаб" style="padding:4px 6px">' + icon('maximize-2',13) + '</button>';
+  html += '</div>';
   html += '<span id="mapEditTools" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">';
   html += '<button class="btn btn-sm btn-primary" id="mapToolRect" onclick="_mapSetTool(\\'rect\\')">' + icon('square',13) + ' Прямоугольник</button>';
   html += '<button class="btn btn-sm" id="mapToolPoly" onclick="_mapSetTool(\\'poly\\')">' + icon('pentagon',13) + ' Многоугольник</button>';
@@ -2285,14 +2296,15 @@ async function showMapPage() {
   html += '<button id="mapPolyCancelBtn" class="btn btn-sm" style="display:none" onclick="_mapPolyCancelDraw()">Отмена</button>';
   html += '</span>';
   html += '</div>';
-  html += '<div class="map-container" id="mapContainer" style="position:relative;display:block;width:100%;cursor:default">';
+  html += '<div id="mapViewport" style="position:relative;overflow:hidden;width:100%;cursor:default;background:#e8e8e8;border-radius:6px">';
+  html += '<div id="mapInner" style="transform-origin:0 0;transform:translate(0,0) scale(1);position:relative;line-height:0">';
   html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;width:100%;height:auto;user-select:none" draggable="false">';
   html += '<svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"';
   html += ' style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
   html += '<defs></defs>';
   html += '<g id="mapShapes"></g><g id="mapDrawPreview"></g>';
   html += '</svg>';
-  html += '</div></div>';
+  html += '</div></div></div>';
 
   document.getElementById('content').innerHTML = html;
   renderIcons();
@@ -2314,25 +2326,42 @@ function _mapPct(e) {
 
 // ── Event binding ────────────────────────────────────────────────────────────
 function _mapBindEvents() {
-  var c = document.getElementById('mapContainer');
+  var c = document.getElementById('mapViewport');
   if (!c) return;
   c.addEventListener('mousedown',    _mapEvtDown);
   c.addEventListener('mousemove',    _mapEvtMove);
   c.addEventListener('mouseup',      _mapEvtUp);
   c.addEventListener('click',        _mapEvtClick);
   c.addEventListener('dblclick',     _mapEvtDbl);
+  c.addEventListener('wheel',        _mapEvtWheel, {passive:false});
   c.addEventListener('contextmenu',  function(e){ if(_mapPolyPts.length){ e.preventDefault(); _mapPolyCancelDraw(); } });
+  // Also stop pan if mouse released outside viewport
+  document.addEventListener('mouseup', function(e){ if(_mapPanDrag){ _mapPanDrag=null; var v=document.getElementById('mapViewport'); if(v) v.style.cursor=_mapEditMode?'crosshair':(_mapZoom>1?'grab':'default'); } });
 }
 
 function _mapEvtDown(e) {
-  if (!_mapEditMode || _mapDrawTool !== 'rect') return;
   if (e.target.closest('[data-mapbtn]')) return;
+  if (!_mapEditMode) {
+    // View mode — start pan
+    e.preventDefault();
+    _mapPanDrag = { sx: e.clientX - _mapPanX, sy: e.clientY - _mapPanY };
+    var vp = document.getElementById('mapViewport');
+    if (vp) vp.style.cursor = 'grabbing';
+    return;
+  }
+  if (_mapDrawTool !== 'rect') return;
   e.preventDefault();
   var p = _mapPct(e);
   _mapRectDraw = { sx:p.x, sy:p.y, cx:p.x, cy:p.y };
   _mapRenderPreview();
 }
 function _mapEvtMove(e) {
+  if (_mapPanDrag) {
+    _mapPanX = e.clientX - _mapPanDrag.sx;
+    _mapPanY = e.clientY - _mapPanDrag.sy;
+    _mapApplyTransform();
+    return;
+  }
   var p = _mapPct(e); _mapMousePos = p;
   if (_mapEditMode && _mapDrawTool === 'rect' && _mapRectDraw) {
     _mapRectDraw.cx = p.x; _mapRectDraw.cy = p.y; _mapRenderPreview();
@@ -2340,6 +2369,12 @@ function _mapEvtMove(e) {
   if (_mapEditMode && _mapDrawTool === 'poly' && _mapPolyPts.length) _mapRenderPreview();
 }
 function _mapEvtUp(e) {
+  if (_mapPanDrag) {
+    _mapPanDrag = null;
+    var vp = document.getElementById('mapViewport');
+    if (vp) vp.style.cursor = _mapZoom > 1 ? 'grab' : 'default';
+    return;
+  }
   if (!_mapEditMode || _mapDrawTool !== 'rect' || !_mapRectDraw) return;
   if (e.target.closest('[data-mapbtn]')) return;
   var p = _mapPct(e);
@@ -2384,17 +2419,17 @@ function _mapToggleEdit() {
   _mapPolyPts = []; _mapRectDraw = null;
   var btn   = document.getElementById('mapEditBtn');
   var tools = document.getElementById('mapEditTools');
-  var cont  = document.getElementById('mapContainer');
+  var vp    = document.getElementById('mapViewport');
   if (_mapEditMode) {
     btn.classList.add('btn-primary');
     btn.innerHTML = icon('check',14) + ' Готово';
     if (tools) { tools.style.display = 'flex'; }
-    if (cont)  cont.style.cursor = 'crosshair';
+    if (vp)  vp.style.cursor = 'crosshair';
   } else {
     btn.classList.remove('btn-primary');
     btn.innerHTML = icon('pencil',14) + ' Разметить';
     if (tools) tools.style.display = 'none';
-    if (cont)  cont.style.cursor = 'default';
+    if (vp)  vp.style.cursor = _mapZoom > 1 ? 'grab' : 'default';
   }
   renderIcons(); _mapRenderShapes(); _mapRenderPreview();
 }
@@ -2403,6 +2438,39 @@ function _mapSetTool(t) {
   var r = document.getElementById('mapToolRect'), p = document.getElementById('mapToolPoly');
   if (r) r.className = 'btn btn-sm' + (t==='rect'?' btn-primary':'');
   if (p) p.className = 'btn btn-sm' + (t==='poly'?' btn-primary':'');
+}
+
+// ── Zoom / pan ────────────────────────────────────────────────────────────────
+function _mapApplyTransform() {
+  var inner = document.getElementById('mapInner');
+  if (inner) inner.style.transform = 'translate('+_mapPanX.toFixed(1)+'px,'+_mapPanY.toFixed(1)+'px) scale('+_mapZoom+')';
+  var zd = document.getElementById('mapZoomPct');
+  if (zd) zd.textContent = Math.round(_mapZoom*100)+'%';
+  var vp = document.getElementById('mapViewport');
+  if (vp && !_mapPanDrag) vp.style.cursor = _mapEditMode ? 'crosshair' : (_mapZoom > 1 ? 'grab' : 'default');
+}
+function _mapZoomIn()    { _mapZoomTo(_mapZoom * 1.4); }
+function _mapZoomOut()   { _mapZoomTo(_mapZoom / 1.4); }
+function _mapZoomReset() { _mapZoom=1; _mapPanX=0; _mapPanY=0; _mapApplyTransform(); }
+function _mapZoomTo(newZoom, cx, cy) {
+  var vp = document.getElementById('mapViewport');
+  if (!vp) return;
+  newZoom = Math.max(0.5, Math.min(16, newZoom));
+  if (cx === undefined) { cx = vp.offsetWidth/2; cy = vp.offsetHeight/2; }
+  var innerX = (cx - _mapPanX) / _mapZoom;
+  var innerY = (cy - _mapPanY) / _mapZoom;
+  _mapZoom = newZoom;
+  _mapPanX = cx - innerX * _mapZoom;
+  _mapPanY = cy - innerY * _mapZoom;
+  _mapApplyTransform();
+}
+function _mapEvtWheel(e) {
+  e.preventDefault();
+  var r = document.getElementById('mapViewport').getBoundingClientRect();
+  var cx = e.clientX - r.left;
+  var cy = e.clientY - r.top;
+  var delta = e.deltaY > 0 ? 0.82 : 1.22;
+  _mapZoomTo(_mapZoom * delta, cx, cy);
 }
 
 // ── Render hotspot shapes (SVG) ───────────────────────────────────────────────
