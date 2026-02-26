@@ -28,7 +28,13 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     (SELECT lp.name FROM relations r
      JOIN entities lp ON r.to_entity_id = lp.id
      WHERE r.from_entity_id = e.id AND r.relation_type = 'located_on'
-       AND lp.deleted_at IS NULL LIMIT 1) as land_plot_name
+       AND lp.deleted_at IS NULL LIMIT 1) as land_plot_name,
+    (SELECT string_agg(COALESCE(NULLIF(b.properties->>'short_name',''), b.name), ', ' ORDER BY b.name)
+     FROM relations r
+     JOIN entities b ON r.from_entity_id = b.id
+     JOIN entity_types bet ON b.entity_type_id = bet.id
+     WHERE r.to_entity_id = e.id AND r.relation_type = 'located_on'
+       AND bet.name IN ('building','workshop') AND b.deleted_at IS NULL) as buildings_on_plot
     FROM entities e
     JOIN entity_types et ON e.entity_type_id = et.id
     LEFT JOIN entities p ON e.parent_id = p.id

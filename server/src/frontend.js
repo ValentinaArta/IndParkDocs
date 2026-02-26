@@ -3212,15 +3212,29 @@ function renderEntityGrid(entities) {
     if (e.type_name === 'building' || e.type_name === 'workshop') {
       // Structured display for buildings
       var bFields = [
-        props.cadastral_number ? { label: 'Кад. №', val: props.cadastral_number.trim() } : null,
-        props.total_area       ? { label: 'Площадь', val: props.total_area + ' м²' }      : null,
-        e.land_plot_name       ? { label: 'ЗУ', val: e.land_plot_name }                   : null,
-        props.balance_owner_name ? { label: 'Собственник', val: props.balance_owner_name } : null,
+        props.cadastral_number   ? { label: 'Кад. №',      val: props.cadastral_number.trim() }   : null,
+        props.total_area         ? { label: 'Площадь',      val: props.total_area + ' м²' }        : null,
+        e.land_plot_name         ? { label: 'ЗУ',           val: e.land_plot_name }                : null,
+        props.balance_owner_name ? { label: 'Собственник',  val: props.balance_owner_name }        : null,
       ].filter(Boolean);
       bFields.forEach(function(f) {
         tags += '<span class="prop-tag" title="' + escapeHtml(f.label) + '">'
               + '<span style="color:var(--text-muted);font-size:10px;margin-right:3px">' + escapeHtml(f.label) + ':</span>'
               + escapeHtml(String(f.val).length > 35 ? String(f.val).substring(0,35)+'…' : String(f.val))
+              + '</span>';
+      });
+    } else if (e.type_name === 'land_plot') {
+      // Structured display for land plots
+      var lpFields = [
+        props.cadastral_number   ? { label: 'Кад. №',      val: props.cadastral_number.trim() }   : null,
+        props.area               ? { label: 'Площадь',      val: props.area + ' кв.м.' }           : null,
+        props.balance_owner_name ? { label: 'Собственник',  val: props.balance_owner_name }        : null,
+        e.buildings_on_plot      ? { label: 'Корпуса',      val: e.buildings_on_plot }             : null,
+      ].filter(Boolean);
+      lpFields.forEach(function(f) {
+        tags += '<span class="prop-tag" title="' + escapeHtml(f.label) + '">'
+              + '<span style="color:var(--text-muted);font-size:10px;margin-right:3px">' + escapeHtml(f.label) + ':</span>'
+              + escapeHtml(String(f.val).length > 50 ? String(f.val).substring(0,50)+'…' : String(f.val))
               + '</span>';
       });
     } else {
