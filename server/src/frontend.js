@@ -3209,9 +3209,25 @@ function renderEntityGrid(entities) {
   entities.forEach(e => {
     const props = e.properties || {};
     let tags = '';
-    Object.entries(props).forEach(([k, v]) => {
-      if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
-    });
+    if (e.type_name === 'building' || e.type_name === 'workshop') {
+      // Structured display for buildings
+      var bFields = [
+        props.cadastral_number ? { label: 'Кад. №', val: props.cadastral_number.trim() } : null,
+        props.total_area       ? { label: 'Площадь', val: props.total_area + ' м²' }      : null,
+        e.land_plot_name       ? { label: 'ЗУ', val: e.land_plot_name }                   : null,
+        props.balance_owner_name ? { label: 'Собственник', val: props.balance_owner_name } : null,
+      ].filter(Boolean);
+      bFields.forEach(function(f) {
+        tags += '<span class="prop-tag" title="' + escapeHtml(f.label) + '">'
+              + '<span style="color:var(--text-muted);font-size:10px;margin-right:3px">' + escapeHtml(f.label) + ':</span>'
+              + escapeHtml(String(f.val).length > 35 ? String(f.val).substring(0,35)+'…' : String(f.val))
+              + '</span>';
+      });
+    } else {
+      Object.entries(props).forEach(([k, v]) => {
+        if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
+      });
+    }
     var isEqBroken = (e.type_name === 'equipment') && _brokenEqIds.has(e.id);
     var isEmergency = (e.type_name === 'equipment') && (props.status === 'Аварийное');
     var cardStyle = isEqBroken ? ' style="border-left:3px solid #dc2626;background:rgba(239,68,68,.06)"'
