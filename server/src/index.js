@@ -528,6 +528,23 @@ async function runMigration018() {
 }
 
 // One-time data fix: merge "ОРР Веста" → "ОРР Веста, АО"
+async function runMigration019() {
+  const pool = require('./db');
+  try {
+    // Add payment_frequency field to contract entity type
+    const ct = await pool.query(`SELECT id FROM entity_types WHERE name='contract'`);
+    if (!ct.rows.length) return;
+    const ctId = ct.rows[0].id;
+    await pool.query(`
+      INSERT INTO field_definitions (entity_type_id, name, name_ru, field_type, options, sort_order)
+      VALUES ($1, 'payment_frequency', 'Периодичность оплаты', 'select_or_custom',
+        '["Единовременно","Ежемесячно","Ежеквартально","Раз в полгода","Ежегодно"]'::jsonb, 14)
+      ON CONFLICT DO NOTHING
+    `, [ctId]);
+    console.log('runMigration019: payment_frequency field added');
+  } catch(e) { console.error('runMigration019 error (non-fatal):', e.message); }
+}
+
 async function mergeORRVesta() {
   const pool = require('./db');
   try {
@@ -954,7 +971,7 @@ async function syncMetabase() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => mergeORRVesta()).then(() => createBIViews()).then(() => syncMetabase()).then(() => {
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => runMigration019()).then(() => mergeORRVesta()).then(() => createBIViews()).then(() => syncMetabase()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 

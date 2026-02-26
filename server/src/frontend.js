@@ -302,6 +302,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number' },
+    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: PAYMENT_FREQUENCIES },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
     { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
   ],
@@ -325,6 +326,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'contract_amount', name_ru: 'Стоимость', field_type: 'number' },
+    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: PAYMENT_FREQUENCIES },
     { name: 'service_comment', name_ru: 'Комментарий', field_type: 'text' },
   ],
   'Аренды': [
@@ -1209,6 +1211,7 @@ var _rentObjectCounter = 0;
 var OBJECT_TYPES = []; // populated from справочник on startup
 var EQUIPMENT_CATEGORIES = []; // populated from справочник on startup
 var EQUIPMENT_STATUSES = [];   // populated from справочник on startup
+var PAYMENT_FREQUENCIES = []; // populated from справочник on startup
 
 // Returns base categories + any custom ones already saved in the registry
 function getEquipmentCategories() {
@@ -2391,6 +2394,7 @@ async function startApp() {
       if (f.name === 'object_type') { OBJECT_TYPES.length = 0; items.forEach(function(i){ OBJECT_TYPES.push(i); }); }
       else if (f.name === 'equipment_category') { EQUIPMENT_CATEGORIES.length = 0; items.forEach(function(i){ EQUIPMENT_CATEGORIES.push(i); }); }
       else if (f.name === 'status' && f.entity_type_name === 'equipment') { EQUIPMENT_STATUSES.length = 0; items.forEach(function(i){ EQUIPMENT_STATUSES.push(i); }); }
+      else if (f.name === 'payment_frequency') { PAYMENT_FREQUENCIES.length = 0; items.forEach(function(i){ PAYMENT_FREQUENCIES.push(i); }); }
     });
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
