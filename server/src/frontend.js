@@ -2858,7 +2858,11 @@ async function showEntity(id, _forceDetail) {
     var detailRoles = CONTRACT_ROLES[props.contract_type] || {};
     fields.forEach(f => {
       if (f.sort_order >= 999) return; // hidden fields (room_number, room_type etc.)
-      const val = props[f.name];
+      // For entity-selector fields: stored id+name, display the name
+      var rawVal = props[f.name];
+      if (f.name === 'owner')         rawVal = props.owner_name        || props.owner        || rawVal;
+      if (f.name === 'balance_owner') rawVal = props.balance_owner_name || props.balance_owner || rawVal;
+      const val = rawVal;
       // Skip internal role fields in display
       if (f.name === 'our_role_label' || f.name === 'contractor_role_label') return;
       // Hide subtenant if not Субаренды
@@ -4348,7 +4352,7 @@ async function openCreateModal(typeName, preParentId) {
       html += '</select></div>';
     } else if (typeName === 'room') {
       html += renderRoomBuildingParent(preParentId ? parseInt(preParentId) : null);
-    } else {
+    } else if (typeName !== 'land_plot' && typeName !== 'company') {
       html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
       allEntities.filter(function(x) { return x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
         html += '<option value="' + x.id + '">' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
@@ -4796,7 +4800,7 @@ async function openEditModal(id) {
       html += '</select></div>';
     } else if (e.type_name === 'room') {
       html += renderRoomBuildingParent(e.parent_id);
-    } else {
+    } else if (e.type_name !== 'land_plot' && e.type_name !== 'company') {
       html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
       allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
         html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + x.icon + ' ' + escapeHtml(x.name) + ' (' + x.type_name_ru + ')</option>';
