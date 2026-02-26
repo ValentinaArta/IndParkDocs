@@ -2285,8 +2285,8 @@ async function showMapPage() {
   html += '<button id="mapPolyCancelBtn" class="btn btn-sm" style="display:none" onclick="_mapPolyCancelDraw()">Отмена</button>';
   html += '</span>';
   html += '</div>';
-  html += '<div class="map-container" id="mapContainer" style="position:relative;display:inline-block;max-width:100%;overflow:auto;cursor:default">';
-  html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;max-width:100%;height:auto;user-select:none" draggable="false">';
+  html += '<div class="map-container" id="mapContainer" style="position:relative;display:block;width:100%;cursor:default">';
+  html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;width:100%;height:auto;user-select:none" draggable="false">';
   html += '<svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"';
   html += ' style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
   html += '<defs></defs>';
@@ -2428,9 +2428,12 @@ function _mapRenderShapes() {
       cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
+    var lbl = escapeHtml(hs.entity_name);
+    var tW = Math.max(lbl.length * 0.52 + 1.2, 5); var tH = 1.9;
+    h += '<rect x="'+(cx-tW/2)+'" y="'+(cy-tH/2)+'" width="'+tW+'" height="'+tH+'"'
+       + ' rx="0.4" ry="0.4" fill="rgba(255,255,255,0.88)" style="pointer-events:none"/>';
     h += '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="middle"'
-       + ' font-size="1.8" font-weight="700" fill="#1a1a2e" stroke="white" stroke-width="0.6"'
-       + ' paint-order="stroke fill" style="pointer-events:none">'+escapeHtml(hs.entity_name)+'</text>';
+       + ' font-size="0.95" font-weight="600" fill="#1a1a2e" style="pointer-events:none">'+lbl+'</text>';
     // Delete handle in edit mode
     if (_mapEditMode) {
       var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
