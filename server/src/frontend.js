@@ -98,6 +98,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .modal { position: relative; background: white; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.15); transition: max-width 0.15s, width 0.15s, height 0.15s, max-height 0.15s, border-radius 0.15s; }
 .modal.modal--wide { max-width: min(860px, 95vw); }
 .modal.modal--full { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+/* Spinner */
+@keyframes _spin { to { transform: rotate(360deg); } }
+.spinner-ring { display: inline-block; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: _spin 0.7s linear infinite; }
 .modal h3 { font-size: 16px; margin-bottom: 16px; padding-right: 80px; }
 .modal .form-group { margin-bottom: 14px; }
 .modal label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
@@ -4259,6 +4262,15 @@ async function runReport() {
 
 var _modalSize = 'normal';
 
+// Show modal with spinner immediately (before async data loads)
+function showLoadingModal() {
+  var el = document.getElementById('modal');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:60px 40px"><div class="spinner-ring"></div><p style="margin-top:16px;color:var(--text-muted);font-size:14px">Загрузка...</p></div>';
+  el.classList.remove('modal--wide', 'modal--full');
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
 function setModalContent(html) {
   var sizes = ['normal', 'wide', 'full'];
   var labels = {'normal': '▭', 'wide': '⊟', 'full': '⛶'};
@@ -4347,6 +4359,7 @@ async function submitBuildingInline() {
 }
 
 async function openCreateModal(typeName, preParentId) {
+  showLoadingModal();
   // Для ДС из реестра — сначала выбираем родительский договор
   if (typeName === 'supplement') {
     await openSelectParentContractForSupplement();
@@ -4627,7 +4640,7 @@ function renderContractCard(data) {
 }
 
 async function openContractCard(id) {
-  setModalContent('<div style="text-align:center;padding:40px;color:var(--text-secondary)">Загрузка карточки...</div>');
+  showLoadingModal();
   try {
     var data = await api('/reports/contract-card/' + id);
     setModalContent(renderContractCard(data));
@@ -4638,7 +4651,7 @@ async function openContractCard(id) {
 
 // ── Карточка ДС (только изменения) ─────────────────────────────────────────
 async function openSupplementCard(id) {
-  setModalContent('<div style="text-align:center;padding:40px;color:var(--text-secondary)">Загрузка...</div>');
+  showLoadingModal();
   try {
     var supp = await api('/entities/' + id);
     var sp = supp.properties || {};
@@ -4734,6 +4747,7 @@ async function openSupplementCard(id) {
 }
 
 async function openEditModal(id) {
+  showLoadingModal();
   clearEntityCache();
   const e = await api('/entities/' + id);
   const fields = e.fields || [];
@@ -4990,6 +5004,7 @@ async function deleteEntity(id) {
 
 // Шаг 1: выбор родительского договора (из реестра ДС)
 async function openSelectParentContractForSupplement() {
+  showLoadingModal();
   await loadContractEntities();
   var contracts = await api('/entities?type=contract');
   var h = '<h3>Новое доп. соглашение</h3>';
@@ -5016,6 +5031,7 @@ async function _proceedCreateSupplement() {
 }
 
 async function openCreateSupplementModal(parentContractId) {
+  showLoadingModal();
   _contractFormTypeName = 'supplement';
   clearEntityCache();
   await loadContractEntities();
