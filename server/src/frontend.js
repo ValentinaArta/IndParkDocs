@@ -2488,7 +2488,7 @@ function _mapRenderShapes() {
     var fill = hs.color.replace(/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/, function(_, r,g,b,a){
       return 'rgba('+r+','+g+','+b+','+Math.max(parseFloat(a),0.65)+')';
     });
-    var stroke = 'rgba(0,0,0,0.55)', sw = (0.7/z).toFixed(3);
+    var stroke = 'rgba(0,0,0,0.5)', sw = (0.3/z).toFixed(3);
     var cur  = _mapEditMode ? 'default' : 'pointer';
     var clk  = _mapEditMode ? '' : ' onclick="'+('_mapHotspotClick('+i+')')+'"';
     var title = '<title>'+escapeHtml(hs.entity_name)+'</title>';
@@ -2528,24 +2528,29 @@ function _mapRenderLabels() {
   if (!container) return;
   var h = '';
   _mapHotspots.forEach(function(hs) {
-    var cx, cy;
-    if (hs.shape === 'rect') {
-      cx = hs.x + hs.w/2; cy = hs.y + hs.h/2;
-    } else {
-      cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
-      cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
-    }
-    // Show only text in parentheses if present, else full name
-    var m = hs.entity_name.match(/\(([^)]+)\)/);
-    var shortLbl = m ? m[1] : hs.entity_name;
-    h += '<div title="'+escapeHtml(hs.entity_name)+'"'
-       + ' style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
-       + 'transform:translate(-50%,-50%);'
-       + 'font-size:13px;font-weight:800;color:#fff;line-height:1;text-align:center;'
-       + 'background:rgba(0,0,0,0.62);border-radius:5px;padding:3px 8px;'
-       + 'border:1px solid rgba(255,255,255,0.35);'
-       + 'white-space:nowrap;pointer-events:none">'
-       + escapeHtml(shortLbl) + '</div>';
+    try {
+      var cx = 0, cy = 0;
+      if (hs.shape === 'rect') {
+        cx = (hs.x||0) + (hs.w||0)/2;
+        cy = (hs.y||0) + (hs.h||0)/2;
+      } else if (hs.points && hs.points.length) {
+        cx = hs.points.reduce(function(s,p){return s+p[0];},0)/hs.points.length;
+        cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
+      }
+      if (isNaN(cx) || isNaN(cy)) return;
+      var name = hs.entity_name || '';
+      var m = name.match(/\(([^)]+)\)/);
+      var shortLbl = m ? m[1] : name;
+      if (!shortLbl) return;
+      h += '<div title="'+escapeHtml(name)+'"'
+         + ' style="position:absolute;left:'+cx+'%;top:'+cy+'%;'
+         + 'transform:translate(-50%,-50%);'
+         + 'font-size:13px;font-weight:800;color:#fff;line-height:1;text-align:center;'
+         + 'background:rgba(0,0,0,0.6);border-radius:4px;padding:2px 7px;'
+         + 'border:1px solid rgba(255,255,255,0.3);'
+         + 'white-space:nowrap;pointer-events:none">'
+         + escapeHtml(shortLbl) + '</div>';
+    } catch(e) { console.warn('mapLabel err', e); }
   });
   container.innerHTML = h;
 }
