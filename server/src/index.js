@@ -463,7 +463,23 @@ async function runMigration015() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => {
+async function runMigration016() {
+  const pool = require('./db');
+  try {
+    const roomRow = await pool.query("SELECT id FROM entity_types WHERE name='room'");
+    if (roomRow.rows.length === 0) { console.log('Migration 016: room type not found, skipping'); return; }
+    const roomId = roomRow.rows[0].id;
+    // Hide room_number (duplicates name) and room_type (old text field, replaced by object_type from справочник)
+    await pool.query(
+      `UPDATE field_definitions SET sort_order = 999 WHERE entity_type_id = $1 AND name IN ('room_number', 'room_type')`,
+      [roomId]);
+    console.log('Migration 016 applied: room_number and room_type hidden (sort_order=999)');
+  } catch(e) {
+    console.error('Migration 016 error (non-fatal):', e.message);
+  }
+}
+
+runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => {
   app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
 });
 

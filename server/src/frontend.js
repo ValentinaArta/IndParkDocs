@@ -2247,9 +2247,11 @@ async function showEntityList(typeName, opts) {
   else if (opts.isOwn === false) title = 'Сторонние компании';
   document.getElementById('pageTitle').textContent = title;
   document.getElementById('breadcrumb').textContent = opts.subtitle ? opts.subtitle : '';
+  var createBtn = typeName === 'room' && opts.parentId
+    ? '<button class="btn btn-primary" onclick="openCreateModal(\\'' + typeName + '\\',' + opts.parentId + ')">+ Добавить</button>'
+    : '<button class="btn btn-primary" onclick="openCreateModal(\\'' + typeName + '\\')">+ Добавить</button>';
   document.getElementById('topActions').innerHTML =
-    '<input class="search-bar" placeholder="Поиск..." oninput="searchEntities(this.value)">' +
-    '<button class="btn btn-primary" onclick="openCreateModal(\\'' + typeName + '\\')">+ Добавить</button>';
+    '<input class="search-bar" placeholder="Поиск..." oninput="searchEntities(this.value)">' + createBtn;
 
   var url = '/entities?type=' + typeName;
   if (opts.parentId) url += '&parent_id=' + opts.parentId;
@@ -3792,7 +3794,57 @@ function closeModal() {
   _submitting = false;
 }
 
-async function openCreateModal(typeName) {
+// ── Room parent field: buildings only + inline quick-create ──
+function renderRoomBuildingParent(selectedId) {
+  var h = '<div class="form-group"><label>Находится в корпусе</label>';
+  h += '<div style="display:flex;gap:8px;align-items:center">';
+  h += '<select id="f_parent" style="flex:1"><option value="">— не указано —</option>';
+  _buildings.forEach(function(b) {
+    h += '<option value="' + b.id + '"' + (selectedId && selectedId === b.id ? ' selected' : '') + '>' + escapeHtml(b.name) + '</option>';
+  });
+  h += '</select>';
+  h += '<button type="button" class="btn btn-sm" onclick="toggleBuildingInlineCreate()">+ Добавить корпус</button>';
+  h += '</div>';
+  h += '<div id="buildingInlineCreateBox" style="display:none;margin-top:8px;padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px">';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:8px">Новый корпус</div>';
+  h += '<div class="form-group"><label>Название</label><input id="bic_name" style="width:100%" placeholder="Корпус А, Цех 1..."></div>';
+  h += '<div style="display:flex;gap:8px">';
+  h += '<button type="button" class="btn btn-primary btn-sm" onclick="submitBuildingInline()">Создать и выбрать</button>';
+  h += '<button type="button" class="btn btn-sm" onclick="toggleBuildingInlineCreate()">Отмена</button>';
+  h += '</div></div></div>';
+  return h;
+}
+
+function toggleBuildingInlineCreate() {
+  var box = document.getElementById('buildingInlineCreateBox');
+  if (!box) return;
+  var isVisible = box.style.display !== 'none';
+  box.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) { var n = document.getElementById('bic_name'); if (n) n.focus(); }
+}
+
+async function submitBuildingInline() {
+  var nameEl = document.getElementById('bic_name');
+  var name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { alert('Введите название корпуса'); return; }
+  var bType = entityTypes.find(function(t) { return t.name === 'building'; });
+  if (!bType) return;
+  try {
+    var nb = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: bType.id, name: name, properties: {} }) });
+    _buildings.push(nb);
+    var sel = document.getElementById('f_parent');
+    if (sel) {
+      var opt = document.createElement('option');
+      opt.value = nb.id; opt.textContent = name; opt.selected = true;
+      sel.appendChild(opt);
+    }
+    var box = document.getElementById('buildingInlineCreateBox');
+    if (box) box.style.display = 'none';
+    if (nameEl) nameEl.value = '';
+  } catch(e) { alert('Ошибка: ' + (e.message || String(e))); }
+}
+
+async function openCreateModal(typeName, preParentId) {
   // Для ДС из реестра — сначала выбираем родительский договор
   if (typeName === 'supplement') {
     await openSelectParentContractForSupplement();
@@ -3823,6 +3875,8 @@ async function openCreateModal(typeName) {
         html += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
       });
       html += '</select></div>';
+    } else if (typeName === 'room') {
+      html += renderRoomBuildingParent(preParentId ? parseInt(preParentId) : null);
     } else {
       html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
       allEntities.filter(function(x) { return x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
@@ -3837,6 +3891,7 @@ async function openCreateModal(typeName) {
   }
 
   fields.forEach(f => {
+    if (f.sort_order >= 999) return; // hidden field (room_number, room_type etc.)
     if (f.name === 'balance_owner' || f.name === 'owner') {
       var fieldId = f.name === 'owner' ? 'f_owner' : 'f_balance_owner';
       html += '<div class="form-group"><label>Собственник</label>' +
@@ -4268,6 +4323,8 @@ async function openEditModal(id) {
         html += '<option value="' + c.id + '"' + (c.id === e.parent_id ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
       });
       html += '</select></div>';
+    } else if (e.type_name === 'room') {
+      html += renderRoomBuildingParent(e.parent_id);
     } else {
       html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
       allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
@@ -4289,6 +4346,7 @@ async function openEditModal(id) {
   }
 
   fields.forEach(f => {
+    if (f.sort_order >= 999) return; // hidden field (room_number, room_type etc.)
     const val = props[f.name] || '';
     // For acts: hide service fields, make total_amount readonly display
     if (isAct) {
