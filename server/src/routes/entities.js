@@ -45,6 +45,8 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
   }
   if (req.query.is_own === 'true') {
     sql += ` AND (e.properties->>'is_own' = 'true')`;
+  } else if (req.query.is_own === 'false') {
+    sql += ` AND (e.properties->>'is_own' IS DISTINCT FROM 'true')`;
   }
   sql += ' ORDER BY e.name';
   params.push(safeLimit);
