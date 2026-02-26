@@ -2371,6 +2371,7 @@ async function showEntity(id, _forceDetail) {
     html += '<div class="detail-section"><h3>Свойства</h3><div class="props-grid">';
     var detailRoles = CONTRACT_ROLES[props.contract_type] || {};
     fields.forEach(f => {
+      if (f.sort_order >= 999) return; // hidden fields (room_number, room_type etc.)
       const val = props[f.name];
       // Skip internal role fields in display
       if (f.name === 'our_role_label' || f.name === 'contractor_role_label') return;
