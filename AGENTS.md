@@ -210,3 +210,11 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+
+
+## 🔑 Credentials
+
+- **ВСЕГДА** читай `CREDENTIALS.md` при старте сессии
+- Когда получаешь новый ключ/токен/пароль/URL — **СРАЗУ** обнови `CREDENTIALS.md`
+- Этот файл переживает compact и рестарты — это единственное надёжное хранилище
+- Никогда не удаляй старые записи — помечай как [DEPRECATED]

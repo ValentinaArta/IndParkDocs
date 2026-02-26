@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>IndParkDocs — ER Диаграмма</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #ffffff; color: #0F172A; padding: 32px; min-height: 100vh; }
+h1 { font-size: 22px; font-weight: 700; color: #0F172A; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #475569; margin-bottom: 32px; }
+
+.section-title { font-size: 13px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; margin-top: 40px; }
+
+/* ── PHYSICAL SCHEMA ── */
+.tables-row { display: flex; gap: 20px; flex-wrap: wrap; }
+
+.db-table { background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 10px; min-width: 220px; overflow: hidden; }
+.db-table-header { padding: 10px 14px; font-size: 13px; font-weight: 700; border-bottom: 1px solid #CBD5E1; display: flex; align-items: center; gap: 8px; }
+.db-table-header .icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.db-table-row { padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #F8FAFC; }
+.db-table-row:last-child { border-bottom: none; }
+.db-table-row:hover { background: #293548; }
+.col-pk { color: #F59E0B; font-size: 10px; font-weight: 700; background: #292218; border-radius: 3px; padding: 1px 5px; }
+.col-fk { color: #6366F1; font-size: 10px; font-weight: 700; background: #1e1e3a; border-radius: 3px; padding: 1px 5px; }
+.col-name { color: #0F172A; flex: 1; }
+.col-type { color: #475569; font-size: 11px; }
+.col-jsonb { color: #10B981; font-size: 10px; background: #0d2a20; border-radius: 3px; padding: 1px 5px; }
+.col-self { color: #F59E0B; font-size: 10px; background: #292218; border-radius: 3px; padding: 1px 5px; }
+
+/* ── LOGICAL DIAGRAM ── */
+.logical-wrap { position: relative; margin-top: 8px; }
+.er-canvas { width: 100%; min-height: 640px; position: relative; }
+
+.entity-box {
+  position: absolute;
+  background: #F8FAFC;
+  border: 2px solid #CBD5E1;
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-width: 140px;
+  cursor: default;
+  transition: border-color 0.15s;
+}
+.entity-box:hover { border-color: #6366F1; }
+.entity-box .ebox-icon { font-size: 18px; margin-bottom: 3px; }
+.entity-box .ebox-name { font-size: 13px; font-weight: 700; color: #0F172A; }
+.entity-box .ebox-sub { font-size: 11px; color: #475569; margin-top: 2px; }
+.entity-box .ebox-fields { font-size: 11px; color: #64748B; margin-top: 6px; line-height: 1.7; }
+.entity-box .ebox-fields span { display: block; }
+
+/* Colours per group */
+.g-property { border-color: #CBD5E1; }
+.g-contract { border-color: #6366F1; background: #1a1a35; }
+.g-company  { border-color: #3B82F6; background: #0f1e35; }
+.g-building { border-color: #10B981; background: #0d2520; }
+.g-equip    { border-color: #F59E0B; background: #29220d; }
+.g-act      { border-color: #F97316; background: #29190d; }
+.g-document { border-color: #475569; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748B; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
+
+/* SVG arrows */
+svg.arrows { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+
+/* Relation labels table */
+.rel-table { border-collapse: collapse; font-size: 13px; width: 100%; max-width: 700px; }
+.rel-table th { text-align: left; padding: 8px 12px; background: #F8FAFC; color: #64748B; font-weight: 600; font-size: 12px; }
+.rel-table td { padding: 7px 12px; border-bottom: 1px solid #F8FAFC; color: #0F172A; }
+.rel-table tr:last-child td { border-bottom: none; }
+.rel-name { font-family: monospace; color: #A78BFA; background: #1a1a35; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+.rel-arrow { color: #475569; }
+
+.badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600; margin-left: 4px; }
+.badge-pk { background: #292218; color: #F59E0B; }
+.badge-fk { background: #1e1e3a; color: #818CF8; }
+.badge-json { background: #0d2a20; color: #10B981; }
+</style>
+</head>
+<body>
+
+<h1>IndParkDocs — ER Диаграмма</h1>
+<p class="subtitle">Физическая схема БД + логические связи сущностей</p>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section-title">📐 Физическая схема (PostgreSQL)</div>
+<div class="tables-row">
+
+  <!-- entity_types -->
+  <div class="db-table">
+    <div class="db-table-header">
+      <div class="icon" style="background:#6366F120;color:#6366F1">ET</div>
+      entity_types
+    </div>
+    <div class="db-table-row"><span class="col-pk">PK</span><span class="col-name">id</span><span class="col-type">serial</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">name</span><span class="col-type">varchar(100) UNIQUE</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">name_ru</span><span class="col-type">varchar(100)</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">icon, color</span><span class="col-type">varchar</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">sort_order</span><span class="col-type">int</span></div>
+  </div>
+
+  <!-- field_definitions -->
+  <div class="db-table">
+    <div class="db-table-header">
+      <div class="icon" style="background:#10B98120;color:#10B981">FD</div>
+      field_definitions
+    </div>
+    <div class="db-table-row"><span class="col-pk">PK</span><span class="col-name">id</span><span class="col-type">serial</span></div>
+    <div class="db-table-row"><span class="col-fk">FK</span><span class="col-name">entity_type_id</span><span class="col-type">→ entity_types</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">name, name_ru</span><span class="col-type">varchar</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">field_type</span><span class="col-type">text/number/date/select…</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">options</span><span class="col-jsonb">JSONB</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">sort_order, required</span><span class="col-type">int/bool</span></div>
+  </div>
+
+  <!-- entities -->
+  <div class="db-table" style="border-color:#6366F1">
+    <div class="db-table-header" style="background:#1a1a35">
+      <div class="icon" style="background:#6366F130;color:#6366F1">E</div>
+      entities ⭐
+    </div>
+    <div class="db-table-row"><span class="col-pk">PK</span><span class="col-name">id</span><span class="col-type">serial</span></div>
+    <div class="db-table-row"><span class="col-fk">FK</span><span class="col-name">entity_type_id</span><span class="col-type">→ entity_types</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">name</span><span class="col-type">varchar(255)</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">properties</span><span class="col-jsonb">JSONB</span></div>
+    <div class="db-table-row"><span class="col-self">SELF</span><span class="col-name">parent_id</span><span class="col-type">→ entities(id)</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">created_at, updated_at</span><span class="col-type">timestamptz</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">deleted_at</span><span class="col-type">timestamptz (soft delete)</span></div>
+  </div>
+
+  <!-- relations -->
+  <div class="db-table">
+    <div class="db-table-header">
+      <div class="icon" style="background:#F59E0B20;color:#F59E0B">R</div>
+      relations
+    </div>
+    <div class="db-table-row"><span class="col-pk">PK</span><span class="col-name">id</span><span class="col-type">serial</span></div>
+    <div class="db-table-row"><span class="col-fk">FK</span><span class="col-name">from_entity_id</span><span class="col-type">→ entities</span></div>
+    <div class="db-table-row"><span class="col-fk">FK</span><span class="col-name">to_entity_id</span><span class="col-type">→ entities</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">relation_type</span><span class="col-type">varchar(100)</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">properties</span><span class="col-jsonb">JSONB</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">UNIQUE(from, to, type)</span><span class="col-type"></span></div>
+  </div>
+
+  <!-- relation_types -->
+  <div class="db-table">
+    <div class="db-table-header">
+      <div class="icon" style="background:#64748B20;color:#64748B">RT</div>
+      relation_types
+    </div>
+    <div class="db-table-row"><span class="col-pk">PK</span><span class="col-name">id</span><span class="col-type">serial</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">name</span><span class="col-type">varchar UNIQUE</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">name_ru</span><span class="col-type">varchar</span></div>
+    <div class="db-table-row"><span class="col-fk">FK</span><span class="col-name">from_type_id</span><span class="col-type">→ entity_types</span></div>
+    <div class="db-table-row"><span class="col-fk">FK</span><span class="col-name">to_type_id</span><span class="col-type">→ entity_types</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">color</span><span class="col-type">varchar(7)</span></div>
+  </div>
+
+  <!-- audit_log -->
+  <div class="db-table">
+    <div class="db-table-header">
+      <div class="icon" style="background:#EF444420;color:#EF4444">AL</div>
+      audit_log
+    </div>
+    <div class="db-table-row"><span class="col-pk">PK</span><span class="col-name">id</span><span class="col-type">serial</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">user_id, action</span><span class="col-type">int / varchar</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">entity_type, entity_id</span><span class="col-type">varchar / int</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">changes</span><span class="col-jsonb">JSONB</span></div>
+    <div class="db-table-row"><span style="width:28px"></span><span class="col-name">ip, created_at</span><span class="col-type">varchar / timestamptz</span></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section-title" style="margin-top:52px">🔗 Логические связи сущностей (тип entities.entity_type)</div>
+
+<div style="position:relative;width:100%;height:700px;">
+<svg id="svgArrows" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none;">
+  <defs>
+    <marker id="arrow-gray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#6366F1"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#10B981"/>
+    </marker>
+    <marker id="arrow-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#F59E0B"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#3B82F6"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#F97316"/>
+    </marker>
+  </defs>
+</svg>
+
+<!-- LAND / BUILDING group -->
+<div id="b_land" class="entity-box g-building" style="left:20px;top:20px;min-width:155px">
+  <div class="ebox-icon">🌍</div>
+  <div class="ebox-name">Земельный участок</div>
+  <div class="ebox-fields">
+    <span>cadastral_number</span>
+    <span>area (га), owner</span>
+    <span>purpose, address</span>
+  </div>
+</div>
+
+<div id="b_building" class="entity-box g-building" style="left:20px;top:200px;min-width:155px">
+  <div class="ebox-icon">🏢</div>
+  <div class="ebox-name">Корпус</div>
+  <div class="ebox-fields">
+    <span>cadastral_number</span>
+    <span>cadastral_value</span>
+    <span>owner, land_plot</span>
+  </div>
+</div>
+
+<div id="b_room" class="entity-box g-building" style="left:20px;top:390px;min-width:155px">
+  <div class="ebox-icon">🚪</div>
+  <div class="ebox-name">Помещение</div>
+  <div class="ebox-fields">
+    <span>object_type (select)</span>
+    <span>description, area</span>
+    <span>floor, room_number</span>
+  </div>
+</div>
+
+<!-- COMPANY -->
+<div id="b_company" class="entity-box g-company" style="left:230px;top:20px;min-width:160px">
+  <div class="ebox-icon">🏛</div>
+  <div class="ebox-name">Компания</div>
+  <div class="ebox-sub">is_own: true / false</div>
+  <div class="ebox-fields">
+    <span>inn, kpp, ogrn</span>
+    <span>address, director</span>
+  </div>
+</div>
+
+<!-- CONTRACT group -->
+<div id="b_contract" class="entity-box g-contract" style="left:230px;top:200px;min-width:165px">
+  <div class="ebox-icon">📄</div>
+  <div class="ebox-name">Договор</div>
+  <div class="ebox-sub">Аренда / Подряд / Услуги…</div>
+  <div class="ebox-fields">
+    <span>number, contract_date</span>
+    <span>our_legal_entity</span>
+    <span>contractor_name</span>
+    <span>rent_objects (JSONB)</span>
+    <span>contract_end_date</span>
+  </div>
+</div>
+
+<div id="b_supplement" class="entity-box g-contract" style="left:230px;top:470px;min-width:165px">
+  <div class="ebox-icon">📎</div>
+  <div class="ebox-name">Доп. соглашение</div>
+  <div class="ebox-fields">
+    <span>number, contract_date</span>
+    <span>rent_objects (JSONB)</span>
+    <span>changes_description</span>
+    <span>equipment_list (JSONB)</span>
+    <span>transfer_equipment</span>
+  </div>
+</div>
+
+<!-- ACT -->
+<div id="b_act" class="entity-box g-act" style="left:450px;top:470px;min-width:155px">
+  <div class="ebox-icon">📝</div>
+  <div class="ebox-name">Акт</div>
+  <div class="ebox-fields">
+    <span>act_number, act_date</span>
+    <span>act_items (JSONB)</span>
+    <span>total_amount</span>
+    <span>parent_contract_id</span>
+  </div>
+</div>
+
+<!-- ORDER / DOC -->
+<div id="b_order" class="entity-box g-document" style="left:450px;top:200px;min-width:145px">
+  <div class="ebox-icon">📜</div>
+  <div class="ebox-name">Приказ</div>
+  <div class="ebox-fields">
+    <span>order_number, date</span>
+    <span>order_type (select)</span>
+    <span>issued_by</span>
+  </div>
+</div>
+
+<!-- EQUIPMENT -->
+<div id="b_equipment" class="entity-box g-equip" style="left:450px;top:20px;min-width:165px">
+  <div class="ebox-icon">⚙️</div>
+  <div class="ebox-name">Оборудование</div>
+  <div class="ebox-fields">
+    <span>equipment_category</span>
+    <span>equipment_kind</span>
+    <span>inv_number, year</span>
+    <span>status (select)</span>
+    <span>balance_owner_id</span>
+    <span>parent_id → self</span>
+  </div>
+</div>
+
+<div id="b_crane" class="entity-box g-equip" style="left:640px;top:20px;min-width:145px">
+  <div class="ebox-icon">🛤</div>
+  <div class="ebox-name">Подкрановый путь</div>
+  <div class="ebox-fields">
+    <span>length, load_capacity</span>
+    <span>rail_type</span>
+  </div>
+</div>
+
+</div><!-- end position:relative -->
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section-title">📋 Типы связей (таблица relations)</div>
+<table class="rel-table">
+  <thead>
+    <tr><th>relation_type</th><th>От (from)</th><th></th><th>До (to)</th><th>Создаётся</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><span class="rel-name">party_to</span></td><td>🏛 Компания</td><td class="rel-arrow">→</td><td>📄 Договор</td><td>авто при создании договора</td></tr>
+    <tr><td><span class="rel-name">located_in</span></td><td>⚙️ Оборудование</td><td class="rel-arrow">→</td><td>🚪 Помещение / 🏢 Корпус</td><td>авто + вручную</td></tr>
+    <tr><td><span class="rel-name">located_on</span></td><td>🏢 Корпус</td><td class="rel-arrow">→</td><td>🌍 Земельный участок</td><td>вручную / из формы</td></tr>
+    <tr><td><span class="rel-name">on_balance</span></td><td>⚙️ Оборудование</td><td class="rel-arrow">→</td><td>🏛 Компания (своя)</td><td>авто при создании оборудования</td></tr>
+    <tr><td><span class="rel-name">subject_of</span></td><td>⚙️ Оборудование</td><td class="rel-arrow">→</td><td>📝 Акт / 📄 Договор</td><td>авто при создании акта / ДС</td></tr>
+    <tr><td><span class="rel-name">supplement_to</span></td><td>📝 Акт</td><td class="rel-arrow">→</td><td>📄 Договор</td><td>авто при создании акта</td></tr>
+  </tbody>
+</table>
+
+<div class="section-title" style="margin-top:36px">📦 Иерархия через parent_id (самоссылка entities)</div>
+<table class="rel-table">
+  <thead>
+    <tr><th>Дочерний</th><th></th><th>Родитель</th><th>Пример</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>🚪 Помещение</td><td class="rel-arrow">→ parent</td><td>🏢 Корпус</td><td>Офис 201 → Корпус А</td></tr>
+    <tr><td>🗺 Часть ЗУ</td><td class="rel-arrow">→ parent</td><td>🌍 Земельный участок</td><td>Участок 1А → ЗУ №5</td></tr>
+    <tr><td>⚙️ Запчасть</td><td class="rel-arrow">→ parent</td><td>⚙️ Оборудование</td><td>Колёсная пара → Кран мостовой</td></tr>
+    <tr><td>📎 Доп. соглашение</td><td class="rel-arrow">→ parent</td><td>📄 Договор</td><td>ДС №3 → Договор №12-А</td></tr>
+    <tr><td>📝 Акт</td><td class="rel-arrow">→ parent</td><td>📄 Договор</td><td>Акт №7 → Договор №12-А</td></tr>
+  </tbody>
+</table>
+
+<div style="margin-top:40px;padding:16px;background:#F8FAFC;border-radius:10px;font-size:12px;color:#475569;max-width:700px;">
+  <strong style="color:#64748B">💡 Ключевая архитектурная идея:</strong><br><br>
+  Все объекты живут в <strong style="color:#E2E8F0">одной таблице entities</strong> — компании, договоры, оборудование, помещения.
+  Тип определяется через <code style="color:#A78BFA">entity_type_id</code>.
+  Поля каждого типа задаются в <code style="color:#A78BFA">field_definitions</code> и хранятся как
+  <strong style="color:#10B981">JSONB properties</strong>. Связи между сущностями — в таблице <code style="color:#A78BFA">relations</code>.
+  <br><br>
+  Это EAV-паттерн (Entity–Attribute–Value), позволяющий добавлять новые типы сущностей и поля без изменения схемы БД.
+</div>
+
+<script>
+// Draw arrows between entity boxes
+(function() {
+  function mid(el) {
+    var r = el.getBoundingClientRect();
+    var pr = el.parentElement.getBoundingClientRect();
+    return {
+      x: el.offsetLeft + el.offsetWidth / 2,
+      y: el.offsetTop + el.offsetHeight / 2,
+      left: el.offsetLeft,
+      right: el.offsetLeft + el.offsetWidth,
+      top: el.offsetTop,
+      bottom: el.offsetTop + el.offsetHeight,
+    };
+  }
+
+  function line(svg, x1, y1, x2, y2, color, label, marker) {
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    path.setAttribute('x1', x1); path.setAttribute('y1', y1);
+    path.setAttribute('x2', x2); path.setAttribute('y2', y2);
+    path.setAttribute('stroke', color); path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('stroke-dasharray', '4,3');
+    path.setAttribute('marker-end', 'url(#' + marker + ')');
+    svg.appendChild(path);
+    if (label) {
+      var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', (x1 + x2) / 2);
+      t.setAttribute('y', (y1 + y2) / 2 - 4);
+      t.setAttribute('fill', color);
+      t.setAttribute('font-size', '10');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', 'monospace');
+      t.textContent = label;
+      svg.appendChild(t);
+    }
+  }
+
+  window.addEventListener('load', function() {
+    var svg = document.getElementById('svgArrows');
+    var wrap = svg.parentElement;
+
+    var land = document.getElementById('b_land');
+    var building = document.getElementById('b_building');
+    var room = document.getElementById('b_room');
+    var company = document.getElementById('b_company');
+    var contract = document.getElementById('b_contract');
+    var supplement = document.getElementById('b_supplement');
+    var act = document.getElementById('b_act');
+    var order = document.getElementById('b_order');
+    var equipment = document.getElementById('b_equipment');
+    var crane = document.getElementById('b_crane');
+
+    function m(el) {
+      return {
+        cx: el.offsetLeft + el.offsetWidth / 2,
+        cy: el.offsetTop + el.offsetHeight / 2,
+        l: el.offsetLeft, r: el.offsetLeft + el.offsetWidth,
+        t: el.offsetTop,  b: el.offsetTop + el.offsetHeight,
+      };
+    }
+
+    var G = '#475569', P = '#6366F1', GR = '#10B981', Y = '#F59E0B', B = '#3B82F6', O = '#F97316';
+
+    // land → building (located_on)
+    var a = m(land), bv = m(building);
+    line(svg, a.cx, a.b, bv.cx, bv.t, GR, 'located_on', 'arrow-green');
+
+    // building → room (parent_id)
+    var bv2 = m(building), rv = m(room);
+    line(svg, bv2.cx, bv2.b, rv.cx, rv.t, GR, 'parent_id', 'arrow-green');
+
+    // company → contract (party_to)
+    var co = m(company), ct = m(contract);
+    line(svg, co.cx, co.b, ct.cx, ct.t, B, 'party_to', 'arrow-blue');
+
+    // contract → supplement (parent_id)
+    var ct2 = m(contract), sp = m(supplement);
+    line(svg, ct2.cx, ct2.b, sp.cx, sp.t, P, 'parent_id', 'arrow-purple');
+
+    // supplement → act (supplement_to)
+    var spv = m(supplement), av = m(act);
+    line(svg, spv.r, spv.cy, av.l, av.cy, O, 'supplement_to', 'arrow-orange');
+
+    // equipment → contract (subject_of)
+    var eq = m(equipment), ctv = m(contract);
+    line(svg, eq.cx, eq.b, ctv.r + 10, ctv.cy, Y, 'subject_of', 'arrow-yellow');
+
+    // equipment → room (located_in)
+    var eqv = m(equipment), rv2 = m(room);
+    line(svg, eqv.l, eqv.b + 20, rv2.r, rv2.t, Y, 'located_in', 'arrow-yellow');
+
+    // equipment self (parent_id - hierarchy)
+    var eqs = m(equipment);
+    line(svg, eqs.r, eqs.t + 20, eqs.r + 22, eqs.t + 20, Y, '', 'arrow-yellow');
+    var path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path2.setAttribute('d', 'M' + (eqs.r+22) + ',' + (eqs.t+20) + ' L' + (eqs.r+22) + ',' + (eqs.t+60) + ' L' + eqs.r + ',' + (eqs.t+60));
+    path2.setAttribute('stroke', Y); path2.setAttribute('stroke-width', '1.5');
+    path2.setAttribute('fill', 'none'); path2.setAttribute('stroke-dasharray', '4,3');
+    path2.setAttribute('marker-end', 'url(#arrow-yellow)');
+    svg.appendChild(path2);
+    var tself = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    tself.setAttribute('x', eqs.r + 26); tself.setAttribute('y', eqs.t + 43);
+    tself.setAttribute('fill', Y); tself.setAttribute('font-size', '9');
+    tself.setAttribute('font-family', 'monospace'); tself.textContent = 'parent';
+    svg.appendChild(tself);
+  });
+})();
+</script>
+</body>
+</html>
