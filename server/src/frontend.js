@@ -889,7 +889,8 @@ function renderDynamicFields(contractType, props) {
 
 var _rentObjectCounter = 0;
 var OBJECT_TYPES = []; // populated from справочник on startup
-var EQUIPMENT_CATEGORIES = ['Электрооборудование','Газовое','Тепловое','Крановое хозяйство','Машины и механизмы','ИК оборудование'];
+var EQUIPMENT_CATEGORIES = []; // populated from справочник on startup
+var EQUIPMENT_STATUSES = [];   // populated from справочник on startup
 
 // Returns base categories + any custom ones already saved in the registry
 function getEquipmentCategories() {
@@ -1146,7 +1147,7 @@ function _roEqCreateMiniForm(index, eqTypeId) {
   h += '<div class="form-group"><label>Год выпуска</label><input type="number" class="ro-eq-year" data-idx="' + index + '" placeholder="2010" style="width:100%"></div>';
   h += '<div class="form-group"><label>Производитель</label><input class="ro-eq-mfr" data-idx="' + index + '" style="width:100%"></div>';
   h += '<div class="form-group"><label>Статус</label><select class="ro-eq-status" data-idx="' + index + '" style="width:100%">';
-  ['В работе','На ремонте','Законсервировано','Списано'].forEach(function(s) { h += '<option value="' + s + '">' + s + '</option>'; });
+  (EQUIPMENT_STATUSES.length ? EQUIPMENT_STATUSES : ['В работе','На ремонте','Законсервировано','Списано','Аварийное']).forEach(function(s) { h += '<option value="' + s + '">' + s + '</option>'; });
   h += '</select></div>';
   h += '<div class="form-group"><label>Собственник</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
   _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
@@ -2046,6 +2047,7 @@ async function startApp() {
       try { if (typeof f.options === 'string') items = JSON.parse(f.options); } catch(ex) {}
       if (f.name === 'object_type') { OBJECT_TYPES.length = 0; items.forEach(function(i){ OBJECT_TYPES.push(i); }); }
       else if (f.name === 'equipment_category') { EQUIPMENT_CATEGORIES.length = 0; items.forEach(function(i){ EQUIPMENT_CATEGORIES.push(i); }); }
+      else if (f.name === 'status' && f.entity_type_name === 'equipment') { EQUIPMENT_STATUSES.length = 0; items.forEach(function(i){ EQUIPMENT_STATUSES.push(i); }); }
     });
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
@@ -4104,7 +4106,14 @@ async function openEditModal(id) {
       var ef = enrichFieldOptions(f);
 
       if (f.name === 'contract_type') {
-        editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+        if (e.type_name === 'supplement') {
+          // ДС наследует тип от родительского договора — не редактируется
+          editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
+          editHtml += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
+          editHtml += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(val) + '"></div>';
+        } else {
+          editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+        }
       } else if (f.name === 'our_role_label') {
         var defaultRole = roles.our;
         editHtml += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
@@ -4367,7 +4376,10 @@ async function openCreateSupplementModal(parentContractId) {
     var ef = enrichFieldOptions(f);
 
     if (f.name === 'contract_type') {
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      // ДС наследует тип от родительского договора — не редактируется
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
+      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
+      html += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(val) + '"></div>';
     } else if (f.name === 'our_role_label') {
       html += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
         '<input id="f_our_role_label" value="' + escapeHtml(val || roles.our) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
@@ -5613,6 +5625,9 @@ function _syncFrontendListsFromDB(fieldId, items) {
   } else if (field.name === 'equipment_category') {
     EQUIPMENT_CATEGORIES.length = 0;
     items.forEach(function(i) { EQUIPMENT_CATEGORIES.push(i); });
+  } else if (field.name === 'status' && field.entity_type_name === 'equipment') {
+    EQUIPMENT_STATUSES.length = 0;
+    items.forEach(function(i) { EQUIPMENT_STATUSES.push(i); });
   }
 }
 
