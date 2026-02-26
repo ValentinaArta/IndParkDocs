@@ -2561,6 +2561,7 @@ var _mapDrawTool  = 'rect';   // 'rect' | 'poly'
 var _mapHotspots  = [];       // [{shape, entity_id, entity_name, ...}]
 var _mapRectDraw  = null;     // {startX,startY,curX,curY} during rect drag
 var _mapPolyPts   = [];       // [[x,y],...] accumulating polygon vertices
+var _mapRedrawIdx = null;     // hotspot index being redrawn (edit mode)
 var _mapMousePos  = {x:0,y:0};// current cursor on map (% coords)
 var _mapZoom      = 1;        // current zoom level
 var _mapPanX      = 0;        // pan offset X (px)
@@ -2570,7 +2571,7 @@ var _mapPanDrag   = null;     // {sx,sy} drag origin minus pan offset
 async function showMapPage() {
   currentView = 'map';
   currentTypeFilter = null;
-  _mapEditMode = false; _mapDrawTool = 'rect'; _mapPolyPts = []; _mapRectDraw = null;
+  _mapEditMode = false; _mapDrawTool = 'rect'; _mapPolyPts = []; _mapRectDraw = null; _mapRedrawIdx = null;
   _mapZoom = 1; _mapPanX = 0; _mapPanY = 0; _mapPanDrag = null;
   setActive('.nav-item[onclick*="showMapPage"]');
   document.getElementById('pageTitle').textContent = 'Карта территории';
@@ -2695,7 +2696,8 @@ function _mapEvtUp(e) {
   var w = Math.abs(p.x - _mapRectDraw.sx),  h = Math.abs(p.y - _mapRectDraw.sy);
   _mapRectDraw = null; _mapRenderPreview();
   if (w < 0.8 || h < 0.8) return;
-  _mapOpenAssignModal({ shape:'rect', x:parseFloat(x.toFixed(2)), y:parseFloat(y.toFixed(2)), w:parseFloat(w.toFixed(2)), h:parseFloat(h.toFixed(2)) });
+  var sd = { shape:'rect', x:parseFloat(x.toFixed(2)), y:parseFloat(y.toFixed(2)), w:parseFloat(w.toFixed(2)), h:parseFloat(h.toFixed(2)) };
+  if (_mapRedrawIdx !== null) { _mapSaveRedraw(sd); } else { _mapOpenAssignModal(sd); }
 }
 function _mapEvtClick(e) {
   if (!_mapEditMode || _mapDrawTool !== 'poly') return;
@@ -2713,14 +2715,28 @@ function _mapEvtDbl(e) {
   if (_mapPolyPts.length < 3) { alert('Минимум 3 вершины'); return; }
   var pts = _mapPolyPts.slice(); _mapPolyPts = [];
   _mapPolyStatus(); _mapRenderPreview();
-  _mapOpenAssignModal({ shape:'polygon', points:pts });
+  var sd = { shape:'polygon', points:pts };
+  if (_mapRedrawIdx !== null) { _mapSaveRedraw(sd); } else { _mapOpenAssignModal(sd); }
 }
-function _mapPolyCancelDraw() { _mapPolyPts = []; _mapPolyStatus(); _mapRenderPreview(); }
+function _mapPolyCancelDraw() {
+  _mapPolyPts = [];
+  if (_mapRedrawIdx !== null) {
+    _mapRedrawIdx = null;
+    var s = document.getElementById('mapPolyStatus');
+    if (s) { s.style.display = 'none'; s.textContent = ''; }
+  }
+  _mapPolyStatus(); _mapRenderPreview();
+}
 function _mapPolyStatus() {
   var s = document.getElementById('mapPolyStatus');
   var b = document.getElementById('mapPolyCancelBtn');
   if (!s) return;
-  if (_mapDrawTool === 'poly' && _mapPolyPts.length) {
+  if (_mapRedrawIdx !== null && !_mapPolyPts.length) {
+    // Redraw mode hint (no points yet)
+    var name = _mapHotspots[_mapRedrawIdx] ? _mapHotspots[_mapRedrawIdx].entity_name : '';
+    s.style.display = ''; s.textContent = 'Нарисуйте новую фигуру для «' + name + '»';
+    if (b) { b.style.display = ''; b.textContent = 'Отмена'; }
+  } else if (_mapDrawTool === 'poly' && _mapPolyPts.length) {
     s.style.display = ''; s.textContent = 'Вершин: ' + _mapPolyPts.length + ' · двойной клик — закрыть';
     if (b) b.style.display = '';
   } else { s.style.display = 'none'; if (b) b.style.display = 'none'; }
@@ -2729,7 +2745,7 @@ function _mapPolyStatus() {
 // ── Toolbar ──────────────────────────────────────────────────────────────────
 function _mapToggleEdit() {
   _mapEditMode = !_mapEditMode;
-  _mapPolyPts = []; _mapRectDraw = null;
+  _mapPolyPts = []; _mapRectDraw = null; _mapRedrawIdx = null;
   var btn   = document.getElementById('mapEditBtn');
   var tools = document.getElementById('mapEditTools');
   var vp    = document.getElementById('mapViewport');
@@ -2818,11 +2834,18 @@ function _mapRenderShapes() {
       cy = hs.points.reduce(function(s,p){return s+p[1];},0)/hs.points.length;
     }
     // Labels are rendered as HTML in _mapRenderLabels()
-    // Delete handle in edit mode
+    // Edit + Delete handles in edit mode
     if (_mapEditMode) {
       var dx = hs.shape==='rect' ? (hs.x+hs.w) : hs.points[0][0];
       var dy = hs.shape==='rect' ? hs.y         : hs.points[0][1];
       var cr = (2/z).toFixed(3), cf = (3/z).toFixed(3);
+      var gap = (5/z);
+      // Edit button (pencil) — to the left of delete
+      h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapOpenEditModal('+i+')" style="cursor:pointer">'
+         + '<circle cx="'+(dx-gap)+'" cy="'+dy+'" r="'+cr+'" fill="#3b82f6"/>'
+         + '<text x="'+(dx-gap)+'" y="'+(dy+0.7/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">✎</text>'
+         + '</g>';
+      // Delete button (×)
       h += '<g data-mapbtn="1" onclick="event.stopPropagation();_mapDeleteHotspot('+i+')" style="cursor:pointer">'
          + '<circle cx="'+dx+'" cy="'+dy+'" r="'+cr+'" fill="#ef4444"/>'
          + '<text x="'+dx+'" y="'+(dy+0.7/z)+'" text-anchor="middle" font-size="'+cf+'" fill="white" style="pointer-events:none">×</text>'
@@ -3021,6 +3044,84 @@ async function _mapDeleteHotspot(idx) {
 function _mapHotspotClick(idx) {
   if (_mapEditMode) return;
   showEntity(_mapHotspots[idx].entity_id);
+}
+
+// ── Edit zone modal ───────────────────────────────────────────────────────────
+function _mapOpenEditModal(idx) {
+  var hs = _mapHotspots[idx];
+  var colors = [
+    {n:'Синий',      v:'rgba(59,130,246,0.65)'},
+    {n:'Голубой',    v:'rgba(100,200,230,0.60)'},
+    {n:'Зелёный',    v:'rgba(34,197,94,0.65)'},
+    {n:'Тёмно-зел.', v:'rgba(22,163,74,0.65)'},
+    {n:'Жёлтый',     v:'rgba(234,179,8,0.65)'},
+    {n:'Оранжевый',  v:'rgba(249,115,22,0.60)'},
+    {n:'Красный',    v:'rgba(239,68,68,0.55)'},
+    {n:'Фиолетовый', v:'rgba(139,92,246,0.60)'},
+    {n:'Серый',      v:'rgba(107,114,128,0.55)'},
+    {n:'Бирюзовый',  v:'rgba(20,184,166,0.60)'},
+  ];
+  var m = '<h3>Редактировать зону</h3>';
+  m += '<div class="form-group"><label>Объект</label>';
+  m += '<div style="font-weight:600;padding:6px 0;color:var(--text)">' + escapeHtml(hs.entity_name) + '</div></div>';
+  m += '<div class="form-group"><label>Цвет зоны</label><div style="display:flex;gap:6px;flex-wrap:wrap">';
+  colors.forEach(function(c) {
+    var isSelected = hs.color && hs.color.replace(/\s/g,'') === c.v.replace(/\s/g,'');
+    m += '<label style="display:flex;align-items:center;gap:4px;cursor:pointer">'
+       + '<input type="radio" name="mapColor" value="'+c.v+'"'+(isSelected?' checked':'')+'>'
+       + '<span style="width:20px;height:20px;border-radius:4px;background:'+c.v+';border:1px solid var(--border);display:inline-block"></span>'
+       + '<span style="font-size:12px">'+c.n+'</span></label>';
+  });
+  m += '</div></div>';
+  m += '<div class="modal-actions" style="flex-wrap:wrap;gap:8px">';
+  m += '<button class="btn btn-sm" style="margin-right:auto" onclick="closeModal();_mapStartRedraw('+idx+')">Перерисовать фигуру</button>';
+  m += '<button class="btn" onclick="closeModal()">Отмена</button>';
+  m += '<button class="btn btn-primary" onclick="_mapSaveColorOnly('+idx+')">Сохранить цвет</button>';
+  m += '</div>';
+  setModalContent(m);
+}
+
+async function _mapSaveColorOnly(idx) {
+  var hs = _mapHotspots[idx];
+  var colorEl = document.querySelector('input[name="mapColor"]:checked');
+  var color = colorEl ? colorEl.value : hs.color;
+  try {
+    var entity = await api('/entities/' + hs.entity_id);
+    var props  = entity.properties || {};
+    props.map_color = color;
+    await api('/entities/' + hs.entity_id, { method:'PATCH', body:JSON.stringify({properties:props}) });
+    hs.color = color;
+  } catch(e) { return alert('Ошибка: ' + e.message); }
+  closeModal(); _mapRenderShapes();
+}
+
+function _mapStartRedraw(idx) {
+  _mapRedrawIdx = idx;
+  // Ensure edit mode is on
+  if (!_mapEditMode) _mapToggleEdit();
+  _mapPolyStatus();
+}
+
+async function _mapSaveRedraw(shapeData) {
+  var idx = _mapRedrawIdx;
+  _mapRedrawIdx = null;
+  var hs = _mapHotspots[idx];
+  try {
+    var entity = await api('/entities/' + hs.entity_id);
+    var props  = entity.properties || {};
+    ['map_x','map_y','map_w','map_h','map_points','map_shape'].forEach(function(k){delete props[k];});
+    if (shapeData.shape === 'rect') {
+      props.map_shape = 'rect'; props.map_x = String(shapeData.x); props.map_y = String(shapeData.y);
+      props.map_w = String(shapeData.w); props.map_h = String(shapeData.h);
+    } else {
+      props.map_shape = 'polygon'; props.map_points = JSON.stringify(shapeData.points);
+    }
+    await api('/entities/' + hs.entity_id, { method:'PATCH', body:JSON.stringify({properties:props}) });
+    // Update in-memory hotspot
+    Object.assign(hs, shapeData);
+  } catch(e) { alert('Ошибка: ' + e.message); }
+  _mapPolyStatus();
+  _mapRenderShapes();
 }
 
 // ============ DASHBOARD ============
