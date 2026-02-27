@@ -248,6 +248,10 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       <div class="nav-item" onclick="showBIPage()">
         <i data-lucide="pie-chart" class="lucide"></i> BI-дашборды
       </div>
+      <div class="nav-item" onclick="window.open('/finance','_blank')">
+        <i data-lucide="banknote" class="lucide"></i> Финансы (1С)
+        <span style="background:#10b981;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-left:auto;">DEMO</span>
+      </div>
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
         <i data-lucide="settings" class="lucide"></i> Типы и поля

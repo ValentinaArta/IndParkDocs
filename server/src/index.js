@@ -64,6 +64,11 @@ app.use('/maps', express.static(path.join(__dirname, '../public/maps')));
 const FRONTEND_HTML = require('./frontend');
 app.get('/', (req, res) => { res.type('html').send(FRONTEND_HTML); });
 
+// Finance dashboard (demo)
+app.get('/finance', (req, res) => {
+  res.sendFile(path.join(__dirname, 'finance-dashboard.html'));
+});
+
 // API routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/entity-types', require('./routes/entityTypes'));

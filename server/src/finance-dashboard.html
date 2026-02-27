@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Финансовый дашборд — ИП Звезда</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI',system-ui,-apple-system,sans-serif; background:#0f172a; color:#e2e8f0; }
+.header { background:linear-gradient(135deg,#1e293b,#334155); padding:24px 32px; border-bottom:1px solid #334155; }
+.header h1 { font-size:24px; font-weight:600; }
+.header p { color:#94a3b8; margin-top:4px; font-size:14px; }
+.badge { display:inline-block; background:#10b981; color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; margin-left:8px; }
+.grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; padding:24px 32px; }
+.card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; }
+.card-label { font-size:12px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
+.card-value { font-size:28px; font-weight:700; margin-top:4px; }
+.card-sub { font-size:12px; color:#64748b; margin-top:4px; }
+.green { color:#10b981; }
+.red { color:#ef4444; }
+.blue { color:#3b82f6; }
+.amber { color:#f59e0b; }
+.charts { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:0 32px 24px; }
+.chart-card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; }
+.chart-card h3 { font-size:14px; margin-bottom:12px; color:#94a3b8; }
+.table-wrap { padding:0 32px 32px; }
+.table-card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; overflow-x:auto; }
+.table-card h3 { font-size:14px; margin-bottom:12px; color:#94a3b8; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 12px; border-bottom:1px solid #334155; color:#64748b; font-weight:500; }
+td { padding:8px 12px; border-bottom:1px solid #1e293b; }
+tr:hover { background:#334155; }
+.num { text-align:right; font-variant-numeric:tabular-nums; }
+.bar { display:inline-block; height:6px; border-radius:3px; background:#3b82f6; }
+.source { text-align:center; padding:16px; color:#475569; font-size:12px; }
+@media(max-width:900px) {
+  .grid { grid-template-columns:repeat(2,1fr); }
+  .charts { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="header" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h1>📊 Финансовый дашборд <span class="badge">ДЕМО — данные из 1С</span></h1>
+    <p>АО «Индустриальный Парк Звезда» • Счёт 62 • Период: Январь—Февраль 2026</p>
+  </div>
+  <a href="/" style="color:#94a3b8;text-decoration:none;font-size:14px;padding:8px 16px;border:1px solid #334155;border-radius:8px;">← IndParkDocs</a>
+</div>
+<script>
+if (!localStorage.getItem('accessToken')) { window.location.href = '/'; }
+</script>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-label">Кредиторская задолженность (сч.62)</div>
+    <div class="card-value blue">91.1 млн ₽</div>
+    <div class="card-sub">Авансы и переплаты контрагентов</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Дебиторская задолженность</div>
+    <div class="card-value amber">970 тыс ₽</div>
+    <div class="card-sub">Нам должны контрагенты</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Начислено за период</div>
+    <div class="card-value green">88.9 млн ₽</div>
+    <div class="card-sub">Янв: 88.4 млн ₽ • Фев: 524 тыс ₽</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Контрагентов</div>
+    <div class="card-value" style="color:#e2e8f0">44</div>
+    <div class="card-sub">Активных за период</div>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="chart-card">
+    <h3>💰 Топ-15 контрагентов по задолженности (Кт сч.62)</h3>
+    <canvas id="chartCreditors" height="300"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>📈 Начислено vs Оплачено по месяцам</h3>
+    <canvas id="chartMonthly" height="300"></canvas>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="chart-card">
+    <h3>🏭 Топ-12 по начислениям за период</h3>
+    <canvas id="chartRevenue" height="300"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>📊 Структура задолженности</h3>
+    <canvas id="chartPie" height="300"></canvas>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div class="table-card">
+    <h3>📋 Все контрагенты — сводная таблица</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Контрагент</th>
+          <th class="num">Начислено</th>
+          <th class="num">Оплачено</th>
+          <th class="num">Кт (авансы)</th>
+          <th class="num">Дт (долг)</th>
+          <th>Баланс</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>РЭС ИНЖИНИРИНГ ООО</td>
+          <td class="num">3,439,764</td>
+          <td class="num">3,954,498</td>
+          <td class="num">37,161,352</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:120px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ФОРМАН ПРОДАКТС ООО</td>
+          <td class="num">11,012,014</td>
+          <td class="num">18,308,886</td>
+          <td class="num">10,862,780</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:35px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>БМ-СЕРВИС ООО</td>
+          <td class="num">17,000,950</td>
+          <td class="num">23,724,572</td>
+          <td class="num">7,152,575</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:23px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ЛЗМ ООО</td>
+          <td class="num">12,115,689</td>
+          <td class="num">15,726,399</td>
+          <td class="num">5,456,690</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:17px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>РЭС ФЕРРОПОЛИС ООО</td>
+          <td class="num">512,417</td>
+          <td class="num">588,059</td>
+          <td class="num">5,278,522</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:17px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ИНТИЛЕД ООО</td>
+          <td class="num">10,088,034</td>
+          <td class="num">13,402,794</td>
+          <td class="num">5,121,841</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:16px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>СТЕКЛО-ЖИЗНЬ ООО</td>
+          <td class="num">9,512,774</td>
+          <td class="num">14,312,900</td>
+          <td class="num">4,178,962</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:13px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>СОК ЗВЕЗДА АО</td>
+          <td class="num">0</td>
+          <td class="num">2,600,000</td>
+          <td class="num">2,600,000</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:8px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ЭМКОМ ООО</td>
+          <td class="num">1,536,846</td>
+          <td class="num">4,920,251</td>
+          <td class="num">2,457,879</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:7px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>АТИКА ООО</td>
+          <td class="num">4,966,838</td>
+          <td class="num">6,265,920</td>
+          <td class="num">2,415,338</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:7px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>МИРБАХ ООО ПП</td>
+          <td class="num">3,881,581</td>
+          <td class="num">5,713,130</td>
+          <td class="num">1,647,110</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:5px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>СЕВЕРНЫЙ ЛУЧ ООО</td>
+          <td class="num">3,206,944</td>
+          <td class="num">4,332,116</td>
+          <td class="num">1,426,280</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:4px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ЭК ЗВЕЗДА АО</td>
+          <td class="num">3,419,064</td>
+          <td class="num">5,063,947</td>
+          <td class="num">1,165,000</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:3px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ВРС ЦЕНТР ООО</td>
+          <td class="num">987,707</td>
+          <td class="num">1,431,684</td>
+          <td class="num">672,692</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:2px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ПРО-БРАЙТ ООО</td>
+          <td class="num">1,236,494</td>
+          <td class="num">1,589,541</td>
+          <td class="num">612,606</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:1px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>СЕВЕРНЫЙ ТЕХНОПАРК ООО</td>
+          <td class="num">1,017,720</td>
+          <td class="num">1,303,433</td>
+          <td class="num">508,860</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:1px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>НЭР ООО</td>
+          <td class="num">966,176</td>
+          <td class="num">1,247,078</td>
+          <td class="num">457,341</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:1px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>УНИВЕРСАЛ ООО</td>
+          <td class="num">1,030,132</td>
+          <td class="num">1,434,491</td>
+          <td class="num">387,291</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:1px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>БАЛТТУРБОКОМ ООО</td>
+          <td class="num">434,939</td>
+          <td class="num">556,329</td>
+          <td class="num">217,310</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>АДМОС ООО</td>
+          <td class="num">260,239</td>
+          <td class="num">395,248</td>
+          <td class="num">191,789</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>М.В.Т.У. ООО</td>
+          <td class="num">367,555</td>
+          <td class="num">470,860</td>
+          <td class="num">183,146</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>Ивлев Илья Юрьевич</td>
+          <td class="num">256,206</td>
+          <td class="num">325,874</td>
+          <td class="num">128,103</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ИНФО-ИНВЕСТ ООО</td>
+          <td class="num">226,944</td>
+          <td class="num">287,929</td>
+          <td class="num">113,472</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>НОРМАТУЛС ООО</td>
+          <td class="num">224,468</td>
+          <td class="num">300,613</td>
+          <td class="num">99,709</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ВЫМПЕЛКОМ ПАО</td>
+          <td class="num">107,607</td>
+          <td class="num">105,463</td>
+          <td class="num">94,893</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>КОМПАНИЯ ГЕРМЕС ПАО</td>
+          <td class="num">189,349</td>
+          <td class="num">240,305</td>
+          <td class="num">94,674</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>Т2 МОБАЙЛ ООО ф-л СПб</td>
+          <td class="num">119,701</td>
+          <td class="num">179,551</td>
+          <td class="num">59,850</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>СК СТРОЙ-МИР ООО</td>
+          <td class="num">119,169</td>
+          <td class="num">149,449</td>
+          <td class="num">59,584</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ДИП-АУДИТ ООО</td>
+          <td class="num">108,260</td>
+          <td class="num">137,178</td>
+          <td class="num">54,130</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ОРР ВЕСТА АО</td>
+          <td class="num">91,651</td>
+          <td class="num">116,002</td>
+          <td class="num">45,826</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ЗСО ООО</td>
+          <td class="num">87,401</td>
+          <td class="num">111,201</td>
+          <td class="num">43,700</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>МТС ПАО ф-л в СПб</td>
+          <td class="num">91,316</td>
+          <td class="num">140,041</td>
+          <td class="num">42,822</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ТАЛЬВИНД ООО</td>
+          <td class="num">75,542</td>
+          <td class="num">96,114</td>
+          <td class="num">37,771</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ПВК ООО</td>
+          <td class="num">50,728</td>
+          <td class="num">64,541</td>
+          <td class="num">25,364</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>НОРД-ВЕСТ КЛИМАТ ООО</td>
+          <td class="num">43,042</td>
+          <td class="num">54,762</td>
+          <td class="num">21,521</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ВЕНДИНГ С ООО</td>
+          <td class="num">22,598</td>
+          <td class="num">33,897</td>
+          <td class="num">11,299</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>БАУТА ООО</td>
+          <td class="num">20,808</td>
+          <td class="num">31,212</td>
+          <td class="num">10,404</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>АНДРЕЕВСКИЙ КД СЕВЕРО-ЗАПАД ООО</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num" style="color:#ef4444">968,767</td>
+          <td><span class="bar" style="width:0px;background:#ef4444"></span></td>
+        </tr>
+        <tr>
+          <td>ГОРОДСКОЙ ЦЕНТР УПРАВЛЕНИЯ ПАРКОВКАМИ САНКТ-ПЕТЕРБУРГА СПБ ГКУ</td>
+          <td class="num">1,982</td>
+          <td class="num">3,932</td>
+          <td class="num">0</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ОБИТ ООО</td>
+          <td class="num">29,128</td>
+          <td class="num">54,761</td>
+          <td class="num">0</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ПИН ООО</td>
+          <td class="num">4,270</td>
+          <td class="num">5,750</td>
+          <td class="num">0</td>
+          <td class="num" style="color:#ef4444">770</td>
+          <td><span class="bar" style="width:0px;background:#ef4444"></span></td>
+        </tr>
+        <tr>
+          <td>СЕВЕРЕН-ТЕЛЕКОМ АО</td>
+          <td class="num">3,624</td>
+          <td class="num">6,953</td>
+          <td class="num">0</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>СМАРТ ТЕЛЕКОМ ООО</td>
+          <td class="num">5,432</td>
+          <td class="num">10,282</td>
+          <td class="num">0</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+        <tr>
+          <td>ЭР-Телеком Холдинг АО ф-л г.СПб</td>
+          <td class="num">5,763</td>
+          <td class="num">11,087</td>
+          <td class="num">0</td>
+          <td class="num" style="color:#10b981">0</td>
+          <td><span class="bar" style="width:0px;background:#10b981"></span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="source">
+  Данные: 1С Бухгалтерия → ОСВ по счёту 62 • Сформировано автоматически • {"Интеграция 1С ↔ IndParkDocs"}
+</div>
+
+<script>
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = '#334155';
+
+// Creditors bar chart
+new Chart(document.getElementById('chartCreditors'), {
+  type: 'bar',
+  data: {
+    labels: ["РЭС ИНЖИНИРИНГ ООО", "ФОРМАН ПРОДАКТС ООО", "БМ-СЕРВИС ООО", "ЛЗМ ООО", "РЭС ФЕРРОПОЛИС ООО", "ИНТИЛЕД ООО", "СТЕКЛО-ЖИЗНЬ ООО", "СОК ЗВЕЗДА АО", "ЭМКОМ ООО", "АТИКА ООО", "МИРБАХ ООО ПП", "СЕВЕРНЫЙ ЛУЧ ООО", "ЭК ЗВЕЗДА АО", "ВРС ЦЕНТР ООО", "ПРО-БРАЙТ ООО"],
+    datasets: [{ label: 'Задолженность (Кт)', data: [37161351.68, 10862779.98, 7152574.58, 5456690.34, 5278522.37, 5121840.62, 4178961.84, 2600000.0, 2457879.35, 2415337.8, 1647109.8, 1426280.04, 1165000.0, 672692.4, 612606.0], backgroundColor: '#3b82f6', borderRadius: 4 }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: { x: { ticks: { callback: v => (v/1000000).toFixed(1)+'М' } } }
+  }
+});
+
+// Monthly chart  
+new Chart(document.getElementById('chartMonthly'), {
+  type: 'bar',
+  data: {
+    labels: ["Январь 2026", "Февраль 2026"],
+    datasets: [
+      { label: 'Начислено', data: [88354815.9, 524050.04000000004], backgroundColor: '#3b82f6', borderRadius: 4 },
+      { label: 'Оплачено', data: [90786203.02, 39022833.55], backgroundColor: '#10b981', borderRadius: 4 }
+    ]
+  },
+  options: {
+    plugins: { legend: { position: 'bottom' } },
+    scales: { y: { ticks: { callback: v => (v/1000000).toFixed(0)+'М' } } }
+  }
+});
+
+// Revenue chart
+new Chart(document.getElementById('chartRevenue'), {
+  type: 'bar',
+  data: {
+    labels: ["БМ-СЕРВИС ООО", "ЛЗМ ООО", "ФОРМАН ПРОДАКТС ООО", "ИНТИЛЕД ООО", "СТЕКЛО-ЖИЗНЬ ООО", "АТИКА ООО", "МИРБАХ ООО ПП", "РЭС ИНЖИНИРИНГ ООО", "ЭК ЗВЕЗДА АО", "СЕВЕРНЫЙ ЛУЧ ООО", "ЭМКОМ ООО", "ПРО-БРАЙТ ООО"],
+    datasets: [{ label: 'Начислено', data: [17000950.18, 12115688.59, 11012013.78, 10088033.82, 9512773.92, 4966837.56, 3881581.35, 3439764.46, 3419063.7, 3206944.09, 1536846.33, 1236493.98], backgroundColor: '#8b5cf6', borderRadius: 4 }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: { x: { ticks: { callback: v => (v/1000000).toFixed(1)+'М' } } }
+  }
+});
+
+// Pie chart - top 5 + others
+const pieData = [37161351.68, 10862779.98, 7152574.58, 5456690.34, 5278522.37];
+const pieLabels = ["РЭС ИНЖИНИРИНГ ООО", "ФОРМАН ПРОДАКТС ООО", "БМ-СЕРВИС ООО", "ЛЗМ ООО", "РЭС ФЕРРОПОЛИС ООО"];
+const othersSum = 22297707.85;
+pieData.push(othersSum);
+pieLabels.push('Остальные');
+
+new Chart(document.getElementById('chartPie'), {
+  type: 'doughnut',
+  data: {
+    labels: pieLabels,
+    datasets: [{ data: pieData, backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#64748b'], borderWidth: 0 }]
+  },
+  options: {
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } }
+  }
+});
+</script>
+
+</body>
+</html>
