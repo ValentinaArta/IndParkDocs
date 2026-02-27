@@ -3469,7 +3469,7 @@ async function showDashboard() {
   if (currentView !== 'dashboard') return; // user navigated away during load
   const content = document.getElementById('content');
 
-  let html = '<div style="font-size:20px;font-weight:600;color:#e53e3e;margin-bottom:16px">Привет, Андрей Николаевич</div>';
+  let html = '<div style="font-size:22px;font-weight:600;color:#e91e8c;margin-bottom:16px">\uD83E\uDD8B Выздоравливай, дорогая Настюша! \uD83E\uDD8B</div>';
   html += '<div class="stats-grid">';
   stats.types.forEach(t => {
     html += '<div class="stat-card" onclick="showEntityList(\\'' + t.name + '\\')">' +
