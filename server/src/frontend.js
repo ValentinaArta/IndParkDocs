@@ -3480,15 +3480,8 @@ async function showDashboard() {
     '<span style="font-size:20px;font-weight:700;color:var(--accent)">' + stats.totalRelations + '</span>' +
     ' <span style="color:var(--text-secondary);font-size:13px">связей</span></div>';
 
-  // Area dashboard
-  html += '<div style="margin-top:24px"><h3 style="font-size:15px;font-weight:600;margin-bottom:12px">Площади: сдано / всего</h3>';
-  html += '<div id="areaDashboard"><div style="color:var(--text-muted);font-size:13px">Загрузка...</div></div></div>';
-
   content.innerHTML = html;
   renderIcons();
-
-  // Load area stats async
-  loadAreaPieChart();
 }
 
 // ============ AREA DASHBOARD ============
