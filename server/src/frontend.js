@@ -2681,9 +2681,22 @@ async function startApp() {
     });
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
+  // URL routing: #entity/ID opens entity card
+  var hash = window.location.hash;
+  var _entityHashRe = new RegExp('^#entity/(\\d+)');
+  var _hm = hash ? hash.match(_entityHashRe) : null;
+  if (_hm) { showEntity(parseInt(_hm[1])); return; }
   showDashboard();
   // menuBtn visibility now handled by CSS media query
 }
+
+// Listen for hash changes (e.g. from Metabase links)
+window.addEventListener('hashchange', function() {
+  var hash = window.location.hash;
+  var _entityHashRe2 = new RegExp('^#entity/(\\d+)');
+  var _hm2 = hash ? hash.match(_entityHashRe2) : null;
+  if (_hm2) showEntity(parseInt(_hm2[1]));
+});
 
 async function init() {
   renderIcons(); // Initialize Lucide icons in static sidebar HTML
