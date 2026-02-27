@@ -843,8 +843,8 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
 
   // ── Land plots ──
   const lpRes = await pool.query(`
-    SELECT id, name, properties->>'short_name' AS short_name,
-           COALESCE(NULLIF(properties->>'area',''), '0') AS area
+    SELECT e.id, e.name, e.properties->>'short_name' AS short_name,
+           COALESCE(NULLIF(e.properties->>'area',''), '0') AS area
     FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'land_plot'
     WHERE e.deleted_at IS NULL ORDER BY e.name`);
 
