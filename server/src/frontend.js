@@ -2712,6 +2712,15 @@ async function _navLoadGroupChildren(name, container) {
         '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> ' + escapeHtml(p.name) + '</div>';
     });
   }
+  if (name === 'contract') {
+    var contractTypes = ['Аренды', 'Субаренды', 'Подряда', 'Услуг', 'Купли-продажи', 'Обслуживания'];
+    h += '<div class="nav-sub-item" data-etype="contract" onclick="navSubClick(this)" style="color:rgba(255,255,255,0.45);font-style:italic">' +
+      '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> все договоры</div>';
+    contractTypes.forEach(function(ct) {
+      h += '<div class="nav-sub-item" data-etype="contract" data-contract-type="' + escapeHtml(ct) + '" onclick="navSubClick(this)">' +
+        '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> ' + escapeHtml(ct) + '</div>';
+    });
+  }
   container.innerHTML = h;
 }
 
@@ -2721,11 +2730,13 @@ function navSubClick(el) {
   var type = el.dataset.etype;
   var parentId = el.dataset.parent ? parseInt(el.dataset.parent) : null;
   var isOwn = el.dataset.isown;
+  var contractType = el.dataset.contractType || null;
   var opts = {};
   if (parentId) opts.parentId = parentId;
   if (el.dataset.title) opts.subtitle = el.dataset.title;
   if (isOwn === 'true') opts.isOwn = true;
   else if (isOwn === 'false') opts.isOwn = false;
+  if (contractType) opts.contractType = contractType;
   showEntityList(type, opts);
 }
 
@@ -2744,8 +2755,9 @@ function renderTypeNav() {
 
   var html = '<div class="nav-section" style="padding-top:12px">Документы</div>';
 
-  // Документы: договоры, ДС, акты, приказы
-  ['contract', 'supplement', 'act', 'order'].forEach(function(tn) {
+  // Документы: договоры (с аккордеоном по типам), ДС, акты, приказы
+  html += _navGroupHtml('contract', 'file-text', 'Договоры');
+  ['supplement', 'act', 'order'].forEach(function(tn) {
     var t = T(tn);
     html += '<div class="nav-item" data-type="' + tn + '" data-etype="' + tn + '" onclick="showEntityList(this.dataset.etype)">' +
       entityIcon(tn) + ' ' + escapeHtml(t.name_ru || tn) + '</div>';
@@ -3307,8 +3319,15 @@ async function showEntityList(typeName, opts) {
   if (opts.isOwn === true) url += '&is_own=true';
   else if (opts.isOwn === false) url += '&is_own=false';
 
-  const entities = await api(url);
+  var entities = await api(url);
   if (typeName === 'equipment') await loadBrokenEquipment();
+  // Client-side filter by contract_type
+  if (opts.contractType) {
+    entities = entities.filter(function(e) {
+      return (e.properties || {}).contract_type === opts.contractType;
+    });
+    document.getElementById('pageTitle').textContent = 'Договоры: ' + opts.contractType;
+  }
   renderEntityGrid(entities);
 }
 
