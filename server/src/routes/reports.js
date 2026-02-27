@@ -775,9 +775,10 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
     }
   });
 
-  // Calculate rented area per building
+  // Calculate rented area per building + per contract breakdown
   const rentedByBuilding = {};
-  Object.values(parentContracts).forEach(c => {
+  const contractsByBuilding = {}; // buildingName -> [{contract_id, contract_name, tenant, area}]
+  Object.entries(parentContracts).forEach(([contractId, c]) => {
     let raw = c.latest || c.own;
     if (!raw) return;
     let objects = [];
@@ -789,16 +790,37 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
       const buildingName = ro.building || '';
       if (buildingName) {
         rentedByBuilding[buildingName] = (rentedByBuilding[buildingName] || 0) + area;
+        if (!contractsByBuilding[buildingName]) contractsByBuilding[buildingName] = {};
+        const key = contractId;
+        if (!contractsByBuilding[buildingName][key]) contractsByBuilding[buildingName][key] = { area: 0 };
+        contractsByBuilding[buildingName][key].area += area;
       }
     });
   });
 
+  // Fetch contract names/tenants for breakdown
+  const allContractIds = new Set();
+  Object.values(contractsByBuilding).forEach(map => Object.keys(map).forEach(id => allContractIds.add(parseInt(id))));
+  const contractNames = {};
+  if (allContractIds.size > 0) {
+    const cnRes = await pool.query(`SELECT id, name, properties->>'contractor_name' AS tenant FROM entities WHERE id = ANY($1)`, [Array.from(allContractIds)]);
+    cnRes.rows.forEach(r => { contractNames[r.id] = { name: r.name, tenant: r.tenant || '' }; });
+  }
+
   // Match rented area to buildings by name
   const buildings = buildingRes.rows.map(b => {
     const rented = rentedByBuilding[b.name] || rentedByBuilding[b.short_name] || 0;
+    const cMap = contractsByBuilding[b.name] || contractsByBuilding[b.short_name] || {};
+    const contracts = Object.entries(cMap).map(([cid, v]) => ({
+      contract_id: parseInt(cid),
+      contract_name: (contractNames[cid] || {}).name || 'Договор #' + cid,
+      tenant: (contractNames[cid] || {}).tenant || '',
+      area: v.area,
+    })).sort((a, b) => b.area - a.area);
     return {
       id: b.id, name: b.name, short_name: b.short_name || '',
       total_area: parseFloat(b.total_area) || 0, rented_area: rented,
+      contracts: contracts,
     };
   });
 

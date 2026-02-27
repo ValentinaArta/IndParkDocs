@@ -3348,17 +3348,38 @@ async function showDashboard() {
   loadAreaPieChart();
 }
 
-function _svgPie(cx, cy, r, pct, color, bgColor) {
-  // Returns SVG circle + arc for a percentage
-  var h = '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+(bgColor||'#e5e7eb')+'" />';
-  if (pct <= 0) return h;
-  if (pct >= 1) return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+color+'" />';
+// ============ AREA PIE CHART (drill-down) ============
+
+var _areaData = null; // cached area-stats response
+var _areaLevel = 'total'; // 'total' | 'buildings' | 'contracts'
+var _areaSelectedBuilding = null; // selected building index
+
+function _svgDonut(cx, cy, R, r, segments, labels) {
+  // segments: [{pct, color, onclick?}], labels: {center, sub}
+  var h = '<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="#e5e7eb" />';
+  if (!segments || !segments.length) {
+    h += '<text x="'+cx+'" y="'+(cy+2)+'" text-anchor="middle" font-size="14" fill="var(--text-muted)">нет данных</text>';
+    return h;
+  }
   var startAngle = -Math.PI / 2;
-  var endAngle = startAngle + 2 * Math.PI * pct;
-  var x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
-  var x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
-  var largeArc = pct > 0.5 ? 1 : 0;
-  h += '<path d="M'+cx+','+cy+' L'+x1+','+y1+' A'+r+','+r+' 0 '+largeArc+',1 '+x2+','+y2+' Z" fill="'+color+'" />';
+  segments.forEach(function(seg) {
+    if (seg.pct <= 0) return;
+    var endAngle = startAngle + 2 * Math.PI * Math.min(seg.pct, 0.9999);
+    var x1 = cx + R * Math.cos(startAngle), y1 = cy + R * Math.sin(startAngle);
+    var x2 = cx + R * Math.cos(endAngle), y2 = cy + R * Math.sin(endAngle);
+    var largeArc = seg.pct > 0.5 ? 1 : 0;
+    var onclick = seg.onclick ? ' onclick="'+seg.onclick+'" style="cursor:pointer"' : '';
+    h += '<path d="M'+cx+','+cy+' L'+x1.toFixed(2)+','+y1.toFixed(2)+' A'+R+','+R+' 0 '+largeArc+',1 '+x2.toFixed(2)+','+y2.toFixed(2)+' Z" fill="'+seg.color+'"'+onclick+'>';
+    if (seg.title) h += '<title>'+escapeHtml(seg.title)+'</title>';
+    h += '</path>';
+    startAngle = endAngle;
+  });
+  // Inner circle for donut
+  if (r > 0) h += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="white" />';
+  if (labels && labels.center) {
+    h += '<text x="'+cx+'" y="'+(cy - 4)+'" text-anchor="middle" font-size="'+(labels.fontSize||28)+'" font-weight="700" fill="var(--text)">'+labels.center+'</text>';
+    if (labels.sub) h += '<text x="'+cx+'" y="'+(cy + 16)+'" text-anchor="middle" font-size="12" fill="var(--text-secondary)">'+labels.sub+'</text>';
+  }
   return h;
 }
 
@@ -3366,51 +3387,123 @@ async function loadAreaPieChart() {
   var el = document.getElementById('areaPieChart');
   if (!el || currentView !== 'dashboard') return;
   try {
-    var data = await api('/reports/area-stats');
-    var total = data.grand_total || 1;
-    var rented = data.grand_rented || 0;
-    var pct = rented / total;
+    _areaData = await api('/reports/area-stats');
+    if (currentView !== 'dashboard') return;
+    _areaLevel = 'total';
+    _areaSelectedBuilding = null;
+    _renderAreaChart();
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red);font-size:13px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
 
-    var h = '';
-    // Main pie
-    h += '<div style="text-align:center;cursor:pointer" onclick="_toggleBuildingPies()">';
-    h += '<svg width="180" height="180" viewBox="0 0 200 200">';
-    h += _svgPie(100, 100, 90, pct, '#4F6BCC', '#e5e7eb');
-    h += '<text x="100" y="95" text-anchor="middle" font-size="28" font-weight="700" fill="var(--text)">' + Math.round(pct * 100) + '%</text>';
-    h += '<text x="100" y="118" text-anchor="middle" font-size="12" fill="var(--text-secondary)">сдано</text>';
+var _pieColors = ['#4F6BCC','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#14b8a6','#f97316','#6366f1','#a855f7'];
+
+function _renderAreaChart() {
+  var el = document.getElementById('areaPieChart');
+  if (!el || !_areaData) return;
+  var d = _areaData;
+  var h = '';
+
+  if (_areaLevel === 'total') {
+    // Level 1: single donut — rented vs free
+    var total = d.grand_total || 1, rented = d.grand_rented || 0;
+    var pct = rented / total;
+    var freePct = 1 - pct;
+    h += '<div style="text-align:center">';
+    h += '<svg width="200" height="200" viewBox="0 0 200 200" style="cursor:pointer" onclick="_areaDrill(\\'buildings\\')">';
+    h += _svgDonut(100, 100, 90, 50, [
+      {pct: pct, color: '#4F6BCC', title: 'Сдано: '+Math.round(rented)+' м²'},
+      {pct: freePct, color: '#e5e7eb', title: 'Свободно: '+Math.round(total-rented)+' м²'}
+    ], {center: Math.round(pct*100)+'%', sub: 'сдано'});
     h += '</svg>';
-    h += '<div style="font-size:13px;margin-top:4px"><strong>' + Math.round(rented).toLocaleString('ru-RU') + '</strong> / ' + Math.round(total).toLocaleString('ru-RU') + ' м²</div>';
-    h += '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Нажмите для разбивки</div>';
+    h += '<div style="font-size:14px;margin-top:8px"><strong>' + _fmtNum(Math.round(rented)) + '</strong> / ' + _fmtNum(Math.round(total)) + ' м²</div>';
+    h += '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">🖱 Нажмите — разбивка по корпусам</div>';
     h += '</div>';
 
-    // Building breakdown (hidden initially)
-    h += '<div id="buildingPies" style="display:none;display:flex;flex-wrap:wrap;gap:16px;display:none">';
-    var colors = ['#4F6BCC','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
-    data.buildings.filter(function(b) { return b.total_area > 0; }).forEach(function(b, i) {
-      var bPct = b.total_area > 0 ? b.rented_area / b.total_area : 0;
-      var col = colors[i % colors.length];
-      h += '<div style="text-align:center;min-width:100px">';
-      h += '<svg width="100" height="100" viewBox="0 0 200 200">';
-      h += _svgPie(100, 100, 90, bPct, col, '#e5e7eb');
-      h += '<text x="100" y="95" text-anchor="middle" font-size="32" font-weight="700" fill="var(--text)">' + Math.round(bPct * 100) + '%</text>';
-      h += '<text x="100" y="120" text-anchor="middle" font-size="12" fill="var(--text-secondary)">сдано</text>';
+  } else if (_areaLevel === 'buildings') {
+    // Level 2: one donut per building
+    h += '<div style="margin-bottom:12px"><a href="#" onclick="_areaDrill(\\'total\\');return false" style="font-size:13px;color:var(--accent)">← Общая диаграмма</a></div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:20px;justify-content:center">';
+    var blds = d.buildings.filter(function(b) { return b.total_area > 0; });
+    blds.forEach(function(b, i) {
+      var bPct = b.rented_area / (b.total_area || 1);
+      var col = _pieColors[i % _pieColors.length];
+      var hasContracts = b.contracts && b.contracts.length > 0;
+      var click = hasContracts ? ' onclick="_areaDrill(\\'contracts\\','+i+')"' : '';
+      var cursor = hasContracts ? 'cursor:pointer;' : '';
+      h += '<div style="text-align:center;min-width:120px;'+cursor+'"'+click+'>';
+      h += '<svg width="120" height="120" viewBox="0 0 200 200">';
+      h += _svgDonut(100, 100, 90, 50, [
+        {pct: bPct, color: col, title: 'Сдано: '+Math.round(b.rented_area)+' м²'},
+        {pct: 1-bPct, color: '#e5e7eb', title: 'Свободно: '+Math.round(b.total_area-b.rented_area)+' м²'}
+      ], {center: Math.round(bPct*100)+'%', sub: 'сдано', fontSize: 32});
       h += '</svg>';
-      h += '<div style="font-size:12px;font-weight:600;margin-top:2px">' + escapeHtml(b.short_name || b.name) + '</div>';
-      h += '<div style="font-size:11px;color:var(--text-muted)">' + Math.round(b.rented_area) + ' / ' + Math.round(b.total_area) + ' м²</div>';
+      h += '<div style="font-size:13px;font-weight:600;margin-top:4px">' + escapeHtml(b.short_name || b.name) + '</div>';
+      h += '<div style="font-size:11px;color:var(--text-muted)">' + _fmtNum(Math.round(b.rented_area)) + ' / ' + _fmtNum(Math.round(b.total_area)) + ' м²</div>';
+      if (hasContracts) h += '<div style="font-size:10px;color:var(--accent);margin-top:2px">🖱 Договоры →</div>';
       h += '</div>';
     });
     h += '</div>';
 
-    el.innerHTML = h;
-  } catch(e) {
-    el.innerHTML = '<div style="color:var(--danger);font-size:13px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>';
+  } else if (_areaLevel === 'contracts') {
+    // Level 3: donut for one building split by contracts
+    var b = d.buildings.filter(function(b) { return b.total_area > 0; })[_areaSelectedBuilding];
+    if (!b) { _areaDrill('buildings'); return; }
+    h += '<div style="margin-bottom:12px"><a href="#" onclick="_areaDrill(\\'buildings\\');return false" style="font-size:13px;color:var(--accent)">← По корпусам</a></div>';
+    h += '<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">';
+    // Donut
+    h += '<div style="text-align:center">';
+    h += '<div style="font-size:15px;font-weight:600;margin-bottom:8px">' + escapeHtml(b.short_name || b.name) + '</div>';
+    var segs = [];
+    var contracts = b.contracts || [];
+    var freeArea = b.total_area - b.rented_area;
+    contracts.forEach(function(c, ci) {
+      segs.push({
+        pct: c.area / (b.total_area || 1),
+        color: _pieColors[ci % _pieColors.length],
+        title: (c.tenant || c.contract_name) + ': ' + Math.round(c.area) + ' м²',
+        onclick: 'showEntity('+c.contract_id+')'
+      });
+    });
+    if (freeArea > 0) segs.push({pct: freeArea / (b.total_area || 1), color: '#e5e7eb', title: 'Свободно: '+Math.round(freeArea)+' м²'});
+    h += '<svg width="200" height="200" viewBox="0 0 200 200">';
+    h += _svgDonut(100, 100, 90, 50, segs, {center: _fmtNum(Math.round(b.total_area)), sub: 'м² всего', fontSize: 22});
+    h += '</svg>';
+    h += '</div>';
+    // Legend
+    h += '<div style="min-width:200px">';
+    contracts.forEach(function(c, ci) {
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--border)" onclick="showEntity('+c.contract_id+')">';
+      h += '<div style="width:12px;height:12px;border-radius:3px;background:'+_pieColors[ci % _pieColors.length]+';flex-shrink:0"></div>';
+      h += '<div style="flex:1;min-width:0">';
+      h += '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(c.tenant || c.contract_name) + '</div>';
+      h += '<div style="font-size:11px;color:var(--text-muted)">' + _fmtNum(Math.round(c.area)) + ' м²</div>';
+      h += '</div>';
+      h += '<div style="font-size:12px;font-weight:600;color:var(--accent)">' + Math.round(c.area / (b.total_area || 1) * 100) + '%</div>';
+      h += '</div>';
+    });
+    if (freeArea > 0) {
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0">';
+      h += '<div style="width:12px;height:12px;border-radius:3px;background:#e5e7eb;flex-shrink:0"></div>';
+      h += '<div style="font-size:13px;color:var(--text-muted)">Свободно</div>';
+      h += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-left:auto">' + _fmtNum(Math.round(freeArea)) + ' м²</div>';
+      h += '</div>';
+    }
+    h += '</div>';
+    h += '</div>';
   }
+
+  el.innerHTML = h;
 }
 
-function _toggleBuildingPies() {
-  var el = document.getElementById('buildingPies');
-  if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+function _areaDrill(level, idx) {
+  _areaLevel = level;
+  if (idx !== undefined) _areaSelectedBuilding = idx;
+  _renderAreaChart();
 }
+
+function _fmtNum(n) { return n.toLocaleString('ru-RU'); }
 
 // ============ ENTITY LIST ============
 
