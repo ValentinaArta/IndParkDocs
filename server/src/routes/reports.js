@@ -755,13 +755,14 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
   // Get all contracts with their supplements
   const allContracts = await pool.query(`
     SELECT e.id, e.parent_id, e.properties->>'rent_objects' AS rent_objects,
+           e.properties->>'contract_date' AS contract_date,
            et.name AS type_name
     FROM entities e
     JOIN entity_types et ON e.entity_type_id = et.id
     WHERE e.deleted_at IS NULL
       AND et.name IN ('contract','supplement')
       AND (e.properties->>'contract_type' IN ('Аренды','Субаренды'))
-    ORDER BY e.id`);
+    ORDER BY e.properties->>'contract_date' NULLS FIRST, e.id`);
 
   // Group supplements by parent contract, use latest with rent_objects
   const parentContracts = {};
