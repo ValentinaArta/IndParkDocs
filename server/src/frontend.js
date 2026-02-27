@@ -265,6 +265,41 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 </div>
 
 <script>
+// ╔═══════════════════════════════════════════════════════════════════════════╗
+// ║  frontend.js — Table of Contents                                        ║
+// ║  Search for "// ============ SECTION ============" to jump to sections  ║
+// ║                                                                         ║
+// ║  ICON HELPER & GLOBALS .............. line ~270                          ║
+// ║  SEARCHABLE SELECT / ENTITY CACHE ... line ~350                         ║
+// ║  LAND PLOT SELECTOR ................. line ~580                          ║
+// ║  RENT OBJECT SELECTS ................ line ~660                          ║
+// ║  ADVANCES BLOCK ..................... line ~735                          ║
+// ║  EQUIPMENT LIST FIELD ............... line ~785                          ║
+// ║  ACT ITEMS .......................... line ~984                          ║
+// ║  MULTI COMMENTS ..................... line ~1537                         ║
+// ║  ENTITY SELECT HANDLERS ............. line ~2229                        ║
+// ║  CONTRACT PARTY ROLES ............... line ~2323                        ║
+// ║  AUTH / INIT ........................ line ~2560                         ║
+// ║  NAVIGATION (sidebar, accordion) .... line ~2657                        ║
+// ║  INTERACTIVE MAP .................... line ~2792                        ║
+// ║  DASHBOARD .......................... line ~3261                        ║
+// ║  ENTITY LIST ........................ line ~3293                        ║
+// ║  ENTITY DETAIL ...................... line ~3420                        ║
+// ║  REPORTS ............................ line ~3799                        ║
+// ║  AGGREGATE REPORT ................... line ~4064                        ║
+// ║  PIVOT TABLE ........................ line ~4319                        ║
+// ║  MODALS (create/edit forms) ......... line ~4902                        ║
+// ║  SUPPLEMENTS ........................ line ~5821                        ║
+// ║  LAND PLOT PART ..................... line ~5969                        ║
+// ║  ACTS ............................... line ~6019                        ║
+// ║  RENT ANALYSIS REPORT ............... line ~6112                        ║
+// ║  WORK HISTORY REPORT ................ line ~6659                        ║
+// ║  RELATIONS .......................... line ~6818                        ║
+// ║  SETTINGS ........................... line ~6855                        ║
+// ║  SETTINGS: СПРАВОЧНИКИ .............. line ~6973                        ║
+// ║  UTILS .............................. line ~7155                        ║
+// ╚═══════════════════════════════════════════════════════════════════════════╝
+
 // ── Icon helper (Lucide) ──────────────────────────────────────────────────
 function icon(name, size) {
   var s = size ? ' style="width:' + size + 'px;height:' + size + 'px"' : '';
