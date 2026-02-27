@@ -3469,7 +3469,8 @@ async function showDashboard() {
   if (currentView !== 'dashboard') return; // user navigated away during load
   const content = document.getElementById('content');
 
-  let html = '<div class="stats-grid">';
+  let html = '<div style="font-size:20px;font-weight:600;color:#e53e3e;margin-bottom:16px">Привет, Андрей Николаевич</div>';
+  html += '<div class="stats-grid">';
   stats.types.forEach(t => {
     html += '<div class="stat-card" onclick="showEntityList(\\'' + t.name + '\\')">' +
       '<div class="stat-icon">' + entityIcon(t.name, 24) + '</div>' +
