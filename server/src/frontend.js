@@ -3491,10 +3491,9 @@ var _pieColors = ['#4F6BCC','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#
 
 async function loadAreaPieChart() {
   var el = document.getElementById('areaDashboard');
-  if (!el || currentView !== 'dashboard') return;
+  if (!el) return;
   try {
     _areaData = await api('/reports/area-stats');
-    if (currentView !== 'dashboard') return;
     _renderAreaDashboard();
   } catch(e) {
     el.innerHTML = '<div style="color:var(--red);font-size:13px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>';
@@ -4305,39 +4304,12 @@ function showBIPage() {
   document.getElementById('breadcrumb').textContent = '';
   document.getElementById('topActions').innerHTML = '';
   var content = document.getElementById('content');
-  var h = '<div style="padding:24px">';
-  if (_biDashboardUrl) {
-    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
-    h += '<span style="font-size:13px;color:var(--text-secondary)">Metabase dashboard</span>';
-    h += '<button class="btn btn-sm" onclick="editBIUrl()">Изменить URL</button>';
-    h += '</div>';
-    h += '<div id="bi_url_edit" style="display:none;margin-bottom:12px;display:flex;gap:8px">';
-    h += '<input id="biUrlInput" value="' + escapeHtml(_biDashboardUrl) + '" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px" placeholder="https://...metabaseapp.com/public/dashboard/...">';
-    h += '<button class="btn btn-primary btn-sm" onclick="saveBIUrl()">Сохранить</button>';
-    h += '<button class="btn btn-sm" onclick="showBIPage()">Отмена</button>';
-    h += '</div>';
-    h += '<iframe src="' + escapeHtml(_biDashboardUrl) + '" style="width:100%;height:calc(100vh - 130px);border:none;border-radius:8px" allowtransparency></iframe>';
-  } else {
-    h += '<div style="max-width:560px">';
-    h += '<div style="font-size:15px;font-weight:600;margin-bottom:8px">Подключение Metabase</div>';
-    h += '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">Вставьте публичную ссылку из Metabase: Поделиться → Публичная ссылка → скопировать URL</div>';
-    h += '<div style="display:flex;gap:8px">';
-    h += '<input id="biUrlInput" placeholder="https://...metabaseapp.com/public/dashboard/..." style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">';
-    h += '<button class="btn btn-primary" onclick="saveBIUrl()">Сохранить</button>';
-    h += '</div></div>';
-  }
-  h += '</div>';
-  content.innerHTML = h;
+  content.innerHTML = '<div style="padding:24px"><div id="areaDashboard"><div style="color:var(--text-muted);font-size:13px">Загрузка...</div></div></div>';
   renderIcons();
+  loadAreaPieChart();
 }
 
-function saveBIUrl() {
-  var inp = document.getElementById('biUrlInput');
-  if (!inp || !inp.value.trim()) return;
-  _biDashboardUrl = inp.value.trim();
-  localStorage.setItem('bi_dashboard_url', _biDashboardUrl);
-  showBIPage();
-}
+function saveBIUrl() {}
 
 function editBIUrl() {
   var editDiv = document.getElementById('bi_url_edit');
