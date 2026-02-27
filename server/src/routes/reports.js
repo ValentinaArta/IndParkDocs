@@ -294,7 +294,14 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     return mapRow(r, amount);
   });
 
-  res.json([...rows1, ...rows2]);
+  const allRows = [...rows1, ...rows2];
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 0, 0), 10000);
+  const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+  if (limit > 0) {
+    res.json({ total: allRows.length, rows: allRows.slice(offset, offset + limit) });
+  } else {
+    res.json(allRows);
+  }
 }));
 
 // GET /api/reports/rent-analysis — flat rows from Аренды/Субаренды contracts, expanded from rent_objects
@@ -410,7 +417,14 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
     });
   });
 
-  res.json(rows);
+  // Pagination
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 0, 0), 10000);
+  const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+  if (limit > 0) {
+    res.json({ total: rows.length, rows: rows.slice(offset, offset + limit) });
+  } else {
+    res.json(rows);
+  }
 }));
 
 // GET /api/reports/work-history — equipment × act work descriptions matrix
