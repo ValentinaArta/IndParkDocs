@@ -1818,18 +1818,16 @@ function renderRentObjectBlock(index, obj) {
   h += '<button type="button" class="btn btn-sm btn-danger" onclick="removeRentObject(' + index + ')" style="padding:2px 8px;font-size:11px">✕</button>';
   h += '</div>';
 
-  // Тип — open select with onchange to re-render
-  h += '<div class="form-group"><label>' + (isLandPlot ? 'Тип объекта' : 'Тип помещения') + '</label>';
-  h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" onchange="onRentObjectTypeChange(' + index + ')">';
-  h += '<option value="">—</option>';
-  typeOptions.forEach(function(t) {
-    h += '<option value="' + escapeHtml(t) + '"' + (objectType === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
-  });
-  h += '</select>';
-  if (!isLandPlot) {
-    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="addRentObjectType(' + index + ')">+ Добавить тип помещения</button>';
+  if (isLandPlot) {
+    // Тип — for ЗУ only, shown before selectors
+    h += '<div class="form-group"><label>Тип объекта</label>';
+    h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" onchange="onRentObjectTypeChange(' + index + ')">';
+    h += '<option value="">—</option>';
+    typeOptions.forEach(function(t) {
+      h += '<option value="' + escapeHtml(t) + '"' + (objectType === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+    });
+    h += '</select></div>';
   }
-  h += '</div>';
 
   if (isLandPlot) {
     // ЗУ: land_plot selector + optional part selector
@@ -1864,6 +1862,14 @@ function renderRentObjectBlock(index, obj) {
     h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
     h += '</div>';
     h += _roRoomCreateMiniForm(index);
+    // Тип помещения — auto-filled from room, compact display
+    h += '<div class="form-group" style="' + (objectType ? '' : 'display:none;') + '" id="ro_type_wrap_' + index + '"><label style="font-size:12px;color:var(--text-secondary)">Тип помещения</label>';
+    h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" style="font-size:13px;padding:6px 8px">';
+    h += '<option value="">—</option>';
+    typeOptions.forEach(function(t) {
+      h += '<option value="' + escapeHtml(t) + '"' + (objectType === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+    });
+    h += '</select></div>';
   }
 
   // Calc fields
@@ -2063,6 +2069,7 @@ function onRoRoomSelect(sel, index) {
   var room = _rooms.find(function(r) { return r.id === roomId; });
   if (!room || !room.properties) return;
   var objType = room.properties.object_type || '';
+  // Auto-fill type
   if (objType) {
     var typeSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type"]');
     if (typeSel) {
@@ -2072,6 +2079,16 @@ function onRoRoomSelect(sel, index) {
         typeSel.appendChild(opt);
       }
       typeSel.value = objType;
+    }
+    var typeWrap = document.getElementById('ro_type_wrap_' + index);
+    if (typeWrap) typeWrap.style.display = '';
+  }
+  // Auto-fill building from room parent
+  if (room.parent_id) {
+    var bldSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="building_id"]');
+    if (bldSel && !bldSel.value) {
+      bldSel.value = room.parent_id;
+      bldSel.dispatchEvent(new Event('change'));
     }
   }
   // Auto-fill area from room
