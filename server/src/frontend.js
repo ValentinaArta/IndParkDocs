@@ -2571,7 +2571,8 @@ function renderContractFormFields(fields, props, headerHtml) {
     var _isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды');
     if (_isRentalType && (f.name === 'payment_frequency' || f.name === 'sale_item_type')) return;
 
-    // Default vat_rate to 22
+    // Default vat_rate to 22; hide for rent types (rendered in renderRentFields instead)
+    if (f.name === 'vat_rate' && _isRentalType) return;
     if (f.name === 'vat_rate' && !val) val = '22';
 
     // Regular fields
