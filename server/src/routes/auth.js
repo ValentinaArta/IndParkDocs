@@ -88,6 +88,7 @@ router.post('/change-password', authenticate, validate(schemas.changePassword), 
 
   const hash = await bcrypt.hash(new_password, 12);
   await pool.query('UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2', [hash, req.user.id]);
+  await pool.query('DELETE FROM refresh_tokens WHERE user_id=$1', [req.user.id]);
   await logAction(req.user.id, 'change_password', 'user', req.user.id, null, req.ip);
   res.json({ ok: true });
 }));

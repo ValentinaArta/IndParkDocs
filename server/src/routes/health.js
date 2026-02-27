@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
   } catch (e) {
-    res.status(503).json({ status: 'error', db: 'disconnected', error: e.message });
+    res.status(503).json({ status: 'error', db: 'disconnected' });
   }
 });
 
