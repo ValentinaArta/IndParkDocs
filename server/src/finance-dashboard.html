@@ -1,94 +1,305 @@
 <!DOCTYPE html>
-<html lang="ru"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Финансовая аналитика — ИП Звезда</title>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Неоплаченные счета — ИП Звезда</title>
 <script src="/chart.min.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0}
-.header{background:linear-gradient(135deg,#1e293b,#334155);padding:24px 32px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
-.header h1{font-size:22px;font-weight:600}.header p{color:#94a3b8;margin-top:4px;font-size:13px}
-.badge{display:inline-block;background:#ef4444;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:8px}
-.back{color:#94a3b8;text-decoration:none;font-size:14px;padding:8px 16px;border:1px solid #334155;border-radius:8px}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding:24px 32px}
-.card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155}
-.card-label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px}
-.card-value{font-size:26px;font-weight:700;margin-top:4px}.card-sub{font-size:12px;color:#64748b;margin-top:4px}
-.red{color:#ef4444}.amber{color:#f59e0b}.green{color:#10b981}.blue{color:#3b82f6}
-.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 32px 24px}
-.chart-card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155}
-.chart-card h3{font-size:14px;margin-bottom:12px;color:#94a3b8}
-.section{padding:0 32px 24px}.section-card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155;overflow-x:auto}
-.section-card h3{font-size:14px;margin-bottom:12px;color:#94a3b8}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;padding:8px 12px;border-bottom:1px solid #334155;color:#64748b;font-weight:500}
-td{padding:8px 12px;border-bottom:1px solid rgba(51,65,85,.5)}tr:hover{background:rgba(51,65,85,.3)}
-.num{text-align:right;font-variant-numeric:tabular-nums}
-.source{text-align:center;padding:16px;color:#475569;font-size:12px}
-@media(max-width:1100px){.grid{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}}
-</style></head><body>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:#0f172a; color:#e2e8f0; }
+.header { background:linear-gradient(135deg,#1e293b,#334155); padding:24px 32px; border-bottom:1px solid #334155; display:flex; justify-content:space-between; align-items:center; }
+.header h1 { font-size:22px; font-weight:600; }
+.header p { color:#94a3b8; margin-top:4px; font-size:13px; }
+.badge { display:inline-block; background:#ef4444; color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; margin-left:8px; }
+.back { color:#94a3b8; text-decoration:none; font-size:14px; padding:8px 16px; border:1px solid #334155; border-radius:8px; }
+.grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; padding:24px 32px; }
+.card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; }
+.card-label { font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
+.card-value { font-size:28px; font-weight:700; margin-top:4px; }
+.card-sub { font-size:12px; color:#64748b; margin-top:4px; }
+.red { color:#ef4444; } .amber { color:#f59e0b; } .green { color:#10b981; } .blue { color:#3b82f6; }
+.charts { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:0 32px 24px; }
+.chart-card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; }
+.chart-card h3 { font-size:14px; margin-bottom:12px; color:#94a3b8; }
+.section { padding:0 32px 24px; }
+.section-card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; overflow-x:auto; }
+.section-card h3 { font-size:14px; margin-bottom:12px; color:#94a3b8; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 12px; border-bottom:1px solid #334155; color:#64748b; font-weight:500; }
+td { padding:8px 12px; border-bottom:1px solid rgba(51,65,85,0.5); }
+tr:hover { background:rgba(51,65,85,0.3); }
+.num { text-align:right; font-variant-numeric:tabular-nums; }
+.source { text-align:center; padding:16px; color:#475569; font-size:12px; }
+@media(max-width:900px) { .grid { grid-template-columns:repeat(2,1fr); } .charts { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
 <script>if(!localStorage.getItem('accessToken'))window.location.href='/';</script>
-<div class="header"><div>
-<h1>📊 Финансовая аналитика <span class="badge">ДЕМО — данные из 1С</span></h1>
-<p>АО «Индустриальный Парк Звезда» • 1826 счетов за Янв 2025 — Фев 2026</p>
-</div><a href="/" class="back">← IndParkDocs</a></div>
+
+<div class="header">
+  <div>
+    <h1>⚠️ Неоплаченные счета <span class="badge">ДЕМО — данные из 1С</span></h1>
+    <p>АО «Индустриальный Парк Звезда» • Просроченные счета покупателей • на 27.02.2026</p>
+  </div>
+  <a href="/" class="back">← IndParkDocs</a>
+</div>
 
 <div class="grid">
-<div class="card"><div class="card-label">Всего выставлено</div><div class="card-value blue">65 тыс ₽</div><div class="card-sub">1826 счетов за период</div></div>
-<div class="card"><div class="card-label">Оплачено</div><div class="card-value green">98.8%</div><div class="card-sub">1804 из 1826 счетов</div></div>
-<div class="card"><div class="card-label">Неоплачено</div><div class="card-value red">1 тыс ₽</div><div class="card-sub">18 счетов</div></div>
-<div class="card"><div class="card-label">Должников</div><div class="card-value amber">5</div><div class="card-sub">контрагентов с просрочкой</div></div>
-<div class="card"><div class="card-label">Макс. просрочка</div><div class="card-value red">247 дн.</div><div class="card-sub">ВРС ЦЕНТР — с июня 2025</div></div>
+  <div class="card">
+    <div class="card-label">Общий долг</div>
+    <div class="card-value red">3.5 млн ₽</div>
+    <div class="card-sub">17 неоплаченных счетов</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Должников</div>
+    <div class="card-value amber">5</div>
+    <div class="card-sub">контрагентов с просрочкой</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Макс. просрочка</div>
+    <div class="card-value red">247 дней</div>
+    <div class="card-sub">ВРС ЦЕНТР ООО — с июня 2025</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Критичный долг (90+ дней)</div>
+    <div class="card-value" style="color:#ef4444">70 тыс ₽</div>
+    <div class="card-sub">2.0% от общего долга</div>
+  </div>
 </div>
 
 <div class="charts">
-<div class="chart-card"><h3>💰 Долг по контрагентам</h3><canvas id="c1" height="200"></canvas></div>
-<div class="chart-card"><h3>📊 Старение долга (aging)</h3><canvas id="c2" height="200"></canvas></div>
+  <div class="chart-card">
+    <h3>💰 Долг по контрагентам</h3>
+    <canvas id="chartClients" height="200"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>📊 Старение долга (aging)</h3>
+    <canvas id="chartAging" height="200"></canvas>
+  </div>
 </div>
-<div class="charts">
-<div class="chart-card"><h3>📈 Выставлено счетов по месяцам</h3><canvas id="c3" height="200"></canvas></div>
-<div class="chart-card"><h3>🏭 Топ-10 контрагентов по объёму</h3><canvas id="c4" height="200"></canvas></div>
+
+<div class="section">
+  <div class="section-card">
+    <h3>🏢 Контрагенты-должники — сводка</h3>
+    <table>
+      <thead><tr>
+        <th>Контрагент</th><th class="num">Долг</th><th class="num">Счетов</th>
+        <th class="num">Макс. просрочка</th><th class="num">Начислено (2026)</th>
+        <th class="num">Оплачено (2026)</th><th>Статус</th>
+      </tr></thead>
+      <tbody><tr>
+<td><strong>ФОРМАН ПРОДАКТС ООО</strong></td>
+<td class="num" style="color:#ef4444;font-weight:600">2,095,000</td>
+<td class="num">2</td>
+<td class="num">8 дн.</td>
+<td class="num">11,012,014</td>
+<td class="num">18,308,886</td>
+<td><span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Свежий</span></td>
+</tr><tr>
+<td><strong>СТЕКЛО-ЖИЗНЬ ООО</strong></td>
+<td class="num" style="color:#ef4444;font-weight:600">612,742</td>
+<td class="num">2</td>
+<td class="num">17 дн.</td>
+<td class="num">9,512,774</td>
+<td class="num">14,312,900</td>
+<td><span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Свежий</span></td>
+</tr><tr>
+<td><strong>МИРБАХ ООО ПП</strong></td>
+<td class="num" style="color:#ef4444;font-weight:600">583,038</td>
+<td class="num">1</td>
+<td class="num">17 дн.</td>
+<td class="num">3,881,581</td>
+<td class="num">5,713,130</td>
+<td><span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Свежий</span></td>
+</tr><tr>
+<td><strong>ВРС ЦЕНТР ООО</strong></td>
+<td class="num" style="color:#ef4444;font-weight:600">238,952</td>
+<td class="num">9</td>
+<td class="num">247 дн.</td>
+<td class="num">987,707</td>
+<td class="num">1,431,684</td>
+<td><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Хронический</span></td>
+</tr><tr>
+<td><strong>ВЫМПЕЛКОМ ПАО</strong></td>
+<td class="num" style="color:#ef4444;font-weight:600">13,033</td>
+<td class="num">3</td>
+<td class="num">43 дн.</td>
+<td class="num">107,607</td>
+<td class="num">105,463</td>
+<td><span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Задерживает</span></td>
+</tr></tbody>
+    </table>
+  </div>
 </div>
 
-<div class="section"><div class="section-card">
-<h3>🏢 Контрагенты-должники</h3>
-<table><thead><tr><th>Контрагент</th><th class="num">Долг</th><th class="num">Счетов</th><th class="num">Макс. просрочка</th><th class="num">Всего счетов</th><th class="num">% оплаты</th><th>Статус</th></tr></thead>
-<tbody><tr><td><strong>ПИН ООО</strong></td><td class="num" style="color:#ef4444;font-weight:600">770</td><td class="num">1</td><td class="num">0 дн.</td><td class="num">14</td><td class="num">93%</td><td><span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Свежий</span></td></tr>
-<tr><td><strong>ВРС ЦЕНТР ООО</strong></td><td class="num" style="color:#ef4444;font-weight:600">407</td><td class="num">9</td><td class="num">247 дн.</td><td class="num">67</td><td class="num">87%</td><td><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Хронический</span></td></tr>
-<tr><td><strong>ВЫМПЕЛКОМ ПАО</strong></td><td class="num" style="color:#ef4444;font-weight:600">0</td><td class="num">4</td><td class="num">43 дн.</td><td class="num">30</td><td class="num">90%</td><td><span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Задерживает</span></td></tr>
-<tr><td><strong>СТЕКЛО-ЖИЗНЬ ООО</strong></td><td class="num" style="color:#ef4444;font-weight:600">0</td><td class="num">2</td><td class="num">17 дн.</td><td class="num">61</td><td class="num">95%</td><td><span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Свежий</span></td></tr>
-<tr><td><strong>ФОРМАН ПРОДАКТС ООО</strong></td><td class="num" style="color:#ef4444;font-weight:600">0</td><td class="num">2</td><td class="num">8 дн.</td><td class="num">187</td><td class="num">99%</td><td><span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Свежий</span></td></tr>
-</tbody></table></div></div>
+<div class="section">
+  <div class="section-card">
+    <h3>📋 Все неоплаченные счета (сортировка по просрочке)</h3>
+    <table>
+      <thead><tr>
+        <th>Контрагент</th><th>Номер</th><th>Дата</th><th>Срок оплаты</th>
+        <th class="num">Сумма долга</th><th>Просрочка</th><th style="width:80px"></th>
+      </tr></thead>
+      <tbody><tr>
+<td>🔥 ВРС ЦЕНТР ООО</td>
+<td>МСБФ-000737</td>
+<td>19.06.2025</td>
+<td>25.06.2025</td>
+<td class="num">12,351</td>
+<td style="color:#ef4444;font-weight:600">247 дн.</td>
+<td><div style="width:100%;height:6px;border-radius:3px;background:#ef4444"></div></td>
+</tr><tr>
+<td>🔥 ВРС ЦЕНТР ООО</td>
+<td>МСБФ-001325</td>
+<td>01.11.2025</td>
+<td>10.11.2025</td>
+<td class="num">20,120</td>
+<td style="color:#ef4444;font-weight:600">109 дн.</td>
+<td><div style="width:44%;height:6px;border-radius:3px;background:#ef4444"></div></td>
+</tr><tr>
+<td>🔥 ВРС ЦЕНТР ООО</td>
+<td>МСБФ-001353</td>
+<td>01.11.2025</td>
+<td>10.11.2025</td>
+<td class="num">407</td>
+<td style="color:#ef4444;font-weight:600">109 дн.</td>
+<td><div style="width:44%;height:6px;border-radius:3px;background:#ef4444"></div></td>
+</tr><tr>
+<td>🔥 ВРС ЦЕНТР ООО</td>
+<td>МСБФ-001362</td>
+<td>01.11.2025</td>
+<td>10.11.2025</td>
+<td class="num">37,033</td>
+<td style="color:#ef4444;font-weight:600">109 дн.</td>
+<td><div style="width:44%;height:6px;border-radius:3px;background:#ef4444"></div></td>
+</tr><tr>
+<td>⚠️ ВРС ЦЕНТР ООО</td>
+<td>МСБФ-001470</td>
+<td>01.12.2025</td>
+<td>10.12.2025</td>
+<td class="num">15,198</td>
+<td style="color:#f59e0b;font-weight:600">79 дн.</td>
+<td><div style="width:32%;height:6px;border-radius:3px;background:#f59e0b"></div></td>
+</tr><tr>
+<td>⚠️ ВРС ЦЕНТР ООО</td>
+<td>МСБФ-001493</td>
+<td>01.12.2025</td>
+<td>10.12.2025</td>
+<td class="num">44,543</td>
+<td style="color:#f59e0b;font-weight:600">79 дн.</td>
+<td><div style="width:32%;height:6px;border-radius:3px;background:#f59e0b"></div></td>
+</tr><tr>
+<td>⚠️ ВЫМПЕЛКОМ ПАО</td>
+<td>МСБФ-000020</td>
+<td>12.01.2026</td>
+<td>15.01.2026</td>
+<td class="num">4,067</td>
+<td style="color:#f59e0b;font-weight:600">43 дн.</td>
+<td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td>
+</tr><tr>
+<td>⚠️ ВЫМПЕЛКОМ ПАО</td>
+<td>МСБФ-000021</td>
+<td>12.01.2026</td>
+<td>15.01.2026</td>
+<td class="num">4,900</td>
+<td style="color:#f59e0b;font-weight:600">43 дн.</td>
+<td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td>
+</tr><tr>
+<td>⚠️ ВРС ЦЕНТР ООО</td>
+<td>МСБФ-000091</td>
+<td>12.01.2026</td>
+<td>15.01.2026</td>
+<td class="num">18,707</td>
+<td style="color:#f59e0b;font-weight:600">43 дн.</td>
+<td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td>
+</tr><tr>
+<td>⚠️ ВРС ЦЕНТР ООО</td>
+<td>МСБФ-000092</td>
+<td>12.01.2026</td>
+<td>15.01.2026</td>
+<td class="num">21,414</td>
+<td style="color:#f59e0b;font-weight:600">43 дн.</td>
+<td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td>
+</tr><tr>
+<td>⏰ ВЫМПЕЛКОМ ПАО</td>
+<td>МСБФ-000231</td>
+<td>02.02.2026</td>
+<td>10.02.2026</td>
+<td class="num">4,067</td>
+<td style="color:#3b82f6;font-weight:600">17 дн.</td>
+<td><div style="width:7%;height:6px;border-radius:3px;background:#3b82f6"></div></td>
+</tr><tr>
+<td>⏰ ВРС ЦЕНТР ООО</td>
+<td>МСБФ-000279</td>
+<td>02.02.2026</td>
+<td>10.02.2026</td>
+<td class="num">69,178</td>
+<td style="color:#3b82f6;font-weight:600">17 дн.</td>
+<td><div style="width:7%;height:6px;border-radius:3px;background:#3b82f6"></div></td>
+</tr><tr>
+<td>⏰ СТЕКЛО-ЖИЗНЬ ООО</td>
+<td>МСБФ-000284</td>
+<td>02.02.2026</td>
+<td>10.02.2026</td>
+<td class="num">446,025</td>
+<td style="color:#3b82f6;font-weight:600">17 дн.</td>
+<td><div style="width:7%;height:6px;border-radius:3px;background:#3b82f6"></div></td>
+</tr><tr>
+<td>⏰ МИРБАХ ООО ПП</td>
+<td>МСБФ-000345</td>
+<td>02.03.2026</td>
+<td>10.02.2026</td>
+<td class="num">583,038</td>
+<td style="color:#3b82f6;font-weight:600">17 дн.</td>
+<td><div style="width:7%;height:6px;border-radius:3px;background:#3b82f6"></div></td>
+</tr><tr>
+<td>⏰ ФОРМАН ПРОДАКТС ООО</td>
+<td>МСБФ-000295</td>
+<td>12.02.2026</td>
+<td>19.02.2026</td>
+<td class="num">95,000</td>
+<td style="color:#3b82f6;font-weight:600">8 дн.</td>
+<td><div style="width:3%;height:6px;border-radius:3px;background:#3b82f6"></div></td>
+</tr><tr>
+<td>⏰ ФОРМАН ПРОДАКТС ООО</td>
+<td>МСБФ-000238</td>
+<td>02.02.2026</td>
+<td>25.02.2026</td>
+<td class="num">2,000,000</td>
+<td style="color:#3b82f6;font-weight:600">2 дн.</td>
+<td><div style="width:1%;height:6px;border-radius:3px;background:#3b82f6"></div></td>
+</tr><tr>
+<td>⏰ СТЕКЛО-ЖИЗНЬ ООО</td>
+<td>МСБФ-000296</td>
+<td>18.02.2026</td>
+<td>25.02.2026</td>
+<td class="num">166,718</td>
+<td style="color:#3b82f6;font-weight:600">2 дн.</td>
+<td><div style="width:1%;height:6px;border-radius:3px;background:#3b82f6"></div></td>
+</tr></tbody>
+    </table>
+  </div>
+</div>
 
-<div class="section"><div class="section-card">
-<h3>📋 Все неоплаченные счета</h3>
-<table><thead><tr><th>Контрагент</th><th>Номер</th><th>Дата</th><th>Срок</th><th class="num">Сумма</th><th>Просрочка</th><th style="width:80px"></th></tr></thead>
-<tbody><tr><td>🔥 ВРС ЦЕНТР ООО</td><td>МСБФ-000737</td><td>19.06.2025</td><td>25.06.2025</td><td class="num">0</td><td style="color:#ef4444;font-weight:600">247 дн.</td><td><div style="width:100%;height:6px;border-radius:3px;background:#ef4444"></div></td></tr>
-<tr><td>🔥 ВРС ЦЕНТР ООО</td><td>МСБФ-001325</td><td>01.11.2025</td><td>10.11.2025</td><td class="num">0</td><td style="color:#ef4444;font-weight:600">109 дн.</td><td><div style="width:44%;height:6px;border-radius:3px;background:#ef4444"></div></td></tr>
-<tr><td>🔥 ВРС ЦЕНТР ООО</td><td>МСБФ-001353</td><td>01.11.2025</td><td>10.11.2025</td><td class="num">407</td><td style="color:#ef4444;font-weight:600">109 дн.</td><td><div style="width:44%;height:6px;border-radius:3px;background:#ef4444"></div></td></tr>
-<tr><td>🔥 ВРС ЦЕНТР ООО</td><td>МСБФ-001362</td><td>01.11.2025</td><td>10.11.2025</td><td class="num">0</td><td style="color:#ef4444;font-weight:600">109 дн.</td><td><div style="width:44%;height:6px;border-radius:3px;background:#ef4444"></div></td></tr>
-<tr><td>⚠️ ВРС ЦЕНТР ООО</td><td>МСБФ-001470</td><td>01.12.2025</td><td>10.12.2025</td><td class="num">0</td><td style="color:#f59e0b;font-weight:600">79 дн.</td><td><div style="width:32%;height:6px;border-radius:3px;background:#f59e0b"></div></td></tr>
-<tr><td>⚠️ ВРС ЦЕНТР ООО</td><td>МСБФ-001493</td><td>01.12.2025</td><td>10.12.2025</td><td class="num">0</td><td style="color:#f59e0b;font-weight:600">79 дн.</td><td><div style="width:32%;height:6px;border-radius:3px;background:#f59e0b"></div></td></tr>
-<tr><td>⚠️ ВЫМПЕЛКОМ ПАО</td><td>МСБФ-000020</td><td>12.01.2026</td><td>15.01.2026</td><td class="num">0</td><td style="color:#f59e0b;font-weight:600">43 дн.</td><td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td></tr>
-<tr><td>⚠️ ВЫМПЕЛКОМ ПАО</td><td>МСБФ-000021</td><td>12.01.2026</td><td>15.01.2026</td><td class="num">0</td><td style="color:#f59e0b;font-weight:600">43 дн.</td><td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td></tr>
-<tr><td>⚠️ ВРС ЦЕНТР ООО</td><td>МСБФ-000091</td><td>12.01.2026</td><td>15.01.2026</td><td class="num">0</td><td style="color:#f59e0b;font-weight:600">43 дн.</td><td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td></tr>
-<tr><td>⚠️ ВРС ЦЕНТР ООО</td><td>МСБФ-000092</td><td>12.01.2026</td><td>15.01.2026</td><td class="num">0</td><td style="color:#f59e0b;font-weight:600">43 дн.</td><td><div style="width:17%;height:6px;border-radius:3px;background:#f59e0b"></div></td></tr>
-<tr><td>⏰ ВЫМПЕЛКОМ ПАО</td><td>МСБФ-000231</td><td>02.02.2026</td><td>10.02.2026</td><td class="num">0</td><td style="color:#3b82f6;font-weight:600">17 дн.</td><td><div style="width:7%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-<tr><td>⏰ ВРС ЦЕНТР ООО</td><td>МСБФ-000279</td><td>02.02.2026</td><td>10.02.2026</td><td class="num">0</td><td style="color:#3b82f6;font-weight:600">17 дн.</td><td><div style="width:7%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-<tr><td>⏰ СТЕКЛО-ЖИЗНЬ ООО</td><td>МСБФ-000284</td><td>02.02.2026</td><td>10.02.2026</td><td class="num">0</td><td style="color:#3b82f6;font-weight:600">17 дн.</td><td><div style="width:7%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-<tr><td>⏰ ФОРМАН ПРОДАКТС ООО</td><td>МСБФ-000295</td><td>12.02.2026</td><td>19.02.2026</td><td class="num">0</td><td style="color:#3b82f6;font-weight:600">8 дн.</td><td><div style="width:3%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-<tr><td>⏰ ФОРМАН ПРОДАКТС ООО</td><td>МСБФ-000238</td><td>02.02.2026</td><td>25.02.2026</td><td class="num">0</td><td style="color:#3b82f6;font-weight:600">2 дн.</td><td><div style="width:1%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-<tr><td>⏰ СТЕКЛО-ЖИЗНЬ ООО</td><td>МСБФ-000296</td><td>18.02.2026</td><td>25.02.2026</td><td class="num">0</td><td style="color:#3b82f6;font-weight:600">2 дн.</td><td><div style="width:1%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-<tr><td>⏰ ПИН ООО</td><td>МСБФ-000275</td><td>02.02.2026</td><td>28.02.2026</td><td class="num">770</td><td style="color:#3b82f6;font-weight:600">-1 дн.</td><td><div style="width:-0%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-<tr><td>⏰ ВЫМПЕЛКОМ ПАО</td><td>МСБФ-000278</td><td>02.02.2026</td><td>28.02.2026</td><td class="num">0</td><td style="color:#3b82f6;font-weight:600">-1 дн.</td><td><div style="width:-0%;height:6px;border-radius:3px;background:#3b82f6"></div></td></tr>
-</tbody></table></div></div>
-
-<div class="source">Данные: 1С Бухгалтерия • Реестр счетов (1826 шт.) + Неоплаченные счета • Сформировано автоматически</div>
+<div class="source">
+  Данные: 1С Бухгалтерия • «Счета, не оплаченные покупателями» + ОСВ по сч.62 • Сформировано автоматически
+</div>
 
 <script>
-Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';
-new Chart(document.getElementById('c1'),{type:'bar',data:{labels:["ПИН ООО", "ВРС ЦЕНТР ООО", "ВЫМПЕЛКОМ ПАО", "СТЕКЛО-ЖИЗНЬ ООО", "ФОРМАН ПРОДАКТС ООО"],datasets:[{data:[770.0, 407.0, 0, 0, 0],backgroundColor:['#ef4444','#f59e0b','#f59e0b','#3b82f6','#3b82f6'],borderRadius:4}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>v>=1e6?(v/1e6).toFixed(1)+'М':(v/1e3).toFixed(0)+'К'}}}}});
-new Chart(document.getElementById('c2'),{type:'doughnut',data:{labels:["0-30 дней", "31-60 дней", "61-90 дней", "90+ дней"],datasets:[{data:[770.0, 0, 0, 407.0],backgroundColor:['#3b82f6','#f59e0b','#f97316','#ef4444'],borderWidth:0}]},options:{plugins:{legend:{position:'bottom',labels:{boxWidth:12}}}}});
-new Chart(document.getElementById('c3'),{type:'bar',data:{labels:["Jan 2025", "Feb 2025", "Mar 2025", "Apr 2025", "May 2025", "Jun 2025", "Jul 2025", "Aug 2025", "Sep 2025", "Oct 2025", "Nov 2025", "Dec 2025", "Jan 2026", "Feb 2026"],datasets:[{label:'Сумма',data:[5466.0, 3483.0, 4952.0, 6732.0, 814.0, 2929.0, 3478.0, 2441.0, 5907.0, 3591.0, 7447.0, 3330.0, 8901.0, 5521.0],backgroundColor:'#3b82f6',borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>(v/1e6).toFixed(0)+'М'}}}}});
-new Chart(document.getElementById('c4'),{type:'bar',data:{labels:["ФОРМАН ПРОДАКТС ООО", "НОРМАТУЛС ООО", "ЛЗМ ООО", "СЕВЕРНЫЙ ЛУЧ ООО", "ЭМКОМ ООО", "БАЛТТУРБОКОМ ООО", "БМ-СЕРВИС ООО", "НЭР ООО", "ИНТИЛЕД ООО", "ЗСО ООО"],datasets:[{data:[8222.0, 8176.0, 7167.0, 6720.0, 5604.0, 3731.0, 2934.0, 2934.0, 2441.0, 2237.0],backgroundColor:'#8b5cf6',borderRadius:4}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>(v/1e6).toFixed(0)+'М'}}}}});
-</script></body></html>
+Chart.defaults.color='#94a3b8';
+Chart.defaults.borderColor='#334155';
+
+new Chart(document.getElementById('chartClients'),{
+  type:'bar',
+  data:{labels:["ФОРМАН ПРОДАКТС ООО", "СТЕКЛО-ЖИЗНЬ ООО", "МИРБАХ ООО ПП", "ВРС ЦЕНТР ООО", "ВЫМПЕЛКОМ ПАО"],datasets:[{label:'Долг',data:[2095000.0, 612742.0, 583038.0, 238952.0, 13033.0],backgroundColor:['#ef4444','#f59e0b','#f59e0b','#3b82f6','#3b82f6'],borderRadius:4}]},
+  options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>v>=1e6?(v/1e6).toFixed(1)+'М':(v/1e3).toFixed(0)+'К'}}}}
+});
+
+new Chart(document.getElementById('chartAging'),{
+  type:'doughnut',
+  data:{labels:["0-30 дней", "31-60 дней", "61-90 дней", "90+ дней"],datasets:[{data:[3364025.0, 49087.0, 59741.0, 69912.0],backgroundColor:['#3b82f6','#f59e0b','#f97316','#ef4444'],borderWidth:0}]},
+  options:{plugins:{legend:{position:'bottom',labels:{boxWidth:12}}}},
+});
+</script>
+</body></html>
