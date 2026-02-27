@@ -160,14 +160,23 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .child-card { display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; }
 .child-card:hover { background: var(--bg-hover); }
 
+#menuBtn { display: none; min-width:44px; min-height:44px; }
+.sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:49; }
+.sidebar-overlay.open { display:block; }
 /* Responsive */
 @media (max-width: 768px) {
+  #menuBtn { display: inline-flex; }
   .sidebar { display: none; }
   .sidebar.open { display: flex; position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; }
-  .topbar { padding: 12px 16px; }
-  .content { padding: 16px; }
+  .topbar { padding: 12px 16px; overflow: hidden; }
+  .topbar h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .content { padding: 16px; overflow-x: hidden; }
   .entity-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  input, select, textarea { max-width: 100%; box-sizing: border-box; }
+  .btn { min-height: 44px; min-width: 44px; }
+  .nav-item { min-height: 44px; }
 }
 .rent-filter-dropdown { position:absolute;top:100%;left:0;z-index:100;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,.15);min-width:220px;max-width:320px;padding:6px 0; }
 .rent-filter-dropdown label { display:flex;align-items:center;gap:6px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
@@ -249,9 +258,10 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
     </div>
   </div>
 
+  <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
   <div class="main">
     <div class="topbar" id="topbar">
-      <button class="btn btn-sm" onclick="toggleSidebar()" style="display:none" id="menuBtn">☰</button>
+      <button class="btn btn-sm" onclick="toggleSidebar()" id="menuBtn">☰</button>
       <h2 id="pageTitle">Обзор</h2>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="actions" id="topActions"></div>
@@ -2672,7 +2682,7 @@ async function startApp() {
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
   showDashboard();
-  if (window.innerWidth <= 768) document.getElementById('menuBtn').style.display = '';
+  // menuBtn visibility now handled by CSS media query
 }
 
 async function init() {
@@ -2818,10 +2828,15 @@ function setActive(selector) {
     const el = document.querySelector(selector);
     if (el) el.classList.add('active');
   }
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+  }
 }
 
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
 }
 
 // ============ INTERACTIVE MAP ============
