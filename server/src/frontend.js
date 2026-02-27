@@ -1533,6 +1533,16 @@ function renderRentFields(container, allFields, props) {
     html += '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + ' style="display:none">';
   }
 
+  // Electrical power allocation
+  var hasPower = props.has_power_allocation === 'true' || props.has_power_allocation === true;
+  html += '<div style="margin:8px 0"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">' +
+    '<input type="checkbox" id="f_has_power_allocation"' + (hasPower ? ' checked' : '') +
+    ' onchange="onPowerAllocationToggle()"> Выделена эл. мощность</label></div>';
+  html += '<div id="power_allocation_fields" style="' + (hasPower ? '' : 'display:none;') + 'margin-bottom:12px">';
+  html += '<div class="form-group"><label>Эл. мощность по договору (ДС), кВт</label>' +
+    '<input type="number" id="f_power_allocation_kw" value="' + escapeHtml(props.power_allocation_kw || '') + '" step="0.1" placeholder="0"></div>';
+  html += '</div>';
+
   // Transfer equipment — button instead of checkbox (#6)
   var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
   html += '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') + ' style="display:none">';
@@ -2190,6 +2200,12 @@ function _autoFillNetRate(rentRateEl) {
   }
 }
 
+function onPowerAllocationToggle() {
+  var cb = document.getElementById('f_has_power_allocation');
+  var fields = document.getElementById('power_allocation_fields');
+  if (fields) fields.style.display = (cb && cb.checked) ? '' : 'none';
+}
+
 function onRentFieldChange() {
   // Collect current state and re-render
   var container = document.getElementById('dynamicFieldsContainer');
@@ -2201,6 +2217,11 @@ function onRentFieldChange() {
   // Collect rent objects and comments
   currentProps.rent_objects = collectAllRentObjects();
   currentProps.rent_comments = collectComments();
+  // Collect power allocation
+  var _paCb = document.getElementById('f_has_power_allocation');
+  currentProps.has_power_allocation = _paCb ? String(_paCb.checked) : 'false';
+  var _paKw = document.getElementById('f_power_allocation_kw');
+  currentProps.power_allocation_kw = _paKw ? _paKw.value : '';
 
   // Collect other fields
   allFields.forEach(function(f) {
@@ -2601,6 +2622,13 @@ function collectDynamicFieldValues(contractType) {
     result.duration_date = durDate.value;
   }
   if (durText) result.duration_text = durText.value;
+  // Power allocation (Аренды/Субаренды)
+  var _paCb2 = document.getElementById('f_has_power_allocation');
+  if (_paCb2) {
+    result.has_power_allocation = String(_paCb2.checked);
+    var _paKw2 = document.getElementById('f_power_allocation_kw');
+    if (_paCb2.checked && _paKw2 && _paKw2.value) result.power_allocation_kw = _paKw2.value;
+  }
   return result;
 }
 
