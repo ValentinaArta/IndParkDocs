@@ -715,6 +715,8 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     advances: cProps.advances || '',
     completion_deadline: cProps.completion_deadline || '',
     service_comment: cProps.service_comment || '',
+    has_power_allocation: cProps.has_power_allocation || '',
+    power_allocation_kw: cProps.power_allocation_kw || '',
     contract_items: contractItems,
     rent_source_name: rentSourceName,
     transfer_source_name: transferSourceName,
