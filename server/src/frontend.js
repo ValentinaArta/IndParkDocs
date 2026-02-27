@@ -3339,6 +3339,29 @@ function renderEntityGrid(entities) {
       // Сумма
       var amt = props.contract_amount || props.rent_monthly || '';
       if (amt) tags += '<span class="prop-tag" style="font-weight:500;color:var(--accent)">' + escapeHtml(String(Number(amt).toLocaleString('ru-RU'))) + ' ₽</span>';
+    } else if (e.type_name === 'equipment') {
+      var _t = function(v) { if (v) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>'; };
+      _t(props.equipment_category); _t(props.equipment_kind); _t(props.inv_number ? 'Инв. ' + props.inv_number : '');
+      _t(props.status); _t(props.balance_owner_name);
+    } else if (e.type_name === 'building' || e.type_name === 'workshop') {
+      if (props.cadastral_number) tags += '<span class="prop-tag">' + escapeHtml(props.cadastral_number) + '</span>';
+      if (props.balance_owner_name) tags += '<span class="prop-tag">' + escapeHtml(props.balance_owner_name) + '</span>';
+    } else if (e.type_name === 'room') {
+      if (props.object_type) tags += '<span class="prop-tag" style="font-weight:600">' + escapeHtml(props.object_type) + '</span>';
+      if (props.area) tags += '<span class="prop-tag">' + props.area + ' м²</span>';
+      if (props.floor) tags += '<span class="prop-tag">Этаж ' + escapeHtml(props.floor) + '</span>';
+    } else if (e.type_name === 'company') {
+      if (props.inn) tags += '<span class="prop-tag">ИНН ' + escapeHtml(props.inn) + '</span>';
+      if (props.contact_person) tags += '<span class="prop-tag">' + escapeHtml(props.contact_person) + '</span>';
+      if (props.phone) tags += '<span class="prop-tag">' + escapeHtml(props.phone) + '</span>';
+    } else if (e.type_name === 'land_plot') {
+      if (props.cadastral_number) tags += '<span class="prop-tag">' + escapeHtml(props.cadastral_number) + '</span>';
+      if (props.area) tags += '<span class="prop-tag">' + props.area + ' м²</span>';
+      if (props.owner_name) tags += '<span class="prop-tag">' + escapeHtml(props.owner_name) + '</span>';
+    } else if (e.type_name === 'act') {
+      if (props.act_date) tags += '<span class="prop-tag">' + escapeHtml(props.act_date) + '</span>';
+      if (props.total_amount) tags += '<span class="prop-tag" style="font-weight:500;color:var(--accent)">' + Number(props.total_amount).toLocaleString('ru-RU') + ' ₽</span>';
+      if (props.parent_contract_name) tags += '<span class="prop-tag" style="color:var(--text-secondary)">' + escapeHtml(props.parent_contract_name) + '</span>';
     } else {
       Object.entries(props).forEach(([k, v]) => {
         if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
