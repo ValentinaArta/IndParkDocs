@@ -18,6 +18,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
+      frameSrc: ["'self'", "https://benthic-hull.metabaseapp.com"],
     },
   },
   crossOriginEmbedderPolicy: false,
