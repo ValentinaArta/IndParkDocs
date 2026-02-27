@@ -1,3 +1,4 @@
+const logger = require('./logger');
 require('dotenv').config({ path: __dirname + '/../.env' });
 const { Pool } = require('pg');
 
@@ -73,11 +74,11 @@ async function migrate() {
   const client = await pool.connect();
   try {
     await client.query(SQL);
-    console.log('Migration complete');
+    logger.info('Migration complete');
   } finally {
     client.release();
     await pool.end();
   }
 }
 
-migrate().catch(e => { console.error(e); process.exit(1); });
+migrate().catch(e => { logger.error(e); process.exit(1); });

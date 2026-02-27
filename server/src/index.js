@@ -1,3 +1,4 @@
+const logger = require('./logger');
 require('dotenv').config({ path: __dirname + '/../.env' });
 const express = require('express');
 const path = require('path');
@@ -5,6 +6,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
+const xssClean = require('./middleware/xssClean');
 
 const app = express();
 
@@ -39,6 +41,7 @@ app.use(cors({
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
+app.use(xssClean);
 
 // Rate limiting
 app.use('/api', apiLimiter);
@@ -92,7 +95,7 @@ async function runOnce(name, fn) {
   if (rows.length > 0) return;
   await fn();
   await pool.query('INSERT INTO _migrations (name) VALUES ($1) ON CONFLICT DO NOTHING', [name]);
-  console.log(`Migration ${name} applied`);
+  logger.info(`Migration ${name} applied`);
 }
 
 // Run migration 003 at startup
@@ -139,9 +142,9 @@ async function runMigration003() {
       await pool.query("INSERT INTO field_definitions (entity_type_id,name,name_ru,field_type,sort_order) VALUES ($1,'is_own','Наше юр. лицо','boolean',0) ON CONFLICT (entity_type_id,name) DO NOTHING", [compType.rows[0].id]);
     }
 
-    console.log('Migration 003 applied successfully');
+    logger.info('Migration 003 applied successfully');
   } catch(e) {
-    console.error('Migration 003 error (non-fatal):', e.message);
+    logger.error('Migration 003 error (non-fatal):', e.message);
   }
 }
 
@@ -190,9 +193,9 @@ async function runMigration004() {
     // Add on_balance relation type
     await pool.query(`INSERT INTO relation_types (name,name_ru,color) VALUES ('on_balance','на балансе','#3B82F6') ON CONFLICT (name) DO NOTHING`);
 
-    console.log('Migration 004 applied successfully');
+    logger.info('Migration 004 applied successfully');
   } catch(e) {
-    console.error('Migration 004 error (non-fatal):', e.message);
+    logger.error('Migration 004 error (non-fatal):', e.message);
   }
 }
 
@@ -216,9 +219,9 @@ async function runMigration005() {
     }
     // Ensure supplement_to relation type exists
     await pool.query(`INSERT INTO relation_types (name,name_ru,color) VALUES ('supplement_to','акт к договору','#F59E0B') ON CONFLICT (name) DO NOTHING`);
-    console.log('Migration 005 applied successfully');
+    logger.info('Migration 005 applied successfully');
   } catch(e) {
-    console.error('Migration 005 error (non-fatal):', e.message);
+    logger.error('Migration 005 error (non-fatal):', e.message);
   }
 }
 
@@ -242,9 +245,9 @@ async function runMigration006() {
       WHERE entity_type_id = (SELECT id FROM entity_types WHERE name = 'contract')
         AND properties->>'contract_type' = 'Эксплуатации'
     `);
-    console.log('Migration 006 applied successfully');
+    logger.info('Migration 006 applied successfully');
   } catch(e) {
-    console.error('Migration 006 error (non-fatal):', e.message);
+    logger.error('Migration 006 error (non-fatal):', e.message);
   }
 }
 
@@ -267,9 +270,9 @@ async function runMigration007() {
         VALUES ($1, 'contract_end_date', 'Срок действия (до)', 'date', 12)
         ON CONFLICT (entity_type_id, name) DO NOTHING`, [tid]);
     }
-    console.log('Migration 007 applied successfully');
+    logger.info('Migration 007 applied successfully');
   } catch(e) {
-    console.error('Migration 007 error (non-fatal):', e.message);
+    logger.error('Migration 007 error (non-fatal):', e.message);
   }
 }
 
@@ -285,9 +288,9 @@ async function runMigration008() {
         VALUES ($1, 'vat_rate', 'в т.ч. НДС, %', 'number', 13)
         ON CONFLICT (entity_type_id, name) DO UPDATE SET name_ru = 'в т.ч. НДС, %', sort_order = 13`, [tid]);
     }
-    console.log('Migration 008 applied successfully');
+    logger.info('Migration 008 applied successfully');
   } catch(e) {
-    console.error('Migration 008 error (non-fatal):', e.message);
+    logger.error('Migration 008 error (non-fatal):', e.message);
   }
 }
 
@@ -338,9 +341,9 @@ async function runMigration009() {
     // 4. Add relation type 'located_on' for building → land_plot
     await pool.query(`INSERT INTO relation_types (name,name_ru,color) VALUES ('located_on','расположен на','#10B981') ON CONFLICT (name) DO NOTHING`);
 
-    console.log('Migration 009 applied successfully');
+    logger.info('Migration 009 applied successfully');
   } catch(e) {
-    console.error('Migration 009 error (non-fatal):', e.message);
+    logger.error('Migration 009 error (non-fatal):', e.message);
   }
 }
 
@@ -348,7 +351,7 @@ async function runMigration010() {
   const pool = require('./db');
   try {
     const actId = (await pool.query("SELECT id FROM entity_types WHERE name='act'")).rows[0]?.id;
-    if (!actId) { console.log('Migration 010: act type not found, skipping'); return; }
+    if (!actId) { logger.info('Migration 010: act type not found, skipping'); return; }
     // Add conclusion field to act (sort_order 7)
     await pool.query(
       `INSERT INTO field_definitions (entity_type_id,name,name_ru,field_type,options,sort_order)
@@ -361,9 +364,9 @@ async function runMigration010() {
       `UPDATE field_definitions SET field_type='textarea' WHERE entity_type_id=$1 AND name='comment'`,
       [actId]
     );
-    console.log('Migration 010 applied successfully');
+    logger.info('Migration 010 applied successfully');
   } catch(e) {
-    console.error('Migration 010 error (non-fatal):', e.message);
+    logger.error('Migration 010 error (non-fatal):', e.message);
   }
 }
 
@@ -378,9 +381,9 @@ async function runMigration011() {
          AND NOT (options::jsonb @> '"Аварийное"'::jsonb)`,
       [JSON.stringify(['В работе','На ремонте','Законсервировано','Списано','Аварийное'])]
     );
-    console.log('Migration 011 applied: added Аварийное status for equipment');
+    logger.info('Migration 011 applied: added Аварийное status for equipment');
   } catch(e) {
-    console.error('Migration 011 error (non-fatal):', e.message);
+    logger.error('Migration 011 error (non-fatal):', e.message);
   }
 }
 
@@ -388,7 +391,7 @@ async function runMigration012() {
   const pool = require('./db');
   try {
     const roomRow = await pool.query("SELECT id FROM entity_types WHERE name='room'");
-    if (roomRow.rows.length === 0) { console.log('Migration 012: room type not found, skipping'); return; }
+    if (roomRow.rows.length === 0) { logger.info('Migration 012: room type not found, skipping'); return; }
     const roomId = roomRow.rows[0].id;
     const fields = [
       ['room_type',    'Тип помещения',      'text', null, 0],
@@ -403,9 +406,9 @@ async function runMigration012() {
          ON CONFLICT (entity_type_id,name) DO UPDATE SET name_ru=$3,field_type=$4,sort_order=$6`,
         [roomId,n,r,t,o,s]);
     }
-    console.log('Migration 012 applied: room fields added');
+    logger.info('Migration 012 applied: room fields added');
   } catch(e) {
-    console.error('Migration 012 error (non-fatal):', e.message);
+    logger.error('Migration 012 error (non-fatal):', e.message);
   }
 }
 
@@ -426,9 +429,9 @@ async function runMigration013() {
          VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (entity_type_id,name) DO NOTHING`,
         [lpPartId,n,r,t,o,s]);
     }
-    console.log('Migration 013 applied: land_plot_part entity type added');
+    logger.info('Migration 013 applied: land_plot_part entity type added');
   } catch(e) {
-    console.error('Migration 013 error (non-fatal):', e.message);
+    logger.error('Migration 013 error (non-fatal):', e.message);
   }
 }
 
@@ -436,7 +439,7 @@ async function runMigration014() {
   const pool = require('./db');
   try {
     const roomRow = await pool.query("SELECT id FROM entity_types WHERE name='room'");
-    if (roomRow.rows.length === 0) { console.log('Migration 014: room type not found, skipping'); return; }
+    if (roomRow.rows.length === 0) { logger.info('Migration 014: room type not found, skipping'); return; }
     const roomId = roomRow.rows[0].id;
     const opts = JSON.stringify(['Производство класс В', 'Производство класс С', 'Офис', 'Склад', 'ЗУ', 'Вендомат']);
     await pool.query(
@@ -447,9 +450,9 @@ async function runMigration014() {
     await pool.query(
       `UPDATE field_definitions SET sort_order=99 WHERE entity_type_id=$1 AND name='room_type'`,
       [roomId]);
-    console.log('Migration 014 applied: room object_type field added');
+    logger.info('Migration 014 applied: room object_type field added');
   } catch(e) {
-    console.error('Migration 014 error (non-fatal):', e.message);
+    logger.error('Migration 014 error (non-fatal):', e.message);
   }
 }
 
@@ -457,7 +460,7 @@ async function runMigration015() {
   const pool = require('./db');
   try {
     const roomRow = await pool.query("SELECT id FROM entity_types WHERE name='room'");
-    if (roomRow.rows.length === 0) { console.log('Migration 015: room type not found, skipping'); return; }
+    if (roomRow.rows.length === 0) { logger.info('Migration 015: room type not found, skipping'); return; }
     const roomId = roomRow.rows[0].id;
 
     // Collect distinct object_type values actually used in room entities
@@ -489,9 +492,9 @@ async function runMigration015() {
        WHERE entity_type_id=$2 AND name='object_type'`,
       [JSON.stringify(merged), roomId]);
 
-    console.log('Migration 015 applied: room object_type options populated from DB:', merged);
+    logger.info('Migration 015 applied: room object_type options populated from DB:', merged);
   } catch(e) {
-    console.error('Migration 015 error (non-fatal):', e.message);
+    logger.error('Migration 015 error (non-fatal):', e.message);
   }
 }
 
@@ -499,15 +502,15 @@ async function runMigration016() {
   const pool = require('./db');
   try {
     const roomRow = await pool.query("SELECT id FROM entity_types WHERE name='room'");
-    if (roomRow.rows.length === 0) { console.log('Migration 016: room type not found, skipping'); return; }
+    if (roomRow.rows.length === 0) { logger.info('Migration 016: room type not found, skipping'); return; }
     const roomId = roomRow.rows[0].id;
     // Hide room_number (duplicates name) and room_type (old text field, replaced by object_type from справочник)
     await pool.query(
       `UPDATE field_definitions SET sort_order = 999 WHERE entity_type_id = $1 AND name IN ('room_number', 'room_type')`,
       [roomId]);
-    console.log('Migration 016 applied: room_number and room_type hidden (sort_order=999)');
+    logger.info('Migration 016 applied: room_number and room_type hidden (sort_order=999)');
   } catch(e) {
-    console.error('Migration 016 error (non-fatal):', e.message);
+    logger.error('Migration 016 error (non-fatal):', e.message);
   }
 }
 
@@ -521,7 +524,7 @@ async function runMigration017() {
       // Check if field already exists
       const exists = await pool.query(
         "SELECT id FROM field_definitions WHERE entity_type_id=$1 AND name='short_name'", [typeId]);
-      if (exists.rows.length > 0) { console.log(`Migration 017: short_name already exists for ${typeName}`); continue; }
+      if (exists.rows.length > 0) { logger.info(`Migration 017: short_name already exists for ${typeName}`); continue; }
       // Get max sort_order to insert after all existing fields (but before hidden ones)
       const maxRes = await pool.query(
         "SELECT MAX(sort_order) as mx FROM field_definitions WHERE entity_type_id=$1 AND sort_order < 900", [typeId]);
@@ -531,10 +534,10 @@ async function runMigration017() {
          VALUES ($1, 'short_name', 'Короткое имя для карты (только код, напр. 12к)', 'text', $2)
          ON CONFLICT (entity_type_id, name) DO UPDATE SET name_ru=EXCLUDED.name_ru`,
         [typeId, nextOrder]);
-      console.log(`Migration 017: added short_name to ${typeName} at sort_order ${nextOrder}`);
+      logger.info(`Migration 017: added short_name to ${typeName} at sort_order ${nextOrder}`);
     }
   } catch(e) {
-    console.error('Migration 017 error (non-fatal):', e.message);
+    logger.error('Migration 017 error (non-fatal):', e.message);
   }
 }
 
@@ -549,9 +552,9 @@ async function runMigration018() {
       `UPDATE field_definitions SET name_ru = 'Площадь, кв.м.'
        WHERE entity_type_id=$1 AND name='area' AND name_ru != 'Площадь, кв.м.'`,
       [typeId]);
-    console.log('Migration 018: area field unit updated to кв.м.');
+    logger.info('Migration 018: area field unit updated to кв.м.');
   } catch(e) {
-    console.error('Migration 018 error (non-fatal):', e.message);
+    logger.error('Migration 018 error (non-fatal):', e.message);
   }
 }
 
@@ -569,8 +572,8 @@ async function runMigration019() {
         '["Единовременно","Ежемесячно","Ежеквартально","Раз в полгода","Ежегодно"]'::jsonb, 14)
       ON CONFLICT DO NOTHING
     `, [ctId]);
-    console.log('runMigration019: payment_frequency field added');
-  } catch(e) { console.error('runMigration019 error (non-fatal):', e.message); }
+    logger.info('runMigration019: payment_frequency field added');
+  } catch(e) { logger.error('runMigration019 error (non-fatal):', e.message); }
 }
 
 async function mergeORRVesta() {
@@ -581,8 +584,8 @@ async function mergeORRVesta() {
       `SELECT id, properties FROM entities WHERE LOWER(name) = LOWER('ОРР Веста') AND entity_type_id=(SELECT id FROM entity_types WHERE name='company') LIMIT 1`);
     const { rows: dst } = await pool.query(
       `SELECT id, properties FROM entities WHERE LOWER(name) = LOWER('ОРР Веста, АО') AND entity_type_id=(SELECT id FROM entity_types WHERE name='company') LIMIT 1`);
-    if (src.length === 0) { console.log('mergeORRVesta: source not found, skipping'); return; }
-    if (dst.length === 0) { console.log('mergeORRVesta: destination not found, skipping'); return; }
+    if (src.length === 0) { logger.info('mergeORRVesta: source not found, skipping'); return; }
+    if (dst.length === 0) { logger.info('mergeORRVesta: destination not found, skipping'); return; }
     const srcId = src[0].id, dstId = dst[0].id;
     const srcProps = src[0].properties || {}, dstProps = dst[0].properties || {};
 
@@ -614,9 +617,9 @@ async function mergeORRVesta() {
 
     // Delete source
     await pool.query(`DELETE FROM entities WHERE id=$1`, [srcId]);
-    console.log(`mergeORRVesta: merged entity ${srcId} into ${dstId}, deleted source`);
+    logger.info(`mergeORRVesta: merged entity ${srcId} into ${dstId}, deleted source`);
   } catch(e) {
-    console.error('mergeORRVesta error (non-fatal):', e.message);
+    logger.error('mergeORRVesta error (non-fatal):', e.message);
   }
 }
 
@@ -952,9 +955,9 @@ async function createBIViews() {
       try { await pool.query(sql); } catch(e) { /* ignore if view not ready */ }
     }
 
-    console.log('BI views created/updated: contracts, supplements, rent_objects, equipment, buildings, land_plots, companies, rooms, acts');
+    logger.info('BI views created/updated: contracts, supplements, rent_objects, equipment, buildings, land_plots, companies, rooms, acts');
   } catch(e) {
-    console.error('createBIViews error (non-fatal):', e.message);
+    logger.error('createBIViews error (non-fatal):', e.message);
   }
 }
 
@@ -963,7 +966,7 @@ async function syncMetabase() {
   const email = process.env.METABASE_EMAIL;
   const password = process.env.METABASE_PASSWORD;
   if (!url || !email || !password) {
-    console.log('syncMetabase: skipped (METABASE_URL/EMAIL/PASSWORD not set)');
+    logger.info('syncMetabase: skipped (METABASE_URL/EMAIL/PASSWORD not set)');
     return;
   }
   try {
@@ -973,7 +976,7 @@ async function syncMetabase() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: email, password })
     });
-    if (!sessRes.ok) { console.log('syncMetabase: auth failed', sessRes.status); return; }
+    if (!sessRes.ok) { logger.info('syncMetabase: auth failed', sessRes.status); return; }
     const { id: token } = await sessRes.json();
 
     // 2. Find IndParkDocs database
@@ -986,16 +989,16 @@ async function syncMetabase() {
       (d.details.host || '').includes('neon.tech') ||
       (d.details.dbname || '') === 'neondb'
     ));
-    if (!db) { console.log('syncMetabase: database not found in Metabase'); return; }
+    if (!db) { logger.info('syncMetabase: database not found in Metabase'); return; }
 
     // 3. Trigger sync
     await fetch(`${url}/api/database/${db.id}/sync_schema`, {
       method: 'POST',
       headers: { 'X-Metabase-Session': token }
     });
-    console.log(`syncMetabase: sync triggered for database ${db.id} (${db.name})`);
+    logger.info(`syncMetabase: sync triggered for database ${db.id} (${db.name})`);
   } catch(e) {
-    console.error('syncMetabase error (non-fatal):', e.message);
+    logger.error('syncMetabase error (non-fatal):', e.message);
   }
 }
 
@@ -1012,8 +1015,8 @@ async function runMigration020() {
         ($1, 'contacts', 'Контактные лица', 'contacts', '[]'::jsonb, 21)
       ON CONFLICT DO NOTHING
     `, [cId]);
-    console.log('runMigration020: company ownership_structure + contacts added');
-  } catch(e) { console.error('runMigration020 error (non-fatal):', e.message); }
+    logger.info('runMigration020: company ownership_structure + contacts added');
+  } catch(e) { logger.error('runMigration020 error (non-fatal):', e.message); }
 }
 
 async function runMigration021() {
@@ -1027,8 +1030,8 @@ async function runMigration021() {
       VALUES ($1, 'supplier', 'Поставщик', 'company_name_ref', '[]'::jsonb, 11)
       ON CONFLICT DO NOTHING
     `, [eId]);
-    console.log('runMigration021: equipment supplier field added');
-  } catch(e) { console.error('runMigration021 error (non-fatal):', e.message); }
+    logger.info('runMigration021: equipment supplier field added');
+  } catch(e) { logger.error('runMigration021 error (non-fatal):', e.message); }
 }
 
 async function runMigration022() {
@@ -1043,8 +1046,8 @@ async function runMigration022() {
         '["Оборудование","Корпус","Прочее"]'::jsonb, 999)
       ON CONFLICT DO NOTHING
     `, [ctId]);
-    console.log('runMigration022: sale_item_type справочник field added');
-  } catch(e) { console.error('runMigration022 error (non-fatal):', e.message); }
+    logger.info('runMigration022: sale_item_type справочник field added');
+  } catch(e) { logger.error('runMigration022 error (non-fatal):', e.message); }
 }
 
 
@@ -1079,7 +1082,7 @@ initMigrationTracker()
     cleanupTokens();
     setInterval(cleanupTokens, 24 * 60 * 60 * 1000);
 
-    app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
+    app.listen(PORT, () => logger.info(`IndParkDocs running on port ${PORT}`));
   });
 
 

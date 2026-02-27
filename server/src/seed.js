@@ -1,3 +1,4 @@
+const logger = require('./logger');
 require('dotenv').config({ path: __dirname + '/../.env' });
 const { Pool } = require('pg');
 
@@ -134,11 +135,11 @@ async function seed() {
       );
     }
 
-    console.log('Seed complete');
+    logger.info('Seed complete');
   } finally {
     client.release();
     await pool.end();
   }
 }
 
-seed().catch(e => { console.error(e); process.exit(1); });
+seed().catch(e => { logger.error(e); process.exit(1); });
