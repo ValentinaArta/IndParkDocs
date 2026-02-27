@@ -236,6 +236,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       <div class="nav-item" onclick="showReports()">
         <i data-lucide="bar-chart-2" class="lucide"></i> Отчёты
       </div>
+      <div class="nav-item" onclick="showBIPage()">
+        <i data-lucide="pie-chart" class="lucide"></i> BI-дашборды
+      </div>
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
         <i data-lucide="settings" class="lucide"></i> Типы и поля
@@ -285,11 +288,23 @@ const CONTRACT_TYPE_FIELDS = {
   'Подряда': [
     { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
     { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
+    { name: 'contract_items', name_ru: 'Перечень работ', field_type: 'contract_items' },
+    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
-    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number' },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
     { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
+  ],
+  'Услуг': [
+    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
+    { name: 'contract_items', name_ru: 'Перечень услуг', field_type: 'contract_items' },
+    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
+    { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
+  ],
+  'Купли-продажи': [
+    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
+    { name: 'contract_items', name_ru: 'Перечень товаров', field_type: 'contract_items_sale' },
+    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
   ],
   'Субаренды': [
     { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },
@@ -1175,11 +1190,199 @@ function getFieldValue(f) {
   return el.value || null;
 }
 
+// ── Contract items field (Подряда / Услуг / Купли-продажи) ──────────────────
+function renderContractItemsField(items, isSale) {
+  if (!Array.isArray(items) || !items.length) items = [{}];
+  var h = '<div id="f_contract_items_wrapper" data-sale="' + (isSale ? '1' : '0') + '">';
+  h += '<div id="f_contract_items_list">';
+  items.forEach(function(item, i) { h += _renderContractItem(item, i, isSale); });
+  h += '</div>';
+  h += '<button type="button" class="btn btn-sm" onclick="contractItemAdd()" style="margin-top:4px">+ Добавить позицию</button>';
+  h += '</div>';
+  return h;
+}
+
+function _renderContractItem(item, idx, isSale) {
+  var h = '<div class="contract-item" data-idx="' + idx + '" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+  if (isSale) {
+    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:0" oninput="recalcContractAmount()">';
+    h += '<input class="ci-qty" data-idx="' + idx + '" type="number" min="0" placeholder="Кол-во" value="' + escapeHtml(String(item.qty||1)) + '" style="width:65px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-uprice" data-idx="' + idx + '" type="number" min="0" placeholder="Цена, ₽" value="' + escapeHtml(String(item.unit_price||'')) + '" style="width:100px" oninput="recalcContractAmount()">';
+    h += '<span class="ci-total" data-idx="' + idx + '" style="width:90px;font-size:12px;color:var(--text-secondary);white-space:nowrap">' + (item.amount ? item.amount + ' ₽' : '') + '</span>';
+  } else {
+    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование работ/услуг" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:0" oninput="recalcContractAmount()">';
+    h += '<input class="ci-amount" data-idx="' + idx + '" type="number" min="0" placeholder="Сумма, ₽" value="' + escapeHtml(String(item.amount||'')) + '" style="width:120px" oninput="recalcContractAmount()">';
+  }
+  h += '<button type="button" onclick="contractItemRemove(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>';
+  h += '</div>';
+  return h;
+}
+
+function contractItemAdd() {
+  var wrapper = document.getElementById('f_contract_items_wrapper');
+  var list = document.getElementById('f_contract_items_list');
+  if (!wrapper || !list) return;
+  var isSale = wrapper.getAttribute('data-sale') === '1';
+  var items = list.querySelectorAll('.contract-item');
+  var idx = items.length;
+  var div = document.createElement('div');
+  div.innerHTML = _renderContractItem({}, idx, isSale);
+  list.appendChild(div.firstElementChild);
+}
+
+function contractItemRemove(btn) {
+  var item = btn.closest('.contract-item');
+  if (item) item.remove();
+  recalcContractAmount();
+  // Renumber indices
+  var list = document.getElementById('f_contract_items_list');
+  if (list) list.querySelectorAll('.contract-item').forEach(function(el, i) {
+    el.setAttribute('data-idx', i);
+    el.querySelectorAll('[data-idx]').forEach(function(inp) { inp.setAttribute('data-idx', i); });
+  });
+}
+
+function recalcContractAmount() {
+  var wrapper = document.getElementById('f_contract_items_wrapper');
+  if (!wrapper) return;
+  var isSale = wrapper.getAttribute('data-sale') === '1';
+  var total = 0;
+  var list = document.getElementById('f_contract_items_list');
+  if (!list) return;
+  list.querySelectorAll('.contract-item').forEach(function(item) {
+    if (isSale) {
+      var qty = parseFloat(item.querySelector('.ci-qty').value) || 0;
+      var up = parseFloat(item.querySelector('.ci-uprice').value) || 0;
+      var rowAmt = qty * up;
+      var totalEl = item.querySelector('.ci-total');
+      if (totalEl) totalEl.textContent = rowAmt ? rowAmt.toLocaleString('ru-RU') + ' ₽' : '';
+      total += rowAmt;
+    } else {
+      var amt = parseFloat(item.querySelector('.ci-amount').value) || 0;
+      total += amt;
+    }
+  });
+  var amtEl = document.getElementById('f_contract_amount');
+  if (amtEl) amtEl.value = total || '';
+}
+
+function getContractItemsValue() {
+  var wrapper = document.getElementById('f_contract_items_wrapper');
+  if (!wrapper) return null;
+  var isSale = wrapper.getAttribute('data-sale') === '1';
+  var list = document.getElementById('f_contract_items_list');
+  if (!list) return [];
+  var items = [];
+  list.querySelectorAll('.contract-item').forEach(function(item) {
+    var name = (item.querySelector('.ci-name') || {}).value || '';
+    if (isSale) {
+      var qty = parseFloat((item.querySelector('.ci-qty') || {}).value) || 0;
+      var up = parseFloat((item.querySelector('.ci-uprice') || {}).value) || 0;
+      items.push({ name: name.trim(), qty: qty, unit_price: up, amount: qty * up });
+    } else {
+      var amt = parseFloat((item.querySelector('.ci-amount') || {}).value) || 0;
+      if (name.trim() || amt) items.push({ name: name.trim(), amount: amt });
+    }
+  });
+  return items;
+}
+
+// ── Duration (Срок действия) collapsible section ─────────────────────────────
+function renderDurationSection(props) {
+  props = props || {};
+  var dType = props.duration_type || '';
+  var dDate = props.duration_date || props.contract_end_date || '';
+  var dText = props.duration_text || '';
+  var hasValue = !!(dDate || dText || dType);
+  var h = '<div id="duration_section" style="margin-top:4px">';
+  if (hasValue) {
+    h += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Срок действия';
+    h += ' <button type="button" onclick="clearDurationSection()" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;padding:0 4px">✕ убрать</button></div>';
+    h += '<div id="duration_fields">' + _renderDurationFields(props) + '</div>';
+  } else {
+    h += '<div id="duration_fields" style="display:none">' + _renderDurationFields(props) + '</div>';
+    h += '<button type="button" class="btn btn-sm" onclick="toggleDurationSection()" style="font-size:12px;color:var(--text-secondary)">+ Добавить срок действия</button>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function _renderDurationFields(props) {
+  props = props || {};
+  var dType = props.duration_type || '';
+  var dDate = props.duration_date || props.contract_end_date || '';
+  var dText = props.duration_text || '';
+  var h = '<div class="form-group"><label style="font-size:12px">Тип срока</label>';
+  h += '<select id="f_duration_type" onchange="onDurationTypeChange()" style="width:100%">';
+  h += '<option value="">— выберите —</option>';
+  h += '<option value="Дата"' + (dType === 'Дата' ? ' selected' : '') + '>Дата окончания</option>';
+  h += '<option value="Текст"' + (dType === 'Текст' ? ' selected' : '') + '>Произвольный текст</option>';
+  h += '</select></div>';
+  var showDate = (dType === 'Дата' || dDate);
+  var showText = (dType === 'Текст' || dText);
+  h += '<div id="dur_date_wrap" class="form-group" style="' + (showDate ? '' : 'display:none') + '">';
+  h += '<label style="font-size:12px">Дата окончания</label>';
+  h += '<input type="date" id="f_duration_date" value="' + escapeHtml(dDate) + '"></div>';
+  h += '<div id="dur_text_wrap" class="form-group" style="' + (showText ? '' : 'display:none') + '">';
+  h += '<label style="font-size:12px">Описание срока</label>';
+  h += '<input id="f_duration_text" value="' + escapeHtml(dText) + '" placeholder="например: 1 год с момента подписания"></div>';
+  return h;
+}
+
+function toggleDurationSection() {
+  var fields = document.getElementById('duration_fields');
+  var btn = document.querySelector('[onclick*="toggleDurationSection"]');
+  if (!fields) return;
+  fields.style.display = '';
+  if (btn) btn.style.display = 'none';
+  // Add "убрать" label
+  var sec = document.getElementById('duration_section');
+  if (sec) {
+    var lbl = sec.querySelector('[onclick*="clearDurationSection"]');
+    if (!lbl) {
+      var h = document.createElement('div');
+      h.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px';
+      h.innerHTML = 'Срок действия <button type="button" onclick="clearDurationSection()" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;padding:0 4px">✕ убрать</button>';
+      sec.insertBefore(h, fields);
+    }
+  }
+}
+
+function onDurationTypeChange() {
+  var sel = document.getElementById('f_duration_type');
+  var v = sel ? sel.value : '';
+  var dw = document.getElementById('dur_date_wrap');
+  var tw = document.getElementById('dur_text_wrap');
+  if (dw) dw.style.display = (v === 'Дата') ? '' : 'none';
+  if (tw) tw.style.display = (v === 'Текст') ? '' : 'none';
+}
+
+function clearDurationSection() {
+  var sec = document.getElementById('duration_section');
+  if (!sec) return;
+  var dt = document.getElementById('f_duration_type'); if (dt) dt.value = '';
+  var dd = document.getElementById('f_duration_date'); if (dd) dd.value = '';
+  var dtt = document.getElementById('f_duration_text'); if (dtt) dtt.value = '';
+  var fields = document.getElementById('duration_fields');
+  if (fields) fields.style.display = 'none';
+  var lbl = sec.querySelector('[onclick*="clearDurationSection"]');
+  if (lbl && lbl.parentElement) lbl.parentElement.remove();
+  var addBtn = document.createElement('button');
+  addBtn.type = 'button'; addBtn.className = 'btn btn-sm';
+  addBtn.setAttribute('onclick', 'toggleDurationSection()');
+  addBtn.style.cssText = 'font-size:12px;color:var(--text-secondary)';
+  addBtn.textContent = '+ Добавить срок действия';
+  sec.appendChild(addBtn);
+}
+
 function renderDynamicFields(contractType, props) {
   const container = document.getElementById('dynamicFieldsContainer');
   if (!container) return;
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
-  if (extraFields.length === 0) { container.innerHTML = ''; return; }
+  if (extraFields.length === 0) {
+    container.innerHTML = renderDurationSection(props || {});
+    return;
+  }
 
   if (contractType === 'Аренды' || contractType === 'Субаренды') {
     renderRentFields(container, extraFields, props);
@@ -1193,10 +1396,18 @@ function renderDynamicFields(contractType, props) {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderRegistrySelectField('f_building', _buildings, val, 'Введите название корпуса') + '</div>';
     } else if (f.name === 'tenant') {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderRegistrySelectField('f_tenant', _allCompanies, val, 'Введите название арендатора') + '</div>';
+    } else if (f.field_type === 'contract_items' || f.field_type === 'contract_items_sale') {
+      var isSale = (f.field_type === 'contract_items_sale');
+      var items = [];
+      try { items = JSON.parse(val || '[]'); } catch(ex) {}
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderContractItemsField(items, isSale) + '</div>';
+    } else if (f.name === 'contract_amount' && f._readonly) {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + ' (авто)</label><input type="number" id="f_contract_amount" value="' + escapeHtml(String(val)) + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
     }
   });
+  html += renderDurationSection(props || {});
   container.innerHTML = html;
 }
 
@@ -1297,6 +1508,7 @@ function renderRentFields(container, allFields, props) {
     html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">+ Передача оборудования по договору</button></div>';
   }
 
+  html += renderDurationSection(props);
   container.innerHTML = html;
   recalcRentMonthly();
   updateVatDisplay();
@@ -2213,6 +2425,9 @@ function renderContractFormFields(fields, props, headerHtml) {
     var ctTypeFields = CONTRACT_TYPE_FIELDS[contractType] || [];
     if (ctTypeFields.find(function(cf) { return cf.name === f.name; })) return;
 
+    // Duration fields — always handled by renderDurationSection (inside dynamicFieldsContainer)
+    if (f.name === 'contract_end_date' || f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text') return;
+
     // Default vat_rate to 22
     if (f.name === 'vat_rate' && !val) val = '22';
 
@@ -2306,8 +2521,29 @@ function collectDynamicFieldValues(contractType) {
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
   const result = {};
   extraFields.forEach(function(f) {
-    result[f.name] = getFieldValue(f);
+    if (f.field_type === 'contract_items' || f.field_type === 'contract_items_sale') {
+      var items = getContractItemsValue();
+      if (items !== null) {
+        result[f.name] = JSON.stringify(items);
+        // Auto-calculate total
+        var total = 0;
+        items.forEach(function(item) { total += parseFloat(item.amount) || 0; });
+        result.contract_amount = total > 0 ? String(total) : (result.contract_amount || '');
+      }
+    } else {
+      result[f.name] = getFieldValue(f);
+    }
   });
+  // Collect duration section values (always present for all contract types)
+  var durType = document.getElementById('f_duration_type');
+  var durDate = document.getElementById('f_duration_date');
+  var durText = document.getElementById('f_duration_text');
+  if (durType) result.duration_type = durType.value;
+  if (durDate) {
+    result.contract_end_date = durDate.value;
+    result.duration_date = durDate.value;
+  }
+  if (durText) result.duration_text = durText.value;
   return result;
 }
 
@@ -3086,9 +3322,28 @@ function renderEntityGrid(entities) {
   entities.forEach(e => {
     const props = e.properties || {};
     let tags = '';
-    Object.entries(props).forEach(([k, v]) => {
-      if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
-    });
+    var isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
+    if (isContractLike) {
+      // Show: тип, стороны, предмет, сумма
+      var ctType = props.contract_type || '';
+      if (ctType) tags += '<span class="prop-tag" style="font-weight:600">' + escapeHtml(ctType) + '</span>';
+      // Стороны
+      var sides = [];
+      if (props.our_legal_entity) sides.push(escapeHtml(props.our_legal_entity));
+      if (props.contractor_name) sides.push(escapeHtml(props.contractor_name));
+      if (props.subtenant_name)  sides.push(escapeHtml(props.subtenant_name));
+      if (sides.length) tags += '<span class="prop-tag" style="color:var(--text-secondary)">' + sides.join(' · ') + '</span>';
+      // Предмет
+      var subj = props.subject || props.service_subject || '';
+      if (subj) tags += '<span class="prop-tag">' + escapeHtml(subj.length > 60 ? subj.substring(0,60)+'…' : subj) + '</span>';
+      // Сумма
+      var amt = props.contract_amount || props.rent_monthly || '';
+      if (amt) tags += '<span class="prop-tag" style="font-weight:500;color:var(--accent)">' + escapeHtml(String(Number(amt).toLocaleString('ru-RU'))) + ' ₽</span>';
+    } else {
+      Object.entries(props).forEach(([k, v]) => {
+        if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
+      });
+    }
     var isEqBroken = (e.type_name === 'equipment') && _brokenEqIds.has(e.id);
     var isEmergency = (e.type_name === 'equipment') && (props.status === 'Аварийное');
     var cardStyle = isEqBroken ? ' style="border-left:3px solid #dc2626;background:rgba(239,68,68,.06)"'
@@ -3530,6 +3785,55 @@ var _reportFieldLabels = {
   equipment: 'Оборудование', rent_scope: 'Часть/Целиком',
   our_role_label: 'Роль нашей стороны', contractor_role_label: 'Роль контрагента',
 };
+
+// ── BI Dashboard ─────────────────────────────────────────────────────────────
+var _biDashboardUrl = localStorage.getItem('bi_dashboard_url') || '';
+
+function showBIPage() {
+  currentView = 'bi';
+  setActive('[onclick*="showBIPage"]');
+  document.getElementById('pageTitle').textContent = 'BI-дашборды';
+  document.getElementById('breadcrumb').textContent = '';
+  document.getElementById('topActions').innerHTML = '';
+  var content = document.getElementById('content');
+  var h = '<div style="padding:24px">';
+  if (_biDashboardUrl) {
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+    h += '<span style="font-size:13px;color:var(--text-secondary)">Metabase dashboard</span>';
+    h += '<button class="btn btn-sm" onclick="editBIUrl()">Изменить URL</button>';
+    h += '</div>';
+    h += '<div id="bi_url_edit" style="display:none;margin-bottom:12px;display:flex;gap:8px">';
+    h += '<input id="biUrlInput" value="' + escapeHtml(_biDashboardUrl) + '" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px" placeholder="https://...metabaseapp.com/public/dashboard/...">';
+    h += '<button class="btn btn-primary btn-sm" onclick="saveBIUrl()">Сохранить</button>';
+    h += '<button class="btn btn-sm" onclick="showBIPage()">Отмена</button>';
+    h += '</div>';
+    h += '<iframe src="' + escapeHtml(_biDashboardUrl) + '" style="width:100%;height:calc(100vh - 130px);border:none;border-radius:8px" allowtransparency></iframe>';
+  } else {
+    h += '<div style="max-width:560px">';
+    h += '<div style="font-size:15px;font-weight:600;margin-bottom:8px">Подключение Metabase</div>';
+    h += '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">Вставьте публичную ссылку из Metabase: Поделиться → Публичная ссылка → скопировать URL</div>';
+    h += '<div style="display:flex;gap:8px">';
+    h += '<input id="biUrlInput" placeholder="https://...metabaseapp.com/public/dashboard/..." style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">';
+    h += '<button class="btn btn-primary" onclick="saveBIUrl()">Сохранить</button>';
+    h += '</div></div>';
+  }
+  h += '</div>';
+  content.innerHTML = h;
+  renderIcons();
+}
+
+function saveBIUrl() {
+  var inp = document.getElementById('biUrlInput');
+  if (!inp || !inp.value.trim()) return;
+  _biDashboardUrl = inp.value.trim();
+  localStorage.setItem('bi_dashboard_url', _biDashboardUrl);
+  showBIPage();
+}
+
+function editBIUrl() {
+  var editDiv = document.getElementById('bi_url_edit');
+  if (editDiv) editDiv.style.display = 'flex';
+}
 
 async function showReports() {
   currentView = 'reports';
