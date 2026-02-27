@@ -508,7 +508,7 @@ router.get('/broken-equipment', authenticate, asyncHandler(async (req, res) => {
   res.json(brokenIds);
 }));
 
-// GET /api/reports/contract-card/:id — full card for Аренды/Субаренды contract
+// GET /api/reports/contract-card/:id — full card for any contract type
 router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => {
   const contractId = parseInt(req.params.id);
 
@@ -644,13 +644,64 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     }),
   ];
 
+  // Parse contract_items for non-rental types
+  let contractItems = [];
+  try { contractItems = JSON.parse(cProps.contract_items || '[]'); } catch(e) {}
+
+  // For non-rental: get equipment_list directly from contract/latest supplement
+  let directEquipment = [];
+  if (cProps.contract_type !== 'Аренды' && cProps.contract_type !== 'Субаренды') {
+    let eqRaw = null;
+    for (let i = supplements.length - 1; i >= 0; i--) {
+      const sp = supplements[i];
+      const raw = (sp.properties || {}).equipment_list;
+      if (raw && raw !== '[]' && raw !== 'null') { eqRaw = raw; break; }
+    }
+    if (!eqRaw) eqRaw = cProps.equipment_list;
+    try { directEquipment = JSON.parse(eqRaw || '[]'); } catch(e) {}
+  }
+
+  // Merge direct equipment into eqList if not already populated from transfer
+  if (eqList.length === 0 && directEquipment.length > 0) {
+    const deqIds = directEquipment.map(eq => parseInt(eq.equipment_id)).filter(id => id > 0);
+    if (deqIds.length) {
+      const deRes = await pool.query(
+        'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [deqIds]);
+      const deMap = {};
+      deRes.rows.forEach(eq => { deMap[eq.id] = { name: eq.name, props: eq.properties || {} }; });
+      directEquipment.forEach(eq => {
+        const id = parseInt(eq.equipment_id);
+        const d = deMap[id] || {};
+        const p = d.props || {};
+        eqList.push({
+          name: eq.equipment_name || d.name || '', category: p.equipment_category || '',
+          kind: p.equipment_kind || '', location: '', status: p.status || '',
+          is_emergency: p.status === 'Аварийное', is_broken: false,
+        });
+      });
+    }
+  }
+
   res.json({
     id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
     number: cProps.number || '', date: cProps.contract_date || '',
     our_legal_entity: cProps.our_legal_entity || '',
+    our_role_label: cProps.our_role_label || '',
     contractor_name: cProps.contractor_name || '',
+    contractor_role_label: cProps.contractor_role_label || '',
     subtenant_name: cProps.subtenant_name || '',
-    contract_end_date: cProps.contract_end_date || '',
+    contract_end_date: cProps.contract_end_date || cProps.duration_date || '',
+    duration_type: cProps.duration_type || '',
+    duration_text: cProps.duration_text || '',
+    contract_amount: cProps.contract_amount || '',
+    subject: cProps.subject || cProps.service_subject || '',
+    building: cProps.building || '',
+    tenant: cProps.tenant || '',
+    vat_rate: cProps.vat_rate || '',
+    advances: cProps.advances || '',
+    completion_deadline: cProps.completion_deadline || '',
+    service_comment: cProps.service_comment || '',
+    contract_items: contractItems,
     rent_source_name: rentSourceName,
     transfer_source_name: transferSourceName,
     rent_rows: rentRows, total_monthly: totalMonthly,
