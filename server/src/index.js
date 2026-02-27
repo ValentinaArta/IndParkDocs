@@ -621,6 +621,12 @@ initMigrationTracker()
   .then(() => runOnce('018', runMigration018))
   .then(() => runOnce('mergeORRVesta', mergeORRVesta))
   .then(() => {
+    // Cleanup expired refresh tokens on startup and every 24h
+    const pool = require('./db');
+    const cleanupTokens = () => pool.query('DELETE FROM refresh_tokens WHERE expires_at < NOW()').catch(() => {});
+    cleanupTokens();
+    setInterval(cleanupTokens, 24 * 60 * 60 * 1000);
+
     app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
   });
 
