@@ -1185,9 +1185,66 @@ function renderFieldInput(f, value) {
     return '<input type="number" id="' + id + '" value="' + val + '">';
   } else if (f.field_type === 'textarea') {
     return '<textarea id="' + id + '" style="width:100%;resize:both;min-height:72px;box-sizing:border-box">' + escapeHtml(String(val)) + '</textarea>';
+  } else if (f.field_type === 'contacts') {
+    var contacts = [];
+    try { if (typeof val === 'string' && val) contacts = JSON.parse(val); } catch(ex) {}
+    if (!Array.isArray(contacts)) contacts = [];
+    if (contacts.length === 0) contacts = [{}];
+    return _renderContactsList(id, contacts);
   } else {
     return '<input id="' + id + '" value="' + escapeHtml(String(val)) + '">';
   }
+}
+
+var _contactsCounter = 0;
+function _renderContactsList(id, contacts) {
+  _contactsCounter = contacts.length;
+  var h = '<div id="' + id + '_wrap">';
+  contacts.forEach(function(c, i) { h += _renderContactBlock(id, i, c); });
+  h += '</div>';
+  h += '<button type="button" class="btn btn-sm" style="margin-top:4px;font-size:11px" onclick="_addContact(\\''+id+'\\')">+ Добавить контакт</button>';
+  h += '<input type="hidden" id="' + id + '">';
+  return h;
+}
+
+function _renderContactBlock(fieldId, index, c) {
+  c = c || {};
+  var h = '<div class="contact-block" data-field="' + fieldId + '" data-idx="' + index + '" style="border-left:3px solid var(--accent);padding:8px 10px;margin-bottom:8px;background:var(--bg);border-radius:4px;position:relative">';
+  if (index > 0) h += '<button type="button" onclick="_removeContact(\\''+fieldId+'\\','+index+')" style="position:absolute;top:4px;right:6px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px">✕</button>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+  h += '<div><label style="font-size:11px;color:var(--text-secondary)">ФИО</label><input class="ct-name" data-idx="'+index+'" value="'+escapeHtml(c.name||'')+'" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px"></div>';
+  h += '<div><label style="font-size:11px;color:var(--text-secondary)">Должность</label><input class="ct-position" data-idx="'+index+'" value="'+escapeHtml(c.position||'')+'" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px"></div>';
+  h += '<div><label style="font-size:11px;color:var(--text-secondary)">Телефон</label><input class="ct-phone" data-idx="'+index+'" value="'+escapeHtml(c.phone||'')+'" placeholder="+7..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px"></div>';
+  h += '<div><label style="font-size:11px;color:var(--text-secondary)">Email</label><input class="ct-email" data-idx="'+index+'" value="'+escapeHtml(c.email||'')+'" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px"></div>';
+  h += '</div></div>';
+  return h;
+}
+
+function _addContact(fieldId) {
+  var wrap = document.getElementById(fieldId + '_wrap');
+  if (!wrap) return;
+  var div = document.createElement('div');
+  div.innerHTML = _renderContactBlock(fieldId, _contactsCounter, {});
+  wrap.appendChild(div.firstElementChild);
+  _contactsCounter++;
+}
+
+function _removeContact(fieldId, index) {
+  var block = document.querySelector('.contact-block[data-field="'+fieldId+'"][data-idx="'+index+'"]');
+  if (block) block.remove();
+}
+
+function _collectContacts(fieldId) {
+  var blocks = document.querySelectorAll('.contact-block[data-field="'+fieldId+'"]');
+  var arr = [];
+  blocks.forEach(function(b) {
+    var name = (b.querySelector('.ct-name') || {}).value || '';
+    var position = (b.querySelector('.ct-position') || {}).value || '';
+    var phone = (b.querySelector('.ct-phone') || {}).value || '';
+    var email = (b.querySelector('.ct-email') || {}).value || '';
+    if (name || phone || email) arr.push({name:name, position:position, phone:phone, email:email});
+  });
+  return arr;
 }
 
 function toggleCustomInput(sel) {
@@ -1218,6 +1275,10 @@ function getFieldValue(f) {
   if (f.field_type === 'multi_comments') {
     var cmts = collectComments();
     return cmts.length > 0 ? JSON.stringify(cmts) : null;
+  }
+  if (f.field_type === 'contacts') {
+    var cts = _collectContacts('f_' + f.name);
+    return cts.length > 0 ? JSON.stringify(cts) : null;
   }
   if (f.field_type === 'checkbox' || f.field_type === 'boolean') {
     const cb = document.getElementById('f_' + f.name);
@@ -3777,6 +3838,25 @@ async function showEntity(id, _forceDetail) {
       if (f.field_type === 'textarea') {
         html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
           '<div class="prop-value" style="white-space:pre-wrap">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
+        return;
+      }
+      if (f.field_type === 'contacts') {
+        var cts2 = [];
+        try { if (val) cts2 = JSON.parse(val); } catch(ex2) {}
+        if (Array.isArray(cts2) && cts2.length > 0) {
+          html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div><div class="prop-value">';
+          cts2.forEach(function(ct) {
+            html += '<div style="margin-bottom:6px">';
+            html += '<strong>' + escapeHtml(ct.name || '—') + '</strong>';
+            if (ct.position) html += ' <span style="color:var(--text-secondary);font-size:12px">(' + escapeHtml(ct.position) + ')</span>';
+            var details = [];
+            if (ct.phone) details.push('📞 ' + escapeHtml(ct.phone));
+            if (ct.email) details.push('✉ ' + escapeHtml(ct.email));
+            if (details.length) html += '<div style="font-size:12px;color:var(--text-secondary)">' + details.join(' &nbsp; ') + '</div>';
+            html += '</div>';
+          });
+          html += '</div></div>';
+        }
         return;
       }
       html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
