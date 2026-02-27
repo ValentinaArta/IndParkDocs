@@ -2457,33 +2457,37 @@ function renderContractFormFields(fields, props, headerHtml) {
       return;
     }
 
-    // Role label fields — small editable input with default
+    // Role label + entity selector — on one row
     if (f.name === 'our_role_label') {
-      var defaultRole = roles.our;
-      html += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
-        '<input id="f_our_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" data-auto-set="true" data-auto-set="true" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
+      // Defer: rendered together with our_legal_entity
+      return;
+    }
+    if (f.name === 'our_legal_entity') {
+      var ourDefaultRole = roles.our;
+      var ourRoleVal = props.our_role_label || ourDefaultRole;
+      var ourLabel = (props.our_role_label || roles.our);
+      html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
+      html += '<div id="wrap_our_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль нашей стороны</label>' +
+        '<input id="f_our_role_label" value="' + escapeHtml(ourRoleVal) + '" placeholder="' + escapeHtml(ourDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
+      html += '<div id="wrap_our_legal_entity"><label id="label_our_legal_entity" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(ourLabel) + '</label>' +
+        renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, props.our_legal_entity || '', 'начните вводить...', 'our_legal_entity') + '</div>';
+      html += '</div>';
       return;
     }
     if (f.name === 'contractor_role_label') {
-      var defaultRole = roles.contractor;
-      html += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
-        '<input id="f_contractor_role_label" value="' + escapeHtml(val || defaultRole) + '" placeholder="' + escapeHtml(defaultRole) + '" data-auto-set="true" data-auto-set="true" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
+      // Defer: rendered together with contractor_name
       return;
     }
-
-    // our_legal_entity — searchable selector from companies with is_own
-    if (f.name === 'our_legal_entity') {
-      var label = (props.our_role_label || roles.our);
-      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
-        renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, val, 'начните вводить...', 'our_legal_entity') + '</div>';
-      return;
-    }
-
-    // contractor_name — searchable selector from all companies
     if (f.name === 'contractor_name') {
-      var label = (props.contractor_role_label || roles.contractor);
-      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
-        renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, val, 'начните вводить...', 'contractor_name') + '</div>';
+      var contrDefaultRole = roles.contractor;
+      var contrRoleVal = props.contractor_role_label || contrDefaultRole;
+      var contrLabel = (props.contractor_role_label || roles.contractor);
+      html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
+      html += '<div id="wrap_contractor_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль контрагента</label>' +
+        '<input id="f_contractor_role_label" value="' + escapeHtml(contrRoleVal) + '" placeholder="' + escapeHtml(contrDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
+      html += '<div id="wrap_contractor_name"><label id="label_contractor_name" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(contrLabel) + '</label>' +
+        renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, props.contractor_name || '', 'начните вводить...', 'contractor_name') + '</div>';
+      html += '</div>';
       return;
     }
 
