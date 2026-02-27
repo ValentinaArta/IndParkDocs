@@ -1,6 +1,11 @@
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error('⚠️  WARNING: JWT_SECRET not set in production! Using insecure default.');
+}
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization;
@@ -38,9 +43,9 @@ function generateAccessToken(user) {
 function generateRefreshToken(user) {
   return jwt.sign(
     { id: user.id, type: 'refresh' },
-    JWT_SECRET,
+    JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
 }
 
-module.exports = { authenticate, authorize, generateAccessToken, generateRefreshToken, JWT_SECRET };
+module.exports = { authenticate, authorize, generateAccessToken, generateRefreshToken, JWT_SECRET, JWT_REFRESH_SECRET };

@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
-const { authenticate, authorize, generateAccessToken, generateRefreshToken, JWT_SECRET } = require('../middleware/auth');
+const { authenticate, authorize, generateAccessToken, generateRefreshToken, JWT_SECRET, JWT_REFRESH_SECRET } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validate');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -45,7 +45,7 @@ router.post('/refresh', asyncHandler(async (req, res) => {
   if (rows.length === 0) return res.status(401).json({ error: 'Токен истёк или недействителен' });
 
   try {
-    const payload = jwt.verify(refreshToken, JWT_SECRET);
+    const payload = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     const { rows: users } = await pool.query('SELECT * FROM users WHERE id=$1 AND deleted_at IS NULL', [payload.id]);
     if (users.length === 0) return res.status(401).json({ error: 'Пользователь не найден' });
 
