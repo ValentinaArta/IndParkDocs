@@ -5,7 +5,7 @@ const FRONTEND_HTML = `<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>IndParkDocs</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#1E293B">
@@ -19,9 +19,9 @@ const FRONTEND_HTML = `<!DOCTYPE html>
   --radius: 8px; --shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; overflow: hidden; }
 
-.app { display: flex; height: 100vh; }
+.app { display: flex; height: 100vh; height: 100dvh; }
 .sidebar { width: 260px; background: var(--bg-sidebar); color: white; display: flex; flex-direction: column; flex-shrink: 0; }
 .sidebar-header { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .sidebar-header h1 { font-size: 18px; font-weight: 700; }
@@ -97,7 +97,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .modal-overlay.show { display: flex; }
 .modal { position: relative; background: white; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.15); transition: max-width 0.15s, width 0.15s, height 0.15s, max-height 0.15s, border-radius 0.15s; }
 .modal.modal--wide { max-width: min(860px, 95vw); }
-.modal.modal--full { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+.modal.modal--full { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 /* Spinner */
 @keyframes _spin { to { transform: rotate(360deg); } }
 .spinner-ring { display: inline-block; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: _spin 0.7s linear infinite; }
@@ -167,10 +167,10 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 @media (max-width: 768px) {
   #menuBtn { display: inline-flex; }
   .sidebar { display: none; }
-  .sidebar.open { display: flex; position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; }
-  .topbar { padding: 12px 16px; overflow: hidden; }
+  .sidebar.open { display: flex; position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; width: 280px; max-width: 85vw; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); }
+  .topbar { padding: 12px 16px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); overflow: hidden; }
   .topbar h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .content { padding: 16px; overflow-x: hidden; }
+  .content { padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); overflow-x: hidden; }
   .entity-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -217,7 +217,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 <body>
 
 <div id="loginScreen" style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg)">
-  <div style="background:white;padding:32px;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.1);width:340px">
+  <div style="background:white;padding:32px;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.1);width:340px;max-width:90vw">
     <h2 style="margin-bottom:4px">IndParkDocs</h2>
     <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px">Документы и связи</p>
     <div class="form-group"><label>Логин</label><input id="loginUser" placeholder="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
