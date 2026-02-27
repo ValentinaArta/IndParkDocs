@@ -10,7 +10,16 @@ const app = express();
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // We serve inline frontend
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 
@@ -66,6 +75,24 @@ app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
+
+// Migration tracker — run each migration only once
+async function initMigrationTracker() {
+  const pool = require('./db');
+  await pool.query(`CREATE TABLE IF NOT EXISTS _migrations (
+    name VARCHAR(100) PRIMARY KEY,
+    applied_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+}
+
+async function runOnce(name, fn) {
+  const pool = require('./db');
+  const { rows } = await pool.query('SELECT 1 FROM _migrations WHERE name=$1', [name]);
+  if (rows.length > 0) return;
+  await fn();
+  await pool.query('INSERT INTO _migrations (name) VALUES ($1) ON CONFLICT DO NOTHING', [name]);
+  console.log(`Migration ${name} applied`);
+}
 
 // Run migration 003 at startup
 async function runMigration003() {
@@ -575,8 +602,26 @@ async function mergeORRVesta() {
   }
 }
 
-runMigration003().then(() => runMigration004()).then(() => runMigration005()).then(() => runMigration006()).then(() => runMigration007()).then(() => runMigration008()).then(() => runMigration009()).then(() => runMigration010()).then(() => runMigration011()).then(() => runMigration012()).then(() => runMigration013()).then(() => runMigration014()).then(() => runMigration015()).then(() => runMigration016()).then(() => runMigration017()).then(() => runMigration018()).then(() => mergeORRVesta()).then(() => {
-  app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
-});
+initMigrationTracker()
+  .then(() => runOnce('003', runMigration003))
+  .then(() => runOnce('004', runMigration004))
+  .then(() => runOnce('005', runMigration005))
+  .then(() => runOnce('006', runMigration006))
+  .then(() => runOnce('007', runMigration007))
+  .then(() => runOnce('008', runMigration008))
+  .then(() => runOnce('009', runMigration009))
+  .then(() => runOnce('010', runMigration010))
+  .then(() => runOnce('011', runMigration011))
+  .then(() => runOnce('012', runMigration012))
+  .then(() => runOnce('013', runMigration013))
+  .then(() => runOnce('014', runMigration014))
+  .then(() => runOnce('015', runMigration015))
+  .then(() => runOnce('016', runMigration016))
+  .then(() => runOnce('017', runMigration017))
+  .then(() => runOnce('018', runMigration018))
+  .then(() => runOnce('mergeORRVesta', mergeORRVesta))
+  .then(() => {
+    app.listen(PORT, () => console.log(`IndParkDocs running on port ${PORT}`));
+  });
 
 module.exports = app; // for testing
