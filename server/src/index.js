@@ -68,6 +68,9 @@ app.get('/', (req, res) => { res.type('html').send(FRONTEND_HTML); });
 app.get('/finance', (req, res) => {
   res.sendFile(path.join(__dirname, 'finance-dashboard.html'));
 });
+app.get('/chart.min.js', (req, res) => {
+  res.type('application/javascript').sendFile(path.join(__dirname, 'chart.min.js'));
+});
 
 // API routes
 app.use('/api/auth', require('./routes/auth'));
