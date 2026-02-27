@@ -1509,7 +1509,7 @@ function renderRentFields(container, allFields, props) {
     '</div></div>';
 
   // Extra services checkbox
-  html += '<div class="form-group"><label style="display:flex;align-items:center;gap:8px">' +
+  html += '<div style="margin:12px 0"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">' +
     '<input type="checkbox" id="f_extra_services"' + (hasExtra ? ' checked' : '') +
     ' onchange="onRentFieldChange()"> Доп. услуги</label></div>';
 
@@ -1526,7 +1526,7 @@ function renderRentFields(container, allFields, props) {
   // External rental checkbox — hidden in supplement (#5: inherited from contract)
   var externalRental = props.external_rental === 'true' || props.external_rental === true;
   if (_contractFormTypeName !== 'supplement') {
-    html += '<div class="form-group" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+    html += '<div style="margin:8px 0"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">' +
       '<input type="checkbox" id="f_external_rental"' + (externalRental ? ' checked' : '') + '> Аренда внешняя</label></div>';
   } else {
     // Hidden checkbox to preserve value (inherited from contract, not editable in supplement)
@@ -1999,15 +1999,23 @@ function onRoRoomSelect(sel, index) {
   var room = _rooms.find(function(r) { return r.id === roomId; });
   if (!room || !room.properties) return;
   var objType = room.properties.object_type || '';
-  if (!objType) return;
-  var typeSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type"]');
-  if (!typeSel) return;
-  if (!Array.from(typeSel.options).some(function(o) { return o.value === objType; })) {
-    var opt = document.createElement('option');
-    opt.value = objType; opt.textContent = objType;
-    typeSel.appendChild(opt);
+  if (objType) {
+    var typeSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="object_type"]');
+    if (typeSel) {
+      if (!Array.from(typeSel.options).some(function(o) { return o.value === objType; })) {
+        var opt = document.createElement('option');
+        opt.value = objType; opt.textContent = objType;
+        typeSel.appendChild(opt);
+      }
+      typeSel.value = objType;
+    }
   }
-  typeSel.value = objType;
+  // Auto-fill area from room
+  var roomArea = room.properties.area || '';
+  if (roomArea) {
+    var areaEl = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="area"]');
+    if (areaEl) { areaEl.value = roomArea; recalcRentMonthly(); }
+  }
 }
 
 function onRoRoomTypeChange(sel, index) {
@@ -2472,6 +2480,10 @@ function renderContractFormFields(fields, props, headerHtml) {
 
     // Duration fields — always handled by renderDurationSection (inside dynamicFieldsContainer)
     if (f.name === 'contract_end_date' || f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text') return;
+
+    // Hide payment_frequency and sale_item_type for Аренды/Субаренды
+    var _isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды');
+    if (_isRentalType && (f.name === 'payment_frequency' || f.name === 'sale_item_type')) return;
 
     // Default vat_rate to 22
     if (f.name === 'vat_rate' && !val) val = '22';
