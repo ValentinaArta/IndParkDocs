@@ -829,7 +829,78 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
   const grandTotal = buildings.reduce((s, b) => s + b.total_area, 0);
   const grandRented = buildings.reduce((s, b) => s + b.rented_area, 0);
 
-  res.json({ buildings, grand_total: grandTotal, grand_rented: grandRented });
+  // Tenant breakdown for buildings (aggregate across all buildings)
+  const tenantMap = {};
+  buildings.forEach(b => {
+    (b.contracts || []).forEach(c => {
+      const t = c.tenant || 'Без арендатора';
+      if (!tenantMap[t]) tenantMap[t] = { tenant: t, area: 0, contracts: [] };
+      tenantMap[t].area += c.area;
+      tenantMap[t].contracts.push({ contract_id: c.contract_id, contract_name: c.contract_name, area: c.area, building: b.name });
+    });
+  });
+  const tenants = Object.values(tenantMap).sort((a, b) => b.area - a.area);
+
+  // ── Land plots ──
+  const lpRes = await pool.query(`
+    SELECT id, name, properties->>'short_name' AS short_name,
+           COALESCE(NULLIF(properties->>'area',''), '0') AS area
+    FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'land_plot'
+    WHERE e.deleted_at IS NULL ORDER BY e.name`);
+
+  const lpRentedByName = {};
+  const lpContractsByName = {};
+  Object.entries(parentContracts).forEach(([contractId, c]) => {
+    let raw = c.latest || c.own;
+    if (!raw) return;
+    let objects = [];
+    try { objects = JSON.parse(raw); } catch(e) { return; }
+    if (!Array.isArray(objects)) return;
+    objects.forEach(ro => {
+      if (ro.object_type !== 'Земельный участок') return;
+      const area = parseFloat(ro.area) || 0;
+      if (!area) return;
+      const lpName = ro.land_plot_name || ro.room || '';
+      if (!lpName) return;
+      lpRentedByName[lpName] = (lpRentedByName[lpName] || 0) + area;
+      if (!lpContractsByName[lpName]) lpContractsByName[lpName] = {};
+      if (!lpContractsByName[lpName][contractId]) lpContractsByName[lpName][contractId] = { area: 0 };
+      lpContractsByName[lpName][contractId].area += area;
+    });
+  });
+
+  const landPlots = lpRes.rows.map(lp => {
+    const rented = lpRentedByName[lp.name] || lpRentedByName[lp.short_name] || 0;
+    const cMap = lpContractsByName[lp.name] || lpContractsByName[lp.short_name] || {};
+    const contracts = Object.entries(cMap).map(([cid, v]) => ({
+      contract_id: parseInt(cid),
+      contract_name: (contractNames[cid] || {}).name || 'Договор #' + cid,
+      tenant: (contractNames[cid] || {}).tenant || '',
+      area: v.area,
+    })).sort((a, b) => b.area - a.area);
+    return {
+      id: lp.id, name: lp.name, short_name: lp.short_name || '',
+      total_area: parseFloat(lp.area) || 0, rented_area: rented, contracts,
+    };
+  });
+
+  const lpTotal = landPlots.reduce((s, lp) => s + lp.total_area, 0);
+  const lpRented = landPlots.reduce((s, lp) => s + lp.rented_area, 0);
+
+  const lpTenantMap = {};
+  landPlots.forEach(lp => {
+    (lp.contracts || []).forEach(c => {
+      const t = c.tenant || 'Без арендатора';
+      if (!lpTenantMap[t]) lpTenantMap[t] = { tenant: t, area: 0 };
+      lpTenantMap[t].area += c.area;
+    });
+  });
+  const lpTenants = Object.values(lpTenantMap).sort((a, b) => b.area - a.area);
+
+  res.json({
+    buildings, grand_total: grandTotal, grand_rented: grandRented, tenants,
+    land_plots: landPlots, lp_total: lpTotal, lp_rented: lpRented, lp_tenants: lpTenants,
+  });
 }));
 
 module.exports = router;
