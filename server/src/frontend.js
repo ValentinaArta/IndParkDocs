@@ -3274,79 +3274,8 @@ async function showDashboard() {
     '<span style="font-size:20px;font-weight:700;color:var(--accent)">' + stats.totalRelations + '</span>' +
     ' <span style="color:var(--text-secondary);font-size:13px">связей</span></div>';
 
-  // Area pie chart placeholder
-  html += '<div style="margin-top:24px"><h3 style="font-size:15px;font-weight:600;margin-bottom:12px">Площади: сдано / всего</h3>';
-  html += '<div id="areaPieChart" style="display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap"><div style="color:var(--text-muted);font-size:13px">Загрузка...</div></div></div>';
-
   content.innerHTML = html;
   renderIcons();
-
-  // Load area stats async
-  loadAreaPieChart();
-}
-
-function _svgPie(cx, cy, r, pct, color, bgColor) {
-  // Returns SVG circle + arc for a percentage
-  var h = '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+(bgColor||'#e5e7eb')+'" />';
-  if (pct <= 0) return h;
-  if (pct >= 1) return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+color+'" />';
-  var startAngle = -Math.PI / 2;
-  var endAngle = startAngle + 2 * Math.PI * pct;
-  var x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
-  var x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
-  var largeArc = pct > 0.5 ? 1 : 0;
-  h += '<path d="M'+cx+','+cy+' L'+x1+','+y1+' A'+r+','+r+' 0 '+largeArc+',1 '+x2+','+y2+' Z" fill="'+color+'" />';
-  return h;
-}
-
-async function loadAreaPieChart() {
-  var el = document.getElementById('areaPieChart');
-  if (!el) return;
-  try {
-    var data = await api('/reports/area-stats');
-    var total = data.grand_total || 1;
-    var rented = data.grand_rented || 0;
-    var pct = rented / total;
-
-    var h = '';
-    // Main pie
-    h += '<div style="text-align:center;cursor:pointer" onclick="_toggleBuildingPies()">';
-    h += '<svg width="180" height="180" viewBox="0 0 200 200">';
-    h += _svgPie(100, 100, 90, pct, '#4F6BCC', '#e5e7eb');
-    h += '<text x="100" y="95" text-anchor="middle" font-size="28" font-weight="700" fill="var(--text)">' + Math.round(pct * 100) + '%</text>';
-    h += '<text x="100" y="118" text-anchor="middle" font-size="12" fill="var(--text-secondary)">сдано</text>';
-    h += '</svg>';
-    h += '<div style="font-size:13px;margin-top:4px"><strong>' + Math.round(rented).toLocaleString('ru-RU') + '</strong> / ' + Math.round(total).toLocaleString('ru-RU') + ' м²</div>';
-    h += '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Нажмите для разбивки</div>';
-    h += '</div>';
-
-    // Building breakdown (hidden initially)
-    h += '<div id="buildingPies" style="display:none;display:flex;flex-wrap:wrap;gap:16px;display:none">';
-    var colors = ['#4F6BCC','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
-    data.buildings.filter(function(b) { return b.total_area > 0; }).forEach(function(b, i) {
-      var bPct = b.total_area > 0 ? b.rented_area / b.total_area : 0;
-      var col = colors[i % colors.length];
-      h += '<div style="text-align:center;min-width:100px">';
-      h += '<svg width="100" height="100" viewBox="0 0 200 200">';
-      h += _svgPie(100, 100, 90, bPct, col, '#e5e7eb');
-      h += '<text x="100" y="95" text-anchor="middle" font-size="32" font-weight="700" fill="var(--text)">' + Math.round(bPct * 100) + '%</text>';
-      h += '<text x="100" y="120" text-anchor="middle" font-size="12" fill="var(--text-secondary)">сдано</text>';
-      h += '</svg>';
-      h += '<div style="font-size:12px;font-weight:600;margin-top:2px">' + escapeHtml(b.short_name || b.name) + '</div>';
-      h += '<div style="font-size:11px;color:var(--text-muted)">' + Math.round(b.rented_area) + ' / ' + Math.round(b.total_area) + ' м²</div>';
-      h += '</div>';
-    });
-    h += '</div>';
-
-    el.innerHTML = h;
-  } catch(e) {
-    el.innerHTML = '<div style="color:var(--danger);font-size:13px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>';
-  }
-}
-
-function _toggleBuildingPies() {
-  var el = document.getElementById('buildingPies');
-  if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
 }
 
 // ============ ENTITY LIST ============
@@ -3415,8 +3344,7 @@ function renderEntityGrid(entities) {
       _t(props.equipment_category); _t(props.equipment_kind); _t(props.inv_number ? 'Инв. ' + props.inv_number : '');
       _t(props.status); _t(props.balance_owner_name);
     } else if (e.type_name === 'building' || e.type_name === 'workshop') {
-      if (props.short_name) tags += '<span class="prop-tag" style="font-weight:600">' + escapeHtml(props.short_name) + '</span>';
-      if (props.address) tags += '<span class="prop-tag" style="color:var(--text-secondary);font-size:11px">' + escapeHtml(props.address.length > 50 ? props.address.substring(0,50) + '…' : props.address) + '</span>';
+      if (props.cadastral_number) tags += '<span class="prop-tag">' + escapeHtml(props.cadastral_number) + '</span>';
       if (props.balance_owner_name) tags += '<span class="prop-tag">' + escapeHtml(props.balance_owner_name) + '</span>';
     } else if (e.type_name === 'room') {
       if (props.object_type) tags += '<span class="prop-tag" style="font-weight:600">' + escapeHtml(props.object_type) + '</span>';
@@ -3428,8 +3356,8 @@ function renderEntityGrid(entities) {
       if (props.phone) tags += '<span class="prop-tag">' + escapeHtml(props.phone) + '</span>';
     } else if (e.type_name === 'land_plot') {
       if (props.cadastral_number) tags += '<span class="prop-tag">' + escapeHtml(props.cadastral_number) + '</span>';
-      if (props.area) tags += '<span class="prop-tag">' + Number(props.area).toLocaleString('ru-RU') + ' м²</span>';
-      if (props.purpose) tags += '<span class="prop-tag" style="color:var(--text-secondary);font-size:11px">' + escapeHtml(props.purpose.length > 40 ? props.purpose.substring(0,40) + '…' : props.purpose) + '</span>';
+      if (props.area) tags += '<span class="prop-tag">' + props.area + ' м²</span>';
+      if (props.owner_name) tags += '<span class="prop-tag">' + escapeHtml(props.owner_name) + '</span>';
     } else if (e.type_name === 'act') {
       if (props.act_date) tags += '<span class="prop-tag">' + escapeHtml(props.act_date) + '</span>';
       if (props.total_amount) tags += '<span class="prop-tag" style="font-weight:500;color:var(--accent)">' + Number(props.total_amount).toLocaleString('ru-RU') + ' ₽</span>';
