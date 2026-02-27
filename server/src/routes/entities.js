@@ -306,6 +306,23 @@ router.patch('/:id', authenticate, authorize('admin', 'editor'), validate(schema
     `UPDATE entities SET ${sets.join(',')} WHERE id=$${params.length} AND deleted_at IS NULL RETURNING *`, params
   );
   if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
+  await logAction(req.user.id, 'update', 'entity', id, { name: cleanName, via: 'patch' }, req.ip);
+
+  // Auto-link on patch (same logic as PUT)
+  if (cleanProps) {
+    const { rows: [typeInfo] } = await pool.query(
+      'SELECT et.name FROM entities e JOIN entity_types et ON e.entity_type_id=et.id WHERE e.id=$1', [id]
+    );
+    if (typeInfo) {
+      await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type IN ('party_to','located_in')", [id]);
+      await pool.query("DELETE FROM relations WHERE to_entity_id=$1 AND relation_type='subject_of'", [id]);
+      if (typeInfo.name === 'act') {
+        await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type='supplement_to'", [id]);
+      }
+      await autoLinkEntities(id, typeInfo.name, cleanProps);
+    }
+  }
+
   res.json(rows[0]);
 }));
 
