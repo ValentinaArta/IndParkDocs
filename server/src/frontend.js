@@ -1333,12 +1333,12 @@ function getContractItemsValue() {
 }
 
 // ── Duration (Срок действия) collapsible section ─────────────────────────────
-function renderDurationSection(props) {
+function renderDurationSection(props, forceOpen) {
   props = props || {};
   var dType = props.duration_type || '';
   var dDate = props.duration_date || props.contract_end_date || '';
   var dText = props.duration_text || '';
-  var hasValue = !!(dDate || dText || dType);
+  var hasValue = !!(dDate || dText || dType) || forceOpen;
   var h = '<div id="duration_section" style="margin-top:4px">';
   if (hasValue) {
     h += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Срок действия';
@@ -1425,7 +1425,7 @@ function renderDynamicFields(contractType, props) {
   if (!container) return;
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
   if (extraFields.length === 0) {
-    container.innerHTML = renderDurationSection(props || {});
+    container.innerHTML = renderDurationSection(props || {}, _contractFormTypeName === 'supplement');
     return;
   }
 
@@ -1452,7 +1452,7 @@ function renderDynamicFields(contractType, props) {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
     }
   });
-  html += renderDurationSection(props || {});
+  html += renderDurationSection(props || {}, _contractFormTypeName === 'supplement');
   container.innerHTML = html;
 }
 
@@ -1563,7 +1563,7 @@ function renderRentFields(container, allFields, props) {
     html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">+ Передача оборудования по договору</button></div>';
   }
 
-  html += renderDurationSection(props);
+  html += renderDurationSection(props, _contractFormTypeName === 'supplement');
   container.innerHTML = html;
   recalcRentMonthly();
   updateVatDisplay();
