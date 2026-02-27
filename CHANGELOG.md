@@ -2,6 +2,16 @@
 
 ## [Unreleased] — 2026-02-27
 
+### Added
+- **Structured logging** — `pino` logger replaces all `console.log`/`console.error` in server code (#14)
+- **XSS middleware** — centralized `xssClean` middleware sanitizes `req.body` recursively; removed manual `xss()` calls from routes (#16)
+
+- **Pagination** — `limit`/`offset` support for `/api/reports/rent-analysis` and `/api/reports/aggregate`
+- **Contract navigation** — accordion in sidebar with sub-items by contract type (Аренды, Субаренды, Подряда, etc.)
+- **Tests** — Jest + Supertest: 29 tests covering auth endpoints (login, refresh, logout, register, change-password, /me) and entities CRUD (list, get, create, update, delete with role checks)
+- **API.md** — full API documentation for all endpoints
+- **Frontend TOC** — table of contents at the top of inline frontend.js (~7k lines) for maintainability
+
 ### Security
 - **JWT_SECRET** — throws error at startup if not set in production (#4)
 - **JWT_REFRESH_SECRET** — separate secret for refresh tokens (#5)

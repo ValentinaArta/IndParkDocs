@@ -1,3 +1,4 @@
+const logger = require('../logger');
 const pool = require('../db');
 
 async function logAction(userId, action, entityType, entityId, details, ip) {
@@ -7,7 +8,7 @@ async function logAction(userId, action, entityType, entityId, details, ip) {
       [userId, action, entityType, entityId, details || null, ip || null]
     );
   } catch (e) {
-    console.error('Audit log error:', e.message);
+    logger.error('Audit log error:', e.message);
   }
 }
 

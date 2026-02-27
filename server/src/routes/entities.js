@@ -4,18 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validate');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { logAction } = require('../middleware/audit');
-const xss = require('xss');
-
 const router = express.Router();
-
-function sanitizeObj(obj) {
-  if (!obj || typeof obj !== 'object') return obj;
-  const clean = {};
-  for (const [k, v] of Object.entries(obj)) {
-    clean[k] = typeof v === 'string' ? xss(v) : v;
-  }
-  return clean;
-}
 
 // GET /api/entities
 router.get('/', authenticate, asyncHandler(async (req, res) => {
@@ -239,8 +228,8 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
 // POST /api/entities
 router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.entity), asyncHandler(async (req, res) => {
   const { entity_type_id, name, properties, parent_id } = req.body;
-  const cleanProps = sanitizeObj(properties);
-  const cleanName = xss(name);
+  const cleanProps = properties;
+  const cleanName = name;
 
   // Duplicate check: same name + same type
   const dupCheck = await pool.query(
@@ -268,8 +257,8 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
 router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.entityUpdate), asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   const { name, properties, parent_id } = req.body;
-  const cleanProps = properties ? sanitizeObj(properties) : undefined;
-  const cleanName = name ? xss(name) : undefined;
+  const cleanProps = properties;
+  const cleanName = name;
 
   // Build dynamic update
   const sets = [];
@@ -311,8 +300,8 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
 router.patch('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.entityUpdate), asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   const { name, properties, parent_id } = req.body;
-  const cleanProps = properties ? sanitizeObj(properties) : undefined;
-  const cleanName  = name ? xss(name) : undefined;
+  const cleanProps = properties;
+  const cleanName = name;
   const sets = [], params = [];
   if (cleanName  !== undefined) { params.push(cleanName);  sets.push(`name=$${params.length}`); }
   if (cleanProps !== undefined) { params.push(cleanProps); sets.push(`properties=$${params.length}`); }

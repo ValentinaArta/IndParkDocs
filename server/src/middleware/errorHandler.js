@@ -1,3 +1,4 @@
+const logger = require('../logger');
 function asyncHandler(fn) {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
@@ -5,7 +6,7 @@ function asyncHandler(fn) {
 }
 
 function errorHandler(err, req, res, _next) {
-  console.error(`[ERROR] ${req.method} ${req.path}:`, err.message);
+  logger.error(`[ERROR] ${req.method} ${req.path}:`, err.message);
 
   // Don't leak stack traces to client
   if (err.isJoi) {

@@ -1,3 +1,4 @@
+const logger = require('./logger');
 require('dotenv').config({ path: __dirname + '/../.env' });
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
@@ -20,11 +21,11 @@ async function createAdmin() {
        ON CONFLICT (username) DO UPDATE SET password_hash=$2`,
       [username, hash]
     );
-    console.log(`Admin created: ${username} / ${password}`);
+    logger.info(`Admin created: ${username} / ${password}`);
   } finally {
     client.release();
     await pool.end();
   }
 }
 
-createAdmin().catch(e => { console.error(e); process.exit(1); });
+createAdmin().catch(e => { logger.error(e); process.exit(1); });
