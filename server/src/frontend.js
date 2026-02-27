@@ -3319,6 +3319,7 @@ async function showDashboard() {
   document.getElementById('topActions').innerHTML = '';
 
   const stats = await api('/stats');
+  if (currentView !== 'dashboard') return; // user navigated away during load
   const content = document.getElementById('content');
 
   let html = '<div class="stats-grid">';
@@ -3363,7 +3364,7 @@ function _svgPie(cx, cy, r, pct, color, bgColor) {
 
 async function loadAreaPieChart() {
   var el = document.getElementById('areaPieChart');
-  if (!el) return;
+  if (!el || currentView !== 'dashboard') return;
   try {
     var data = await api('/reports/area-stats');
     var total = data.grand_total || 1;
@@ -3441,6 +3442,7 @@ async function showEntityList(typeName, opts) {
   else if (opts.isOwn === false) url += '&is_own=false';
 
   var entities = await api(url);
+  if (currentView !== 'list' || currentTypeFilter !== typeName) return; // user navigated away
   if (typeName === 'equipment') await loadBrokenEquipment();
   // Client-side filter by contract_type
   if (opts.contractType) {
@@ -3549,6 +3551,7 @@ async function showEntity(id, _forceDetail) {
   currentView = 'detail';
   currentEntityId = id;
   const e = await api('/entities/' + id);
+  if (currentView !== 'detail' || currentEntityId !== id) return; // user navigated away
   // Load all non-contract entities for parent selector
   if (e.type_name !== 'contract' && e.type_name !== 'supplement') {
     try {
