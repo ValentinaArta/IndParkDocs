@@ -1394,12 +1394,12 @@ function getContractItemsValue() {
 }
 
 // ── Duration (Срок действия) collapsible section ─────────────────────────────
-function renderDurationSection(props, forceOpen) {
+function renderDurationSection(props) {
   props = props || {};
   var dType = props.duration_type || '';
   var dDate = props.duration_date || props.contract_end_date || '';
   var dText = props.duration_text || '';
-  var hasValue = !!(dDate || dText || dType) || forceOpen;
+  var hasValue = !!(dDate || dText || dType);
   var h = '<div id="duration_section" style="margin-top:4px">';
   if (hasValue) {
     h += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Срок действия';
@@ -1486,7 +1486,7 @@ function renderDynamicFields(contractType, props) {
   if (!container) return;
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
   if (extraFields.length === 0) {
-    container.innerHTML = renderDurationSection(props || {}, _contractFormTypeName === 'supplement');
+    if (_contractFormTypeName !== 'supplement') container.innerHTML = renderDurationSection(props || {});
     return;
   }
 
@@ -1513,7 +1513,7 @@ function renderDynamicFields(contractType, props) {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
     }
   });
-  html += renderDurationSection(props || {}, _contractFormTypeName === 'supplement');
+  if (_contractFormTypeName !== 'supplement') html += renderDurationSection(props || {});
   container.innerHTML = html;
 }
 
@@ -1624,7 +1624,7 @@ function renderRentFields(container, allFields, props) {
     html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">+ Передача оборудования по договору</button></div>';
   }
 
-  html += renderDurationSection(props, _contractFormTypeName === 'supplement');
+  if (_contractFormTypeName !== 'supplement') html += renderDurationSection(props);
   container.innerHTML = html;
   recalcRentMonthly();
   updateVatDisplay();
@@ -2564,8 +2564,10 @@ function renderContractFormFields(fields, props, headerHtml) {
     var ctTypeFields = CONTRACT_TYPE_FIELDS[contractType] || [];
     if (ctTypeFields.find(function(cf) { return cf.name === f.name; })) return;
 
-    // Duration fields — always handled by renderDurationSection (inside dynamicFieldsContainer)
-    if (f.name === 'contract_end_date' || f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text') return;
+    // Duration fields — handled by renderDurationSection for contracts, shown as regular fields for supplements
+    if (_contractFormTypeName !== 'supplement') {
+      if (f.name === 'contract_end_date' || f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text') return;
+    }
 
     // Hide payment_frequency and sale_item_type for Аренды/Субаренды
     var _isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды');
