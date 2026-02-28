@@ -7646,7 +7646,154 @@ function escapeHtml(s) {
 }
 
 init();
+
+// ============ AI CHAT WIDGET ============
+var _aiChatOpen = false;
+var _aiLastId = 0;
+var _aiPollTimer = null;
+var _aiMessages = [];
+
+function toggleAIChat() {
+  _aiChatOpen = !_aiChatOpen;
+  var panel = document.getElementById('aiChatPanel');
+  var btn = document.getElementById('aiChatBtn');
+  if (_aiChatOpen) {
+    panel.style.display = 'flex';
+    btn.style.display = 'none';
+    if (_aiMessages.length === 0) loadAIChatHistory();
+    startAIPoll();
+    var inp = document.getElementById('aiChatInput');
+    if (inp) setTimeout(function() { inp.focus(); }, 100);
+  } else {
+    panel.style.display = 'none';
+    btn.style.display = 'flex';
+    stopAIPoll();
+  }
+}
+
+async function loadAIChatHistory() {
+  try {
+    var res = await api('/ai/chat/history?limit=50');
+    _aiMessages = res.messages || [];
+    if (_aiMessages.length > 0) _aiLastId = _aiMessages[_aiMessages.length - 1].id;
+    renderAIMessages();
+  } catch(e) {}
+}
+
+function renderAIMessages() {
+  var el = document.getElementById('aiChatMessages');
+  if (!el) return;
+  if (_aiMessages.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px 20px">Задайте вопрос по данным системы.<br>Например: <em>«Какие ставки аренды в 12 корпусе?»</em></div>';
+    return;
+  }
+  var h = '';
+  _aiMessages.forEach(function(m) {
+    var isUser = m.role === 'user';
+    var align = isUser ? 'flex-end' : 'flex-start';
+    var bg = isUser ? 'var(--accent)' : 'var(--bg-secondary)';
+    var color = isUser ? 'white' : 'var(--text)';
+    var icon = isUser ? '' : '<div style="font-size:16px;margin-bottom:4px">\uD83E\uDD16</div>';
+    var meta = m.metadata || {};
+    var tableHtml = '';
+    if (meta.table && Array.isArray(meta.table) && meta.table.length > 0) {
+      tableHtml = '<div style="margin-top:8px;overflow-x:auto;max-height:300px;overflow-y:auto">';
+      tableHtml += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+      var keys = Object.keys(meta.table[0]);
+      tableHtml += '<tr>' + keys.map(function(k) { return '<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);white-space:nowrap">' + escapeHtml(k) + '</th>'; }).join('') + '</tr>';
+      meta.table.forEach(function(row) {
+        tableHtml += '<tr>' + keys.map(function(k) { return '<td style="padding:4px 8px;border-bottom:1px solid var(--border)">' + escapeHtml(String(row[k] != null ? row[k] : '')) + '</td>'; }).join('') + '</tr>';
+      });
+      tableHtml += '</table></div>';
+    }
+    h += '<div style="display:flex;justify-content:' + align + ';margin-bottom:10px">';
+    h += '<div style="max-width:85%;padding:10px 14px;border-radius:12px;background:' + bg + ';color:' + color + ';font-size:13px;line-height:1.5;word-break:break-word">';
+    h += icon;
+    h += '<div style="white-space:pre-wrap">' + escapeHtml(m.content) + '</div>';
+    h += tableHtml;
+    var time = new Date(m.created_at);
+    h += '<div style="font-size:10px;opacity:0.6;margin-top:4px;text-align:right">' + time.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}) + '</div>';
+    h += '</div></div>';
+  });
+  el.innerHTML = h;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendAIMessage() {
+  var inp = document.getElementById('aiChatInput');
+  if (!inp || !inp.value.trim()) return;
+  var msg = inp.value.trim();
+  inp.value = '';
+  // Optimistic add
+  _aiMessages.push({id: 0, role: 'user', content: msg, metadata: {}, created_at: new Date().toISOString()});
+  renderAIMessages();
+  try {
+    var res = await api('/ai/chat', 'POST', {message: msg});
+    if (res.id) {
+      _aiMessages[_aiMessages.length - 1].id = res.id;
+      _aiLastId = Math.max(_aiLastId, res.id);
+    }
+  } catch(e) {
+    _aiMessages.push({id: 0, role: 'assistant', content: 'Ошибка отправки: ' + (e.message || 'попробуйте позже'), metadata: {}, created_at: new Date().toISOString()});
+    renderAIMessages();
+  }
+  startAIPoll();
+}
+
+function startAIPoll() {
+  stopAIPoll();
+  _aiPollTimer = setInterval(pollAIMessages, 3000);
+}
+function stopAIPoll() {
+  if (_aiPollTimer) { clearInterval(_aiPollTimer); _aiPollTimer = null; }
+}
+
+async function pollAIMessages() {
+  if (!_aiChatOpen) return;
+  try {
+    var res = await api('/ai/chat/messages?after=' + _aiLastId);
+    var msgs = res.messages || [];
+    if (msgs.length > 0) {
+      msgs.forEach(function(m) {
+        if (!_aiMessages.find(function(x) { return x.id === m.id; })) {
+          _aiMessages.push(m);
+        }
+      });
+      _aiLastId = msgs[msgs.length - 1].id;
+      renderAIMessages();
+    }
+  } catch(e) {}
+}
+
+function aiChatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAIMessage(); }
+}
 </script>
+
+<!-- AI Chat Button -->
+<button id="aiChatBtn" onclick="toggleAIChat()" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:white;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;font-size:24px;z-index:1000;transition:transform 0.2s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">\uD83D\uDCAC</button>
+
+<!-- AI Chat Panel -->
+<div id="aiChatPanel" style="display:none;position:fixed;bottom:24px;right:24px;width:400px;max-width:calc(100vw - 48px);height:500px;max-height:calc(100vh - 48px);background:var(--bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.15);z-index:1001;flex-direction:column;overflow:hidden">
+  <!-- Header -->
+  <div style="padding:14px 16px;background:var(--accent);color:white;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:20px">\uD83E\uDD16</span>
+      <div>
+        <div style="font-weight:600;font-size:14px">AI \u0410\u0441\u0441\u0438\u0441\u0442\u0435\u043D\u0442</div>
+        <div style="font-size:11px;opacity:0.8">\u0412\u043E\u043F\u0440\u043E\u0441\u044B \u043F\u043E \u0434\u0430\u043D\u043D\u044B\u043C \u0438 \u043E\u0442\u0447\u0451\u0442\u044B</div>
+      </div>
+    </div>
+    <button onclick="toggleAIChat()" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:4px">\u2715</button>
+  </div>
+  <!-- Messages -->
+  <div id="aiChatMessages" style="flex:1;overflow-y:auto;padding:16px"></div>
+  <!-- Input -->
+  <div style="padding:12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:8px">
+    <textarea id="aiChatInput" onkeydown="aiChatKeydown(event)" placeholder="\u0417\u0430\u0434\u0430\u0439\u0442\u0435 \u0432\u043E\u043F\u0440\u043E\u0441..." rows="1" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:none;outline:none;max-height:80px"></textarea>
+    <button onclick="sendAIMessage()" style="padding:10px 14px;background:var(--accent);color:white;border:none;border-radius:8px;cursor:pointer;font-size:16px">\u27A4</button>
+  </div>
+</div>
 </body>
 </html>`;
 

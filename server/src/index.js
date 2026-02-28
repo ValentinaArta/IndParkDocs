@@ -80,6 +80,7 @@ app.use('/api/relations', require('./routes/relations'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/health', require('./routes/health'));
+app.use('/api/ai/chat', require('./routes/ai-chat'));
 
 // SPA fallback
 app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });
@@ -1059,6 +1060,24 @@ async function runMigration022() {
   } catch(e) { logger.error('runMigration022 error (non-fatal):', e.message); }
 }
 
+async function runMigration023() {
+  const pool = require('./db');
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_messages (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL DEFAULT 'default',
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+        content TEXT NOT NULL,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_messages_session ON ai_messages(session_id, created_at);
+    `);
+    logger.info('runMigration023: ai_messages table created');
+  } catch(e) { logger.error('runMigration023 error (non-fatal):', e.message); }
+}
+
 
 initMigrationTracker()
   .then(() => runOnce('003', runMigration003))
@@ -1081,6 +1100,7 @@ initMigrationTracker()
   .then(() => runOnce('020', runMigration020))
   .then(() => runOnce('021', runMigration021))
   .then(() => runOnce('022', runMigration022))
+  .then(() => runOnce('023', runMigration023))
   .then(() => runOnce('mergeORRVesta', mergeORRVesta))
   .then(() => createBIViews())
   .then(() => syncMetabase())
