@@ -7728,7 +7728,7 @@ async function sendAIMessage() {
   _aiMessages.push({id: 0, role: 'user', content: msg, metadata: {}, created_at: new Date().toISOString()});
   renderAIMessages();
   try {
-    var res = await api('/ai/chat', 'POST', {message: msg});
+    var res = await api('/ai/chat', {method: 'POST', body: JSON.stringify({message: msg})});
     if (res.id) {
       _aiMessages[_aiMessages.length - 1].id = res.id;
       _aiLastId = Math.max(_aiLastId, res.id);
