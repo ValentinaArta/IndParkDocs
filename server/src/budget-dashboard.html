@@ -346,9 +346,72 @@ function renderBudget(d) {
 
   html += '</tbody></table></div>';
 
+  // ===== АНАЛИЗ ОТКЛОНЕНИЙ =====
+  // Берём строки уровня 2-4 с ненулевым планом и значимым отклонением
+  const analysisRows = data
+    .filter(r => r.level >= 2 && r.plan_total !== null && Math.abs(r.plan_total) > 10000 && r.deviation !== null && Math.abs(r.deviation) > 10000)
+    .map(r => ({ name: r.article.replace(/^[-*]\s*/, ''), level: r.level, blended: r.blended_total, plan: r.plan_total, dev: r.deviation, pct: r.deviation_pct }))
+    .sort((a,b) => Math.abs(b.dev) - Math.abs(a.dev));
+
+  const worse  = analysisRows.filter(r => r.dev < 0).slice(0, 7);
+  const better = analysisRows.filter(r => r.dev > 0).slice(0, 7);
+
+  function devRow(r) {
+    const sign = r.dev > 0 ? '+' : '−';
+    const cls  = r.dev > 0 ? '#10b981' : '#ef4444';
+    const pct  = r.pct !== null ? ` (${r.pct > 0 ? '+' : ''}${r.pct}%)` : '';
+    const indent = r.level === 4 ? 'padding-left:28px;color:#94a3b8' : r.level === 3 ? 'padding-left:14px' : '';
+    return `<tr>
+      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);${indent}">${r.name}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:#c084fc">${numM(r.blended)}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:#4ade80">${numM(r.plan)}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:${cls};font-weight:600">${sign}${numM(Math.abs(r.dev))}${pct}</td>
+    </tr>`;
+  }
+
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;padding:0 0 4px">`;
+
+  // Хуже плана
+  if (worse.length > 0) {
+    html += `<div style="background:#1a0a0a;border:1px solid #3f1010;border-radius:10px;overflow:hidden">
+      <div style="padding:10px 14px;background:#2a1010;font-size:12px;font-weight:600;color:#ef4444">🔴 Хуже плана — основные причины</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr>
+          <th style="text-align:left;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Статья</th>
+          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Blended</th>
+          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">План</th>
+          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Откл.</th>
+        </tr></thead>
+        <tbody>${worse.map(devRow).join('')}</tbody>
+      </table>
+    </div>`;
+  } else {
+    html += `<div style="background:#1a0a0a;border:1px solid #3f1010;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:13px;padding:20px">Нет статей хуже плана 🎉</div>`;
+  }
+
+  // Лучше плана
+  if (better.length > 0) {
+    html += `<div style="background:#0a1a0a;border:1px solid #103f10;border-radius:10px;overflow:hidden">
+      <div style="padding:10px 14px;background:#0f2a10;font-size:12px;font-weight:600;color:#10b981">🟢 Лучше плана — основные причины</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr>
+          <th style="text-align:left;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Статья</th>
+          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Blended</th>
+          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">План</th>
+          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Откл.</th>
+        </tr></thead>
+        <tbody>${better.map(devRow).join('')}</tbody>
+      </table>
+    </div>`;
+  } else {
+    html += `<div style="background:#0a1a0a;border:1px solid #103f10;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:13px;padding:20px">Нет статей лучше плана</div>`;
+  }
+
+  html += `</div>`;
+
   const pastMonths = months.slice(0, curM).map(m => m.name.slice(0,3)).join(', ');
   const futureMonths = months.slice(curM).map(m => m.name.slice(0,3)).join(', ');
-  html += `<div class="footer-note">
+  html += `<div class="footer-note" style="margin-top:12px">
     📊 Факт (${pastMonths || '—'}) · 📅 Бюджет 2026 (${futureMonths || '—'}) · 
     Blended = факт до сегодня + план на остаток года
   </div>`;
