@@ -22,9 +22,24 @@ function odataGet(path) {
         catch(e) { reject(new Error('JSON parse error: ' + data.slice(0,200))); }
       });
     });
-    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout')); });
+    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Timeout')); });
     req.on('error', reject);
   });
+}
+
+// Fetch all pages from OData (handles $skip pagination automatically)
+async function odataGetAll(basePath, pageSize = 1000) {
+  const all = [];
+  let skip = 0;
+  const sep = basePath.includes('?') ? '&' : '?';
+  while (true) {
+    const page = await odataGet(`${basePath}${sep}$top=${pageSize}&$skip=${skip}`);
+    const items = page.value || [];
+    all.push(...items);
+    if (items.length < pageSize) break;
+    skip += pageSize;
+  }
+  return all;
 }
 
 function sumByOrg(items, field = 'СуммаДокумента') {
@@ -143,15 +158,15 @@ router.get('/overdue', authenticate, async (req, res) => {
     const dateFrom2025 = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00'");
     const dateFrom2026 = encodeURIComponent("Date gt datetime'2026-01-01T00:00:00'");
 
-    const [invoicesRaw, paymentsRaw, contractorsRaw] = await Promise.all([
-      odataGet(`Document_СчетНаОплатуПокупателю?$format=json&$top=1000&$filter=${dateFrom2025}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,Posted`),
-      odataGet(`Document_ПоступлениеНаРасчетныйСчет?$format=json&$top=1000&$filter=${dateFrom2025}&$select=Date,СуммаДокумента,Организация_Key,Контрагент,Posted`),
-      odataGet(`Catalog_Контрагенты?$format=json&$top=2000&$select=Ref_Key,Description`),
+    const [allInvoices, allPayments, contractorsRaw] = await Promise.all([
+      odataGetAll(`Document_СчетНаОплатуПокупателю?$format=json&$filter=${dateFrom2025}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,Posted`),
+      odataGetAll(`Document_ПоступлениеНаРасчетныйСчет?$format=json&$filter=${dateFrom2025}&$select=Date,СуммаДокумента,Организация_Key,Контрагент,Posted`),
+      odataGet(`Catalog_Контрагенты?$format=json&$top=3000&$select=Ref_Key,Description`),
     ]);
 
     const orgKey = req.query.org || ORG_IPZ;
-    const invItems = (invoicesRaw.value || []).filter(x => x.Posted && x.Организация_Key === orgKey);
-    const payItems = (paymentsRaw.value || []).filter(x => x.Posted && x.Организация_Key === orgKey);
+    const invItems = allInvoices.filter(x => x.Posted && x.Организация_Key === orgKey);
+    const payItems = allPayments.filter(x => x.Posted && x.Организация_Key === orgKey);
     const nameMap = {};
     (contractorsRaw.value || []).forEach(x => { nameMap[x.Ref_Key] = x.Description; });
 
