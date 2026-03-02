@@ -3,553 +3,512 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>АО Индустриальный Парк Звезда — Бюджет 2026</title>
+<title>АО ИПЗ — Бюджет 2026</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Segoe UI',system-ui,sans-serif; background:#f8fafc; color:#1e293b; min-height:100vh; }
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--accent:#2f81f7;
+  --green:#3fb950;--red:#f85149;--amber:#d29922;--purple:#bc8cff;
+  --fact:#388bfd;--plan:#3fb950;--blend:#bc8cff;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px}
 
-.header { background:#fff; padding:14px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
-.header h1 { font-size:18px; font-weight:700; color:#0f172a; }
-.header p { color:#64748b; margin-top:3px; font-size:12px; }
-.back { color:#64748b; text-decoration:none; font-size:13px; padding:6px 14px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }
-.back:hover { background:#f1f5f9; }
+/* ── LAYOUT ── */
+.app{display:flex;flex-direction:column;height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-shrink:0}
+.topbar-left h1{font-size:16px;font-weight:600;color:var(--text)}
+.topbar-left p{font-size:12px;color:var(--muted);margin-top:2px}
+.nav-links{display:flex;gap:8px}
+.nav-link{color:var(--muted);text-decoration:none;font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;transition:all .15s}
+.nav-link:hover{color:var(--text);border-color:var(--accent)}
 
-.controls { display:flex; gap:10px; padding:12px 24px; background:#fff; border-bottom:1px solid #e2e8f0; flex-wrap:wrap; align-items:center; }
-.ctrl-label { font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.4px; }
-select, button { background:#f8fafc; color:#1e293b; border:1px solid #cbd5e1; border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; }
-select:focus { outline:none; border-color:#3b82f6; }
-button.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
-button.primary:hover { background:#1d4ed8; }
+.toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+.tb-group{display:flex;flex-direction:column;gap:3px}
+.tb-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+select{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer;outline:none}
+select:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .15s;align-self:flex-end}
+.btn-primary:hover{opacity:.85}
+.legend{display:flex;gap:14px;align-items:center;margin-left:auto}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+.leg-dot{width:8px;height:8px;border-radius:50%}
 
-.legend { display:flex; gap:16px; align-items:center; margin-left:auto; }
-.legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:#64748b; }
-.legend-dot { width:10px; height:10px; border-radius:2px; }
-.dot-fact { background:#dbeafe; border:1px solid #3b82f6; }
-.dot-plan { background:#dcfce7; border:1px solid #22c55e; }
-.dot-blended { background:#f3e8ff; border:1px solid #a855f7; }
+.scroll-area{flex:1;overflow-y:auto;padding:16px 20px 32px}
 
-.kpi-row { display:flex; gap:12px; padding:14px 24px; flex-wrap:wrap; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
-.kpi { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 18px; flex:1; min-width:160px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
-.kpi-label { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
-.kpi-value { font-size:22px; font-weight:700; margin-top:4px; }
-.kpi-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
-.red { color:#ef4444; } .green { color:#16a34a; } .blue { color:#2563eb; } .amber { color:#d97706; } .purple { color:#7c3aed; }
+/* ── KPI ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi-card.blue::before{background:var(--fact)}
+.kpi-card.green::before{background:var(--plan)}
+.kpi-card.purple::before{background:var(--blend)}
+.kpi-card.amber::before{background:var(--amber)}
+.kpi-tag{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-val{font-size:26px;font-weight:700;line-height:1}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px}
+.kpi-sub b{font-weight:600}
+.c-blue{color:var(--fact)}.c-green{color:var(--plan)}.c-purple{color:var(--blend)}.c-red{color:var(--red)}.c-amber{color:var(--amber)}
 
-.main { padding:16px 24px 24px; }
+/* ── TABLE ── */
+.section-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;margin-top:4px;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-/* ── Тёмный блок таблицы ── */
-.table-dark { background:#0f172a; border-radius:12px; border:1px solid #334155; overflow:hidden; margin-top:4px; }
-.table-wrap { overflow-x:auto; }
-.budget-table { width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
-.budget-table th { text-align:right; padding:7px 10px; background:#0f172a; color:#475569; font-weight:500; font-size:11px; border-bottom:2px solid #334155; position:sticky; top:0; z-index:2; }
-.budget-table th:first-child { text-align:left; min-width:200px; max-width:340px; position:sticky; left:0; background:#0f172a; z-index:3; }
-.budget-table td { padding:5px 10px; border-bottom:1px solid rgba(100,116,139,0.25); text-align:right; color:#cbd5e1; }
-.budget-table td:first-child { text-align:left; white-space:normal; word-break:break-word; min-width:200px; max-width:340px; position:sticky; left:0; background:#0f172a; z-index:1; }
-.budget-table tr:hover td { background:rgba(51,65,85,0.3); }
-.budget-table tr:hover td:first-child { background:#0f172a; }
+.tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.tbl-scroll{overflow-x:auto}
+table.bt{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}
+table.bt th{padding:8px 12px;background:var(--surface);color:var(--muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2;text-align:right}
+table.bt th.col-name{text-align:left;min-width:220px;max-width:300px;position:sticky;left:0;z-index:3;background:var(--surface)}
+table.bt td{padding:7px 12px;border-bottom:1px solid var(--border);text-align:right;color:var(--muted)}
+table.bt td.col-name{text-align:left;white-space:normal;word-break:break-word;min-width:220px;max-width:300px;position:sticky;left:0;background:var(--surface);z-index:1;color:var(--text)}
+table.bt tr:last-child td{border-bottom:none}
+table.bt tr:hover td{background:var(--surface2)}
+table.bt tr:hover td.col-name{background:var(--surface2)}
 
 /* Row levels */
-.lvl-0 td:first-child { font-weight:700; font-size:13px; color:#f1f5f9; }
-.lvl-1 td:first-child { font-weight:600; color:#94a3b8; border-top:2px solid #334155; }
-.lvl-2 td:first-child { font-weight:600; color:#94a3b8; padding-left:16px; }
-.lvl-3 td:first-child { padding-left:28px; color:#cbd5e1; }
-.lvl-4 td:first-child { padding-left:40px; color:#64748b; font-style:italic; }
+.l0 td.col-name{font-weight:700;color:var(--text);font-size:13px}
+.l1 td.col-name{font-weight:600;color:var(--muted);border-top:2px solid var(--border)}
+.l1 td{border-top:2px solid var(--border)}
+.l2 td.col-name{font-weight:600;padding-left:24px;color:var(--text)}
+.l3 td.col-name{padding-left:36px;color:var(--muted)}
+.l4 td.col-name{padding-left:48px;color:#4b5563;font-style:italic;font-size:11px}
 
-/* Section separators */
-.lvl-0 td { border-top:2px solid #334155; }
-.lvl-1 td { border-top:1px solid #334155; }
+/* Cell colors */
+.cf{color:var(--fact)}.cp{color:var(--plan)}.cb{color:var(--blend);font-weight:600}
+.cd-pos{color:var(--green)}.cd-neg{color:var(--red)}.cd-0{color:#4b5563}
+.fw7{font-weight:700}
 
-/* Cell colors by type */
-.cell-fact { color:#60a5fa; }
-.cell-plan { color:#4ade80; }
-.cell-blended { color:#c084fc; font-weight:500; }
-.cell-dev-pos { color:#10b981; }
-.cell-dev-neg { color:#ef4444; }
-.cell-dev-neutral { color:#64748b; }
-.cell-total-blended { color:#c084fc; font-weight:700; }
-.cell-total-plan { color:#4ade80; font-weight:600; }
-.cell-zero { color:#374151; }
+/* month col */
+.mh-fact{color:var(--fact)!important}
+.mh-plan{color:var(--plan)!important}
+.mh-cur{color:var(--blend)!important}
 
-.spinner { display:flex; align-items:center; justify-content:center; height:200px; color:#94a3b8; }
-.err { color:#ef4444; padding:24px; background:#fff; border-radius:8px; border:1px solid #fecaca; }
+/* ── DEVIATION ANALYSIS ── */
+.dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}
+@media(max-width:900px){.dev-grid{grid-template-columns:1fr}}
+.dev-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.dev-card-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
+table.dv{width:100%;border-collapse:collapse;font-size:12px}
+table.dv th{padding:6px 12px;color:var(--muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--border);text-align:right}
+table.dv th:first-child{text-align:left}
+table.dv td{padding:8px 12px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
+table.dv td:first-child{text-align:left;color:var(--text)}
+table.dv tr:last-child td{border-bottom:none}
+table.dv tr:hover td{background:var(--surface2)}
+.dev-name{font-size:12px;line-height:1.4;max-width:240px;white-space:normal;word-break:break-word}
+.dev-name.sub{color:var(--muted);font-size:11px;padding-left:10px}
+.drill-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:2px 7px;border-radius:5px;font-size:10px;cursor:pointer;margin-left:6px;vertical-align:middle}
+.drill-btn:hover{background:var(--surface2);color:var(--text)}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:12px;font-size:10px;font-weight:600}
+.badge-red{background:#f851491a;color:var(--red);border:1px solid #f8514933}
+.badge-green{background:#3fb9501a;color:var(--green);border:1px solid #3fb95033}
+.badge-amber{background:#d299221a;color:var(--amber);border:1px solid #d2992233}
+.empty-state{padding:28px;text-align:center;color:var(--muted);font-size:13px}
 
-.sticky-col { }
+/* ── DRILL-DOWN ── */
+.dd-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:16px}
+.dd-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border)}
+.dd-head h3{font-size:13px;font-weight:600}
+.dd-source{font-size:11px;color:var(--muted)}
+.dd-section-head{padding:8px 14px;border-left:3px solid;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+table.dd{width:100%;border-collapse:collapse;font-size:12px}
+table.dd th{padding:7px 12px;color:var(--muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--border);text-align:right;background:var(--surface)}
+table.dd th:first-child{text-align:left}
+table.dd td{padding:7px 12px;border-bottom:1px solid var(--border);text-align:right}
+table.dd td:first-child{text-align:left;font-weight:600;color:var(--text)}
+table.dd tr:last-child td{border-bottom:none}
+table.dd tr:hover td{background:var(--surface2)}
+.contract-link{color:var(--accent);cursor:pointer;font-size:11px;text-decoration:underline}
+.contract-link:hover{color:#58a6ff}
+.no-contract{color:#4b5563;font-size:11px}
 
-.month-header-past { background:#0a1929; color:#3b82f6; }
-.month-header-plan { background:#0a1a0a; color:#22c55e; }
-.month-header-blended { background:#1a0a1a; }
+/* ── FOOTER ── */
+.foot{text-align:center;padding:12px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);margin-top:20px}
 
-.footer-note { text-align:center; padding:10px; color:#94a3b8; font-size:11px; background:#0f172a; border-top:1px solid #1e293b; }
-
-/* Drill-down panel */
-.drilldown-panel { background:#111827; border:1px solid #334155; border-radius:10px; margin-top:16px; overflow:hidden; }
-.drilldown-header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#1e293b; border-bottom:1px solid #334155; }
-.drilldown-header h3 { font-size:13px; font-weight:600; color:#e2e8f0; }
-.drilldown-table { width:100%; border-collapse:collapse; font-size:12px; }
-.drilldown-table th { text-align:right; padding:6px 12px; background:#0f172a; color:#475569; font-weight:500; font-size:11px; border-bottom:1px solid #334155; }
-.drilldown-table th:first-child { text-align:left; }
-.drilldown-table td { padding:6px 12px; border-bottom:1px solid rgba(30,41,59,0.5); text-align:right; }
-.drilldown-table td:first-child { text-align:left; max-width:220px; }
-.drilldown-table tr:hover td { background:rgba(51,65,85,0.2); }
-.contract-link { color:#60a5fa; cursor:pointer; font-size:11px; text-decoration:underline; }
-.drill-btn { background:none; border:1px solid #334155; color:#94a3b8; padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer; margin-left:6px; }
-.drill-btn:hover { background:#1e293b; color:#e2e8f0; }
-
-.expand-btn { cursor:pointer; color:#475569; font-size:10px; margin-right:4px; user-select:none; }
-
-@media(max-width:768px) {
-  .header, .controls, .kpi-row, .main { padding-left:12px; padding-right:12px; }
-}
+/* ── UTILITY ── */
+.spinner{padding:40px;text-align:center;color:var(--muted);font-size:13px}
+.err-box{background:#1c0a0a;border:1px solid var(--red)33;border-radius:8px;padding:16px;color:var(--red);font-size:13px}
+@media(max-width:640px){.topbar,.toolbar,.scroll-area{padding-left:12px;padding-right:12px}}
 </style>
 </head>
 <body>
 <script>
 if(!localStorage.getItem('accessToken'))window.location.href='/';
-// Скрываем навигацию если открыто в iframe
-if(window.self !== window.top) document.addEventListener('DOMContentLoaded', function(){
-  document.querySelectorAll('.back').forEach(function(el){el.style.display='none';});
+if(window.self!==window.top)document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.nav-link').forEach(el=>el.style.display='none');
 });
 </script>
 
-<div class="header">
-  <div>
-    <h1>📊 АО «Индустриальный Парк Звезда» — Бюджет 2026</h1>
-    <p id="headerSub">Blended прогноз: факт (прошлое) + план (будущее)</p>
+<div class="app">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>📊 АО «Индустриальный Парк Звезда» — Бюджет 2026</h1>
+      <p id="headerSub">Blended прогноз: факт (прошлые месяцы) + план (будущие месяцы)</p>
+    </div>
+    <div class="nav-links">
+      <a href="/finance" class="nav-link">↑ Задолженность</a>
+      <a href="/" class="nav-link">← IndParkDocs</a>
+    </div>
   </div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <a href="/finance" class="back">↑ Задолженность</a>
-    <a href="/" class="back">← IndParkDocs</a>
-  </div>
-</div>
 
-<div class="controls">
-  <div>
-    <div class="ctrl-label">Тип бюджета</div>
-    <select id="selType" onchange="onTypeChange()">
-      <option value="БДР">БДР (Доходы/Расходы)</option>
-      <option value="БДДС">БДДС (Денежные потоки)</option>
-    </select>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="tb-group">
+      <span class="tb-label">Тип бюджета</span>
+      <select id="selType" onchange="loadBudget()">
+        <option value="БДР">БДР — Доходы и расходы</option>
+        <option value="БДДС">БДДС — Денежные потоки</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <span class="tb-label">Детализация</span>
+      <select id="selLevel">
+        <option value="1">Итого ЦФО</option>
+        <option value="2" selected>Разделы</option>
+        <option value="3">Категории</option>
+        <option value="4">Все статьи</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="loadBudget()">Обновить</button>
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:var(--fact)"></div>Факт</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--plan)"></div>План</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--blend)"></div>Blended</div>
+    </div>
   </div>
-  <div>
-    <div class="ctrl-label">Детализация</div>
-    <select id="selLevel">
-      <option value="1">Итого ЦФО</option>
-      <option value="2" selected>Разделы</option>
-      <option value="3">Категории</option>
-      <option value="4">Листовые статьи</option>
-    </select>
-  </div>
-  <button class="primary" onclick="loadBudget()">Показать</button>
-  <div class="legend">
-    <div class="legend-item"><div class="legend-dot dot-fact"></div>Факт (прошлое)</div>
-    <div class="legend-item"><div class="legend-dot dot-plan"></div>План (будущее)</div>
-    <div class="legend-item"><div class="legend-dot dot-blended"></div>Blended итого</div>
-  </div>
-</div>
 
-<div id="kpiRow" class="kpi-row" style="display:none"></div>
-
-<div class="main">
-  <div id="content"><div class="spinner">Выберите параметры и нажмите «Показать»</div></div>
-  <div id="drilldownPanel" style="display:none;padding-bottom:24px"></div>
+  <!-- Main scroll -->
+  <div class="scroll-area">
+    <div id="kpiGrid" class="kpi-grid" style="display:none"></div>
+    <div id="content"><div class="spinner">Загружаю бюджет…</div></div>
+    <div id="drilldownPanel"></div>
+  </div>
 </div>
 
 <script>
 const TOKEN = localStorage.getItem('accessToken');
+const CFO = 'ИП';
 
+/* ─── открытие карточки ─── */
 function openEntityCard(id) {
   if (!id) return;
-  // Если страница в iframe — сообщаем родительскому SPA
-  if (window.self !== window.top) {
-    window.parent.postMessage({ type: 'openEntity', id: id }, '*');
-  } else {
-    // Открыт напрямую — переходим в SPA по якорю
-    window.open('/#entity/' + id, '_blank');
-  }
+  if (window.self !== window.top) window.parent.postMessage({ type:'openEntity', id }, '*');
+  else window.open('/#entity/'+id,'_blank');
 }
 
-function num(v, forceSign=false) {
-  if (v === null || v === undefined) return '<span class="cell-zero">—</span>';
-  const n = Math.round(v);
-  if (n === 0) return '<span class="cell-zero">0</span>';
-  const s = Math.abs(n) >= 1000
-    ? Math.abs(n).toLocaleString('ru-RU')
-    : Math.abs(n).toString();
-  const sign = n < 0 ? '−' : (forceSign ? '+' : '');
-  return sign + s;
-}
-
-function numM(v) {
-  if (v === null || v === undefined) return '—';
-  const n = Math.round(v);
-  if (n === 0) return '0';
+/* ─── форматирование ─── */
+function fmt(v, decimals=1) {
+  if (v === null || v === undefined) return null;
+  const n = v;
   const abs = Math.abs(n);
   let s;
-  if (abs >= 1e6) s = (abs/1e6).toFixed(1) + ' млн';
-  else if (abs >= 1e3) s = (abs/1e3).toFixed(0) + ' тыс';
-  else s = abs.toString();
+  if (abs >= 1e6)       s = (abs/1e6).toFixed(decimals).replace(/\.0$/,'') + ' млн';
+  else if (abs >= 1e3)  s = (abs/1e3).toFixed(0) + ' тыс';
+  else                  s = abs.toFixed(0);
   return (n < 0 ? '−' : '') + s;
 }
-
-const CFO = 'ИП'; // АО Индустриальный Парк Звезда
-
-async function onTypeChange() {
-  await loadBudget();
+function fmtSign(v) {
+  if (v === null || v === undefined) return null;
+  return (v > 0 ? '+' : '') + fmt(v);
+}
+function fmtK(v) { // для таблицы — в тысячах
+  if (v === null || v === undefined) return null;
+  const n = Math.round(v / 1000);
+  if (n === 0) return '0';
+  const abs = Math.abs(n).toLocaleString('ru-RU');
+  return (v < 0 ? '−' : '') + abs;
 }
 
-async function init() {
-  try {
-    await loadBudget();
-  } catch(e) {
-    document.getElementById('content').innerHTML = '<div class="err">Ошибка загрузки: ' + e.message + '</div>';
-  }
-}
-
+/* ─── загрузка ─── */
 async function loadBudget() {
-  const type = document.getElementById('selType').value;
-  const cfo = CFO;
+  const type  = document.getElementById('selType').value;
   const level = document.getElementById('selLevel').value;
-
-  document.getElementById('content').innerHTML = '<div class="spinner">Загружаю...</div>';
-  document.getElementById('kpiRow').style.display = 'none';
+  document.getElementById('content').innerHTML = '<div class="spinner">Загружаю…</div>';
+  document.getElementById('kpiGrid').style.display = 'none';
+  document.getElementById('drilldownPanel').innerHTML = '';
+  window._drilldownLoaded = false;
 
   try {
-    const res = await fetch(`/api/finance/budget?type=${encodeURIComponent(type)}&cfo=${encodeURIComponent(cfo)}&level=${level}`, {
-      headers: { Authorization: 'Bearer ' + TOKEN }
-    });
-    if (!res.ok) {
-      const e = await res.json();
-      document.getElementById('content').innerHTML = '<div class="err">Ошибка: ' + (e.error || res.status) + '</div>';
-      return;
-    }
-    const d = await res.json();
+    const r = await fetch(
+      `/api/finance/budget?type=${encodeURIComponent(type)}&cfo=${encodeURIComponent(CFO)}&level=${level}`,
+      { headers: { Authorization: 'Bearer '+TOKEN } }
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
     renderBudget(d);
   } catch(e) {
-    document.getElementById('content').innerHTML = '<div class="err">Ошибка: ' + e.message + '</div>';
+    document.getElementById('content').innerHTML = `<div class="err-box">Ошибка: ${e.message}</div>`;
   }
 }
 
+/* ─── рендер ─── */
 function renderBudget(d) {
-  const { months, data, current_month, cfo, budget_type } = d;
+  const { months, data, current_month, budget_type } = d;
+  const curM = current_month; // 0-based index первого планового месяца
 
-  // Найдём строку уровня 0 (итого ЦФО) и уровня 1 (БДДС/БДР)
-  const row0 = data.find(r => r.level === 0);
-  const row1 = data.find(r => r.level === 1);
-  const summary = row1 || row0;
-
-  // KPI
+  /* ── KPI ── */
+  const summary = data.find(r=>r.level===1) || data.find(r=>r.level===0);
   if (summary) {
-    const kpiEl = document.getElementById('kpiRow');
-    kpiEl.style.display = 'flex';
-    const devSign = summary.deviation >= 0 ? '+' : '−';
-    const devClass = summary.deviation >= 0 ? 'green' : 'red';
-    const devPct = summary.deviation_pct != null ? ` (${summary.deviation_pct >= 0 ? '+' : ''}${summary.deviation_pct}%)` : '';
-    const factYTD = summary.blended.slice(0, current_month).reduce((a,b)=>a+b,0);
-    const planYTD = summary.plan.slice(0, current_month).reduce((a,b)=>a+(b||0),0);
-    const devYTD = factYTD - planYTD;
-    const devYTDSign = devYTD >= 0 ? '+' : '−';
-    const devYTDClass = devYTD >= 0 ? 'green' : 'red';
-    const periodLabel = current_month > 1
-      ? `Янв–${months[current_month-1].name.slice(0,3)}`
+    const factYTD = summary.blended.slice(0,curM).reduce((a,b)=>a+b,0);
+    const planYTD = summary.plan.slice(0,curM).reduce((a,b)=>a+(b||0),0);
+    const devYTD  = factYTD - planYTD;
+    const devYTDCls = devYTD>=0 ? 'c-green' : 'c-red';
+    const periodLabel = curM > 0
+      ? 'Янв–' + months[curM-1].name.slice(0,3)
       : months[0].name.slice(0,3);
 
-    kpiEl.innerHTML = `
-      <div class="kpi">
-        <div class="kpi-label">Факт (${periodLabel})</div>
-        <div class="kpi-value blue">${numM(factYTD)}</div>
-        <div class="kpi-sub" style="display:flex;flex-direction:column;gap:2px">
-          <span>план на период: <span style="color:#4ade80">${numM(planYTD)}</span></span>
-          <span>откл: <span class="${devYTDClass}">${devYTDSign}${numM(Math.abs(devYTD))}</span></span>
-        </div>
+    document.getElementById('kpiGrid').style.display = 'grid';
+    document.getElementById('kpiGrid').innerHTML = `
+      <div class="kpi-card blue">
+        <div class="kpi-tag">📊 Факт YTD (${periodLabel})</div>
+        <div class="kpi-val c-blue">${fmt(factYTD)}</div>
+        <div class="kpi-sub">план: <b class="c-green">${fmt(planYTD)}</b></div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Blended прогноз (год)</div>
-        <div class="kpi-value purple">${numM(summary.blended_total)}</div>
-        <div class="kpi-sub">факт + план (остаток года)</div>
+      <div class="kpi-card ${devYTD>=0?'green':'amber'}">
+        <div class="kpi-tag">Отклонение YTD</div>
+        <div class="kpi-val ${devYTDCls}">${fmtSign(devYTD)}</div>
+        <div class="kpi-sub">${devYTD>=0?'▲ лучше плана':'▼ хуже плана'}</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Плановый итог (год)</div>
-        <div class="kpi-value" style="color:#4ade80">${numM(summary.plan_total)}</div>
-        <div class="kpi-sub">по бюджету 2026</div>
+      <div class="kpi-card purple">
+        <div class="kpi-tag">🔮 Blended прогноз (год)</div>
+        <div class="kpi-val c-purple">${fmt(summary.blended_total)}</div>
+        <div class="kpi-sub">факт + план на остаток года</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Отклонение от плана</div>
-        <div class="kpi-value ${devClass}">${devSign}${numM(Math.abs(summary.deviation))}${devPct}</div>
-        <div class="kpi-sub">${summary.deviation >= 0 ? '▲ лучше плана' : '▼ хуже плана'}</div>
+      <div class="kpi-card green">
+        <div class="kpi-tag">📅 Плановый итог (год)</div>
+        <div class="kpi-val c-green">${fmt(summary.plan_total)}</div>
+        <div class="kpi-sub">откл: <b class="${summary.deviation>=0?'c-green':'c-red'}">${fmtSign(summary.deviation)}
+          ${summary.deviation_pct!=null?' ('+summary.deviation_pct+'%)':''}</b></div>
       </div>
     `;
   }
 
-  // Table
-  const today = new Date();
-  const curM = current_month;
+  /* ── Заголовок таблицы ── */
+  const MONTH_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
 
-  let html = '<div class="table-dark"><div class="table-wrap"><table class="budget-table"><thead><tr>';
-  html += `<th style="text-align:left">АО «ИПЗ» / ${budget_type}</th>`;
-
-  for (let i = 0; i < 12; i++) {
-    const m = months[i];
-    const isPast = i < curM;
-    const isCur = i === curM;
-    const cls = isPast ? 'month-header-past' : (isCur ? 'month-header-blended' : 'month-header-plan');
-    const badge = isPast ? '📊' : (isCur ? '⟳' : '📅');
-    html += `<th class="${cls}" title="${isPast ? 'Факт' : 'План'}">${badge} ${m.name.slice(0,3)}</th>`;
+  let h = `<div class="section-title">Помесячная динамика <span style="color:var(--muted);font-size:10px;font-weight:400;text-transform:none;letter-spacing:0">(числа в тыс. ₽)</span></div>`;
+  h += `<div class="tbl-wrap"><div class="tbl-scroll"><table class="bt"><thead><tr>`;
+  h += `<th class="col-name">${budget_type} / статья</th>`;
+  for (let i=0;i<12;i++) {
+    const cls = i<curM ? 'mh-fact' : (i===curM ? 'mh-cur' : 'mh-plan');
+    const ico = i<curM ? '' : '';
+    h += `<th class="${cls}">${MONTH_SHORT[i]}</th>`;
   }
-  html += `<th style="color:#c084fc">Blended</th>`;
-  html += `<th style="color:#4ade80">План год</th>`;
-  html += `<th>Откл.</th>`;
-  html += `<th>%</th>`;
-  html += '</tr></thead><tbody>';
+  h += `<th class="cb" style="border-left:2px solid var(--border)">Blended</th>`;
+  h += `<th class="cp">План год</th>`;
+  h += `<th>Откл.</th><th>%</th>`;
+  h += `</tr></thead><tbody>`;
 
+  /* ── Строки таблицы ── */
+  // Skip lvl-0 if lvl-1 exists
+  const skip0 = data.some(r=>r.level===1);
   for (const row of data) {
+    if (row.level===0 && skip0) continue;
     const lvl = row.level;
-    // Skip level 0 in the table if there's a level 1 — it's redundant
-    if (lvl === 0 && data.some(r => r.level === 1)) continue;
-
-    const indent = `lvl-${lvl}`;
-    html += `<tr class="${indent}">`;
-
-    // Article name
-    const name = row.article.replace(/^[-*]\s*/, '');
-    html += `<td title="${row.article}">${name}</td>`;
-
-    // Monthly values
-    for (let i = 0; i < 12; i++) {
-      const isPast = i < curM;
-      // Show fact for past, plan for future
-      const val = isPast ? row.fact[i] : row.plan[i];
-      const cls = isPast ? 'cell-fact' : 'cell-plan';
-      const n = val !== null ? Math.round(val) : null;
-      if (n === null) {
-        html += `<td><span class="cell-zero">—</span></td>`;
-      } else if (n === 0) {
-        html += `<td><span class="cell-zero">0</span></td>`;
-      } else {
-        const abs = Math.abs(n).toLocaleString('ru-RU');
-        html += `<td class="${cls}">${n < 0 ? '−' : ''}${abs}</td>`;
-      }
+    h += `<tr class="l${lvl}">`;
+    h += `<td class="col-name">${row.article.replace(/^[-*]\s*/,'')}</td>`;
+    for (let i=0;i<12;i++) {
+      const v   = i<curM ? row.fact[i] : row.plan[i];
+      const cls = i<curM ? 'cf' : 'cp';
+      const fv  = fmtK(v);
+      if (fv === null || fv === '0')
+        h += `<td><span style="color:#374151">${fv||'—'}</span></td>`;
+      else
+        h += `<td class="${cls}">${fv}</td>`;
     }
-
-    // Blended total
-    const bt = row.blended_total;
-    if (bt !== null) {
-      const abs = Math.abs(bt).toLocaleString('ru-RU');
-      html += `<td class="cell-total-blended">${bt < 0 ? '−' : ''}${abs}</td>`;
-    } else {
-      html += `<td>—</td>`;
-    }
-
+    // Blended
+    const bv = fmtK(row.blended_total);
+    h += `<td class="cb fw7" style="border-left:2px solid var(--border)">${bv||'—'}</td>`;
     // Plan total
-    const pt = row.plan_total;
-    if (pt !== null) {
-      const abs = Math.abs(pt).toLocaleString('ru-RU');
-      html += `<td class="cell-total-plan">${pt < 0 ? '−' : ''}${abs}</td>`;
-    } else {
-      html += `<td>—</td>`;
-    }
-
+    const pv = fmtK(row.plan_total);
+    h += `<td class="cp">${pv||'—'}</td>`;
     // Deviation
     const dev = row.deviation;
-    if (dev !== null && dev !== undefined) {
-      const devClass = dev > 1000 ? 'cell-dev-pos' : (dev < -1000 ? 'cell-dev-neg' : 'cell-dev-neutral');
-      const sign = dev > 0 ? '+' : (dev < 0 ? '−' : '');
-      const abs = Math.abs(dev).toLocaleString('ru-RU');
-      html += `<td class="${devClass}">${sign}${abs}</td>`;
+    if (dev!=null) {
+      const dc = dev>1000?'cd-pos':dev<-1000?'cd-neg':'cd-0';
+      h += `<td class="${dc}">${fmtK(dev)}</td>`;
+      const pc = row.deviation_pct;
+      h += pc!=null
+        ? `<td class="${pc>0?'cd-pos':pc<0?'cd-neg':'cd-0'}">${pc>0?'+':''}${pc}%</td>`
+        : `<td>—</td>`;
     } else {
-      html += `<td>—</td>`;
+      h += `<td>—</td><td>—</td>`;
     }
-
-    // Deviation %
-    if (row.deviation_pct !== null && row.deviation_pct !== undefined) {
-      const pClass = row.deviation_pct > 0 ? 'cell-dev-pos' : (row.deviation_pct < 0 ? 'cell-dev-neg' : 'cell-dev-neutral');
-      const sign = row.deviation_pct > 0 ? '+' : '';
-      html += `<td class="${pClass}">${sign}${row.deviation_pct}%</td>`;
-    } else {
-      html += `<td>—</td>`;
-    }
-
-    html += '</tr>';
+    h += `</tr>`;
   }
+  h += `</tbody></table></div></div>`;
 
-  html += '</tbody></table></div></div>'; // закрываем table-wrap и table-dark
+  /* ── Анализ отклонений ── */
+  const rows2 = data
+    .filter(r=>r.level>=2 && r.plan_total && Math.abs(r.plan_total)>50000 && r.deviation && Math.abs(r.deviation)>50000)
+    .map(r=>({name:r.article.replace(/^[-*]\s*/,''),level:r.level,blended:r.blended_total,plan:r.plan_total,dev:r.deviation,pct:r.deviation_pct}))
+    .sort((a,b)=>Math.abs(b.dev)-Math.abs(a.dev));
 
-  // ===== АНАЛИЗ ОТКЛОНЕНИЙ =====
-  // Берём строки уровня 2-4 с ненулевым планом и значимым отклонением
-  const analysisRows = data
-    .filter(r => r.level >= 2 && r.plan_total !== null && Math.abs(r.plan_total) > 10000 && r.deviation !== null && Math.abs(r.deviation) > 10000)
-    .map(r => ({ name: r.article.replace(/^[-*]\s*/, ''), level: r.level, blended: r.blended_total, plan: r.plan_total, dev: r.deviation, pct: r.deviation_pct }))
-    .sort((a,b) => Math.abs(b.dev) - Math.abs(a.dev));
+  const worse  = rows2.filter(r=>r.dev<0).slice(0,7);
+  const better = rows2.filter(r=>r.dev>0).slice(0,7);
 
-  const worse  = analysisRows.filter(r => r.dev < 0).slice(0, 7);
-  const better = analysisRows.filter(r => r.dev > 0).slice(0, 7);
+  const DRILL_KW = ['аренда','эксплуатационные услуги'];
+  const hasDrill = n => DRILL_KW.some(k=>n.toLowerCase().includes(k));
 
-  // Статьи по которым доступен drill-down по контрагентам
-  const DRILLDOWN_KEYWORDS = ['аренда', 'эксплуатационные услуги'];
-  function hasDrilldown(name) {
-    const n = name.toLowerCase();
-    return DRILLDOWN_KEYWORDS.some(k => n.includes(k));
-  }
-
-  function devRow(r) {
-    const sign = r.dev > 0 ? '+' : '−';
-    const cls  = r.dev > 0 ? '#10b981' : '#ef4444';
-    const pct  = r.pct !== null ? ` (${r.pct > 0 ? '+' : ''}${r.pct}%)` : '';
-    const indent = r.level === 4 ? 'padding-left:28px;color:#94a3b8' : r.level === 3 ? 'padding-left:14px' : '';
-    const drillBtn = hasDrilldown(r.name)
-      ? `<button class="drill-btn" onclick="loadRentDrilldown()" title="Детализация по контрагентам">🔍 контрагенты</button>`
+  function dvRow(r) {
+    const sc = r.dev>0 ? 'badge-green' : 'badge-red';
+    const sign = r.dev>0 ? '+' : '';
+    const pct  = r.pct!=null ? ` (${r.pct>0?'+':''}${r.pct}%)` : '';
+    const drill = hasDrill(r.name)
+      ? `<button class="drill-btn" onclick="loadRentDrilldown()">🔍</button>`
       : '';
-    return `<tr style="border-bottom:1px solid rgba(100,116,139,0.25)">
-      <td style="padding:7px 12px;${indent}">${r.name}${drillBtn}</td>
-      <td style="padding:7px 8px;text-align:right;color:#c084fc">${numM(r.blended)}</td>
-      <td style="padding:7px 8px;text-align:right;color:#4ade80">${numM(r.plan)}</td>
-      <td style="padding:7px 12px;text-align:right;color:${cls};font-weight:600">${sign}${numM(Math.abs(r.dev))}${pct}</td>
+    const indent = r.level===4 ? 'dev-name sub' : 'dev-name';
+    return `<tr>
+      <td><span class="${indent}">${r.name}${drill}</span></td>
+      <td class="${r.blended<0?'c-red':'c-green'}">${fmt(r.blended)}</td>
+      <td style="color:var(--muted)">${fmt(r.plan)}</td>
+      <td><span class="badge ${sc}">${sign}${fmt(r.dev)}${pct}</span></td>
     </tr>`;
   }
 
-  // ─── Разделитель ───
-  html += `<div style="margin:24px 0 16px;display:flex;align-items:center;gap:12px">
-    <div style="flex:1;height:1px;background:#334155"></div>
-    <span style="font-size:12px;color:#64748b;white-space:nowrap;font-weight:600">АНАЛИЗ ОТКЛОНЕНИЙ</span>
-    <div style="flex:1;height:1px;background:#334155"></div>
-  </div>`;
-
-  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 0 4px">`;
-
-  function analysisBlock(title, color, bg, rows) {
-    if (!rows.length) return `<div style="background:${bg};border:2px solid ${color}33;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:13px;padding:24px">${title.includes('Хуже') ? '🎉 Нет статей хуже плана' : 'Нет статей лучше плана'}</div>`;
-    return `<div style="background:${bg};border:2px solid ${color}55;border-radius:12px;overflow:hidden">
-      <div style="padding:10px 16px;background:${color}22;border-bottom:2px solid ${color}55;font-size:13px;font-weight:700;color:${color}">${title}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="border-bottom:1px solid ${color}33">
-          <th style="text-align:left;padding:7px 12px;color:#6b7280;font-weight:500;font-size:11px">Статья</th>
-          <th style="text-align:right;padding:7px 8px;color:#6b7280;font-weight:500;font-size:11px">Blended</th>
-          <th style="text-align:right;padding:7px 8px;color:#6b7280;font-weight:500;font-size:11px">План</th>
-          <th style="text-align:right;padding:7px 12px;color:#6b7280;font-weight:500;font-size:11px">Откл.</th>
-        </tr></thead>
-        <tbody>${rows.map(devRow).join('')}</tbody>
-      </table>
+  function dvCard(title, icon, color, emptyMsg, rows) {
+    const body = rows.length
+      ? `<table class="dv">
+          <thead><tr>
+            <th>Статья</th>
+            <th>Blended</th>
+            <th>План</th>
+            <th>Откл.</th>
+          </tr></thead>
+          <tbody>${rows.map(dvRow).join('')}</tbody>
+        </table>`
+      : `<div class="empty-state">${emptyMsg}</div>`;
+    return `<div class="dev-card">
+      <div class="dev-card-head" style="border-color:${color}33;background:${color}0d;color:${color}">
+        ${icon} ${title}
+      </div>
+      ${body}
     </div>`;
   }
 
-  html += analysisBlock('🔴 Хуже плана — основные причины', '#ef4444', '#160808', worse);
-  html += analysisBlock('🟢 Лучше плана — основные причины', '#10b981', '#06120a', better);
-
-  html += `</div>`;
-
-  const pastMonths = months.slice(0, curM).map(m => m.name.slice(0,3)).join(', ');
-  const futureMonths = months.slice(curM).map(m => m.name.slice(0,3)).join(', ');
-  html += `<div class="footer-note" style="margin-top:12px">
-    📊 Факт (${pastMonths || '—'}) · 📅 Бюджет 2026 (${futureMonths || '—'}) · 
-    Blended = факт до сегодня + план на остаток года
+  h += `<div class="dev-grid" style="margin-top:20px">
+    ${dvCard('Хуже плана','🔴','#f85149','🎉 Все статьи выполняются в рамках плана',worse)}
+    ${dvCard('Лучше плана','🟢','#3fb950','Нет статей лучше плана',better)}
   </div>`;
 
-  document.getElementById('content').innerHTML = html;
+  /* Footer */
+  const pastL = months.slice(0,curM).map(m=>m.name.slice(0,3)).join(', ')||'—';
+  const planL = months.slice(curM).map(m=>m.name.slice(0,3)).join(', ')||'—';
+  h += `<div class="foot">
+    📊 Факт: ${pastL} &nbsp;·&nbsp; 📅 Бюджет 2026: ${planL} &nbsp;·&nbsp; Blended = факт до сегодня + план на остаток года
+  </div>`;
+
+  document.getElementById('content').innerHTML = h;
   document.getElementById('headerSub').textContent =
     `${budget_type} · обновлено ${new Date().toLocaleString('ru-RU')}`;
 }
 
 init();
 
-// ===== DRILL-DOWN: реализация по контрагентам =====
-let _drilldownLoaded = false;
-
+/* ─── Drill-down: реализация по арендаторам ─── */
 async function loadRentDrilldown() {
   const panel = document.getElementById('drilldownPanel');
-  panel.style.display = 'block';
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  if (_drilldownLoaded) return;
-  panel.innerHTML = '<div class="spinner" style="padding:30px">Загружаю данные из 1С...</div>';
+  if (window._drilldownLoaded) { panel.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+  panel.innerHTML = `<div class="dd-panel"><div class="spinner">Загружаю данные из 1С…</div></div>`;
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
 
   try {
-    const res = await fetch('/api/finance/budget/rent-drilldown', {
-      headers: { Authorization: 'Bearer ' + TOKEN }
-    });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error || res.status);
-    _drilldownLoaded = true;
+    const r = await fetch('/api/finance/budget/rent-drilldown', { headers:{Authorization:'Bearer '+TOKEN} });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+    window._drilldownLoaded = true;
     renderDrilldown(d);
   } catch(e) {
-    const isVpn = e.message.includes('Timeout') || e.message.includes('ECONNREFUSED') || e.message.includes('503');
-    panel.innerHTML = `<div style="padding:24px;background:#1e293b;border:1px solid #334155;border-radius:10px">
-      <div style="color:#f59e0b;font-size:14px;margin-bottom:8px">${isVpn ? '📡 1С временно недоступна' : '⚠️ Ошибка загрузки'}</div>
-      <div style="color:#64748b;font-size:12px">${isVpn ? 'VPN-туннель до сервера 1С не отвечает. Данные появятся когда соединение восстановится.' : e.message}</div>
-      <button onclick="_drilldownLoaded=false;loadRentDrilldown()" style="margin-top:12px;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:7px;padding:6px 14px;cursor:pointer;font-size:12px">↻ Повторить</button>
+    const isVpn = ['Timeout','ECONNREFUSED','503'].some(s=>e.message.includes(s));
+    panel.innerHTML = `<div class="dd-panel" style="padding:24px">
+      <div style="font-size:14px;font-weight:600;color:var(--amber);margin-bottom:6px">
+        ${isVpn?'📡 1С временно недоступна':'⚠️ Ошибка загрузки'}
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        ${isVpn?'VPN-туннель не отвечает. Попробуйте через минуту.':e.message}
+      </div>
+      <button onclick="window._drilldownLoaded=false;loadRentDrilldown()" 
+        style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">
+        ↻ Повторить
+      </button>
     </div>`;
   }
 }
 
 function renderDrilldown(d) {
   const panel = document.getElementById('drilldownPanel');
-  const { period, months, contractors, total } = d;
-
-  if (contractors.length === 0) {
-    panel.innerHTML = `<div style="padding:20px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#64748b;font-size:13px">
-      ✅ Значимых отклонений по контрагентам не обнаружено — все платят в пределах нормы.
+  const { period, months, contractors } = d;
+  if (!contractors || contractors.length===0) {
+    panel.innerHTML = `<div class="dd-panel" style="padding:20px;color:var(--muted);font-size:13px">
+      ✅ Значимых отклонений по арендаторам не обнаружено.
     </div>`;
     return;
   }
 
-  const byContract = contractors.filter(c => c.deviation !== null && c.deviation < -50000);
-  const byTrend    = contractors.filter(c => c.deviation === null || c.deviation >= -50000);
+  const byContract = contractors.filter(c=>c.deviation!==null && c.deviation<-50000);
+  const byTrend    = contractors.filter(c=>c.deviation===null || c.deviation>=-50000);
 
-  function contractorRow(c) {
-    const monthCells = c.months.map((m, i) => {
-      const isLast = i === c.months.length - 1;
-      const prev   = i > 0 ? c.months[i-1].fact : null;
-      const drop   = prev && m.fact < prev * 0.85;
-      const color  = drop ? '#ef4444' : '#60a5fa';
-      return `<td style="color:${color};font-weight:${drop?'600':'400'}">${m.fact ? m.fact.toLocaleString('ru-RU') : '—'}</td>`;
+  function ddRow(c) {
+    const mCells = (c.months||[]).map((m,i)=>{
+      const prev = i>0 ? c.months[i-1].fact : null;
+      const drop = prev && m.fact < prev*0.85;
+      const col  = drop ? 'var(--red)' : 'var(--fact)';
+      const wt   = drop ? 700 : 400;
+      return `<td style="color:${col};font-weight:${wt}">${m.fact?m.fact.toLocaleString('ru-RU'):'—'}</td>`;
     }).join('');
 
-    const devCell = c.deviation !== null
-      ? `<td style="color:${c.deviation<0?'#ef4444':'#10b981'};font-weight:700">${c.deviation<0?'−':'+'}${numM(Math.abs(c.deviation))}</td>`
-      : (c.trend_pct !== null
-        ? `<td style="color:#f59e0b;font-weight:600">${c.trend_pct}% к прош. мес.</td>`
-        : '<td style="color:#374151">—</td>');
+    const devCell = c.deviation!==null
+      ? `<td class="${c.deviation<0?'c-red':'c-green'}" style="font-weight:600">${fmtSign(c.deviation)}</td>`
+      : c.trend_pct!=null
+        ? `<td style="color:var(--amber);font-weight:600">${c.trend_pct}% к прош.</td>`
+        : `<td style="color:#374151">—</td>`;
 
     const planCell = c.monthly_plan
-      ? `<td style="color:#4ade80">${c.monthly_plan.toLocaleString('ru-RU')}/мес</td>`
-      : `<td style="color:#374151;font-size:11px">—</td>`;
+      ? `<td class="c-green">${c.monthly_plan.toLocaleString('ru-RU')}/мес</td>`
+      : `<td class="no-contract">—</td>`;
 
-    const contractCell = c.contract_id
-      ? `<td><span class="contract-link" onclick="openEntityCard(${c.contract_id})">${(c.contract_name||'').slice(0,30)}…</span></td>`
+    const linkCell = c.contract_id
+      ? `<td><span class="contract-link" onclick="openEntityCard(${c.contract_id})">${(c.contract_name||'').slice(0,28)}…</span></td>`
       : c.company_id
-        ? `<td><span class="contract-link" onclick="openEntityCard(${c.company_id})" title="Открыть карточку компании">🏢 карточка</span></td>`
-        : `<td style="color:#374151;font-size:11px">нет в системе</td>`;
+        ? `<td><span class="contract-link" onclick="openEntityCard(${c.company_id})">🏢 карточка</span></td>`
+        : `<td class="no-contract">нет в системе</td>`;
 
-    return `<tr>
-      <td style="font-weight:600">${c.name}</td>
-      ${monthCells}
-      <td style="color:#c084fc;font-weight:600">${c.total.toLocaleString('ru-RU')}</td>
-      ${planCell}${devCell}${contractCell}
-    </tr>`;
+    return `<tr><td style="font-weight:600;color:var(--text)">${c.name}</td>${mCells}<td style="color:var(--blend);font-weight:600">${c.total.toLocaleString('ru-RU')}</td>${planCell}${devCell}${linkCell}</tr>`;
   }
 
-  function section(title, color, rows) {
+  function section(title, borderColor, bgColor, rows) {
     if (!rows.length) return '';
-    return `<div style="margin-bottom:16px">
-      <div style="padding:8px 16px;background:${color}22;border-left:3px solid ${color};font-size:12px;font-weight:600;color:${color}">${title}</div>
-      <div style="overflow-x:auto"><table class="drilldown-table"><thead><tr>
-        <th style="min-width:180px;text-align:left">Контрагент</th>
-        ${months.map(m=>`<th>${m}</th>`).join('')}
-        <th>Итого</th><th>План/мес</th><th>Откл.</th><th>Договор</th>
-      </tr></thead><tbody>${rows.map(contractorRow).join('')}</tbody></table></div>
-    </div>`;
+    return `
+      <div class="dd-section-head" style="border-color:${borderColor};background:${bgColor};color:${borderColor}">
+        ${title}
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dd">
+          <thead><tr>
+            <th style="min-width:180px;text-align:left">Контрагент</th>
+            ${months.map(m=>`<th>${m}</th>`).join('')}
+            <th>Итого ₽</th><th>План/мес</th><th>Откл.</th><th>Договор</th>
+          </tr></thead>
+          <tbody>${rows.map(ddRow).join('')}</tbody>
+        </table>
+      </div>`;
   }
 
-  let html = `<div class="drilldown-panel">
-    <div class="drilldown-header">
-      <h3>🔍 Причины отклонений по арендаторам — ${period}</h3>
-      <span style="font-size:12px;color:#64748b">источник: 1С OData</span>
-    </div>
-    <div style="padding:12px 16px">
-      ${section('🔴 Платят ниже суммы по договору', '#ef4444', byContract)}
-      ${section('🟡 Резкое снижение оплаты (тренд)', '#f59e0b', byTrend)}
-    </div>
-  </div>`;
+  panel.innerHTML = `
+    <div class="dd-panel">
+      <div class="dd-head">
+        <h3>🔍 Причины отклонений по арендаторам — ${period}</h3>
+        <span class="dd-source">источник: 1С OData</span>
+      </div>
+      ${section('🔴 Платят ниже суммы по договору','#f85149','#1c0a0a',byContract)}
+      ${section('🟡 Резкое снижение оплаты (тренд)','#d29922','#1a1500',byTrend)}
+    </div>`;
+}
 
-  panel.innerHTML = html;
+async function init() {
+  try { await loadBudget(); }
+  catch(e) { document.getElementById('content').innerHTML=`<div class="err-box">Ошибка: ${e.message}</div>`; }
 }
 </script>
 </body>
