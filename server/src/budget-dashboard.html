@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Бюджет — план-факт анализ</title>
+<title>АО Индустриальный Парк Звезда — Бюджет 2026</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Segoe UI',system-ui,sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; }
@@ -92,7 +92,7 @@ button.primary:hover { background:#1d4ed8; }
 
 <div class="header">
   <div>
-    <h1>📊 Бюджет — план-факт анализ</h1>
+    <h1>📊 АО «Индустриальный Парк Звезда» — Бюджет 2026</h1>
     <p id="headerSub">Blended прогноз: факт (прошлое) + план (будущее)</p>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
@@ -108,10 +108,6 @@ button.primary:hover { background:#1d4ed8; }
       <option value="БДР">БДР (Доходы/Расходы)</option>
       <option value="БДДС">БДДС (Денежные потоки)</option>
     </select>
-  </div>
-  <div>
-    <div class="ctrl-label">ЦФО</div>
-    <select id="selCFO"></select>
   </div>
   <div>
     <div class="ctrl-label">Детализация</div>
@@ -162,34 +158,14 @@ function numM(v) {
   return (n < 0 ? '−' : '') + s;
 }
 
-// Load meta (ЦФО lists)
-async function loadMeta() {
-  const res = await fetch('/api/finance/budget/meta', { headers: { Authorization: 'Bearer ' + TOKEN } });
-  const meta = await res.json();
-  return meta;
-}
-
-let _meta = null;
+const CFO = 'ИП'; // АО Индустриальный Парк Звезда
 
 async function onTypeChange() {
-  if (!_meta) return;
-  const type = document.getElementById('selType').value;
-  const sel = document.getElementById('selCFO');
-  sel.innerHTML = '';
-  const cfos = _meta[type] || [];
-  for (const c of cfos) {
-    const opt = document.createElement('option');
-    opt.value = c; opt.textContent = c;
-    if (c === 'ИП') opt.selected = true;
-    sel.appendChild(opt);
-  }
+  await loadBudget();
 }
 
 async function init() {
   try {
-    _meta = await loadMeta();
-    await onTypeChange();
-    // Auto-load for ИП
     await loadBudget();
   } catch(e) {
     document.getElementById('content').innerHTML = '<div class="err">Ошибка загрузки: ' + e.message + '</div>';
@@ -198,9 +174,8 @@ async function init() {
 
 async function loadBudget() {
   const type = document.getElementById('selType').value;
-  const cfo = document.getElementById('selCFO').value;
+  const cfo = CFO;
   const level = document.getElementById('selLevel').value;
-  if (!cfo) return;
 
   document.getElementById('content').innerHTML = '<div class="spinner">Загружаю...</div>';
   document.getElementById('kpiRow').style.display = 'none';
@@ -265,7 +240,7 @@ function renderBudget(d) {
   const curM = current_month;
 
   let html = '<div class="table-wrap"><table class="budget-table"><thead><tr>';
-  html += `<th style="text-align:left">ЦФО ${cfo} / ${budget_type}</th>`;
+  html += `<th style="text-align:left">АО «ИПЗ» / ${budget_type}</th>`;
 
   for (let i = 0; i < 12; i++) {
     const m = months[i];
@@ -362,7 +337,7 @@ function renderBudget(d) {
 
   document.getElementById('content').innerHTML = html;
   document.getElementById('headerSub').textContent =
-    `ЦФО: ${cfo} / ${budget_type} · обновлено ${new Date().toLocaleString('ru-RU')}`;
+    `${budget_type} · обновлено ${new Date().toLocaleString('ru-RU')}`;
 }
 
 init();
