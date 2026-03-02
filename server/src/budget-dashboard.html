@@ -468,7 +468,12 @@ async function loadRentDrilldown() {
     _drilldownLoaded = true;
     renderDrilldown(d);
   } catch(e) {
-    panel.innerHTML = `<div style="padding:20px;color:#ef4444">⚠️ Ошибка: ${e.message}</div>`;
+    const isVpn = e.message.includes('Timeout') || e.message.includes('ECONNREFUSED') || e.message.includes('503');
+    panel.innerHTML = `<div style="padding:24px;background:#1e293b;border:1px solid #334155;border-radius:10px">
+      <div style="color:#f59e0b;font-size:14px;margin-bottom:8px">${isVpn ? '📡 1С временно недоступна' : '⚠️ Ошибка загрузки'}</div>
+      <div style="color:#64748b;font-size:12px">${isVpn ? 'VPN-туннель до сервера 1С не отвечает. Данные появятся когда соединение восстановится.' : e.message}</div>
+      <button onclick="_drilldownLoaded=false;loadRentDrilldown()" style="margin-top:12px;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:7px;padding:6px 14px;cursor:pointer;font-size:12px">↻ Повторить</button>
+    </div>`;
   }
 }
 
