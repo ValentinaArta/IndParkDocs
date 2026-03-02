@@ -134,7 +134,7 @@ async function loadData() {
     // KPI cards
     h += '<div class="grid">';
     h += '<div class="card"><div class="card-label">Общий долг</div><div class="card-value red">'+fmt(t.outstanding)+'</div><div class="card-sub">'+t.debtor_count+' контрагентов-должников</div></div>';
-    h += '<div class="card"><div class="card-label">Выставлено (с 2025)</div><div class="card-value blue">'+fmt(t.invoiced)+'</div><div class="card-sub">счетов покупателям</div></div>';
+    h += '<div class="card"><div class="card-label">Начислено (реализация)</div><div class="card-value blue">'+fmt(t.invoiced)+'</div><div class="card-sub">актов реализации с 2025</div></div>';
     h += '<div class="card"><div class="card-label">Оплачено (с 2025)</div><div class="card-value green">'+fmt(t.paid)+'</div><div class="card-sub">'+(t.invoiced > 0 ? Math.round(t.paid/t.invoiced*100) : 0)+'% от выставленного</div></div>';
     h += '<div class="card"><div class="card-label">Критичный долг (90+ дней)</div><div class="card-value red">'+fmt(aging.d90)+'</div><div class="card-sub">'+(t.outstanding > 0 ? Math.round(aging.d90/t.outstanding*100) : 0)+'% от общего долга</div></div>';
     h += '</div>';
@@ -183,7 +183,7 @@ async function loadData() {
     }
     h += '</tbody></table></div></div>';
 
-    h += '<div class="source">Данные: 1С Бухгалтерия · Document_СчетНаОплатуПокупателю + Document_ПоступлениеНаРасчетныйСчет · Дебиторка = выставлено − оплачено по контрагенту</div>';
+    h += '<div class="source">Данные: 1С Бухгалтерия · РеализацияТоваровУслуг (Дт62) − ОплатаПокупателя (Кт62) · Дебиторка = реализовано − оплачено по контрагенту</div>';
 
     document.getElementById('content').innerHTML = h;
 

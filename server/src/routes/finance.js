@@ -155,57 +155,63 @@ router.get('/summary', authenticate, async (req, res) => {
 router.get('/overdue', authenticate, async (req, res) => {
   try {
     const today = new Date();
-    const dateFrom2025 = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00'");
-    const dateFrom2026 = encodeURIComponent("Date gt datetime'2026-01-01T00:00:00'");
+    const dateFilter = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00'");
+    const payFilter  = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00' and ВидОперации eq 'ОплатаПокупателя'");
 
-    const [allInvoices, allPayments, contractorsRaw] = await Promise.all([
-      odataGetAll(`Document_СчетНаОплатуПокупателю?$format=json&$filter=${dateFrom2025}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,Posted`),
-      odataGetAll(`Document_ПоступлениеНаРасчетныйСчет?$format=json&$filter=${dateFrom2025}&$select=Date,СуммаДокумента,Организация_Key,Контрагент,Posted`),
+    // Правильная логика (ОСВ по сч.62):
+    //   Реализация ТУ  → Дт62 (нам должны за оказанные услуги)
+    //   ОплатаПокупателя → Кт62 (они заплатили, долг гасится)
+    //   Дебиторка = sum(реализация) - sum(оплаты) per contractor
+    const [allRealize, allPayments, contractorsRaw] = await Promise.all([
+      odataGetAll(`Document_РеализацияТоваровУслуг?$format=json&$filter=${dateFilter}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,Posted`),
+      odataGetAll(`Document_ПоступлениеНаРасчетныйСчет?$format=json&$filter=${payFilter}&$select=Date,СуммаДокумента,Организация_Key,Контрагент,Posted`),
       odataGet(`Catalog_Контрагенты?$format=json&$top=3000&$select=Ref_Key,Description`),
     ]);
 
     const orgKey = req.query.org || ORG_IPZ;
-    const invItems = allInvoices.filter(x => x.Posted && x.Организация_Key === orgKey);
-    const payItems = allPayments.filter(x => x.Posted && x.Организация_Key === orgKey);
+    const realItems = allRealize.filter(x => x.Posted && x.Организация_Key === orgKey);
+    const payItems  = allPayments.filter(x => x.Posted && x.Организация_Key === orgKey);
     const nameMap = {};
     (contractorsRaw.value || []).forEach(x => { nameMap[x.Ref_Key] = x.Description; });
 
-    // Group invoices by contractor
-    const invByContr = {};
-    for (const x of invItems) {
+    // Реализация по контрагентам (Дт62)
+    const realByContr = {};
+    for (const x of realItems) {
       const cid = x.Контрагент_Key || '';
-      if (!invByContr[cid]) invByContr[cid] = { invoiced: 0, invoices: [] };
-      invByContr[cid].invoiced += x.СуммаДокумента || 0;
-      invByContr[cid].invoices.push({
+      if (!cid) continue;
+      if (!realByContr[cid]) realByContr[cid] = { accrued: 0, acts: [] };
+      realByContr[cid].accrued += x.СуммаДокумента || 0;
+      realByContr[cid].acts.push({
         num: x.Number || '',
         date: (x.Date || '').slice(0, 10),
         sum: Math.round(x.СуммаДокумента || 0),
       });
     }
 
-    // Group payments by contractor
+    // Оплаты по контрагентам (Кт62) — только ОплатаПокупателя
     const payByContr = {};
     for (const x of payItems) {
       const cid = x.Контрагент || '';
+      if (!cid) continue;
       payByContr[cid] = (payByContr[cid] || 0) + (x.СуммаДокумента || 0);
     }
 
-    // Calculate outstanding per contractor
+    // Дебиторская задолженность = реализовано - оплачено
     const debtors = [];
-    for (const [cid, data] of Object.entries(invByContr)) {
+    for (const [cid, data] of Object.entries(realByContr)) {
       const paid = payByContr[cid] || 0;
-      const outstanding = data.invoiced - paid;
-      if (outstanding < 1000) continue;
+      const outstanding = data.accrued - paid;
+      if (outstanding < 1000) continue; // нет долга или переплата
 
-      const sortedInv = data.invoices.sort((a, b) => b.date.localeCompare(a.date));
-      const lastInvDate = sortedInv[0]?.date || '';
-      const daysSinceLastInv = lastInvDate ? Math.floor((today - new Date(lastInvDate)) / 86400000) : 0;
+      const sortedActs = data.acts.sort((a, b) => b.date.localeCompare(a.date));
+      const lastActDate = sortedActs[0]?.date || '';
+      const daysSinceLast = lastActDate ? Math.floor((today - new Date(lastActDate)) / 86400000) : 0;
 
-      // Aging
+      // Aging по дате актов
       let age0=0, age30=0, age60=0, age90=0;
-      for (const inv of data.invoices) {
-        const days = Math.floor((today - new Date(inv.date)) / 86400000);
-        const ratio = inv.sum / data.invoiced;
+      for (const act of data.acts) {
+        const days = Math.floor((today - new Date(act.date)) / 86400000);
+        const ratio = act.sum / data.accrued;
         const share = outstanding * ratio;
         if (days <= 30) age0 += share;
         else if (days <= 60) age30 += share;
@@ -216,17 +222,18 @@ router.get('/overdue', authenticate, async (req, res) => {
       debtors.push({
         key: cid,
         name: nameMap[cid] || cid.slice(0, 8) + '...',
-        invoiced: Math.round(data.invoiced),
+        invoiced: Math.round(data.accrued),
         paid: Math.round(paid),
         outstanding: Math.round(outstanding),
-        invoice_count: data.invoices.length,
-        last_invoice_date: lastInvDate,
-        days_since_last: daysSinceLastInv,
-        top_invoices: sortedInv.slice(0, 5),
+        invoice_count: data.acts.length,
+        last_invoice_date: lastActDate,
+        days_since_last: daysSinceLast,
+        top_invoices: sortedActs.slice(0, 5),
         aging: { d0: Math.round(age0), d30: Math.round(age30), d60: Math.round(age60), d90: Math.round(age90) },
       });
     }
-    // Fallback: resolve any remaining UUID names individually
+
+    // Fallback: resolve remaining UUID names individually
     const unresolvedKeys = debtors.filter(d => !nameMap[d.key]).map(d => d.key);
     if (unresolvedKeys.length > 0) {
       await Promise.all(unresolvedKeys.map(async (guid) => {
@@ -234,9 +241,8 @@ router.get('/overdue', authenticate, async (req, res) => {
           const r = await odataGet(`Catalog_Контрагенты?$format=json&$filter=Ref_Key%20eq%20guid'${guid}'&$select=Description,Ref_Key`);
           const item = (r.value || [])[0];
           if (item && item.Description) nameMap[guid] = item.Description;
-        } catch (_) { /* ignore individual failures */ }
+        } catch (_) {}
       }));
-      // Update names in debtors list
       for (const d of debtors) {
         if (nameMap[d.key]) d.name = nameMap[d.key];
       }
@@ -245,7 +251,7 @@ router.get('/overdue', authenticate, async (req, res) => {
     debtors.sort((a, b) => b.outstanding - a.outstanding);
 
     const totalOutstanding = debtors.reduce((s, d) => s + d.outstanding, 0);
-    const totalInvoiced = invItems.reduce((s, x) => s + (x.СуммаДокумента || 0), 0);
+    const totalInvoiced = realItems.reduce((s, x) => s + (x.СуммаДокумента || 0), 0);
     const totalPaid = payItems.reduce((s, x) => s + (x.СуммаДокумента || 0), 0);
 
     // Aging totals
