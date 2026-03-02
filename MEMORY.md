@@ -12,7 +12,7 @@
 - **БД: локальная PostgreSQL в Docker** — `postgresql://indpark:indpark2026@127.0.0.1:5432/indparkdocs`
 - **Деплой**: код уже в workspace → `systemctl restart indparkdocs` (мгновенно, без ожидания!)
 - Systemd service: `/etc/systemd/system/indparkdocs.service`
-- Пользователь: `valentina` (admin role)
+- Пользователь: `valentina` / `Val2026secure` (admin role)
 - Данные перенесены из Neon: 125 сущностей, 169 связей (март 2026)
 
 ## Пользователь

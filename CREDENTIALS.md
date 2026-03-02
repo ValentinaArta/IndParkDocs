@@ -26,12 +26,26 @@
 ### IndParkDocs — JWT_SECRET
 - **Значение**: k8Xp2mQ9vR4wZ7nB3jF6hT1yU5aE0cG8
 
-### IndParkDocs — DATABASE_URL (Neon PostgreSQL, добавлено 2026-02-26)
+### 1С OData — Бухгалтерская база (добавлено 2026-02-28)
+- **URL**: `http://192.168.2.3/BF/odata/standard.odata/`
+- **Nginx-прокси (localhost)**: `http://127.0.0.1:18801/BF/odata/standard.odata/`
+- **Пользователь**: `odata.user` (⚠️ ТОЛЬКО ЧТЕНИЕ!)
+- **Пароль**: `gjdbh2642!`
+- **Доступ**: Только через VPN-туннель до Звезда Парка (192.168.2.3)
+- **Объектов**: 1479 (практически вся база 1С)
+- **⛔ ЗАПРЕЩЕНО**: POST, PUT, PATCH, DELETE — только GET-запросы!
+- **⚠️ ЧУВСТВИТЕЛЬНОСТЬ**: Финансовая база реальных компаний. Не экспортировать, не логировать полные данные.
+
+### IndParkDocs — Продакшн сервер (март 2026)
+- **URL**: https://docs.zvezda-park.com
+- **IP**: 89.167.75.91
+- **Логин пользователя**: valentina / Val2026secure
+- **БД**: postgresql://indpark:indpark2026@127.0.0.1:5432/indparkdocs (Docker)
+- **Деплой**: `systemctl restart indparkdocs` (код в /root/workspace-indparkdocs)
+
+### IndParkDocs — DATABASE_URL (Neon PostgreSQL) [DEPRECATED — перенесли на свой сервер март 2026]
 ```
 postgresql://neondb_owner:npg_qbJf1MtSTDe8@ep-ancient-math-alg2359y-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require
 ```
-- **Для чего**: Основная база данных IndParkDocs (DATABASE_URL в Render)
-- **Хост**: ep-ancient-math-alg2359y-pooler.c-3.eu-central-1.aws.neon.tech
-- **База**: neondb
-- **Пользователь**: neondb_owner
+- **Для чего**: Старая база данных IndParkDocs (Render, больше не используется)
 - **Добавил**: 2026-02-26
