@@ -512,7 +512,9 @@ function renderDrilldown(d) {
 
     const contractCell = c.contract_id
       ? `<td><span class="contract-link" onclick="openEntityCard(${c.contract_id})">${(c.contract_name||'').slice(0,30)}…</span></td>`
-      : `<td style="color:#374151;font-size:11px">нет в системе</td>`;
+      : c.company_id
+        ? `<td><span class="contract-link" onclick="openEntityCard(${c.company_id})" title="Открыть карточку компании">🏢 карточка</span></td>`
+        : `<td style="color:#374151;font-size:11px">нет в системе</td>`;
 
     return `<tr>
       <td style="font-weight:600">${c.name}</td>

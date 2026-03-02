@@ -435,10 +435,11 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     const nameMap = {};
     for (const c of cats) nameMap[c.Ref_Key] = c.Description;
 
-    // Читаем договоры аренды из IndParkDocs (ИПЗ)
+    // Читаем договоры аренды из IndParkDocs (ИПЗ) + компании с odata_ref_key
     const contractsRes = await db.query(`
       SELECT e.id, e.name,
              e.properties->>'contractor_name' AS tenant,
+             e.properties->>'contractor_id'   AS contractor_entity_id,
              e.properties->>'contract_type'   AS ctype,
              e.properties->>'rent_objects'     AS rent_objects_raw
       FROM entities e
@@ -450,7 +451,20 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     `);
     const contracts = contractsRes.rows;
 
-    // Простое сопоставление по имени (убираем ООО/АО/ПАО, lowercase)
+    // Загружаем company-сущности с odata_ref_key для точного матчинга
+    const companiesRes = await db.query(`
+      SELECT e.id, e.name, e.properties->>'odata_ref_key' AS ref_key
+      FROM entities e
+      JOIN entity_types et ON et.id = e.entity_type_id
+      WHERE et.name = 'company'
+        AND e.properties->>'odata_ref_key' IS NOT NULL
+    `);
+    const companyByRefKey = {};
+    for (const c of companiesRes.rows) {
+      if (c.ref_key) companyByRefKey[c.ref_key] = c;
+    }
+
+    // Матчинг договоров по имени контрагента (fallback)
     function normalize(s) {
       return (s || '').toLowerCase()
         .replace(/\b(ооо|ао|пао|зао|оао|ип|пп|ф-л|филиал)\b/g, '')
@@ -468,6 +482,8 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
       .map(c => {
         const name = nameMap[c.key] || c.key;
         const norm = normalize(name);
+        // Матчинг: сначала по odata_ref_key, потом по имени
+        const companyEntity = companyByRefKey[c.key] || null;
         const contract = contractByNorm[norm] || null;
 
         // Ежемесячный план из rent_objects (если договор найден)
@@ -503,6 +519,7 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
           key: c.key, name,
           total: Math.round(c.total),
           months: ytdMonths,
+          company_id:    companyEntity?.id   || null,
           contract_id:   contract?.id   || null,
           contract_name: contract?.name || null,
           monthly_plan: monthlyPlan ? Math.round(monthlyPlan) : null,
