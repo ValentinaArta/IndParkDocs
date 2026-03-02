@@ -69,6 +69,10 @@ app.get('/', (req, res) => { res.type('html').send(FRONTEND_HTML); });
 app.get('/finance', (req, res) => {
   res.sendFile(path.join(__dirname, 'finance-dashboard.html'));
 });
+
+app.get('/budget', (req, res) => {
+  res.sendFile(path.join(__dirname, 'budget-dashboard.html'));
+});
 app.get('/chart.min.js', (req, res) => {
   res.type('application/javascript').sendFile(path.join(__dirname, 'chart.min.js'));
 });
@@ -84,6 +88,7 @@ app.use('/api/health', require('./routes/health'));
 app.use('/api/ai/chat', require('./routes/ai-chat'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/auth/totp', require('./routes/totp'));
+app.use('/api/legal', require('./routes/legal'));
 
 // SPA fallback
 app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });

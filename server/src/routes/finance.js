@@ -3,6 +3,7 @@ const router = express.Router();
 const https = require('https');
 const http = require('http');
 const { authenticate } = require('../middleware/auth');
+const db = require('../db');
 
 const ODATA_BASE = 'http://192.168.2.3/BF/odata/standard.odata';
 const ODATA_AUTH = 'Basic ' + Buffer.from('odata.user:gjdbh2642!').toString('base64');
@@ -292,6 +293,100 @@ router.get('/overdue', authenticate, async (req, res) => {
   } catch (e) {
     console.error('Finance overdue error:', e.message);
     res.status(503).json({ error: '1С недоступна: ' + e.message });
+  }
+});
+
+// =============================================================
+// GET /api/finance/budget — Blended Forecast (факт+план)
+// Query params:
+//   type=БДР|БДДС (default: БДР)
+//   cfo=ИП        (required)
+//   level=0..4    (max level to return, default: 3)
+// =============================================================
+const MONTHS_RU = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+router.get('/budget', authenticate, async (req, res) => {
+  const { type = 'БДР', cfo, level: maxLevelStr = '3' } = req.query;
+  const maxLevel = parseInt(maxLevelStr);
+
+  if (!cfo) return res.status(400).json({ error: 'cfo required' });
+
+  try {
+    const rows = await db.query(
+      'SELECT article, level, fact, plan, total_fact, total_plan FROM budget_data WHERE budget_type=$1 AND cfo=$2 AND level<=$3 ORDER BY id',
+      [type, cfo, maxLevel]
+    );
+
+    if (rows.rows.length === 0) {
+      return res.status(404).json({ error: `Нет данных для ${type} / ${cfo}` });
+    }
+
+    // Текущий месяц (0-based). Факт — прошлые месяцы (< currentMonth), план — текущий + будущие.
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0=Янв, 1=Фев, 2=Мар...
+
+    const months = MONTHS_RU.map((m, i) => ({
+      name: m + ' 2026',
+      idx: i,
+      is_past: i < currentMonth,
+      is_current: i === currentMonth,
+    }));
+
+    const data = rows.rows.map(r => {
+      const fact = r.fact || Array(12).fill(null);
+      const plan = r.plan || Array(12).fill(null);
+
+      // Blended: прошлые — факт, текущий и будущие — план
+      const blended = fact.map((f, i) =>
+        i < currentMonth ? (f || 0) : (plan[i] || 0)
+      );
+      const blendedTotal = blended.reduce((s, v) => s + v, 0);
+      const planTotal = plan.reduce((s, v) => s + (v || 0), 0);
+      const deviation = blendedTotal - planTotal;
+      const deviationPct = planTotal !== 0 ? (deviation / Math.abs(planTotal)) * 100 : null;
+
+      return {
+        article: r.article,
+        level: r.level,
+        fact: fact.map(v => v !== null ? Math.round(v) : null),
+        plan: plan.map(v => v !== null ? Math.round(v) : null),
+        blended: blended.map(v => Math.round(v)),
+        blended_total: Math.round(blendedTotal),
+        plan_total: Math.round(planTotal),
+        fact_total: r.total_fact !== null ? Math.round(r.total_fact) : null,
+        deviation: Math.round(deviation),
+        deviation_pct: deviationPct !== null ? Math.round(deviationPct * 10) / 10 : null,
+      };
+    });
+
+    res.json({
+      budget_type: type,
+      cfo,
+      current_month: currentMonth,
+      months,
+      data,
+      cfos_available: (await db.query(
+        'SELECT DISTINCT cfo FROM budget_data WHERE budget_type=$1 ORDER BY cfo', [type]
+      )).rows.map(r => r.cfo),
+    });
+  } catch (e) {
+    console.error('Budget error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/finance/budget/meta — список доступных ЦФО по типу бюджета
+router.get('/budget/meta', authenticate, async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT budget_type, array_agg(DISTINCT cfo ORDER BY cfo) as cfos
+       FROM budget_data GROUP BY budget_type`
+    );
+    const meta = {};
+    for (const row of r.rows) meta[row.budget_type] = row.cfos;
+    res.json(meta);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
