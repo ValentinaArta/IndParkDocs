@@ -375,6 +375,150 @@ router.get('/budget', authenticate, async (req, res) => {
   }
 });
 
+// =============================================================
+// GET /api/finance/budget/rent-drilldown
+// Детализация реализации по контрагентам из 1С за прошедшие месяцы
+// Сопоставляет с договорами аренды в IndParkDocs
+// =============================================================
+router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
+  const cacheKey = 'rent_drilldown_ipz';
+  const cached = cacheGet(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const ORG = ORG_IPZ;
+    const now = new Date();
+    const year = now.getFullYear();
+    const curMonth = now.getMonth(); // 0-based
+
+    // Определяем период: прошедшие месяцы текущего года
+    const dateFrom = `${year}-01-01T00:00:00`;
+    const dateTo   = new Date(year, curMonth, 1).toISOString().slice(0,10) + 'T00:00:00';
+
+    // Список месяцев для разбивки
+    const pastMonths = [];
+    for (let m = 0; m < curMonth; m++) {
+      const from = `${year}-${String(m+1).padStart(2,'0')}-01T00:00:00`;
+      const nextM = m + 1;
+      const toY = nextM > 11 ? year+1 : year;
+      const toM = nextM > 11 ? 1 : nextM + 1;
+      const to = `${toY}-${String(toM).padStart(2,'0')}-01T00:00:00`;
+      pastMonths.push({ idx: m, name: MONTHS_RU[m], from, to });
+    }
+
+    if (pastMonths.length === 0) {
+      return res.json({ months: [], contractors: [], total: 0 });
+    }
+
+    // Фетч реализации за весь период
+    const filter = encodeURIComponent(
+      `Date gt datetime'${dateFrom}' and Date lt datetime'${dateTo}' and Posted eq true and Организация_Key eq guid'${ORG}'`
+    );
+    const docs = await odataGetAll(
+      `Document_РеализацияТоваровУслуг?$format=json&$filter=${filter}&$select=Date,СуммаДокумента,Контрагент_Key`,
+      500
+    );
+
+    // Агрегация по контрагенту и месяцу
+    const byContr = {};
+    for (const doc of docs) {
+      const k = doc.Контрагент_Key;
+      const m = new Date(doc.Date).getMonth();
+      if (!byContr[k]) byContr[k] = { key: k, months: Array(12).fill(0), total: 0 };
+      byContr[k].months[m] += doc.СуммаДокумента || 0;
+      byContr[k].total    += doc.СуммаДокумента || 0;
+    }
+
+    // Резолвим имена контрагентов
+    const allKeys = Object.keys(byContr);
+    const cats = await odataGetAll(`Catalog_Контрагенты?$format=json&$top=3000&$select=Ref_Key,Description`, 3000);
+    const nameMap = {};
+    for (const c of cats) nameMap[c.Ref_Key] = c.Description;
+
+    // Читаем договоры аренды из IndParkDocs (ИПЗ)
+    const contractsRes = await db.query(`
+      SELECT e.id, e.name,
+             e.properties->>'contractor_name' AS tenant,
+             e.properties->>'contract_type'   AS ctype,
+             e.properties->>'rent_objects'     AS rent_objects_raw
+      FROM entities e
+      JOIN entity_types et ON et.id = e.entity_type_id
+      WHERE et.name = 'contract'
+        AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
+        AND (e.properties->>'our_legal_entity' ILIKE '%Индустриальный%'
+          OR e.properties->>'our_legal_entity' ILIKE '%ИПЗ%')
+    `);
+    const contracts = contractsRes.rows;
+
+    // Простое сопоставление по имени (убираем ООО/АО/ПАО, lowercase)
+    function normalize(s) {
+      return (s || '').toLowerCase()
+        .replace(/\b(ооо|ао|пао|зао|оао|ип|пп|ф-л|филиал)\b/g, '')
+        .replace(/[«»"']/g, '').replace(/\s+/g,' ').trim();
+    }
+    const contractByNorm = {};
+    for (const c of contracts) {
+      contractByNorm[normalize(c.tenant)] = c;
+    }
+
+    // Собираем итоговый список
+    const result = Object.values(byContr)
+      .sort((a, b) => b.total - a.total)
+      .map(c => {
+        const name = nameMap[c.key] || c.key;
+        const norm = normalize(name);
+        const contract = contractByNorm[norm] || null;
+
+        // Ежемесячный план из rent_objects (если договор найден)
+        let monthlyPlan = null;
+        if (contract && contract.rent_objects_raw) {
+          try {
+            const ro = JSON.parse(contract.rent_objects_raw);
+            if (Array.isArray(ro)) {
+              monthlyPlan = ro.reduce((s, obj) => {
+                const area = parseFloat(obj.area) || 0;
+                const rate = parseFloat(obj.rent_rate) || 0;
+                return s + area * rate;
+              }, 0);
+            }
+          } catch(e) {}
+        }
+
+        const ytdMonths = pastMonths.map(pm => ({
+          name: pm.name,
+          fact: Math.round(c.months[pm.idx]),
+        }));
+        const planYTD = monthlyPlan ? Math.round(monthlyPlan * pastMonths.length) : null;
+        const dev = planYTD !== null ? Math.round(c.total - planYTD) : null;
+
+        return {
+          key: c.key,
+          name,
+          total: Math.round(c.total),
+          months: ytdMonths,
+          contract_id:   contract?.id   || null,
+          contract_name: contract?.name || null,
+          monthly_plan: monthlyPlan ? Math.round(monthlyPlan) : null,
+          plan_ytd: planYTD,
+          deviation: dev,
+        };
+      });
+
+    const response = {
+      period: `${MONTHS_RU[0]}–${MONTHS_RU[curMonth-1]} ${year}`,
+      months: pastMonths.map(m => m.name),
+      contractors: result,
+      total: Math.round(result.reduce((s, r) => s + r.total, 0)),
+    };
+
+    cacheSet(cacheKey, response);
+    res.json(response);
+  } catch(e) {
+    console.error('Rent drilldown error:', e.message);
+    res.status(503).json({ error: e.message });
+  }
+});
+
 // GET /api/finance/budget/meta — список доступных ЦФО по типу бюджета
 router.get('/budget/meta', authenticate, async (req, res) => {
   try {

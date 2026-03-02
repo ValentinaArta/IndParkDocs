@@ -80,6 +80,20 @@ button.primary:hover { background:#1d4ed8; }
 
 .footer-note { text-align:center; padding:12px; color:#374151; font-size:11px; }
 
+/* Drill-down panel */
+.drilldown-panel { background:#111827; border:1px solid #334155; border-radius:10px; margin-top:16px; overflow:hidden; }
+.drilldown-header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#1e293b; border-bottom:1px solid #334155; }
+.drilldown-header h3 { font-size:13px; font-weight:600; color:#e2e8f0; }
+.drilldown-table { width:100%; border-collapse:collapse; font-size:12px; }
+.drilldown-table th { text-align:right; padding:6px 12px; background:#0f172a; color:#475569; font-weight:500; font-size:11px; border-bottom:1px solid #334155; }
+.drilldown-table th:first-child { text-align:left; }
+.drilldown-table td { padding:6px 12px; border-bottom:1px solid rgba(30,41,59,0.5); text-align:right; }
+.drilldown-table td:first-child { text-align:left; max-width:220px; }
+.drilldown-table tr:hover td { background:rgba(51,65,85,0.2); }
+.contract-link { color:#60a5fa; cursor:pointer; font-size:11px; text-decoration:underline; }
+.drill-btn { background:none; border:1px solid #334155; color:#94a3b8; padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer; margin-left:6px; }
+.drill-btn:hover { background:#1e293b; color:#e2e8f0; }
+
 .expand-btn { cursor:pointer; color:#475569; font-size:10px; margin-right:4px; user-select:none; }
 
 @media(max-width:768px) {
@@ -136,6 +150,7 @@ if(window.self !== window.top) document.addEventListener('DOMContentLoaded', fun
 
 <div class="main">
   <div id="content"><div class="spinner">Выберите параметры и нажмите «Показать»</div></div>
+  <div id="drilldownPanel" style="display:none;padding-bottom:24px"></div>
 </div>
 
 <script>
@@ -356,13 +371,23 @@ function renderBudget(d) {
   const worse  = analysisRows.filter(r => r.dev < 0).slice(0, 7);
   const better = analysisRows.filter(r => r.dev > 0).slice(0, 7);
 
+  // Статьи по которым доступен drill-down по контрагентам
+  const DRILLDOWN_KEYWORDS = ['аренда', 'эксплуатационные услуги'];
+  function hasDrilldown(name) {
+    const n = name.toLowerCase();
+    return DRILLDOWN_KEYWORDS.some(k => n.includes(k));
+  }
+
   function devRow(r) {
     const sign = r.dev > 0 ? '+' : '−';
     const cls  = r.dev > 0 ? '#10b981' : '#ef4444';
     const pct  = r.pct !== null ? ` (${r.pct > 0 ? '+' : ''}${r.pct}%)` : '';
     const indent = r.level === 4 ? 'padding-left:28px;color:#94a3b8' : r.level === 3 ? 'padding-left:14px' : '';
+    const drillBtn = hasDrilldown(r.name)
+      ? `<button class="drill-btn" onclick="loadRentDrilldown()" title="Детализация по контрагентам">🔍 контрагенты</button>`
+      : '';
     return `<tr>
-      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);${indent}">${r.name}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);${indent}">${r.name}${drillBtn}</td>
       <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:#c084fc">${numM(r.blended)}</td>
       <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:#4ade80">${numM(r.plan)}</td>
       <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:${cls};font-weight:600">${sign}${numM(Math.abs(r.dev))}${pct}</td>
@@ -422,6 +447,105 @@ function renderBudget(d) {
 }
 
 init();
+
+// ===== DRILL-DOWN: реализация по контрагентам =====
+let _drilldownLoaded = false;
+
+async function loadRentDrilldown() {
+  const panel = document.getElementById('drilldownPanel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (_drilldownLoaded) return;
+  panel.innerHTML = '<div class="spinner" style="padding:30px">Загружаю данные из 1С...</div>';
+
+  try {
+    const res = await fetch('/api/finance/budget/rent-drilldown', {
+      headers: { Authorization: 'Bearer ' + TOKEN }
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || res.status);
+    _drilldownLoaded = true;
+    renderDrilldown(d);
+  } catch(e) {
+    panel.innerHTML = `<div style="padding:20px;color:#ef4444">⚠️ Ошибка: ${e.message}</div>`;
+  }
+}
+
+function renderDrilldown(d) {
+  const panel = document.getElementById('drilldownPanel');
+  const { period, months, contractors, total } = d;
+
+  let html = `<div class="drilldown-panel">`;
+  html += `<div class="drilldown-header">
+    <h3>🔍 Реализация по контрагентам — ${period} (из 1С)</h3>
+    <span style="font-size:12px;color:#64748b">Итого: <span style="color:#c084fc;font-weight:600">${numM(total)}</span> · ${contractors.length} контрагентов</span>
+  </div>`;
+
+  html += `<div style="overflow-x:auto"><table class="drilldown-table"><thead><tr>
+    <th style="min-width:200px">Контрагент</th>`;
+  for (const m of months) html += `<th>${m}</th>`;
+  html += `<th>Итого факт</th>`;
+  html += `<th>План/мес</th>`;
+  html += `<th>Откл. от плана</th>`;
+  html += `<th>Договор</th></tr></thead><tbody>`;
+
+  for (const c of contractors) {
+    const hasContract = c.contract_id !== null;
+    const rowStyle = hasContract ? '' : 'color:#64748b';
+
+    html += `<tr style="${rowStyle}">`;
+    html += `<td style="font-weight:${hasContract ? '600' : '400'}">${c.name}</td>`;
+
+    for (const m of c.months) {
+      html += `<td style="color:#60a5fa">${m.fact ? m.fact.toLocaleString('ru-RU') : '—'}</td>`;
+    }
+
+    html += `<td style="color:#c084fc;font-weight:600">${c.total.toLocaleString('ru-RU')}</td>`;
+
+    // План
+    if (c.monthly_plan) {
+      html += `<td style="color:#4ade80">${c.monthly_plan.toLocaleString('ru-RU')}</td>`;
+    } else {
+      html += `<td style="color:#374151">нет дог.</td>`;
+    }
+
+    // Отклонение
+    if (c.deviation !== null) {
+      const devCls = c.deviation >= 0 ? '#10b981' : '#ef4444';
+      const sign = c.deviation >= 0 ? '+' : '−';
+      html += `<td style="color:${devCls};font-weight:600">${sign}${Math.abs(c.deviation).toLocaleString('ru-RU')}</td>`;
+    } else {
+      html += `<td style="color:#374151">—</td>`;
+    }
+
+    // Договор
+    if (c.contract_id) {
+      html += `<td><span class="contract-link" onclick="openEntityCard(${c.contract_id})">${c.contract_name.slice(0,35)}…</span></td>`;
+    } else {
+      html += `<td style="color:#374151;font-size:11px">нет в системе</td>`;
+    }
+
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+
+  // Сводка: кто с договором vs без
+  const withContract    = contractors.filter(c => c.contract_id);
+  const withoutContract = contractors.filter(c => !c.contract_id);
+  const withTotal    = withContract.reduce((s,c) => s + c.total, 0);
+  const withoutTotal = withoutContract.reduce((s,c) => s + c.total, 0);
+
+  html += `<div style="display:flex;gap:16px;padding:12px 16px;background:#0f172a;border-top:1px solid #1e293b;font-size:12px;flex-wrap:wrap">
+    <span style="color:#4ade80">✅ С договором в системе: ${withContract.length} контр., ${numM(withTotal)}</span>
+    <span style="color:#f59e0b">⚠️ Без договора в системе: ${withoutContract.length} контр., ${numM(withoutTotal)}</span>
+    <span style="color:#64748b;margin-left:auto;font-size:11px">Данные кешируются 5 мин · источник: 1С OData</span>
+  </div>`;
+
+  html += '</div>';
+  panel.innerHTML = html;
+}
 </script>
 </body>
 </html>
