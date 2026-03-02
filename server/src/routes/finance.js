@@ -462,7 +462,7 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     }
 
     // Собираем итоговый список
-    const result = Object.values(byContr)
+    const allContractors = Object.values(byContr)
       .sort((a, b) => b.total - a.total)
       .map(c => {
         const name = nameMap[c.key] || c.key;
@@ -491,9 +491,15 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
         const planYTD = monthlyPlan ? Math.round(monthlyPlan * pastMonths.length) : null;
         const dev = planYTD !== null ? Math.round(c.total - planYTD) : null;
 
+        // Тренд: падение в последнем месяце vs предыдущем
+        const lastFact = pastMonths.length >= 1 ? c.months[pastMonths[pastMonths.length - 1].idx] : null;
+        const prevFact = pastMonths.length >= 2 ? c.months[pastMonths[pastMonths.length - 2].idx] : null;
+        const trendDrop = (lastFact !== null && prevFact !== null && prevFact > 10000)
+          ? Math.round(lastFact - prevFact) : null;
+        const trendPct  = trendDrop !== null ? Math.round((trendDrop / prevFact) * 100) : null;
+
         return {
-          key: c.key,
-          name,
+          key: c.key, name,
           total: Math.round(c.total),
           months: ytdMonths,
           contract_id:   contract?.id   || null,
@@ -501,8 +507,23 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
           monthly_plan: monthlyPlan ? Math.round(monthlyPlan) : null,
           plan_ytd: planYTD,
           deviation: dev,
+          trend_drop: trendDrop,
+          trend_pct:  trendPct,
         };
       });
+
+    // Фильтруем только тех кто создаёт отклонение:
+    // 1. Есть договор И платит меньше плана
+    // 2. Есть резкое падение в последнем месяце (> -15%)
+    const result = allContractors.filter(c =>
+      (c.deviation !== null && c.deviation < -50000) ||  // ниже плана по договору
+      (c.trend_pct !== null && c.trend_pct < -15 && Math.abs(c.trend_drop) > 100000) // падение > 15% и > 100к
+    ).sort((a, b) => {
+      // Сначала те у кого отклонение от договора, потом тренд
+      const aScore = (a.deviation ?? 0) + (a.trend_drop ?? 0);
+      const bScore = (b.deviation ?? 0) + (b.trend_drop ?? 0);
+      return aScore - bScore; // хуже — выше
+    }).slice(0, 10);
 
     const response = {
       period: `${MONTHS_RU[0]}–${MONTHS_RU[curMonth-1]} ${year}`,

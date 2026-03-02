@@ -481,74 +481,70 @@ function renderDrilldown(d) {
   const panel = document.getElementById('drilldownPanel');
   const { period, months, contractors, total } = d;
 
-  let html = `<div class="drilldown-panel">`;
-  html += `<div class="drilldown-header">
-    <h3>🔍 Реализация по контрагентам — ${period} (из 1С)</h3>
-    <span style="font-size:12px;color:#64748b">Итого: <span style="color:#c084fc;font-weight:600">${numM(total)}</span> · ${contractors.length} контрагентов</span>
-  </div>`;
-
-  html += `<div style="overflow-x:auto"><table class="drilldown-table"><thead><tr>
-    <th style="min-width:200px">Контрагент</th>`;
-  for (const m of months) html += `<th>${m}</th>`;
-  html += `<th>Итого факт</th>`;
-  html += `<th>План/мес</th>`;
-  html += `<th>Откл. от плана</th>`;
-  html += `<th>Договор</th></tr></thead><tbody>`;
-
-  for (const c of contractors) {
-    const hasContract = c.contract_id !== null;
-    const rowStyle = hasContract ? '' : 'color:#64748b';
-
-    html += `<tr style="${rowStyle}">`;
-    html += `<td style="font-weight:${hasContract ? '600' : '400'}">${c.name}</td>`;
-
-    for (const m of c.months) {
-      html += `<td style="color:#60a5fa">${m.fact ? m.fact.toLocaleString('ru-RU') : '—'}</td>`;
-    }
-
-    html += `<td style="color:#c084fc;font-weight:600">${c.total.toLocaleString('ru-RU')}</td>`;
-
-    // План
-    if (c.monthly_plan) {
-      html += `<td style="color:#4ade80">${c.monthly_plan.toLocaleString('ru-RU')}</td>`;
-    } else {
-      html += `<td style="color:#374151">нет дог.</td>`;
-    }
-
-    // Отклонение
-    if (c.deviation !== null) {
-      const devCls = c.deviation >= 0 ? '#10b981' : '#ef4444';
-      const sign = c.deviation >= 0 ? '+' : '−';
-      html += `<td style="color:${devCls};font-weight:600">${sign}${Math.abs(c.deviation).toLocaleString('ru-RU')}</td>`;
-    } else {
-      html += `<td style="color:#374151">—</td>`;
-    }
-
-    // Договор
-    if (c.contract_id) {
-      html += `<td><span class="contract-link" onclick="openEntityCard(${c.contract_id})">${c.contract_name.slice(0,35)}…</span></td>`;
-    } else {
-      html += `<td style="color:#374151;font-size:11px">нет в системе</td>`;
-    }
-
-    html += '</tr>';
+  if (contractors.length === 0) {
+    panel.innerHTML = `<div style="padding:20px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#64748b;font-size:13px">
+      ✅ Значимых отклонений по контрагентам не обнаружено — все платят в пределах нормы.
+    </div>`;
+    return;
   }
 
-  html += '</tbody></table></div>';
+  const byContract = contractors.filter(c => c.deviation !== null && c.deviation < -50000);
+  const byTrend    = contractors.filter(c => c.deviation === null || c.deviation >= -50000);
 
-  // Сводка: кто с договором vs без
-  const withContract    = contractors.filter(c => c.contract_id);
-  const withoutContract = contractors.filter(c => !c.contract_id);
-  const withTotal    = withContract.reduce((s,c) => s + c.total, 0);
-  const withoutTotal = withoutContract.reduce((s,c) => s + c.total, 0);
+  function contractorRow(c) {
+    const monthCells = c.months.map((m, i) => {
+      const isLast = i === c.months.length - 1;
+      const prev   = i > 0 ? c.months[i-1].fact : null;
+      const drop   = prev && m.fact < prev * 0.85;
+      const color  = drop ? '#ef4444' : '#60a5fa';
+      return `<td style="color:${color};font-weight:${drop?'600':'400'}">${m.fact ? m.fact.toLocaleString('ru-RU') : '—'}</td>`;
+    }).join('');
 
-  html += `<div style="display:flex;gap:16px;padding:12px 16px;background:#0f172a;border-top:1px solid #1e293b;font-size:12px;flex-wrap:wrap">
-    <span style="color:#4ade80">✅ С договором в системе: ${withContract.length} контр., ${numM(withTotal)}</span>
-    <span style="color:#f59e0b">⚠️ Без договора в системе: ${withoutContract.length} контр., ${numM(withoutTotal)}</span>
-    <span style="color:#64748b;margin-left:auto;font-size:11px">Данные кешируются 5 мин · источник: 1С OData</span>
+    const devCell = c.deviation !== null
+      ? `<td style="color:${c.deviation<0?'#ef4444':'#10b981'};font-weight:700">${c.deviation<0?'−':'+'}${numM(Math.abs(c.deviation))}</td>`
+      : (c.trend_pct !== null
+        ? `<td style="color:#f59e0b;font-weight:600">${c.trend_pct}% к прош. мес.</td>`
+        : '<td style="color:#374151">—</td>');
+
+    const planCell = c.monthly_plan
+      ? `<td style="color:#4ade80">${c.monthly_plan.toLocaleString('ru-RU')}/мес</td>`
+      : `<td style="color:#374151;font-size:11px">—</td>`;
+
+    const contractCell = c.contract_id
+      ? `<td><span class="contract-link" onclick="openEntityCard(${c.contract_id})">${(c.contract_name||'').slice(0,30)}…</span></td>`
+      : `<td style="color:#374151;font-size:11px">нет в системе</td>`;
+
+    return `<tr>
+      <td style="font-weight:600">${c.name}</td>
+      ${monthCells}
+      <td style="color:#c084fc;font-weight:600">${c.total.toLocaleString('ru-RU')}</td>
+      ${planCell}${devCell}${contractCell}
+    </tr>`;
+  }
+
+  function section(title, color, rows) {
+    if (!rows.length) return '';
+    return `<div style="margin-bottom:16px">
+      <div style="padding:8px 16px;background:${color}22;border-left:3px solid ${color};font-size:12px;font-weight:600;color:${color}">${title}</div>
+      <div style="overflow-x:auto"><table class="drilldown-table"><thead><tr>
+        <th style="min-width:180px;text-align:left">Контрагент</th>
+        ${months.map(m=>`<th>${m}</th>`).join('')}
+        <th>Итого</th><th>План/мес</th><th>Откл.</th><th>Договор</th>
+      </tr></thead><tbody>${rows.map(contractorRow).join('')}</tbody></table></div>
+    </div>`;
+  }
+
+  let html = `<div class="drilldown-panel">
+    <div class="drilldown-header">
+      <h3>🔍 Причины отклонений по арендаторам — ${period}</h3>
+      <span style="font-size:12px;color:#64748b">источник: 1С OData</span>
+    </div>
+    <div style="padding:12px 16px">
+      ${section('🔴 Платят ниже суммы по договору', '#ef4444', byContract)}
+      ${section('🟡 Резкое снижение оплаты (тренд)', '#f59e0b', byTrend)}
+    </div>
   </div>`;
 
-  html += '</div>';
   panel.innerHTML = html;
 }
 </script>
