@@ -217,11 +217,23 @@ function renderBudget(d) {
     const devSign = summary.deviation >= 0 ? '+' : '−';
     const devClass = summary.deviation >= 0 ? 'green' : 'red';
     const devPct = summary.deviation_pct != null ? ` (${summary.deviation_pct >= 0 ? '+' : ''}${summary.deviation_pct}%)` : '';
+    const factYTD = summary.blended.slice(0, current_month).reduce((a,b)=>a+b,0);
+    const planYTD = summary.plan.slice(0, current_month).reduce((a,b)=>a+(b||0),0);
+    const devYTD = factYTD - planYTD;
+    const devYTDSign = devYTD >= 0 ? '+' : '−';
+    const devYTDClass = devYTD >= 0 ? 'green' : 'red';
+    const periodLabel = current_month > 1
+      ? `Янв–${months[current_month-1].name.slice(0,3)}`
+      : months[0].name.slice(0,3);
+
     kpiEl.innerHTML = `
       <div class="kpi">
-        <div class="kpi-label">Факт (Янв–${months[current_month-1]?.name.slice(0,3) || '?'})</div>
-        <div class="kpi-value blue">${numM(summary.blended.slice(0, current_month).reduce((a,b)=>a+b,0))}</div>
-        <div class="kpi-sub">фактические данные</div>
+        <div class="kpi-label">Факт (${periodLabel})</div>
+        <div class="kpi-value blue">${numM(factYTD)}</div>
+        <div class="kpi-sub" style="display:flex;flex-direction:column;gap:2px">
+          <span>план на период: <span style="color:#4ade80">${numM(planYTD)}</span></span>
+          <span>откл: <span class="${devYTDClass}">${devYTDSign}${numM(Math.abs(devYTD))}</span></span>
+        </div>
       </div>
       <div class="kpi">
         <div class="kpi-label">Blended прогноз (год)</div>
