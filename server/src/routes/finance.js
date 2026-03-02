@@ -11,6 +11,14 @@ const ORG_IPZ = '1df6218d-8996-11e8-b18d-001e67301201';
 const ORG_EKZ = '6bf16c76-8993-11e8-b18d-001e67301201';
 const ORG_NAMES = { [ORG_IPZ]: 'ИПЗ', [ORG_EKZ]: 'ЭКЗ' };
 
+// Simple in-memory cache (TTL 5 min)
+const _cache = {};
+function cacheGet(key) {
+  const e = _cache[key];
+  return (e && Date.now() - e.ts < 5 * 60 * 1000) ? e.val : null;
+}
+function cacheSet(key, val) { _cache[key] = { ts: Date.now(), val }; }
+
 function odataGet(path) {
   return new Promise((resolve, reject) => {
     const url = `${ODATA_BASE}/${path}`;
@@ -155,6 +163,11 @@ router.get('/summary', authenticate, async (req, res) => {
 router.get('/overdue', authenticate, async (req, res) => {
   try {
     const today = new Date();
+    const orgKey = req.query.org || ORG_IPZ;
+    const cacheKey = `overdue_${orgKey}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return res.json({ ...cached, data_as_of: today.toISOString(), cached: true });
+
     const dateFilter = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00'");
     const payFilter  = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00' and ВидОперации eq 'ОплатаПокупателя'");
 
@@ -168,7 +181,6 @@ router.get('/overdue', authenticate, async (req, res) => {
       odataGet(`Catalog_Контрагенты?$format=json&$top=3000&$select=Ref_Key,Description`),
     ]);
 
-    const orgKey = req.query.org || ORG_IPZ;
     const realItems = allRealize.filter(x => x.Posted && x.Организация_Key === orgKey);
     const payItems  = allPayments.filter(x => x.Posted && x.Организация_Key === orgKey);
     const nameMap = {};
@@ -262,7 +274,7 @@ router.get('/overdue', authenticate, async (req, res) => {
       d90: s.d90 + d.aging.d90,
     }), { d0: 0, d30: 0, d60: 0, d90: 0 });
 
-    res.json({
+    const result = {
       org: orgKey,
       org_name: ORG_NAMES[orgKey] || orgKey,
       data_as_of: today.toISOString(),
@@ -274,7 +286,9 @@ router.get('/overdue', authenticate, async (req, res) => {
       },
       aging,
       debtors,
-    });
+    };
+    cacheSet(cacheKey, result);
+    res.json(result);
   } catch (e) {
     console.error('Finance overdue error:', e.message);
     res.status(503).json({ error: '1С недоступна: ' + e.message });
