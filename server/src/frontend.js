@@ -100,6 +100,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .modal.modal--full { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 /* Spinner */
 @keyframes _spin { to { transform: rotate(360deg); } }
+@keyframes blink { 0%,100%{opacity:.2} 50%{opacity:1} }
 .spinner-ring { display: inline-block; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: _spin 0.7s linear infinite; }
 /* Searchable select */
 .srch-wrap { position:relative; }
@@ -506,6 +507,17 @@ function _srchGetList(id) {
     var invNum = (e.properties || {}).inv_number;
     return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
   });
+  if (fn === 'rent_room') return (_rooms || []).map(function(r) {
+    var bld = _getRoomBuilding(r);
+    return { id: r.id, name: r.name + (bld ? ' (' + bld + ')' : '') };
+  });
+  if (fn === 'rent_land_plot') return (_landPlots || []).map(function(lp) {
+    return { id: lp.id, name: lp.name };
+  });
+  if (fn === 'act_equipment') return (_equipment || []).map(function(e) {
+    var invNum = (e.properties || {}).inv_number;
+    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
+  });
   return _allCompanies || [];
 }
 
@@ -522,7 +534,7 @@ function _srchFilter(id) {
   });
   if (filtered.length > 50) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...</div>';
   var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
-  if (fn !== 'equipment_rent') {
+  if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'act_equipment') {
     h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
   }
   dropEl.innerHTML = h;
@@ -544,9 +556,11 @@ function _srchPick(id, entityId) {
   document.getElementById(id + '_drop').style.display = 'none';
   var customEl = document.getElementById(id + '_custom');
   if (customEl) customEl.style.display = 'none';
-  // Callback for equipment rent selectors
+  // Callbacks for searchable selectors in rent blocks
   var m = id.match(/^eq_rent_sel_(\d+)$/);
   if (m) onEquipmentRentSelected(parseInt(m[1]));
+  var m2 = id.match(/^ro_room_sel_(\d+)$/);
+  if (m2) onRentRoomSelected(parseInt(m2[1]));
 }
 
 function _srchPickNew(id) {
@@ -1529,6 +1543,7 @@ function renderDynamicFields(contractType, props) {
 
   if (contractType === 'Аренды' || contractType === 'Субаренды') {
     renderRentFields(container, extraFields, props);
+    _srchInitAll();
     return;
   }
 
@@ -1927,16 +1942,17 @@ function renderRentObjectBlock(index, obj) {
     h += '<button type="button" id="ro_cmt_btn_' + index + '" onclick="showRoComment(' + index + ')" style="font-size:11px;background:none;border:1px dashed var(--border);color:var(--text-secondary);border-radius:4px;padding:2px 10px;cursor:pointer;margin-top:2px' + (hasCmt ? ';display:none' : '') + '">Добавить комментарий</button>';
     h += '</div>';
   } else {
-    // NEW: Room from registry — select room, auto-fill properties
-    h += '<div class="form-group"><label>Помещение</label>';
-    h += '<select class="ro-field" data-idx="' + index + '" data-name="room_id" onchange="onRentRoomSelected(' + index + ')" style="width:100%">';
-    h += '<option value="">— выберите помещение —</option>';
-    (_rooms || []).forEach(function(r) {
+    // NEW: Room from registry — searchable select
+    var roSrchId = 'ro_room_sel_' + index;
+    var roomList = (_rooms || []).map(function(r) {
       var bld = _getRoomBuilding(r);
-      var label = r.name + (bld ? ' (' + bld + ')' : '');
-      h += '<option value="' + r.id + '"' + (parseInt(obj.room_id) === r.id ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+      return { id: r.id, name: r.name + (bld ? ' (' + bld + ')' : '') };
     });
-    h += '</select></div>';
+    var selRoomName = '';
+    if (room) { var _bld = _getRoomBuilding(room); selRoomName = room.name + (_bld ? ' (' + _bld + ')' : ''); }
+    h += '<div class="form-group"><label>Помещение</label>';
+    h += renderSearchableSelect(roSrchId, roomList, obj.room_id || '', selRoomName, 'начните вводить...', 'rent_room');
+    h += '</div>';
 
     // Auto-filled room properties (read-only display)
     h += '<div id="ro_room_info_' + index + '" style="' + (room ? '' : 'display:none;') + 'font-size:13px;color:var(--text-secondary);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px">';
@@ -1971,8 +1987,8 @@ function renderRentObjectBlock(index, obj) {
 }
 
 function onRentRoomSelected(index) {
-  var sel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="room_id"]');
-  var roomId = sel ? sel.value : '';
+  var hiddenEl = document.getElementById('ro_room_sel_' + index);
+  var roomId = hiddenEl ? hiddenEl.value : '';
   var room = _getRoomById(roomId);
   var infoDiv = document.getElementById('ro_room_info_' + index);
   if (room) {
@@ -2189,6 +2205,7 @@ function addRentObject() {
   div.innerHTML = renderRentObjectBlock(_rentObjectCounter, {});
   container.appendChild(div.firstChild);
   _rentObjectCounter++;
+  _srchInitAll();
 }
 
 function removeRentObject(index) {
@@ -2485,6 +2502,9 @@ function collectRentObjectData(index) {
     if (el.type === 'checkbox') { obj[name] = el.checked ? 'true' : 'false'; return; }
     obj[name] = el.value;
   });
+  // Read from searchable select hidden inputs
+  var roRoomHidden = document.getElementById('ro_room_sel_' + index);
+  if (roRoomHidden && roRoomHidden.value) obj.room_id = roRoomHidden.value;
   // Resolve entity names from IDs
   if (obj.building_id) {
     var b = _buildings.find(function(e) { return e.id === parseInt(obj.building_id); });
@@ -2610,6 +2630,7 @@ function onRentFieldChange() {
     }
   });
   renderRentFields(container, allFields, currentProps);
+  _srchInitAll();
 }
 
 function enableEquipmentTransfer() {
@@ -8721,10 +8742,14 @@ function renderAIMessages() {
     h += '<div style="display:flex;justify-content:' + align + ';margin-bottom:10px">';
     h += '<div style="max-width:85%;padding:10px 14px;border-radius:12px;background:' + bg + ';color:' + color + ';font-size:13px;line-height:1.5;word-break:break-word">';
     h += icon;
-    h += '<div style="white-space:pre-wrap">' + escapeHtml(m.content) + '</div>';
-    h += tableHtml;
-    var time = new Date(m.created_at);
-    h += '<div style="font-size:10px;opacity:0.6;margin-top:4px;text-align:right">' + time.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}) + '</div>';
+    if (m._typing) {
+      h += '<div style="display:flex;gap:4px;align-items:center;padding:4px 0"><span style="animation:blink 1s infinite;opacity:.5">●</span><span style="animation:blink 1s .3s infinite;opacity:.5">●</span><span style="animation:blink 1s .6s infinite;opacity:.5">●</span></div>';
+    } else {
+      h += '<div style="white-space:pre-wrap">' + escapeHtml(m.content) + '</div>';
+      h += tableHtml;
+      var time = new Date(m.created_at);
+      h += '<div style="font-size:10px;opacity:0.6;margin-top:4px;text-align:right">' + time.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}) + '</div>';
+    }
     h += '</div></div>';
   });
   el.innerHTML = h;
@@ -8736,20 +8761,36 @@ async function sendAIMessage() {
   if (!inp || !inp.value.trim()) return;
   var msg = inp.value.trim();
   inp.value = '';
-  // Optimistic add
+  // Optimistic: добавляем сообщение пользователя
   _aiMessages.push({id: 0, role: 'user', content: msg, metadata: {}, created_at: new Date().toISOString()});
+  // Добавляем индикатор "печатает..."
+  var typingId = '__typing__';
+  _aiMessages.push({id: typingId, role: 'assistant', content: '…', metadata: {}, created_at: new Date().toISOString(), _typing: true});
   renderAIMessages();
   try {
     var res = await api('/ai/chat', {method: 'POST', body: JSON.stringify({message: msg})});
-    if (res.id) {
-      _aiMessages[_aiMessages.length - 1].id = res.id;
-      _aiLastId = Math.max(_aiLastId, res.id);
+    // Убираем typing indicator
+    _aiMessages = _aiMessages.filter(function(m) { return m.id !== typingId; });
+    // Обновляем id пользовательского сообщения
+    if (res.user_id) {
+      var um = _aiMessages.find(function(m) { return m.role === 'user' && m.id === 0; });
+      if (um) um.id = res.user_id;
     }
+    // Добавляем ответ ИИ сразу (inline response)
+    if (res.reply) {
+      _aiMessages.push({id: res.reply.id, role: 'assistant', content: res.reply.content, metadata: {}, created_at: res.reply.created_at});
+      _aiLastId = Math.max(_aiLastId, res.reply.id || 0);
+    } else if (res.id) {
+      // Старый формат — ждём через polling
+      _aiLastId = Math.max(_aiLastId, res.id);
+      startAIPoll();
+    }
+    renderAIMessages();
   } catch(e) {
-    _aiMessages.push({id: 0, role: 'assistant', content: 'Ошибка отправки: ' + (e.message || 'попробуйте позже'), metadata: {}, created_at: new Date().toISOString()});
+    _aiMessages = _aiMessages.filter(function(m) { return m.id !== typingId; });
+    _aiMessages.push({id: 0, role: 'assistant', content: '⚠️ Ошибка: ' + (e.message || 'попробуйте позже'), metadata: {}, created_at: new Date().toISOString()});
     renderAIMessages();
   }
-  startAIPoll();
 }
 
 function startAIPoll() {
