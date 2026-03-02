@@ -2794,7 +2794,10 @@ async function doLogin() {
     document.getElementById('sidebar').style.display = '';
     document.querySelector('.main').style.display = '';
     startApp();
-  } catch (e) { errEl.textContent = 'Ошибка подключения'; }
+  } catch (e) {
+    console.error('Login error:', e);
+    errEl.textContent = 'Ошибка подключения: ' + (e.message || e);
+  }
 }
 
 async function startApp() {

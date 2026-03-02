@@ -6,7 +6,7 @@ function asyncHandler(fn) {
 }
 
 function errorHandler(err, req, res, _next) {
-  logger.error(`[ERROR] ${req.method} ${req.path}:`, err.message);
+  logger.error(`[ERROR] ${req.method} ${req.path}: ${err.message} | code: ${err.code} | stack: ${err.stack?.split('\n')[1]?.trim()}`);
 
   // Don't leak stack traces to client
   if (err.isJoi) {
