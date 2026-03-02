@@ -454,7 +454,8 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     function normalize(s) {
       return (s || '').toLowerCase()
         .replace(/\b(ооо|ао|пао|зао|оао|ип|пп|ф-л|филиал)\b/g, '')
-        .replace(/[«»"']/g, '').replace(/\s+/g,' ').trim();
+        .replace(/[«»"',.()\-]/g, ' ')
+        .replace(/\s+/g,' ').trim();
     }
     const contractByNorm = {};
     for (const c of contracts) {
