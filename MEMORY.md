@@ -267,6 +267,24 @@
 - **ДС**: срок действия всегда раскрыт, убран дубль номера
 - **Контакты компаний**: множественные контакты с должностью (field_type=contacts, JSON массив)
 
+## Что реализовано (2026-03-02) — Финансы 1С + Контакты
+- **Живая страница `/finance`**: `finance-dashboard.html` загружает данные из 1С OData в реальном времени
+- **Endpoint `GET /api/finance/overdue?org=<key>`**: считает долг per contractor, aging buckets (0-30/31-60/61-90/90+)
+- Вкладки ИПЗ / ЭКЗ, тёмная тема, Chart.js графики (bar + donut)
+- **`/api/finance/summary`** — endpoint для встроенной SPA-страницы (showFinancePage), KPI карточки + месячный график
+- **Контакты компаний (contacts field_type)**: JSON массив `[{name, position, phone, email}]`, старые поля скрыты (sort_order=999)
+- ⚠️ Frontend рендеринг contacts НЕ ЗАВЕРШЁН (~line 1186 в frontend.js)
+- **2FA включена** для valentina (requireTotp=true) — блокирует curl-тестирование
+
+### Исправления финансового модуля (2026-03-02 вечер)
+- **Расчёт долга (ОСВ сч.62)**: `Document_РеализацияТоваровУслуг` (Дт62) − `ОплатаПокупателя` (Кт62) = 7 должников, ~8.6M по ИПЗ
+  - Было: `СчетНаОплатуПокупателю` − все `ПоступлениеНаРасчетныйСчет` → включало депозиты/межбанк → неверно
+- **`odataGetAll(basePath, pageSize=1000)`**: цикл `$skip` до исчерпания; критично т.к. 3390 счетов / 4395 платежей
+- **5-мин кеш `/overdue`**: `cacheGet`/`cacheSet` в finance.js, ключ `overdue_<orgKey>`
+- **VPN watchdog**: `/usr/local/bin/vpn-watchdog.sh` (cron `*/5 * * * *`); LCP keepalive в options.l2tpd.zvezda
+- **UUID резолвинг контрагентов**: `$top=3000` + fallback `Ref_Key eq guid'...'` → все 11 проблемных UUID закрыты
+- Коммиты: `fix: fallback UUID`, `fix: paginate all invoices/payments`, `fix: use РеализацияТоваровУслуг+ОплатаПокупателя`, `fix: 5min cache + VPN watchdog`
+
 ## 🚧 В очереди (не реализовано)
 - **🐛 Краны: нестинг в дереве** — все краны (id:30-41, `parent_id=29`) отображаются вложенными под первый кран в каком-то tree-widget во frontend; данные в БД ВЕРНЫЕ; баг в frontend tree-rendering; нужно найти и исправить
 - **Room form cleanup** — Migration 015: удалить `room_type` из field_definitions + добавить `room_number` (text, sort_order=4) с ON CONFLICT DO NOTHING
@@ -292,6 +310,9 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 ```
 
 ## Планы / Next Steps
+- **Контакты**: дописать frontend рендеринг field_type='contacts' (~line 1186 в frontend.js)
+- **Контакты**: миграция старых contact_person/phone/email → новый JSON формат
+- **Финансы**: date range filter UI для `/finance` (сейчас hardcoded 2025-01-01)
+- **Финансы**: stale data fallback при недоступности VPN (показывать кеш с timestamp)
+- **Blended forecast (факт+план)**: ждём прав от 1С admin на `Document_бит_ФормаВводаБюджета` и БИТ.Финанс объекты
 - Дописать JS функции для "Анализ аренды"
-- Проработать новый UX группировки строк в agg report
-- Проверить карточку договора аренды на живом сайте
