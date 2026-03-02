@@ -157,6 +157,17 @@ if(window.self !== window.top) document.addEventListener('DOMContentLoaded', fun
 <script>
 const TOKEN = localStorage.getItem('accessToken');
 
+function openEntityCard(id) {
+  if (!id) return;
+  // Если страница в iframe — сообщаем родительскому SPA
+  if (window.self !== window.top) {
+    window.parent.postMessage({ type: 'openEntity', id: id }, '*');
+  } else {
+    // Открыт напрямую — переходим в SPA по якорю
+    window.open('/#entity/' + id, '_blank');
+  }
+}
+
 function num(v, forceSign=false) {
   if (v === null || v === undefined) return '<span class="cell-zero">—</span>';
   const n = Math.round(v);

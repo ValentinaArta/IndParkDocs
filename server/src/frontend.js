@@ -384,6 +384,14 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'transfer_equipment', name_ru: 'Передача оборудования', field_type: 'checkbox', _group: 'all' },
     { name: 'equipment_list', name_ru: 'Передаваемое оборудование', field_type: 'equipment_list', _group: 'transfer' },
   ],
+  'Аренда оборудования': [
+    { name: 'equipment_rent_items', name_ru: 'Предметы аренды', field_type: 'equipment_rent_items' },
+    { name: 'rent_monthly', name_ru: 'Стоимость аренды в месяц', field_type: 'number', _group: 'all', _readonly: true },
+    { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
+    { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
+    { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
+    { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
+  ],
   'Обслуживания': [
     { name: 'service_subject', name_ru: 'Описание работ / предмет', field_type: 'text' },
     { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
@@ -494,6 +502,10 @@ function _srchGetList(id) {
   var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
   if (fn === 'our_legal_entity') return _ownCompanies || [];
   if (fn === 'balance_owner') return _ownCompanies || [];
+  if (fn === 'equipment_rent') return (_equipment || []).map(function(e) {
+    var invNum = (e.properties || {}).inv_number;
+    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
+  });
   return _allCompanies || [];
 }
 
@@ -509,14 +521,18 @@ function _srchFilter(id) {
     h += '<div class="srch-item" data-srch-pick="' + e.id + '">' + escapeHtml(e.name) + '</div>';
   });
   if (filtered.length > 50) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...</div>';
-  h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
+  var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
+  if (fn !== 'equipment_rent') {
+    h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
+  }
   dropEl.innerHTML = h;
   dropEl.style.display = '';
   // Bind click handlers via delegation
   dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
     el.addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPick(id, parseInt(el.dataset.srchPick)); });
   });
-  dropEl.querySelector('[data-srch-new]').addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPickNew(id); });
+  var newBtn = dropEl.querySelector('[data-srch-new]');
+  if (newBtn) newBtn.addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPickNew(id); });
 }
 
 function _srchPick(id, entityId) {
@@ -528,6 +544,9 @@ function _srchPick(id, entityId) {
   document.getElementById(id + '_drop').style.display = 'none';
   var customEl = document.getElementById(id + '_custom');
   if (customEl) customEl.style.display = 'none';
+  // Callback for equipment rent selectors
+  var m = id.match(/^eq_rent_sel_(\d+)$/);
+  if (m) onEquipmentRentSelected(parseInt(m[1]));
 }
 
 function _srchPickNew(id) {
@@ -1513,6 +1532,12 @@ function renderDynamicFields(contractType, props) {
     return;
   }
 
+  if (contractType === 'Аренда оборудования') {
+    renderEquipmentRentFields(container, extraFields, props || {});
+    _srchInitAll();
+    return;
+  }
+
   let html = '';
   extraFields.forEach(function(f) {
     const val = props ? (props[f.name] || '') : '';
@@ -1815,20 +1840,34 @@ function _roEqCreateMiniForm(index, eqTypeId) {
   return h;
 }
 
+function _getRoomById(roomId) {
+  if (!roomId) return null;
+  return (_rooms || []).find(function(r) { return r.id === parseInt(roomId); }) || null;
+}
+
+function _getRoomBuilding(room) {
+  if (!room || !room.parent_id) return '';
+  var bld = (_buildings || []).find(function(b) { return b.id === room.parent_id; });
+  return bld ? bld.name : '';
+}
+
 function renderRentObjectBlock(index, obj) {
   obj = obj || {};
-  // Resolve object_type: prefer new field, fallback from old item_type
   var objectType = obj.object_type || '';
+  // Legacy: detect land plots
   if (!objectType && obj.item_type) {
     if (obj.item_type === 'land_plot') objectType = 'ЗУ';
-    else if (obj.item_type === 'equipment') objectType = 'Оборудование';
   }
   var isLandPlot = (objectType === 'ЗУ');
-  // If objectType is not in OBJECT_TYPES, add it temporarily for display
   var typeOptions = OBJECT_TYPES.slice();
   if (objectType && typeOptions.indexOf(objectType) < 0) typeOptions.push(objectType);
-  var calcMode = obj.calc_mode || 'area_rate';
   var blockTitle = isLandPlot ? ('Участок ' + (index + 1)) : ('Помещение ' + (index + 1));
+
+  // Resolve room data for display
+  var room = _getRoomById(obj.room_id);
+  var roomArea = room ? (room.properties || {}).area : (obj.area || '');
+  var roomType = room ? (room.properties || {}).room_type : (obj.room_type || '');
+  var roomBuilding = room ? _getRoomBuilding(room) : (obj.building_name || '');
 
   var h = '<div class="rent-object-block" id="rent_obj_' + index + '" style="border-left:3px solid var(--accent);padding:12px 12px 12px 15px;margin-bottom:12px;position:relative;background:var(--bg-secondary);border-radius:6px">';
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
@@ -1837,7 +1876,7 @@ function renderRentObjectBlock(index, obj) {
   h += '</div>';
 
   if (isLandPlot) {
-    // Тип — for ЗУ only, shown before selectors
+    // ЗУ: keep old logic
     h += '<div class="form-group"><label>Тип объекта</label>';
     h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" onchange="onRentObjectTypeChange(' + index + ')">';
     h += '<option value="">—</option>';
@@ -1845,10 +1884,6 @@ function renderRentObjectBlock(index, obj) {
       h += '<option value="' + escapeHtml(t) + '"' + (objectType === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
     });
     h += '</select></div>';
-  }
-
-  if (isLandPlot) {
-    // ЗУ: land_plot selector + optional part selector
     h += '<div class="form-group"><label>Земельный участок</label>';
     h += '<select class="ro-field" data-idx="' + index + '" data-name="land_plot_id" onchange="onRoLandPlotChange(' + index + ')" style="width:100%">';
     h += '<option value="">— не выбран —</option>';
@@ -1858,7 +1893,6 @@ function renderRentObjectBlock(index, obj) {
     h += '</select>';
     h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="land_plot_name" value="' + escapeHtml(obj.land_plot_name || '') + '">';
     h += '</div>';
-    // Часть ЗУ (optional, filtered by selected land_plot)
     var selLpId = parseInt(obj.land_plot_id) || 0;
     var availParts = (_landPlotParts || []).filter(function(p) { return p.parent_id === selLpId; });
     h += '<div class="form-group"><label>Часть ЗУ (необязательно)</label>';
@@ -1870,32 +1904,270 @@ function renderRentObjectBlock(index, obj) {
     h += '</select>';
     h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="land_plot_part_name" value="' + escapeHtml(obj.land_plot_part_name || '') + '">';
     h += '</div>';
-  } else {
-    // Помещение: building + room selectors
-    h += '<div class="form-group"><label>Корпус</label>' + renderRoEntitySelect(index, 'building_id', _buildings, obj.building_id, 'выберите корпус') +
-      '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building" value="' + escapeHtml(obj.building || '') + '"></div>';
-    h += '<div class="form-group"><label>Помещение</label>';
-    h += renderRoRoomSelect(index, obj.room_id);
-    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room" value="' + escapeHtml(obj.room || '') + '">';
-    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
+    h += _roCalcFields(index, obj, obj.calc_mode || 'area_rate');
+  } else if (obj.room_name && !obj.room_id) {
+    // Legacy: rent object without room_id (text description)
+    h += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">';
+    h += '<div><b>Корпус:</b> ' + escapeHtml(obj.building_name || '—') + '</div>';
+    h += '<div><b>Помещение:</b> ' + escapeHtml(obj.room_name || '—') + '</div>';
+    h += '<div><b>Тип:</b> ' + escapeHtml(obj.room_type || '—') + ' | <b>Площадь:</b> ' + escapeHtml(obj.area || '—') + ' м²</div>';
     h += '</div>';
-    h += _roRoomCreateMiniForm(index);
-    // Тип помещения — auto-filled from room, compact display
-    h += '<div class="form-group" style="' + (objectType ? '' : 'display:none;') + '" id="ro_type_wrap_' + index + '"><label style="font-size:12px;color:var(--text-secondary)">Тип помещения</label>';
-    h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" style="font-size:13px;padding:6px 8px">';
-    h += '<option value="">—</option>';
-    typeOptions.forEach(function(t) {
-      h += '<option value="' + escapeHtml(t) + '"' + (objectType === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room_name" value="' + escapeHtml(obj.room_name || '') + '">';
+    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="area" value="' + escapeHtml(obj.area || '') + '">';
+    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building_name" value="' + escapeHtml(obj.building_name || '') + '">';
+    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room_type" value="' + escapeHtml(obj.room_type || '') + '">';
+    h += '<div class="form-group"><label>Ставка (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
+    var legacyTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
+    if (legacyTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + _fmtNum(legacyTotal) + ' руб/мес</div>';
+    // Comment
+    var hasCmt = !!(obj.comment && obj.comment.trim());
+    h += '<div id="ro_cmt_wrap_' + index + '">';
+    h += '<div id="ro_cmt_block_' + index + '"' + (hasCmt ? '' : ' style="display:none"') + '><label style="font-size:12px;color:var(--text-secondary)">Комментарий</label>';
+    h += '<input class="ro-field" data-idx="' + index + '" data-name="comment" value="' + escapeHtml(obj.comment || '') + '" style="width:100%"></div>';
+    h += '<button type="button" id="ro_cmt_btn_' + index + '" onclick="showRoComment(' + index + ')" style="font-size:11px;background:none;border:1px dashed var(--border);color:var(--text-secondary);border-radius:4px;padding:2px 10px;cursor:pointer;margin-top:2px' + (hasCmt ? ';display:none' : '') + '">Добавить комментарий</button>';
+    h += '</div>';
+  } else {
+    // NEW: Room from registry — select room, auto-fill properties
+    h += '<div class="form-group"><label>Помещение</label>';
+    h += '<select class="ro-field" data-idx="' + index + '" data-name="room_id" onchange="onRentRoomSelected(' + index + ')" style="width:100%">';
+    h += '<option value="">— выберите помещение —</option>';
+    (_rooms || []).forEach(function(r) {
+      var bld = _getRoomBuilding(r);
+      var label = r.name + (bld ? ' (' + bld + ')' : '');
+      h += '<option value="' + r.id + '"' + (parseInt(obj.room_id) === r.id ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
     });
     h += '</select></div>';
-  }
 
-  // Calc fields
-  h += _roCalcFields(index, obj, calcMode);
+    // Auto-filled room properties (read-only display)
+    h += '<div id="ro_room_info_' + index + '" style="' + (room ? '' : 'display:none;') + 'font-size:13px;color:var(--text-secondary);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px">';
+    h += '<div><b>Корпус:</b> <span id="ro_room_building_' + index + '">' + escapeHtml(roomBuilding) + '</span></div>';
+    h += '<div><b>Тип:</b> <span id="ro_room_type_' + index + '">' + escapeHtml(roomType) + '</span></div>';
+    h += '<div><b>Площадь:</b> <span id="ro_room_area_' + index + '">' + escapeHtml(String(roomArea)) + '</span> м²</div>';
+    h += '</div>';
+
+    // Editable: rent rate only
+    h += '<div class="form-group"><label>Ставка (руб/м²/мес)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
+
+    // Monthly total
+    var monthlyTotal = (parseFloat(roomArea) || 0) * (parseFloat(obj.rent_rate) || 0);
+    h += '<div id="ro_monthly_' + index + '" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">' + (monthlyTotal > 0 ? '= ' + _fmtNum(monthlyTotal) + ' руб/мес' : '') + '</div>';
+
+    // Comment (collapsible)
+    var hasCmt = !!(obj.comment && obj.comment.trim());
+    h += '<div id="ro_cmt_wrap_' + index + '">';
+    h += '<div id="ro_cmt_block_' + index + '"' + (hasCmt ? '' : ' style="display:none"') + '>';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">' +
+      '<label style="font-size:12px;margin:0;color:var(--text-secondary)">Комментарий</label>' +
+      '<button type="button" onclick="closeRoComment(' + index + ')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 4px;font-size:13px">✕</button></div>';
+    h += '<input class="ro-field" data-idx="' + index + '" data-name="comment" id="ro_cmt_in_' + index + '" value="' + escapeHtml(obj.comment || '') + '" style="width:100%;box-sizing:border-box">';
+    h += '</div>';
+    h += '<button type="button" id="ro_cmt_btn_' + index + '" onclick="showRoComment(' + index + ')"' +
+      ' style="font-size:11px;background:none;border:1px dashed var(--border);color:var(--text-secondary);border-radius:4px;padding:2px 10px;cursor:pointer;margin-top:2px' + (hasCmt ? ';display:none' : '') + '">Добавить комментарий</button>';
+    h += '</div>';
+  }
 
   h += '</div>';
   return h;
 }
+
+function onRentRoomSelected(index) {
+  var sel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="room_id"]');
+  var roomId = sel ? sel.value : '';
+  var room = _getRoomById(roomId);
+  var infoDiv = document.getElementById('ro_room_info_' + index);
+  if (room) {
+    var props = room.properties || {};
+    var bld = _getRoomBuilding(room);
+    document.getElementById('ro_room_building_' + index).textContent = bld || '—';
+    document.getElementById('ro_room_type_' + index).textContent = props.room_type || '—';
+    document.getElementById('ro_room_area_' + index).textContent = props.area || '—';
+    if (infoDiv) infoDiv.style.display = '';
+  } else {
+    if (infoDiv) infoDiv.style.display = 'none';
+  }
+  recalcRentMonthly();
+}
+
+// ===== Аренда оборудования =====
+var _eqRentCounter = 0;
+
+function renderEquipmentRentFields(container, allFields, props) {
+  var items = [];
+  try { items = JSON.parse(props.equipment_rent_items || '[]'); } catch(ex) {}
+  if (!items.length) items = [{}];
+
+  var durationType = props.duration_type || '';
+  var vatVal = props.vat_rate || '22';
+
+  var html = '<div id="eq_rent_items_container">';
+  _eqRentCounter = 0;
+  items.forEach(function(item, i) {
+    html += renderEquipmentRentBlock(i, item);
+    _eqRentCounter = i + 1;
+  });
+  html += '</div>';
+  html += '<button type="button" class="btn btn-sm" onclick="addEquipmentRentItem()" style="margin-bottom:16px">+ Добавить оборудование</button>';
+
+  // Total (auto)
+  html += '<div class="form-group"><label>Стоимость аренды в месяц (авто)</label><input type="number" id="f_rent_monthly" value="' + (props.rent_monthly || '') + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
+
+  // НДС
+  html += '<div class="form-group"><label>НДС (%)</label><input type="number" id="f_vat_rate" value="' + escapeHtml(vatVal) + '" style="width:80px" min="0" max="100" oninput="updateVatDisplay()"></div>';
+  html += '<div id="vat_display" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px"></div>';
+
+  // Duration
+  html += '<div class="form-group"><label>Срок действия</label><select id="f_duration_type" onchange="onDurationTypeChange()">';
+  html += '<option value="">—</option>';
+  html += '<option value="Дата"' + (durationType === 'Дата' ? ' selected' : '') + '>Дата</option>';
+  html += '<option value="Текст"' + (durationType === 'Текст' ? ' selected' : '') + '>Текст</option>';
+  html += '</select></div>';
+  html += '<div id="duration_date_wrap" style="' + (durationType === 'Дата' ? '' : 'display:none') + '"><div class="form-group"><label>Дата окончания</label><input type="date" id="f_duration_date" value="' + (props.duration_date || '') + '"></div></div>';
+  html += '<div id="duration_text_wrap" style="' + (durationType === 'Текст' ? '' : 'display:none') + '"><div class="form-group"><label>Срок действия (текст)</label><input id="f_duration_text" value="' + escapeHtml(props.duration_text || '') + '"></div></div>';
+
+  container.innerHTML = html;
+  recalcEquipmentRentTotal();
+}
+
+function renderEquipmentRentBlock(index, item) {
+  item = item || {};
+  var eq = item.equipment_id ? (_equipment || []).find(function(e) { return e.id === parseInt(item.equipment_id); }) : null;
+  var eqProps = eq ? (eq.properties || {}) : {};
+
+  var h = '<div class="eq-rent-block" id="eq_rent_' + index + '" style="border-left:3px solid var(--accent);padding:12px 12px 12px 15px;margin-bottom:12px;position:relative;background:var(--bg-secondary);border-radius:6px">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  h += '<strong>Оборудование ' + (index + 1) + '</strong>';
+  h += '<button type="button" class="btn btn-sm btn-danger" onclick="removeEquipmentRentItem(' + index + ')" style="padding:2px 8px;font-size:11px">✕</button>';
+  h += '</div>';
+
+  // Equipment selector (searchable)
+  var eqSrchId = 'eq_rent_sel_' + index;
+  var eqSelName = eq ? eq.name : '';
+  if (eq) { var _inv = (eq.properties || {}).inv_number; if (_inv) eqSelName += ' (инв. ' + _inv + ')'; }
+  h += '<div class="form-group"><label>Оборудование</label>';
+  h += renderSearchableSelect(eqSrchId, (_equipment || []).map(function(e) { var inv = (e.properties||{}).inv_number; return {id:e.id, name: e.name + (inv ? ' (инв. '+inv+')' : '')}; }), item.equipment_id || '', eqSelName, 'начните вводить...', 'equipment_rent');
+  h += '</div>';
+
+  // Create new inline form (hidden by default)
+  h += '<div id="eq_rent_create_' + index + '" style="display:none;background:var(--bg);padding:10px;border-radius:6px;margin-bottom:8px">';
+  h += '<div class="form-group"><label style="font-size:12px">Название</label><input id="eq_rent_new_name_' + index + '" placeholder="Название оборудования"></div>';
+  h += '<div class="form-group"><label style="font-size:12px">Инв. номер</label><input id="eq_rent_new_inv_' + index + '" placeholder="Инв. номер"></div>';
+  h += '<div class="form-group"><label style="font-size:12px">Категория</label><select id="eq_rent_new_cat_' + index + '">';
+  h += '<option value="">—</option>';
+  getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+  h += '</select></div>';
+  h += '<button type="button" class="btn btn-primary btn-sm" onclick="createEquipmentRentInline(' + index + ')">Создать</button> ';
+  h += '<button type="button" class="btn btn-sm" onclick="toggleEqRentCreate(' + index + ')">Отмена</button>';
+  h += '</div>';
+
+  // Auto-filled equipment info
+  h += '<div id="eq_rent_info_' + index + '" style="' + (eq ? '' : 'display:none;') + 'font-size:13px;color:var(--text-secondary);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px">';
+  h += '<span id="eq_rent_cat_' + index + '">' + escapeHtml(eqProps.equipment_category || '') + '</span>';
+  if (eqProps.inv_number) h += ' · Инв. ' + escapeHtml(eqProps.inv_number);
+  if (eqProps.manufacturer) h += ' · ' + escapeHtml(eqProps.manufacturer);
+  h += '</div>';
+
+  // Rent cost
+  h += '<div class="form-group"><label>Стоимость аренды (руб/мес)</label><input type="number" class="eq-rent-field" data-idx="' + index + '" data-name="rent_cost" value="' + (item.rent_cost || '') + '" oninput="recalcEquipmentRentTotal()"></div>';
+
+  h += '</div>';
+  return h;
+}
+
+function onEquipmentRentSelected(index) {
+  var hiddenEl = document.getElementById('eq_rent_sel_' + index);
+  var eqId = hiddenEl ? hiddenEl.value : '';
+  var eq = eqId ? (_equipment || []).find(function(e) { return e.id === parseInt(eqId); }) : null;
+  var infoDiv = document.getElementById('eq_rent_info_' + index);
+  if (eq) {
+    var p = eq.properties || {};
+    var parts = [];
+    if (p.equipment_category) parts.push(p.equipment_category);
+    if (p.inv_number) parts.push('Инв. ' + p.inv_number);
+    if (p.manufacturer) parts.push(p.manufacturer);
+    infoDiv.textContent = parts.join(' · ') || '—';
+    infoDiv.style.display = '';
+  } else {
+    infoDiv.style.display = 'none';
+  }
+}
+
+function toggleEqRentCreate(index) {
+  var div = document.getElementById('eq_rent_create_' + index);
+  if (div) div.style.display = div.style.display === 'none' ? '' : 'none';
+}
+
+async function createEquipmentRentInline(index) {
+  var name = document.getElementById('eq_rent_new_name_' + index).value.trim();
+  if (!name) { alert('Введите название'); return; }
+  var invNum = document.getElementById('eq_rent_new_inv_' + index).value.trim();
+  var cat = document.getElementById('eq_rent_new_cat_' + index).value;
+  var eqType = entityTypes.find(function(t) { return t.name === 'equipment'; });
+  if (!eqType) { alert('Тип "Оборудование" не найден'); return; }
+  var properties = {};
+  if (invNum) properties.inv_number = invNum;
+  if (cat) properties.equipment_category = cat;
+  try {
+    var created = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: eqType.id, name: name, properties: properties }) });
+    _equipment.push(created);
+    // Select the new equipment in searchable select
+    var eqLabel = name + (invNum ? ' (инв. ' + invNum + ')' : '');
+    var hiddenEl = document.getElementById('eq_rent_sel_' + index);
+    var textEl = document.getElementById('eq_rent_sel_' + index + '_text');
+    if (hiddenEl) hiddenEl.value = String(created.id);
+    if (textEl) textEl.value = eqLabel;
+    onEquipmentRentSelected(index);
+    toggleEqRentCreate(index);
+  } catch(e) { alert('Ошибка: ' + (e.message || e)); }
+}
+
+function addEquipmentRentItem() {
+  var container = document.getElementById('eq_rent_items_container');
+  if (!container) return;
+  _eqRentCounter++;
+  var div = document.createElement('div');
+  div.innerHTML = renderEquipmentRentBlock(_eqRentCounter, {});
+  container.appendChild(div.firstChild);
+  _srchInitAll();
+}
+
+function removeEquipmentRentItem(index) {
+  var block = document.getElementById('eq_rent_' + index);
+  if (block) block.remove();
+  recalcEquipmentRentTotal();
+}
+
+function collectEquipmentRentItems() {
+  var items = [];
+  document.querySelectorAll('.eq-rent-block').forEach(function(block) {
+    var idx = block.id.replace('eq_rent_', '');
+    var item = {};
+    block.querySelectorAll('.eq-rent-field').forEach(function(el) {
+      item[el.dataset.name] = el.value;
+    });
+    // Read equipment_id from searchable select hidden input
+    var eqHidden = document.getElementById('eq_rent_sel_' + idx);
+    if (eqHidden && eqHidden.value) item.equipment_id = eqHidden.value;
+    // Resolve equipment name
+    if (item.equipment_id) {
+      var eq = (_equipment || []).find(function(e) { return e.id === parseInt(item.equipment_id); });
+      if (eq) item.equipment_name = eq.name;
+    }
+    if (item.equipment_id || item.rent_cost) items.push(item);
+  });
+  return items;
+}
+
+function recalcEquipmentRentTotal() {
+  var total = 0;
+  document.querySelectorAll('.eq-rent-block').forEach(function(block) {
+    var costEl = block.querySelector('.eq-rent-field[data-name="rent_cost"]');
+    total += parseFloat(costEl ? costEl.value : 0) || 0;
+  });
+  var rentEl = document.getElementById('f_rent_monthly');
+  if (rentEl) rentEl.value = total > 0 ? total.toFixed(2) : '';
+  updateVatDisplay();
+}
+// ===== End Аренда оборудования =====
 
 function addRentObjectType(index) {
   var name = prompt('Введите тип помещения:');
@@ -2263,11 +2535,19 @@ function collectAllRentObjects() {
 function recalcRentMonthly() {
   var total = 0;
   var objects = collectAllRentObjects();
-  objects.forEach(function(obj) {
+  objects.forEach(function(obj, i) {
+    var area = 0;
     if (obj.calc_mode === 'fixed') {
       total += parseFloat(obj.fixed_rent) || 0;
     } else {
-      total += (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
+      // Get area from room registry if room_id exists
+      var room = _getRoomById(obj.room_id);
+      area = room ? (parseFloat((room.properties || {}).area) || 0) : (parseFloat(obj.area) || 0);
+      var rate = parseFloat(obj.rent_rate) || 0;
+      total += area * rate;
+      // Update monthly display
+      var monthlyEl = document.getElementById('ro_monthly_' + i);
+      if (monthlyEl) monthlyEl.textContent = (area * rate > 0) ? '= ' + _fmtNum(area * rate) + ' руб/мес' : '';
     }
   });
   // Add extra services
@@ -2488,6 +2768,7 @@ function onEntityCustomConfirm(fieldName) {
 var CONTRACT_ROLES = {
   'Подряда':     { our: 'Заказчик',      contractor: 'Подрядчик' },
   'Аренды':      { our: 'Арендодатель',   contractor: 'Арендатор' },
+  'Аренда оборудования': { our: 'Арендодатель', contractor: 'Арендатор' },
   'Субаренды':   { our: 'Арендодатель',   contractor: 'Арендатор', hasSubtenant: true },
   'Услуг':       { our: 'Заказчик',      contractor: 'Исполнитель' },
   'Поставки':    { our: 'Покупатель',    contractor: 'Поставщик' },
@@ -2598,7 +2879,7 @@ function renderContractFormFields(fields, props, headerHtml) {
     }
 
     // Hide payment_frequency and sale_item_type for Аренды/Субаренды
-    var _isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды');
+    var _isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды' || contractType === 'Аренда оборудования');
     if (_isRentalType && (f.name === 'payment_frequency' || f.name === 'sale_item_type')) return;
 
     // Default vat_rate to 22; hide for rent types (rendered in renderRentFields instead)
@@ -2695,7 +2976,10 @@ function collectDynamicFieldValues(contractType) {
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
   const result = {};
   extraFields.forEach(function(f) {
-    if (f.field_type === 'contract_items' || f.field_type === 'contract_items_sale') {
+    if (f.field_type === 'equipment_rent_items') {
+      var eqItems = collectEquipmentRentItems();
+      result[f.name] = JSON.stringify(eqItems);
+    } else if (f.field_type === 'contract_items' || f.field_type === 'contract_items_sale') {
       var items = getContractItemsValue();
       if (items !== null) {
         result[f.name] = JSON.stringify(items);
@@ -3361,6 +3645,13 @@ window.addEventListener('hashchange', function() {
   if (_hm2) showEntity(parseInt(_hm2[1]));
 });
 
+// Listen for messages from iframes (e.g. budget-dashboard openEntityCard)
+window.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'openEntity' && event.data.id) {
+    showEntity(parseInt(event.data.id));
+  }
+});
+
 async function init() {
   renderIcons(); // Initialize Lucide icons in static sidebar HTML
   if (TOKEN) {
@@ -3434,7 +3725,7 @@ async function _navLoadGroupChildren(name, container) {
     });
   }
   if (name === 'contract') {
-    var contractTypes = ['Аренды', 'Субаренды', 'Подряда', 'Услуг', 'Купли-продажи', 'Обслуживания'];
+    var contractTypes = ['Аренды', 'Субаренды', 'Аренда оборудования', 'Подряда', 'Услуг', 'Купли-продажи', 'Обслуживания'];
     h += '<div class="nav-sub-item" data-etype="contract" onclick="navSubClick(this)" style="color:rgba(255,255,255,0.45);font-style:italic">' +
       '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> все договоры</div>';
     contractTypes.forEach(function(ct) {
@@ -4539,21 +4830,44 @@ async function showEntity(id, _forceDetail) {
           try { if (typeof val === 'string' && val) robjs = JSON.parse(val); else if (Array.isArray(val)) robjs = val; } catch(ex) {}
           if (robjs.length > 0) {
             robjs.forEach(function(ro, ri) {
-              html += '<div class="prop-item" style="border-left:2px solid var(--accent);padding-left:8px;margin-bottom:4px"><div class="prop-label">Объект ' + (ri+1) + ': ' + escapeHtml(ro.object_type || '') + '</div><div class="prop-value">';
-              if (ro.building) html += 'Корпус: ' + escapeHtml(ro.building) + '<br>';
-              if (ro.room) html += 'Помещение: ' + escapeHtml(ro.room) + '<br>';
+              // Resolve room from registry
+              var room = _getRoomById(ro.room_id);
+              var roomProps = room ? (room.properties || {}) : {};
+              var roomName = room ? room.name : (ro.room_name || ro.room || '');
+              var roomType = room ? (roomProps.room_type || '') : (ro.room_type || ro.object_type || '');
+              var roomArea = room ? roomProps.area : (ro.area || '');
+              var roomBuilding = room ? _getRoomBuilding(room) : (ro.building_name || ro.building || '');
+
+              html += '<div class="prop-item" style="border-left:2px solid var(--accent);padding-left:8px;margin-bottom:4px"><div class="prop-label">Объект ' + (ri+1) + ': ' + escapeHtml(roomType) + '</div><div class="prop-value">';
+              if (roomBuilding) html += 'Корпус: ' + escapeHtml(roomBuilding) + '<br>';
+              if (roomName) html += 'Помещение: ' + escapeHtml(roomName) + '<br>';
               if (ro.land_plot_name) html += 'ЗУ: ' + escapeHtml(ro.land_plot_name) + '<br>';
               if (ro.land_plot_part_name) html += 'Часть ЗУ: ' + escapeHtml(ro.land_plot_part_name) + '<br>';
-              if (ro.land_location) html += 'Местоположение: ' + escapeHtml(ro.land_location) + '<br>';
               if (ro.calc_mode === 'fixed') {
                 html += 'Аренда: ' + (ro.fixed_rent || '—') + ' руб.<br>';
               } else {
-                if (ro.area) html += 'Площадь: ' + escapeHtml(String(ro.area)) + ' м²<br>';
+                if (roomArea) html += 'Площадь: ' + escapeHtml(String(roomArea)) + ' м²<br>';
                 if (ro.rent_rate) html += 'Ставка: ' + escapeHtml(String(ro.rent_rate)) + ' руб/м²<br>';
-                var ot = (parseFloat(ro.area)||0) * (parseFloat(ro.rent_rate)||0);
+                var ot = (parseFloat(roomArea)||0) * (parseFloat(ro.rent_rate)||0);
                 if (ot > 0) html += '= ' + _fmtNum(ot) + ' руб.<br>';
               }
               if (ro.comment) html += '<em>' + escapeHtml(ro.comment) + '</em>';
+              html += '</div></div>';
+            });
+          }
+          return;
+        } else if (f.field_type === 'equipment_rent_items') {
+          var eqRentView = [];
+          try { if (typeof val === 'string' && val) eqRentView = JSON.parse(val); else if (Array.isArray(val)) eqRentView = val; } catch(ex) {}
+          if (eqRentView.length > 0) {
+            eqRentView.forEach(function(item, ri) {
+              var eq = item.equipment_id ? (_equipment || []).find(function(e) { return e.id === parseInt(item.equipment_id); }) : null;
+              var eqName = eq ? eq.name : ('Оборудование #' + item.equipment_id);
+              var eqProps = eq ? (eq.properties || {}) : {};
+              html += '<div class="prop-item" style="border-left:2px solid var(--accent);padding-left:8px;margin-bottom:4px"><div class="prop-label">' + escapeHtml(eqName) + '</div><div class="prop-value">';
+              if (eqProps.equipment_category) html += escapeHtml(eqProps.equipment_category) + '<br>';
+              if (eqProps.inv_number) html += 'Инв. ' + escapeHtml(eqProps.inv_number) + '<br>';
+              if (item.rent_cost) html += 'Аренда: ' + _fmtNum(parseFloat(item.rent_cost)) + ' руб/мес';
               html += '</div></div>';
             });
           }
@@ -5695,6 +6009,21 @@ async function buildPivotTable() {
       ros.forEach(function(ro) {
         var merged = Object.assign({}, props, ro);
         // Enrich with equipment entity fields (virtual eq_* fields)
+        // Enrich with room entity fields
+        if (ro.room_id) {
+          var rm = _getRoomById(ro.room_id);
+          if (rm) {
+            var rp = rm.properties || {};
+            if (!merged.room) merged.room = rm.name || '';
+            if (!merged.area && rp.area) merged.area = rp.area;
+            if (!merged.object_type && rp.room_type) merged.object_type = rp.room_type;
+            if (!merged.room_type) merged.room_type = rp.room_type || '';
+            if (!merged.building) {
+              var _bld = _getRoomBuilding(rm);
+              if (_bld) merged.building = _bld;
+            }
+          }
+        }
         if (ro.equipment_id) {
           var eq = _equipment.find(function(x) { return x.id === parseInt(ro.equipment_id); });
           if (eq) {
@@ -6371,7 +6700,7 @@ function _ccFmtNum(v) { return v ? Number(v).toLocaleString('ru-RU', {maximumFra
 
 function renderContractCard(data) {
   var h = '';
-  var isRental = (data.contract_type === 'Аренды' || data.contract_type === 'Субаренды');
+  var isRental = (data.contract_type === 'Аренды' || data.contract_type === 'Субаренды' || data.contract_type === 'Аренда оборудования');
 
   // ── Header ─────────────────────────────────────────────────────────────────
   var titleParts = [];
@@ -6755,7 +7084,7 @@ async function openEditModal(id) {
         var ctTypeFieldsEdit = CONTRACT_TYPE_FIELDS[contractType] || [];
         if (ctTypeFieldsEdit.find(function(cf) { return cf.name === f.name; })) return;
         // Hide payment_frequency, sale_item_type for rent types
-        var _isRentalEdit = (contractType === 'Аренды' || contractType === 'Субаренды');
+        var _isRentalEdit = (contractType === 'Аренды' || contractType === 'Субаренды' || contractType === 'Аренда оборудования');
         if (_isRentalEdit && (f.name === 'payment_frequency' || f.name === 'sale_item_type')) return;
         // Hide vat_rate for rent (rendered in rent section)
         if (_isRentalEdit && f.name === 'vat_rate') return;
@@ -7082,7 +7411,7 @@ async function openCreateSupplementModal(parentContractId) {
   });
 
   // НДС (%) — show for all supplement types (Аренда/Субаренда get it via renderDynamicFields)
-  if (contractType !== 'Аренды' && contractType !== 'Субаренды') {
+  if (contractType !== 'Аренды' && contractType !== 'Субаренды' && contractType !== 'Аренда оборудования') {
     var vatVal = parentProps.vat_rate || '22';
     html += '<div class="form-group"><label>НДС (%)</label>' +
       '<input type="number" id="f_vat_rate" value="' + escapeHtml(vatVal) + '" style="width:80px" min="0" max="100"></div>';
