@@ -3,10 +3,17 @@
 ## Проект
 - **IndParkDocs** — система документов и связей для индустриального парка
 - Репо: https://github.com/ValentinaArta/IndParkDocs.git (ветки: main, dev)
-- Продакшн: https://indparkdocs.onrender.com (Render free tier, спит без запросов)
+- **Продакшн: https://docs.zvezda-park.com** (наш сервер ubuntu-4gb-hel1-2, IP 89.167.75.91)
+- Процесс: node на порту 3002, nginx проксирует docs.zvezda-park.com → 127.0.0.1:3002
+- Запускается из /root/workspace-indparkdocs (этот workspace!)
+- Старый Render: https://indparkdocs.onrender.com (больше не основной)
 - Логин: admin / 123456
 - Стек: Node.js + Express + PostgreSQL + inline SPA (без сборки)
-- Деплой: push в main → автодеплой Render (~2 мин)
+- **БД: локальная PostgreSQL в Docker** — `postgresql://indpark:indpark2026@127.0.0.1:5432/indparkdocs`
+- **Деплой**: код уже в workspace → `systemctl restart indparkdocs` (мгновенно, без ожидания!)
+- Systemd service: `/etc/systemd/system/indparkdocs.service`
+- Пользователь: `valentina` (admin role)
+- Данные перенесены из Neon: 125 сущностей, 169 связей (март 2026)
 
 ## Пользователь
 - Валентина (ValentinaArta на GitHub)
@@ -137,7 +144,7 @@
 - **Красная подсветка аварийного оборудования** — теперь работает везде: карточка сущности + реестр (ранее только отчёты)
 
 ## Задеплоенный коммит
-`db09f74` (main) — fix: red highlighting for emergency/broken equipment everywhere (2026-02-26 поздно)
+`0e6c472` (main) — fix: hide duplicate VAT for rent (2026-02-27 утро)
 
 **Промежуточные коммиты (dev→main сегодня):**
 - `e7b105d`, `438b7d7` — emergency/broken badges в agg report + entity registry
@@ -248,6 +255,17 @@
 - **Contract card view**: `GET /api/reports/contract-card/:id` → renderContractCard(); collapsible секции; total_monthly; equipment_list с is_broken флагом
 - **Contract card как default**: `showEntity(id, _forceDetail)` для аренды→card; `showEntityDetail(id)` wrapper; кнопка "⚙ Детали" для raw view
 - **ER diagram**: `/root/workspace-indparkdocs/er-diagram.html`; скриншот отправлен Валентине
+
+## Что реализовано (2026-02-27 утро)
+- **Mobile iPhone fix**: viewport-fit=cover, 100dvh, safe-area-inset, async race condition guard
+- **Metabase BI**: пирог площадей + stacked bar по корпусам на дашборде; SQL с fuzzy match зданий + фильтр внешней аренды
+- **URL routing**: `#entity/ID` для deep links из Metabase → карточка сущности
+- **Drill-down дашборд**: dashboard 13 "Аренда по корпусам" с click → IndParkDocs
+- **SVG donut drill-down**: 3 уровня (total → buildings → contracts) на странице Обзор
+- **Форма аренды**: убраны "Периодичность оплаты"/"Типы предметов КП", автозаполнение площади из помещения, убран дубль НДС, роль+компания на одной строке
+- **Эл. мощность**: `has_power_allocation` + `power_allocation_kw` для аренды/субаренды
+- **ДС**: срок действия всегда раскрыт, убран дубль номера
+- **Контакты компаний**: множественные контакты с должностью (field_type=contacts, JSON массив)
 
 ## 🚧 В очереди (не реализовано)
 - **🐛 Краны: нестинг в дереве** — все краны (id:30-41, `parent_id=29`) отображаются вложенными под первый кран в каком-то tree-widget во frontend; данные в БД ВЕРНЫЕ; баг в frontend tree-rendering; нужно найти и исправить
