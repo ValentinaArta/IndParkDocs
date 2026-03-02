@@ -42,7 +42,7 @@ button.primary:hover { background:#1d4ed8; }
 .budget-table { width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
 .budget-table th { text-align:right; padding:7px 10px; background:#0f172a; color:#475569; font-weight:500; font-size:11px; border-bottom:2px solid #334155; position:sticky; top:0; z-index:2; }
 .budget-table th:first-child { text-align:left; min-width:200px; max-width:340px; position:sticky; left:0; background:#0f172a; z-index:3; }
-.budget-table td { padding:5px 10px; border-bottom:1px solid rgba(30,41,59,0.7); text-align:right; }
+.budget-table td { padding:5px 10px; border-bottom:1px solid rgba(100,116,139,0.3); text-align:right; }
 .budget-table td:first-child { text-align:left; white-space:normal; word-break:break-word; min-width:200px; max-width:340px; position:sticky; left:0; background:#0f172a; z-index:1; }
 .budget-table tr:hover td { background:rgba(51,65,85,0.2); }
 .budget-table tr:hover td:first-child { background:#0f172a; }
@@ -386,51 +386,41 @@ function renderBudget(d) {
     const drillBtn = hasDrilldown(r.name)
       ? `<button class="drill-btn" onclick="loadRentDrilldown()" title="Детализация по контрагентам">🔍 контрагенты</button>`
       : '';
-    return `<tr>
-      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);${indent}">${r.name}${drillBtn}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:#c084fc">${numM(r.blended)}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:#4ade80">${numM(r.plan)}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid rgba(30,41,59,0.6);text-align:right;color:${cls};font-weight:600">${sign}${numM(Math.abs(r.dev))}${pct}</td>
+    return `<tr style="border-bottom:1px solid rgba(100,116,139,0.25)">
+      <td style="padding:7px 12px;${indent}">${r.name}${drillBtn}</td>
+      <td style="padding:7px 8px;text-align:right;color:#c084fc">${numM(r.blended)}</td>
+      <td style="padding:7px 8px;text-align:right;color:#4ade80">${numM(r.plan)}</td>
+      <td style="padding:7px 12px;text-align:right;color:${cls};font-weight:600">${sign}${numM(Math.abs(r.dev))}${pct}</td>
     </tr>`;
   }
 
-  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;padding:0 0 4px">`;
+  // ─── Разделитель ───
+  html += `<div style="margin:24px 0 16px;display:flex;align-items:center;gap:12px">
+    <div style="flex:1;height:1px;background:#334155"></div>
+    <span style="font-size:12px;color:#64748b;white-space:nowrap;font-weight:600">АНАЛИЗ ОТКЛОНЕНИЙ</span>
+    <div style="flex:1;height:1px;background:#334155"></div>
+  </div>`;
 
-  // Хуже плана
-  if (worse.length > 0) {
-    html += `<div style="background:#1a0a0a;border:1px solid #3f1010;border-radius:10px;overflow:hidden">
-      <div style="padding:10px 14px;background:#2a1010;font-size:12px;font-weight:600;color:#ef4444">🔴 Хуже плана — основные причины</div>
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 0 4px">`;
+
+  function analysisBlock(title, color, bg, rows) {
+    if (!rows.length) return `<div style="background:${bg};border:2px solid ${color}33;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:13px;padding:24px">${title.includes('Хуже') ? '🎉 Нет статей хуже плана' : 'Нет статей лучше плана'}</div>`;
+    return `<div style="background:${bg};border:2px solid ${color}55;border-radius:12px;overflow:hidden">
+      <div style="padding:10px 16px;background:${color}22;border-bottom:2px solid ${color}55;font-size:13px;font-weight:700;color:${color}">${title}</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr>
-          <th style="text-align:left;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Статья</th>
-          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Blended</th>
-          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">План</th>
-          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Откл.</th>
+        <thead><tr style="border-bottom:1px solid ${color}33">
+          <th style="text-align:left;padding:7px 12px;color:#6b7280;font-weight:500;font-size:11px">Статья</th>
+          <th style="text-align:right;padding:7px 8px;color:#6b7280;font-weight:500;font-size:11px">Blended</th>
+          <th style="text-align:right;padding:7px 8px;color:#6b7280;font-weight:500;font-size:11px">План</th>
+          <th style="text-align:right;padding:7px 12px;color:#6b7280;font-weight:500;font-size:11px">Откл.</th>
         </tr></thead>
-        <tbody>${worse.map(devRow).join('')}</tbody>
+        <tbody>${rows.map(devRow).join('')}</tbody>
       </table>
     </div>`;
-  } else {
-    html += `<div style="background:#1a0a0a;border:1px solid #3f1010;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:13px;padding:20px">Нет статей хуже плана 🎉</div>`;
   }
 
-  // Лучше плана
-  if (better.length > 0) {
-    html += `<div style="background:#0a1a0a;border:1px solid #103f10;border-radius:10px;overflow:hidden">
-      <div style="padding:10px 14px;background:#0f2a10;font-size:12px;font-weight:600;color:#10b981">🟢 Лучше плана — основные причины</div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr>
-          <th style="text-align:left;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Статья</th>
-          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Blended</th>
-          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">План</th>
-          <th style="text-align:right;padding:5px 10px;color:#6b7280;font-weight:500;font-size:11px">Откл.</th>
-        </tr></thead>
-        <tbody>${better.map(devRow).join('')}</tbody>
-      </table>
-    </div>`;
-  } else {
-    html += `<div style="background:#0a1a0a;border:1px solid #103f10;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:13px;padding:20px">Нет статей лучше плана</div>`;
-  }
+  html += analysisBlock('🔴 Хуже плана — основные причины', '#ef4444', '#160808', worse);
+  html += analysisBlock('🟢 Лучше плана — основные причины', '#10b981', '#06120a', better);
 
   html += `</div>`;
 
