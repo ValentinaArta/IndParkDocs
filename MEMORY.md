@@ -285,6 +285,26 @@
 - **UUID резолвинг контрагентов**: `$top=3000` + fallback `Ref_Key eq guid'...'` → все 11 проблемных UUID закрыты
 - Коммиты: `fix: fallback UUID`, `fix: paginate all invoices/payments`, `fix: use РеализацияТоваровУслуг+ОплатаПокупателя`, `fix: 5min cache + VPN watchdog`
 
+### Бюджетный дашборд /budget (2026-03-02)
+- Таблица `budget_data` в PostgreSQL: `(budget_type, cfo, article, level, fact NUMERIC[], plan NUMERIC[], total_fact, total_plan)`; UNIQUE on `(budget_type, cfo, article)`
+- Импорт: `/root/workspace-indparkdocs/scripts/import_budget.py` (2360 строк, re-runnable upsert)
+- Источники: `/tmp/budget_2026_bdds.xlsx` (953 строк, 17 ЦФО) и `/tmp/budget_2026_bdr.xlsx` (1417 строк, 27 ЦФО)
+- Колонки Excel: ФАКТ=col[3+n*4], ПЛАН=col[4+n*4] (n=0..11), Итого ФАКТ=col[51], ПЛАН=col[52]
+- CFO зафиксирован на "ИП" (АО ИПЗ) — нет dropdown
+- Дашборд: `/root/workspace-indparkdocs/server/src/budget-dashboard.html` — тёмная тема, КПИ (factYTD/planYTD/devYTD), топ-7 отклонений, drill-down
+- Маршруты в finance.js: `GET /api/finance/budget`, `/api/finance/budget/meta`, `/api/finance/budget/rent-drilldown`
+- Блендинг: месяцы < currentMonth → факт, >= → план; отклонение = blended − full-year ПЛАН
+- Встроен в SPA через `showBudgetPage()` → iframe; ссылка "📈 Бюджеты" в sidebar
+
+### Drill-down арендаторов (2026-03-02)
+- `GET /api/finance/budget/rent-drilldown`: реализация из 1С + join с договорами в IndParkDocs
+- Двухуровневый фильтр: отклонение < -50k ₽ от договора ИЛИ тренд-падение > 15% AND > 100k ₽
+- Макс 10 контрагентов, sorted by worst combined score
+- Frontend: 2 секции — красный (ниже договора) + жёлтый (резкое снижение)
+- Результат Янв–Фев 2026: 8 контрагентов (РЭС, ЭК ЗВЕЗДА, ЛЗМ, МИРБАХ, ЭМКОМ, СТЕКЛО-ЖИЗНЬ, СЕВЕРНЫЙ ЛУЧ, УНИВЕРСАЛ)
+- ⚠️ Только 4 договора аренды в БД для ИПЗ → 38 из 42 контрагентов "нет в системе" → deviation только через тренд
+- VPN watchdog улучшен: полный цикл `ipsec down/up` (устранил stale SA); keepalive в options.l2tpd.zvezda
+
 ## 🚧 В очереди (не реализовано)
 - **🐛 Краны: нестинг в дереве** — все краны (id:30-41, `parent_id=29`) отображаются вложенными под первый кран в каком-то tree-widget во frontend; данные в БД ВЕРНЫЕ; баг в frontend tree-rendering; нужно найти и исправить
 - **Room form cleanup** — Migration 015: удалить `room_type` из field_definitions + добавить `room_number` (text, sort_order=4) с ON CONFLICT DO NOTHING
@@ -314,5 +334,7 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 - **Контакты**: миграция старых contact_person/phone/email → новый JSON формат
 - **Финансы**: date range filter UI для `/finance` (сейчас hardcoded 2025-01-01)
 - **Финансы**: stale data fallback при недоступности VPN (показывать кеш с timestamp)
-- **Blended forecast (факт+план)**: ждём прав от 1С admin на `Document_бит_ФормаВводаБюджета` и БИТ.Финанс объекты
+- **Бюджет 1С live data**: запросить у 1С admin права на `Document_бит_ФормаВводаБюджета`, `Document_бит_БюджетнаяОперация`, `AccumulationRegister_бит_ОборотыПоБюджетам`
+- **Аренда drill-down**: добавить больше договоров аренды в IndParkDocs → contract deviation заработает для большинства контрагентов
+- **DNS**: добавить A-record `docs → 89.167.75.91` для `docs.zvezda-park.com` (Валентина делает в DNS)
 - Дописать JS функции для "Анализ аренды"
