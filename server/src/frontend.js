@@ -222,6 +222,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
     <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px">Документы и связи</p>
     <div class="form-group"><label>Логин</label><input id="loginUser" placeholder="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
     <div class="form-group"><label>Пароль</label><input id="loginPass" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div id="totpGroup" class="form-group" style="display:none"><label>Код 2FA</label><input id="loginTotp" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <div id="loginError" style="color:var(--red);font-size:12px;margin-bottom:8px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Войти</button>
   </div>
@@ -248,6 +249,9 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       <div class="nav-item" onclick="showBIPage()">
         <i data-lucide="pie-chart" class="lucide"></i> BI-дашборды
       </div>
+      <div class="nav-item" onclick="showFinancePage()">
+        <i data-lucide="landmark" class="lucide"></i> Финансы (1С)
+      </div>
       <div class="nav-item" onclick="window.open('/finance','_blank')">
         <i data-lucide="banknote" class="lucide"></i> Финансы (1С)
         <span style="background:#10b981;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-left:auto;">DEMO</span>
@@ -256,7 +260,10 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
       <div class="nav-item" onclick="showSettings()">
         <i data-lucide="settings" class="lucide"></i> Типы и поля
       </div>
-      <div class="nav-item" onclick="logout()" style="margin-top:auto;color:rgba(255,255,255,0.4)">
+      <div class="nav-item" onclick="showTotpSetup()" style="margin-top:auto;color:rgba(255,255,255,0.6)">
+        <i data-lucide="shield" class="lucide"></i> 2FA
+      </div>
+      <div class="nav-item" onclick="logout()" style="color:rgba(255,255,255,0.4)">
         <i data-lucide="log-out" class="lucide"></i> Выход
       </div>
     </div>
@@ -2759,6 +2766,69 @@ async function api(url, opts = {}) {
   return r.json();
 }
 
+async function showTotpSetup() {
+  try {
+    var status = await api('/auth/totp/status');
+    var content = document.getElementById('content');
+    if (status.enabled) {
+      content.innerHTML = '<div style="padding:32px;max-width:480px;margin:0 auto">' +
+        '<h2 style="margin-bottom:16px">🔐 Двухфакторная аутентификация</h2>' +
+        '<div style="background:var(--green);color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px">✅ 2FA включена</div>' +
+        '<p style="margin-bottom:16px;color:var(--text-muted)">Для отключения введите текущий код из приложения-аутентификатора:</p>' +
+        '<div class="form-group"><input id="totpDisableCode" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="font-size:24px;text-align:center;letter-spacing:8px"></div>' +
+        '<div id="totpMsg" style="color:var(--red);font-size:13px;margin-bottom:8px"></div>' +
+        '<button class="btn" style="background:var(--red);color:#fff" onclick="disableTotp()">Отключить 2FA</button>' +
+        '</div>';
+    } else {
+      var setup = await api('/auth/totp/setup');
+      content.innerHTML = '<div style="padding:32px;max-width:480px;margin:0 auto">' +
+        '<h2 style="margin-bottom:16px">🔐 Настройка 2FA</h2>' +
+        '<p style="margin-bottom:16px">Отсканируйте QR-код в приложении <b>Google Authenticator</b>, <b>Authy</b> или <b>1Password</b>:</p>' +
+        '<div style="text-align:center;margin-bottom:16px"><img src="' + setup.qrDataUrl + '" style="width:200px;height:200px;border-radius:12px"></div>' +
+        '<p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;word-break:break-all">Или введите вручную: <code>' + setup.secret + '</code></p>' +
+        '<p style="margin-bottom:8px">Введите 6-значный код из приложения для подтверждения:</p>' +
+        '<div class="form-group"><input id="totpVerifyCode" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="font-size:24px;text-align:center;letter-spacing:8px" onkeydown="if(event.key===\\'Enter\\')verifyTotp()"></div>' +
+        '<div id="totpMsg" style="color:var(--red);font-size:13px;margin-bottom:8px"></div>' +
+        '<button class="btn btn-primary" onclick="verifyTotp()">Включить 2FA</button>' +
+        '</div>';
+    }
+  } catch (e) {
+    console.error('TOTP setup error:', e);
+  }
+}
+
+async function verifyTotp() {
+  var code = document.getElementById('totpVerifyCode').value.trim();
+  var msg = document.getElementById('totpMsg');
+  if (!code || code.length !== 6) { msg.textContent = 'Введите 6-значный код'; return; }
+  try {
+    var r = await api('/auth/totp/verify', { method: 'POST', body: JSON.stringify({ code: code }) });
+    if (r.success) {
+      msg.style.color = 'var(--green)';
+      msg.textContent = '✅ 2FA успешно включена!';
+      setTimeout(function() { showTotpSetup(); }, 1500);
+    } else {
+      msg.textContent = r.error || 'Ошибка';
+    }
+  } catch (e) { msg.textContent = 'Ошибка: ' + (e.message || e); }
+}
+
+async function disableTotp() {
+  var code = document.getElementById('totpDisableCode').value.trim();
+  var msg = document.getElementById('totpMsg');
+  if (!code || code.length !== 6) { msg.textContent = 'Введите 6-значный код'; return; }
+  try {
+    var r = await api('/auth/totp/disable', { method: 'POST', body: JSON.stringify({ code: code }) });
+    if (r.success) {
+      msg.style.color = 'var(--green)';
+      msg.textContent = '2FA отключена';
+      setTimeout(function() { showTotpSetup(); }, 1500);
+    } else {
+      msg.textContent = r.error || 'Ошибка';
+    }
+  } catch (e) { msg.textContent = 'Ошибка: ' + (e.message || e); }
+}
+
 function logout() {
   TOKEN = null; REFRESH = null; CURRENT_USER = null;
   localStorage.removeItem('accessToken');
@@ -2775,15 +2845,26 @@ function showLogin() {
 async function doLogin() {
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
+  const totpInput = document.getElementById('loginTotp');
+  const totp_code = totpInput ? totpInput.value.trim() : '';
   const errEl = document.getElementById('loginError');
   errEl.textContent = '';
   try {
+    const body = { username, password };
+    if (totp_code) body.totp_code = totp_code;
     const r = await fetch(API + '/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify(body)
     });
     const data = await r.json();
     if (!r.ok) { errEl.textContent = data.error || 'Ошибка'; return; }
+    // If TOTP required — show code input
+    if (data.requireTotp) {
+      document.getElementById('totpGroup').style.display = '';
+      document.getElementById('loginTotp').focus();
+      errEl.textContent = '';
+      return;
+    }
     TOKEN = data.accessToken;
     REFRESH = data.refreshToken;
     CURRENT_USER = data.user;
@@ -4344,6 +4425,139 @@ function saveBIUrl() {
   _biDashboardUrl = inp.value.trim();
   localStorage.setItem('bi_dashboard_url', _biDashboardUrl);
   showBIPage();
+}
+
+// ============ FINANCE PAGE (1С) ============
+async function showFinancePage() {
+  currentView = 'finance';
+  setActive('[onclick*="showFinancePage"]');
+  document.getElementById('pageTitle').textContent = 'Финансы (1С)';
+  document.getElementById('breadcrumb').textContent = '';
+  document.getElementById('topActions').innerHTML =
+    '<button class="btn btn-sm" onclick="showFinancePage()"><i data-lucide="refresh-cw" class="lucide" style="width:14px;height:14px"></i> Обновить</button>';
+  var content = document.getElementById('content');
+  content.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)"><div class="spinner-ring" style="margin:40px auto"></div><div style="margin-top:12px">Загружаю данные из 1С...</div></div>';
+  renderIcons();
+  try {
+    var d = await api('/finance/summary');
+    if (currentView !== 'finance') return;
+    _renderFinancePage(d);
+  } catch(e) {
+    content.innerHTML = '<div style="padding:24px"><div style="color:var(--red);font-size:14px;padding:20px;background:var(--bg-secondary);border-radius:8px">⚠️ Ошибка: ' + escapeHtml(e.message || String(e)) + '</div></div>';
+  }
+}
+
+function _finFmt(n) {
+  if (!n) return '0';
+  return Math.round(n).toLocaleString('ru-RU');
+}
+
+function _finCard(title, ipz, ekz, icon, color) {
+  return '<div class="stat-card" style="padding:16px;min-width:0">' +
+    '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px">' +
+      '<span style="font-size:18px">' + icon + '</span>' + escapeHtml(title) +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<div style="text-align:center;padding:8px;background:rgba(79,107,204,0.07);border-radius:6px">' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">ИПЗ</div>' +
+        '<div style="font-size:16px;font-weight:700;color:' + color + '">' + _finFmt(ipz) + '</div>' +
+        '<div style="font-size:10px;color:var(--text-muted)">₽</div>' +
+      '</div>' +
+      '<div style="text-align:center;padding:8px;background:rgba(79,107,204,0.07);border-radius:6px">' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">ЭКЗ</div>' +
+        '<div style="font-size:16px;font-weight:700;color:' + color + '">' + _finFmt(ekz) + '</div>' +
+        '<div style="font-size:10px;color:var(--text-muted)">₽</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function _renderFinancePage(d) {
+  var content = document.getElementById('content');
+  if (!d || !d.totals) {
+    content.innerHTML = '<div style="padding:24px;color:var(--red)">Нет данных</div>';
+    return;
+  }
+  var t = d.totals;
+  var period = d.period || '2026-01-01';
+  var asOf = d.data_as_of ? new Date(d.data_as_of).toLocaleString('ru-RU') : '';
+
+  var h = '<div style="padding:24px">';
+  h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Данные из 1С · С ' + period.slice(0,10) + ' · Обновлено ' + asOf + '</div>';
+
+  // ── KPI cards ──
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">';
+  h += _finCard('Входящие платежи', t.incoming.ipz, t.incoming.ekz, '💰', '#22c55e');
+  h += _finCard('Расходы', t.outgoing.ipz, t.outgoing.ekz, '📤', '#ef4444');
+  h += _finCard('Выручка (реализация)', t.revenue.ipz, t.revenue.ekz, '📈', '#4F6BCC');
+  h += _finCard('Счета покупателям', t.invoices.ipz, t.invoices.ekz, '🧾', '#f59e0b');
+  h += '</div>';
+
+  // ── Monthly chart ──
+  var months = Object.keys(d.monthly_revenue || {}).sort();
+  if (months.length > 0) {
+    h += '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Выручка по месяцам</h3>';
+    h += '<div style="display:flex;gap:6px;align-items:flex-end;height:120px;margin-bottom:24px;overflow-x:auto">';
+    var maxVal = Math.max.apply(null, months.map(function(m) {
+      var mv = d.monthly_revenue[m] || {};
+      return (mv.ipz || 0) + (mv.ekz || 0);
+    })) || 1;
+    months.forEach(function(m) {
+      var mv = d.monthly_revenue[m] || {};
+      var ipzH = Math.round(((mv.ipz || 0) / maxVal) * 90);
+      var ekzH = Math.round(((mv.ekz || 0) / maxVal) * 90);
+      var mn = m.slice(5); // MM
+      h += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:40px">';
+      h += '<div style="display:flex;gap:2px;align-items:flex-end;height:90px">';
+      if (ipzH > 0) h += '<div style="width:14px;height:' + ipzH + 'px;background:#4F6BCC;border-radius:2px 2px 0 0" title="ИПЗ ' + _finFmt(mv.ipz) + '₽"></div>';
+      if (ekzH > 0) h += '<div style="width:14px;height:' + ekzH + 'px;background:#22c55e;border-radius:2px 2px 0 0" title="ЭКЗ ' + _finFmt(mv.ekz) + '₽"></div>';
+      h += '</div>';
+      h += '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">' + mn + '</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+    h += '<div style="display:flex;gap:16px;font-size:11px;color:var(--text-secondary);margin-bottom:24px">';
+    h += '<span><span style="display:inline-block;width:10px;height:10px;background:#4F6BCC;border-radius:2px;margin-right:4px"></span>ИПЗ</span>';
+    h += '<span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:4px"></span>ЭКЗ</span>';
+    h += '</div>';
+  }
+
+  // ── Two columns: invoices + payments ──
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex-wrap:wrap">';
+
+  // Invoices
+  h += '<div>';
+  h += '<h3 style="font-size:14px;font-weight:600;margin-bottom:10px">🧾 Последние счета покупателям</h3>';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  h += '<tr style="background:var(--bg-secondary)"><th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--border)">Дата</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--border)">№</th><th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--border)">Сумма, ₽</th><th style="padding:6px 8px;border-bottom:2px solid var(--border)">Орг</th></tr>';
+  (d.recent_invoices || []).forEach(function(inv) {
+    h += '<tr style="border-bottom:1px solid var(--border)">';
+    h += '<td style="padding:5px 8px">' + escapeHtml(inv.date) + '</td>';
+    h += '<td style="padding:5px 8px;color:var(--accent)">' + escapeHtml(inv.number) + '</td>';
+    h += '<td style="padding:5px 8px;text-align:right;font-weight:500">' + _finFmt(inv.amount) + '</td>';
+    h += '<td style="padding:5px 8px;text-align:center"><span style="font-size:10px;background:var(--bg-secondary);padding:2px 5px;border-radius:4px">' + escapeHtml(inv.org) + '</span></td>';
+    h += '</tr>';
+  });
+  h += '</table></div>';
+
+  // Payments
+  h += '<div>';
+  h += '<h3 style="font-size:14px;font-weight:600;margin-bottom:10px">💰 Последние входящие платежи</h3>';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  h += '<tr style="background:var(--bg-secondary)"><th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--border)">Дата</th><th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--border)">Сумма, ₽</th><th style="padding:6px 8px;border-bottom:2px solid var(--border)">Орг</th></tr>';
+  (d.recent_payments || []).forEach(function(p) {
+    h += '<tr style="border-bottom:1px solid var(--border)">';
+    h += '<td style="padding:5px 8px">' + escapeHtml(p.date) + '</td>';
+    h += '<td style="padding:5px 8px;text-align:right;font-weight:500;color:#22c55e">' + _finFmt(p.amount) + '</td>';
+    h += '<td style="padding:5px 8px;text-align:center"><span style="font-size:10px;background:var(--bg-secondary);padding:2px 5px;border-radius:4px">' + escapeHtml(p.org) + '</span></td>';
+    h += '</tr>';
+  });
+  h += '</table></div>';
+
+  h += '</div>';
+  h += '</div>';
+  content.innerHTML = h;
+  renderIcons();
 }
 
 function editBIUrl() {

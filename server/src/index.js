@@ -82,6 +82,8 @@ app.use('/api/stats', require('./routes/stats'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/health', require('./routes/health'));
 app.use('/api/ai/chat', require('./routes/ai-chat'));
+app.use('/api/finance', require('./routes/finance'));
+app.use('/api/auth/totp', require('./routes/totp'));
 
 // SPA fallback
 app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });
