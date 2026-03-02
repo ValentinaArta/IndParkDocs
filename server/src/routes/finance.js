@@ -136,4 +136,112 @@ router.get('/summary', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/finance/overdue — unpaid invoices analysis
+router.get('/overdue', authenticate, async (req, res) => {
+  try {
+    const today = new Date();
+    const dateFrom2025 = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00'");
+    const dateFrom2026 = encodeURIComponent("Date gt datetime'2026-01-01T00:00:00'");
+
+    const [invoicesRaw, paymentsRaw, contractorsRaw] = await Promise.all([
+      odataGet(`Document_СчетНаОплатуПокупателю?$format=json&$top=1000&$filter=${dateFrom2025}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,Posted`),
+      odataGet(`Document_ПоступлениеНаРасчетныйСчет?$format=json&$top=1000&$filter=${dateFrom2025}&$select=Date,СуммаДокумента,Организация_Key,Контрагент,Posted`),
+      odataGet(`Catalog_Контрагенты?$format=json&$top=2000&$select=Ref_Key,Description`),
+    ]);
+
+    const orgKey = req.query.org || ORG_IPZ;
+    const invItems = (invoicesRaw.value || []).filter(x => x.Posted && x.Организация_Key === orgKey);
+    const payItems = (paymentsRaw.value || []).filter(x => x.Posted && x.Организация_Key === orgKey);
+    const nameMap = {};
+    (contractorsRaw.value || []).forEach(x => { nameMap[x.Ref_Key] = x.Description; });
+
+    // Group invoices by contractor
+    const invByContr = {};
+    for (const x of invItems) {
+      const cid = x.Контрагент_Key || '';
+      if (!invByContr[cid]) invByContr[cid] = { invoiced: 0, invoices: [] };
+      invByContr[cid].invoiced += x.СуммаДокумента || 0;
+      invByContr[cid].invoices.push({
+        num: x.Number || '',
+        date: (x.Date || '').slice(0, 10),
+        sum: Math.round(x.СуммаДокумента || 0),
+      });
+    }
+
+    // Group payments by contractor
+    const payByContr = {};
+    for (const x of payItems) {
+      const cid = x.Контрагент || '';
+      payByContr[cid] = (payByContr[cid] || 0) + (x.СуммаДокумента || 0);
+    }
+
+    // Calculate outstanding per contractor
+    const debtors = [];
+    for (const [cid, data] of Object.entries(invByContr)) {
+      const paid = payByContr[cid] || 0;
+      const outstanding = data.invoiced - paid;
+      if (outstanding < 1000) continue;
+
+      const sortedInv = data.invoices.sort((a, b) => b.date.localeCompare(a.date));
+      const lastInvDate = sortedInv[0]?.date || '';
+      const daysSinceLastInv = lastInvDate ? Math.floor((today - new Date(lastInvDate)) / 86400000) : 0;
+
+      // Aging
+      let age0=0, age30=0, age60=0, age90=0;
+      for (const inv of data.invoices) {
+        const days = Math.floor((today - new Date(inv.date)) / 86400000);
+        const ratio = inv.sum / data.invoiced;
+        const share = outstanding * ratio;
+        if (days <= 30) age0 += share;
+        else if (days <= 60) age30 += share;
+        else if (days <= 90) age60 += share;
+        else age90 += share;
+      }
+
+      debtors.push({
+        key: cid,
+        name: nameMap[cid] || cid.slice(0, 8) + '...',
+        invoiced: Math.round(data.invoiced),
+        paid: Math.round(paid),
+        outstanding: Math.round(outstanding),
+        invoice_count: data.invoices.length,
+        last_invoice_date: lastInvDate,
+        days_since_last: daysSinceLastInv,
+        top_invoices: sortedInv.slice(0, 5),
+        aging: { d0: Math.round(age0), d30: Math.round(age30), d60: Math.round(age60), d90: Math.round(age90) },
+      });
+    }
+    debtors.sort((a, b) => b.outstanding - a.outstanding);
+
+    const totalOutstanding = debtors.reduce((s, d) => s + d.outstanding, 0);
+    const totalInvoiced = invItems.reduce((s, x) => s + (x.СуммаДокумента || 0), 0);
+    const totalPaid = payItems.reduce((s, x) => s + (x.СуммаДокумента || 0), 0);
+
+    // Aging totals
+    const aging = debtors.reduce((s, d) => ({
+      d0: s.d0 + d.aging.d0,
+      d30: s.d30 + d.aging.d30,
+      d60: s.d60 + d.aging.d60,
+      d90: s.d90 + d.aging.d90,
+    }), { d0: 0, d30: 0, d60: 0, d90: 0 });
+
+    res.json({
+      org: orgKey,
+      org_name: ORG_NAMES[orgKey] || orgKey,
+      data_as_of: today.toISOString(),
+      totals: {
+        outstanding: Math.round(totalOutstanding),
+        debtor_count: debtors.length,
+        invoiced: Math.round(totalInvoiced),
+        paid: Math.round(totalPaid),
+      },
+      aging,
+      debtors,
+    });
+  } catch (e) {
+    console.error('Finance overdue error:', e.message);
+    res.status(503).json({ error: '1С недоступна: ' + e.message });
+  }
+});
+
 module.exports = router;
