@@ -256,7 +256,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
         <i data-lucide="banknote" class="lucide"></i> Финансы (1С)
         <span style="background:#10b981;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-left:auto;">DEMO</span>
       </div>
-      <div class="nav-item" onclick="window.open('/budget','_blank')">
+      <div class="nav-item" onclick="showBudgetPage()">
         <i data-lucide="trending-up" class="lucide"></i> Бюджеты
       </div>
       <div class="nav-section" style="margin-top:12px">Суды и пр.</div>
@@ -4870,6 +4870,17 @@ function saveBIUrl() {
   _biDashboardUrl = inp.value.trim();
   localStorage.setItem('bi_dashboard_url', _biDashboardUrl);
   showBIPage();
+}
+
+// ============ BUDGET PAGE ============
+function showBudgetPage() {
+  currentView = 'budget';
+  setActive('[onclick*="showBudgetPage"]');
+  document.getElementById('pageTitle').textContent = 'Бюджеты';
+  document.getElementById('breadcrumb').textContent = '';
+  document.getElementById('topActions').innerHTML = '';
+  var content = document.getElementById('content');
+  content.innerHTML = '<iframe src="/budget" style="width:100%;height:calc(100vh - 56px);border:none;display:block" allowfullscreen></iframe>';
 }
 
 // ============ FINANCE PAGE (1С) ============

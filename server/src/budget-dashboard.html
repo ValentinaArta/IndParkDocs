@@ -88,7 +88,13 @@ button.primary:hover { background:#1d4ed8; }
 </style>
 </head>
 <body>
-<script>if(!localStorage.getItem('accessToken'))window.location.href='/';</script>
+<script>
+if(!localStorage.getItem('accessToken'))window.location.href='/';
+// Скрываем навигацию если открыто в iframe
+if(window.self !== window.top) document.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('.back').forEach(function(el){el.style.display='none';});
+});
+</script>
 
 <div class="header">
   <div>
