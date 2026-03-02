@@ -211,6 +211,22 @@ router.get('/overdue', authenticate, async (req, res) => {
         aging: { d0: Math.round(age0), d30: Math.round(age30), d60: Math.round(age60), d90: Math.round(age90) },
       });
     }
+    // Fallback: resolve any remaining UUID names individually
+    const unresolvedKeys = debtors.filter(d => !nameMap[d.key]).map(d => d.key);
+    if (unresolvedKeys.length > 0) {
+      await Promise.all(unresolvedKeys.map(async (guid) => {
+        try {
+          const r = await odataGet(`Catalog_Контрагенты?$format=json&$filter=Ref_Key%20eq%20guid'${guid}'&$select=Description,Ref_Key`);
+          const item = (r.value || [])[0];
+          if (item && item.Description) nameMap[guid] = item.Description;
+        } catch (_) { /* ignore individual failures */ }
+      }));
+      // Update names in debtors list
+      for (const d of debtors) {
+        if (nameMap[d.key]) d.name = nameMap[d.key];
+      }
+    }
+
     debtors.sort((a, b) => b.outstanding - a.outstanding);
 
     const totalOutstanding = debtors.reduce((s, d) => s + d.outstanding, 0);
