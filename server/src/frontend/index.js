@@ -25,7 +25,17 @@ const actItems     = require('./components/act-items');
 const fieldInput   = require('./forms/field-input');
 const equipmentForm = require('./forms/equipment-form');
 const landPlotQuick = require('./forms/land-plot-quick');
+const contractForm = require('./forms/contract-form');
 // entity-form.js deleted (empty stub kept for safety)
+const entityHelpers = require('./entities/entity-helpers');
+const entityData    = require('./entities/data');
+const entityList    = require('./entities/entity-list');
+const entityDetail  = require('./entities/entity-detail');
+const entityCreate  = require('./entities/entity-create');
+const entityEdit    = require('./entities/entity-edit');
+const entityDelete  = require('./entities/entity-delete');
+const contractCard  = require('./entities/contract-card');
+const supplementCard = require('./entities/supplement-card');
 const modal        = require('./modal');
 const navPage      = require('./pages/nav');
 const totpPage     = require('./pages/totp');
@@ -109,6 +119,26 @@ const FRONTEND_HTML =
   budgetPage +
   '\n' +
   mapPage +
+  '\n' +
+  contractForm +
+  '\n' +
+  entityHelpers +
+  '\n' +
+  entityData +
+  '\n' +
+  entityList +
+  '\n' +
+  entityDetail +
+  '\n' +
+  entityCreate +
+  '\n' +
+  entityEdit +
+  '\n' +
+  entityDelete +
+  '\n' +
+  contractCard +
+  '\n' +
+  supplementCard +
   '\n' +
   rentObjects +
   '\n' +
