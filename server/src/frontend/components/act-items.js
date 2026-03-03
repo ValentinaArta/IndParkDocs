@@ -110,7 +110,15 @@ function getActItemsValue() {
     var eqEnt = _equipment.find(function(e) { return e.id === eqId; });
     var cmtEl = row.querySelector('.act-item-comment');
     var brkEl = row.querySelector('.act-item-broken');
-    result.push({ equipment_id: eqId, equipment_name: eqEnt ? eqEnt.name : '', amount: parseFloat(amtEl ? amtEl.value : 0) || 0, description: descEl ? descEl.value.trim() : '', comment: cmtEl ? cmtEl.value.trim() : '', broken: brkEl ? brkEl.checked : false });
+    var actItem = {
+      equipment_id: eqId,
+      amount:       parseFloat(amtEl ? amtEl.value : 0) || 0,
+      description:  descEl ? descEl.value.trim() : '',
+      comment:      cmtEl  ? cmtEl.value.trim()  : '',
+      broken:       brkEl  ? brkEl.checked        : false,
+    };
+    _enrichFromRegistry(actItem); // добавляет equipment_name, inv_number, category, kind, status, manufacturer
+    result.push(actItem);
   });
   return result;
 }

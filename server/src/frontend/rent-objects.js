@@ -593,15 +593,8 @@ function collectEquipmentRentItems() {
     // Read equipment_id from searchable select hidden input
     var eqHidden = document.getElementById('eq_rent_sel_' + idx);
     if (eqHidden && eqHidden.value) item.equipment_id = eqHidden.value;
-    // Resolve equipment name and inv_number
-    if (item.equipment_id) {
-      var eq = (_equipment || []).find(function(e) { return e.id === parseInt(item.equipment_id); });
-      if (eq) {
-        item.equipment_name = eq.name;
-        var _invNum = _resolveEqInvNum(item);
-        if (_invNum) item.inv_number = _invNum;
-      }
-    }
+    // Обогащаем все свойства оборудования из реестра
+    _enrichFromRegistry(item);
     if (item.equipment_id || item.rent_cost) items.push(item);
   });
   return items;
@@ -846,33 +839,8 @@ function collectRentObjectData(index) {
   // Read from searchable select hidden inputs
   var roRoomHidden = document.getElementById('ro_room_sel_' + index);
   if (roRoomHidden && roRoomHidden.value) obj.room_id = roRoomHidden.value;
-  // land_plot_id and land_plot_part_id are read from hidden .ro-field inputs (ro_lp_id_N, ro_lpp_id_N)
-  // Resolve entity names from IDs
-  if (obj.building_id) {
-    var b = _buildings.find(function(e) { return e.id === parseInt(obj.building_id); });
-    if (b) obj.building = b.name;
-  }
-  if (obj.room_id) {
-    var r = _rooms.find(function(e) { return e.id === parseInt(obj.room_id); });
-    if (r) {
-      obj.room = r.name;
-      // Always save room area from DB so reports.js and future edits have it
-      if (!obj.area && r.properties && r.properties.area) obj.area = String(r.properties.area);
-    }
-  }
-  if (obj.equipment_id) {
-    var eq = _equipment.find(function(e) { return e.id === parseInt(obj.equipment_id); });
-    if (eq) obj.equipment_name = eq.name;
-  }
-  if (obj.land_plot_id) {
-    var lp = (_landPlots || []).find(function(e) { return e.id === parseInt(obj.land_plot_id); });
-    if (lp) obj.land_plot_name = lp.name;
-  }
-  if (obj.land_plot_part_id) {
-    var lpp = (_landPlotParts || []).find(function(e) { return e.id === parseInt(obj.land_plot_part_id); });
-    if (lpp) obj.land_plot_part_name = lpp.name;
-  }
-  return obj;
+  // Обогащаем все ссылочные поля из реестров
+  return _enrichFromRegistry(obj);
 }
 
 function onRoLandPlotChange(index) {

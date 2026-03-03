@@ -126,13 +126,10 @@ function renderSupplementCard(supp) {
     h += '<th style="padding:7px 10px;text-align:left;border-radius:0 4px 4px 0">Инв. номер</th>';
     h += '</tr></thead><tbody>';
     eqList.forEach(function(eq, i) {
+      _enrichFromRegistry(eq); // гарантирует equipment_name, inv_number и остальные поля
       var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
       var eqName = eq.equipment_name || eq.name || '—';
-      if (!eq.equipment_name && eq.equipment_id && typeof _equipment !== 'undefined') {
-        var found = (_equipment || []).find(function(e) { return e.id === parseInt(eq.equipment_id); });
-        if (found) eqName = found.name;
-      }
-      var invNum = _resolveEqInvNum(eq);
+      var invNum = eq.inv_number || '';
       h += '<tr style="' + bg + '">';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(eqName) + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text-secondary)">' + escapeHtml(invNum || '—') + '</td>';

@@ -255,9 +255,8 @@ function getEqListValue() {
     if (sel && sel.value) {
       var eqId = parseInt(sel.value);
       var eqEntity = _equipment.find(function(e) { return e.id === eqId; });
-      var eqItem = { equipment_id: eqId, equipment_name: eqEntity ? eqEntity.name : '' };
-      var _inv = _resolveEqInvNum(eqItem);
-      if (_inv) eqItem.inv_number = _inv;
+      var eqItem = { equipment_id: eqId };
+      _enrichFromRegistry(eqItem);
       result.push(eqItem);
     }
   });

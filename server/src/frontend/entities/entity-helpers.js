@@ -126,18 +126,79 @@ function onEntityCustomConfirm(fieldName) {
 }
 
 /**
- * Resolves inv_number for an equipment JSON item.
- * 1) tries item.inv_number (already stored in JSON)
- * 2) falls back to _equipment global lookup by equipment_id
- * @param {Object} item — equipment JSON item { equipment_id, inv_number?, ... }
- * @returns {string}
+ * Обогащает объект данными из глобальных реестров по ID.
+ * Вызывать при сборе данных любой формы перед сохранением.
+ * Не перезаписывает уже заполненные поля (пользовательский ввод приоритетнее).
+ *
+ * Поддерживает: equipment_id → все св-ва оборудования
+ *               room_id      → name, area, room_type
+ *               building_id  → name
+ *               land_plot_part_id → name, area  (обрабатывается первым — приоритет над ЗУ)
+ *               land_plot_id → name, area (fallback)
+ *
+ * @param {Object} obj — любой объект с полями *_id
+ * @returns {Object} тот же obj, обогащённый
  */
+function _enrichFromRegistry(obj) {
+  if (!obj) return obj;
+
+  // ── Оборудование ──────────────────────────────────────────────────────────
+  if (obj.equipment_id) {
+    var eq = (_equipment || []).find(function(e) { return e.id === parseInt(obj.equipment_id); });
+    if (eq) {
+      var ep = eq.properties || {};
+      if (!obj.equipment_name)     obj.equipment_name     = eq.name               || '';
+      if (!obj.inv_number)         obj.inv_number         = ep.inv_number         || '';
+      if (!obj.equipment_category) obj.equipment_category = ep.equipment_category || '';
+      if (!obj.equipment_kind)     obj.equipment_kind     = ep.equipment_kind     || '';
+      if (!obj.status)             obj.status             = ep.status             || '';
+      if (!obj.manufacturer)       obj.manufacturer       = ep.manufacturer       || '';
+    }
+  }
+
+  // ── Помещение ──────────────────────────────────────────────────────────────
+  if (obj.room_id) {
+    var r = (_rooms || []).find(function(e) { return e.id === parseInt(obj.room_id); });
+    if (r) {
+      var rp = r.properties || {};
+      if (!obj.room)      obj.room      = r.name        || '';
+      if (!obj.area      && rp.area)      obj.area      = String(rp.area);
+      if (!obj.room_type && rp.room_type) obj.room_type = rp.room_type || '';
+    }
+  }
+
+  // ── Корпус ────────────────────────────────────────────────────────────────
+  if (obj.building_id) {
+    var b = (_buildings || []).find(function(e) { return e.id === parseInt(obj.building_id); });
+    if (b && !obj.building) obj.building = b.name || '';
+  }
+
+  // ── Часть ЗУ (первой — её площадь приоритетнее целого ЗУ) ─────────────────
+  if (obj.land_plot_part_id) {
+    var lpp = (_landPlotParts || []).find(function(e) { return e.id === parseInt(obj.land_plot_part_id); });
+    if (lpp) {
+      var lppp = lpp.properties || {};
+      if (!obj.land_plot_part_name) obj.land_plot_part_name = lpp.name || '';
+      if (!obj.area && lppp.area)   obj.area = String(lppp.area);
+    }
+  }
+
+  // ── Земельный участок (fallback для area) ─────────────────────────────────
+  if (obj.land_plot_id) {
+    var lp = (_landPlots || []).find(function(e) { return e.id === parseInt(obj.land_plot_id); });
+    if (lp) {
+      var lp2p = lp.properties || {};
+      if (!obj.land_plot_name) obj.land_plot_name = lp.name || '';
+      if (!obj.area && lp2p.area) obj.area = String(lp2p.area);
+    }
+  }
+
+  return obj;
+}
+
+/** Обратная совместимость — оставлена как алиас */
 function _resolveEqInvNum(item) {
-  if (item && item.inv_number) return item.inv_number;
-  var eqId = item && parseInt(item.equipment_id);
-  if (!eqId || typeof _equipment === 'undefined') return '';
-  var found = (_equipment || []).find(function(e) { return e.id === eqId; });
-  return found ? ((found.properties || {}).inv_number || '') : '';
+  return _enrichFromRegistry(item).inv_number || '';
 }
 
 `;
