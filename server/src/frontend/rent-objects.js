@@ -593,10 +593,14 @@ function collectEquipmentRentItems() {
     // Read equipment_id from searchable select hidden input
     var eqHidden = document.getElementById('eq_rent_sel_' + idx);
     if (eqHidden && eqHidden.value) item.equipment_id = eqHidden.value;
-    // Resolve equipment name
+    // Resolve equipment name and inv_number
     if (item.equipment_id) {
       var eq = (_equipment || []).find(function(e) { return e.id === parseInt(item.equipment_id); });
-      if (eq) item.equipment_name = eq.name;
+      if (eq) {
+        item.equipment_name = eq.name;
+        var _invNum = (eq.properties || {}).inv_number;
+        if (_invNum) item.inv_number = _invNum;
+      }
     }
     if (item.equipment_id || item.rent_cost) items.push(item);
   });
