@@ -191,7 +191,7 @@ function _roCalcFields(index, obj, calcMode) {
     h += '<div class="form-group"><label style="font-size:12px">КУ в платеже/ставке</label><input class="ro-field" data-idx="' + index + '" data-name="utility_rate" value="' + escapeHtml(obj.utility_rate || '') + '" placeholder="опишите или сумма"></div>';
     h += '</div>';
     var objTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
-    if (objTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + _fmtNum(objTotal) + ' руб.</div>';
+    h += '<div id="ro_monthly_' + index + '" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">' + (objTotal > 0 ? '= ' + _fmtNum(objTotal) + ' руб/мес' : '') + '</div>';
   } else {
     h += '<div class="form-group"><label>Арендная плата</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="fixed_rent" value="' + (obj.fixed_rent || '') + '" oninput="recalcRentMonthly()"></div>';
   }

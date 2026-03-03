@@ -9,8 +9,9 @@ module.exports = `function collectAllRentObjects() {
 
 function recalcRentMonthly() {
   var total = 0;
-  var objects = collectAllRentObjects();
-  objects.forEach(function(obj, i) {
+  document.querySelectorAll('.rent-object-block').forEach(function(block) {
+    var idx = block.id.replace('rent_obj_', '');
+    var obj = collectRentObjectData(idx);
     var area = 0;
     if (obj.calc_mode === 'fixed') {
       total += parseFloat(obj.fixed_rent) || 0;
@@ -20,8 +21,8 @@ function recalcRentMonthly() {
       area = room ? (parseFloat((room.properties || {}).area) || 0) : (parseFloat(obj.area) || 0);
       var rate = parseFloat(obj.rent_rate) || 0;
       total += area * rate;
-      // Update monthly display
-      var monthlyEl = document.getElementById('ro_monthly_' + i);
+      // Update monthly display (works for both rooms and land plots)
+      var monthlyEl = document.getElementById('ro_monthly_' + idx);
       if (monthlyEl) monthlyEl.textContent = (area * rate > 0) ? '= ' + _fmtNum(area * rate) + ' руб/мес' : '';
     }
   });
