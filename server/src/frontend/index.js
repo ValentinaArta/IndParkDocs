@@ -26,6 +26,14 @@ const fieldInput   = require('./forms/field-input');
 const equipmentForm = require('./forms/equipment-form');
 const landPlotQuick = require('./forms/land-plot-quick');
 // entity-form.js deleted (empty stub kept for safety)
+const modal        = require('./modal');
+const navPage      = require('./pages/nav');
+const totpPage     = require('./pages/totp');
+const legalZachety = require('./pages/legal-zachety');
+const dashboard    = require('./pages/dashboard');
+const financePage  = require('./pages/finance-page');
+const budgetPage   = require('./pages/budget-page');
+const mapPage      = require('./pages/map-page');
 const rentObjects = require('./rent-objects');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
@@ -78,6 +86,22 @@ const FRONTEND_HTML =
   equipmentForm +
   '\n' +
   landPlotQuick +
+  '\n' +
+  modal +
+  '\n' +
+  navPage +
+  '\n' +
+  totpPage +
+  '\n' +
+  legalZachety +
+  '\n' +
+  dashboard +
+  '\n' +
+  financePage +
+  '\n' +
+  budgetPage +
+  '\n' +
+  mapPage +
   '\n' +
   rentObjects +
   '\n' +

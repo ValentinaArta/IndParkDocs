@@ -415,7 +415,7 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 ### Многоагентная работа:
 - В проекте работают 2 агента: main (Opus) и indparkdocs (Sonnet)
 - **ОБЯЗАТЕЛЬНО**: каждая задача = своя feature-ветка от dev
-- Имя ветки: `feature/ipd-название` (для IndParkDocs агента)
+- Имя ветки: `feature/ipd-название` ✅ (утверждено Валентиной 03.03.2026)
 - Никогда не пушить прямо в dev или main!
 ```bash
 git checkout dev && git pull origin dev
