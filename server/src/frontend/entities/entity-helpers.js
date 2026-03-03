@@ -125,4 +125,19 @@ function onEntityCustomConfirm(fieldName) {
   });
 }
 
+/**
+ * Resolves inv_number for an equipment JSON item.
+ * 1) tries item.inv_number (already stored in JSON)
+ * 2) falls back to _equipment global lookup by equipment_id
+ * @param {Object} item — equipment JSON item { equipment_id, inv_number?, ... }
+ * @returns {string}
+ */
+function _resolveEqInvNum(item) {
+  if (item && item.inv_number) return item.inv_number;
+  var eqId = item && parseInt(item.equipment_id);
+  if (!eqId || typeof _equipment === 'undefined') return '';
+  var found = (_equipment || []).find(function(e) { return e.id === eqId; });
+  return found ? ((found.properties || {}).inv_number || '') : '';
+}
+
 `;

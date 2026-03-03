@@ -132,12 +132,7 @@ function renderSupplementCard(supp) {
         var found = (_equipment || []).find(function(e) { return e.id === parseInt(eq.equipment_id); });
         if (found) eqName = found.name;
       }
-      // inv_number: сначала из JSON, затем из глобального _equipment по id
-      var invNum = eq.inv_number || '';
-      if (!invNum && eq.equipment_id && typeof _equipment !== 'undefined') {
-        var foundEq = (_equipment || []).find(function(e) { return e.id === parseInt(eq.equipment_id); });
-        if (foundEq) invNum = (foundEq.properties || {}).inv_number || '';
-      }
+      var invNum = _resolveEqInvNum(eq);
       h += '<tr style="' + bg + '">';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(eqName) + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text-secondary)">' + escapeHtml(invNum || '—') + '</td>';

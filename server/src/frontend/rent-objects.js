@@ -598,7 +598,7 @@ function collectEquipmentRentItems() {
       var eq = (_equipment || []).find(function(e) { return e.id === parseInt(item.equipment_id); });
       if (eq) {
         item.equipment_name = eq.name;
-        var _invNum = (eq.properties || {}).inv_number;
+        var _invNum = _resolveEqInvNum(item);
         if (_invNum) item.inv_number = _invNum;
       }
     }
