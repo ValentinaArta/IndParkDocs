@@ -14,7 +14,18 @@ const core         = require('./core');
 const coreApi      = require('./core/api');
 const coreGlobals  = require('./core/globals');
 const searchableSelect = require('./searchable-select');
-const entityForm = require('./entity-form');
+// components/*
+const amountInput  = require('./components/amount-input');
+const advances     = require('./components/advances');
+const contacts     = require('./components/contacts');
+const duration     = require('./components/duration');
+const contractItems = require('./components/contract-items');
+const actItems     = require('./components/act-items');
+// forms/*
+const fieldInput   = require('./forms/field-input');
+const equipmentForm = require('./forms/equipment-form');
+const landPlotQuick = require('./forms/land-plot-quick');
+// entity-form.js deleted (empty stub kept for safety)
 const rentObjects = require('./rent-objects');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
@@ -50,7 +61,23 @@ const FRONTEND_HTML =
   '\n' +
   searchableSelect +
   '\n' +
-  entityForm +
+  amountInput +
+  '\n' +
+  advances +
+  '\n' +
+  contacts +
+  '\n' +
+  duration +
+  '\n' +
+  contractItems +
+  '\n' +
+  actItems +
+  '\n' +
+  fieldInput +
+  '\n' +
+  equipmentForm +
+  '\n' +
+  landPlotQuick +
   '\n' +
   rentObjects +
   '\n' +
