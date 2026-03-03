@@ -37,6 +37,10 @@ tr:hover td { background:rgba(51,65,85,0.3); }
 .spinner { display:flex; align-items:center; justify-content:center; height:300px; color:#475569; font-size:14px; }
 .err { color:#ef4444; padding:40px 32px; font-size:14px; }
 .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+tr.debtor-row:hover td { background:rgba(59,130,246,0.08); cursor:pointer; }
+tr.contract-row td { background:rgba(15,23,42,0.6); }
+tr.contract-row:hover td { background:rgba(51,65,85,0.25); }
+.expand-icon { display:inline-block; width:18px; color:#64748b; transition:transform 0.15s; font-size:11px; }
 @media(max-width:900px) { .grid { grid-template-columns:repeat(2,1fr); } .charts { grid-template-columns:1fr; } .header,.grid,.charts,.section,.org-tabs { padding-left:16px; padding-right:16px; } }
 </style>
 </head>
@@ -146,41 +150,48 @@ async function loadData() {
     h += '<div class="chart-card"><h3>📊 Старение долга (aging)</h3><canvas id="chartAging" height="200"></canvas></div>';
     h += '</div>';
 
-    // Debtors summary table
+    // Expandable debtors table
     h += '<div class="section"><div class="section-card">';
-    h += '<h3>🏢 Контрагенты-должники — сводка</h3>';
-    h += '<table><thead><tr><th>Контрагент</th><th class="num">Долг, ₽</th><th class="num">Счетов</th><th class="num">Последний счёт</th><th class="num">Дней</th><th class="num">Начислено, ₽</th><th class="num">Оплачено, ₽</th><th>Статус</th></tr></thead><tbody>';
-    for (const deb of debtors) {
-      h += '<tr>';
-      h += '<td><strong>'+deb.name+'</strong></td>';
-      h += '<td class="num" style="color:#ef4444;font-weight:600">'+fmtFull(deb.outstanding)+'</td>';
-      h += '<td class="num">'+deb.invoice_count+'</td>';
-      h += '<td class="num">'+deb.last_invoice_date+'</td>';
-      h += '<td class="num">'+ageBadge(deb.days_since_last)+'</td>';
-      h += '<td class="num">'+fmtFull(deb.invoiced)+'</td>';
-      h += '<td class="num">'+fmtFull(deb.paid)+'</td>';
-      h += '<td>'+statusBadge(deb.days_since_last)+'</td>';
+    h += '<h3>🏢 Контрагенты-должники <span style="font-weight:400;color:#64748b;font-size:12px">— нажмите строку для раскрытия договоров</span></h3>';
+    h += '<table><thead><tr>';
+    h += '<th style="width:28px"></th>';
+    h += '<th>Контрагент</th>';
+    h += '<th class="num">Долг, ₽</th>';
+    h += '<th class="num">Начислено, ₽</th>';
+    h += '<th class="num">Оплачено, ₽</th>';
+    h += '<th class="num">Счетов</th>';
+    h += '<th class="num">Посл. акт</th>';
+    h += '<th>Статус</th>';
+    h += '</tr></thead><tbody id="debtorsTbody">';
+    for (let i = 0; i < debtors.length; i++) {
+      const deb = debtors[i];
+      const gid = 'dg' + i;
+      const hasContracts = deb.contracts && deb.contracts.length > 0;
+      h += '<tr class="debtor-row" onclick="toggleDebtor(\'' + gid + '\')">';
+      h += '<td><span class="expand-icon" id="icon_' + gid + '">' + (hasContracts ? '▶' : '') + '</span></td>';
+      h += '<td><strong>' + deb.name + '</strong></td>';
+      h += '<td class="num" style="color:#ef4444;font-weight:600">' + fmtFull(deb.outstanding) + '</td>';
+      h += '<td class="num">' + fmtFull(deb.invoiced) + '</td>';
+      h += '<td class="num" style="color:#10b981">' + fmtFull(deb.paid) + '</td>';
+      h += '<td class="num">' + deb.invoice_count + '</td>';
+      h += '<td class="num">' + ageBadge(deb.days_since_last) + '</td>';
+      h += '<td>' + statusBadge(deb.days_since_last) + '</td>';
       h += '</tr>';
-    }
-    h += '</tbody></table></div></div>';
-
-    // Top invoices per debtor
-    h += '<div class="section"><div class="section-card">';
-    h += '<h3>📋 Последние счета по должникам</h3>';
-    h += '<table><thead><tr><th>Контрагент</th><th>Номер счёта</th><th>Договор 1С</th><th>Дата</th><th class="num">Сумма, ₽</th><th>Просрочка</th><th style="width:100px"></th></tr></thead><tbody>';
-    for (const deb of debtors.slice(0, 12)) {
-      for (const inv of deb.top_invoices.slice(0, 3)) {
-        const days = Math.floor((new Date() - new Date(inv.date)) / 86400000);
-        const icon = days > 90 ? '🔥' : days > 30 ? '⚠️' : '⏰';
-        h += '<tr>';
-        h += '<td>'+icon+' '+deb.name+'</td>';
-        h += '<td style="color:#94a3b8">'+inv.num+'</td>';
-        h += '<td style="color:#60a5fa;font-size:12px">'+(inv.contract_num || '<span style="color:#374151">—</span>')+'</td>';
-        h += '<td>'+inv.date+'</td>';
-        h += '<td class="num">'+fmtFull(inv.sum)+'</td>';
-        h += '<td>'+ageBadge(days)+'</td>';
-        h += '<td>'+ageBar(days)+'</td>';
-        h += '</tr>';
+      // Contract sub-rows (hidden by default)
+      if (hasContracts) {
+        for (const c of deb.contracts) {
+          const cOut = deb.invoiced > 0 ? Math.round(c.invoiced / deb.invoiced * deb.outstanding) : 0;
+          h += '<tr class="contract-row" data-group="' + gid + '" style="display:none">';
+          h += '<td></td>';
+          h += '<td style="padding-left:32px;color:#94a3b8;font-size:12px">📄 ' + (c.contract_num === '—' ? '<span style="color:#475569">без договора</span>' : '<span style="color:#60a5fa">' + c.contract_num + '</span>') + '</td>';
+          h += '<td class="num" style="color:#fca5a5;font-size:12px">' + fmtFull(cOut) + '</td>';
+          h += '<td class="num" style="color:#93c5fd;font-size:12px">' + fmtFull(c.invoiced) + '</td>';
+          h += '<td class="num" style="font-size:12px;color:#475569">—</td>';
+          h += '<td class="num" style="font-size:12px">' + c.invoice_count + '</td>';
+          h += '<td class="num" style="font-size:12px">' + (c.last_date || '—') + '</td>';
+          h += '<td></td>';
+          h += '</tr>';
+        }
       }
     }
     h += '</tbody></table></div></div>';
@@ -220,6 +231,15 @@ async function loadData() {
     document.getElementById('liveStatus').style.background = '#ef4444';
     document.getElementById('content').innerHTML = '<div class="err">⚠️ Ошибка загрузки: '+e.message+'<br><br><button onclick="loadData()" style="margin-top:12px;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:8px 16px;cursor:pointer">Повторить</button></div>';
   }
+}
+
+function toggleDebtor(gid) {
+  const rows = document.querySelectorAll('[data-group="' + gid + '"]');
+  const icon = document.getElementById('icon_' + gid);
+  if (!rows.length) return;
+  const isOpen = rows[0].style.display !== 'none';
+  rows.forEach(r => { r.style.display = isOpen ? 'none' : 'table-row'; });
+  if (icon) icon.textContent = isOpen ? '▶' : '▼';
 }
 
 loadData();

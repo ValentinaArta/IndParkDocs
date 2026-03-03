@@ -245,6 +245,17 @@ router.get('/overdue', authenticate, async (req, res) => {
         else age90 += share;
       }
 
+      // Группировка актов по договору (для drill-down)
+      const byContract = {};
+      for (const act of data.acts) {
+        const cnum = act.contract_num || '—';
+        if (!byContract[cnum]) byContract[cnum] = { contract_num: cnum, invoiced: 0, invoice_count: 0, last_date: '' };
+        byContract[cnum].invoiced += act.sum;
+        byContract[cnum].invoice_count++;
+        if (!byContract[cnum].last_date || act.date > byContract[cnum].last_date) byContract[cnum].last_date = act.date;
+      }
+      const contractsList = Object.values(byContract).sort((a, b) => b.invoiced - a.invoiced);
+
       debtors.push({
         key: cid,
         name: nameMap[cid] || cid.slice(0, 8) + '...',
@@ -254,7 +265,7 @@ router.get('/overdue', authenticate, async (req, res) => {
         invoice_count: data.acts.length,
         last_invoice_date: lastActDate,
         days_since_last: daysSinceLast,
-        top_invoices: sortedActs.slice(0, 5),
+        contracts: contractsList,
         aging: { d0: Math.round(age0), d30: Math.round(age30), d60: Math.round(age60), d90: Math.round(age90) },
       });
     }
