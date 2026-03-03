@@ -621,7 +621,8 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const rentRows = rentObjects.map(ro => {
     const roomId = parseInt(ro.room_id) || 0;
     const rd = roomMap[roomId] || {};
-    const area = parseFloat(ro.area) || 0;
+    // area: use stored value first, then fall back to room's DB properties (rooms don't store area in rent_objects)
+    const area = parseFloat(ro.area) || parseFloat((rd.props || {}).area) || 0;
     const rate = parseFloat(ro.rent_rate) || 0;
     // Для объектов типа ЗУ название берётся из части ЗУ, затем из ЗУ целиком
     const isLandPlot = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');

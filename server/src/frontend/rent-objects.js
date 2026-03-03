@@ -980,7 +980,11 @@ function collectRentObjectData(index) {
   }
   if (obj.room_id) {
     var r = _rooms.find(function(e) { return e.id === parseInt(obj.room_id); });
-    if (r) obj.room = r.name;
+    if (r) {
+      obj.room = r.name;
+      // Always save room area from DB so reports.js and future edits have it
+      if (!obj.area && r.properties && r.properties.area) obj.area = String(r.properties.area);
+    }
   }
   if (obj.equipment_id) {
     var eq = _equipment.find(function(e) { return e.id === parseInt(obj.equipment_id); });
