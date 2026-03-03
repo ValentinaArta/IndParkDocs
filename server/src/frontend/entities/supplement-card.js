@@ -56,15 +56,70 @@ function renderSupplementCard(supp) {
     h += '</div>';
   }
 
-  // ── Срок действия ──────────────────────────────────────────────────────────
+  // ── Общие поля (для всех типов, если заполнены в ДС) ──────────────────────
+  var infoRows = [];
+  if (sp.contract_date)    infoRows.push({ label: 'Дата подписания', val: _ccFmtDate(sp.contract_date) });
+  if (sp.contract_amount)  infoRows.push({ label: 'Сумма договора', val: _ccFmtNum(sp.contract_amount) + ' руб.' });
   var durStr = sp.contract_end_date
     ? ('до ' + _ccFmtDate(sp.contract_end_date))
     : (sp.duration_date ? ('до ' + _ccFmtDate(sp.duration_date)) : sp.duration_text || '');
-  if (durStr) {
-    h += '<div style="margin-bottom:16px;font-size:14px"><span style="color:var(--text-secondary)">Срок действия:</span> <strong>' + escapeHtml(durStr) + '</strong></div>';
+  if (durStr) infoRows.push({ label: 'Срок действия', val: durStr });
+  if (infoRows.length > 0) {
+    h += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;font-size:14px">';
+    infoRows.forEach(function(r) {
+      h += '<div><span style="color:var(--text-secondary)">' + r.label + ':</span> <strong>' + escapeHtml(r.val) + '</strong></div>';
+    });
+    h += '</div>';
   }
 
-  // ── Условия аренды (rent_objects) ─────────────────────────────────────────
+  // ── Предмет / корпус (Подряда, Услуг, Обслуживания, Купли-продажи) ─────────
+  var subject = sp.subject || sp.service_subject || '';
+  if (subject) {
+    h += '<div style="margin-bottom:12px;font-size:14px"><span style="color:var(--text-secondary)">Предмет:</span> ' + escapeHtml(subject) + '</div>';
+  }
+  if (sp.building) {
+    h += '<div style="margin-bottom:12px;font-size:14px"><span style="color:var(--text-secondary)">Корпус:</span> ' + escapeHtml(sp.building) + '</div>';
+  }
+
+  // ── Перечень работ / услуг / товаров (Подряда, Услуг, Купли-продажи) ───────
+  if (sp.contract_items) {
+    var contractItems = [];
+    try { contractItems = JSON.parse(sp.contract_items); } catch(ex) {}
+    if (contractItems.length > 0) {
+      var isSale = (sp.contract_type === 'Купли-продажи');
+      h += '<div style="margin-bottom:16px">';
+      h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase">';
+      h += isSale ? 'Перечень товаров' : (sp.contract_type === 'Услуг' ? 'Перечень услуг' : 'Перечень работ');
+      h += '</div>';
+      h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      h += '<thead><tr style="background:#4F6BCC;color:#fff">';
+      h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 4px">Наименование</th>';
+      h += '<th style="padding:7px 10px;text-align:right">Кол-во</th>';
+      h += '<th style="padding:7px 10px;text-align:right">Цена</th>';
+      h += '<th style="padding:7px 10px;text-align:right;border-radius:0 4px 4px 0">Сумма</th>';
+      h += '</tr></thead><tbody>';
+      var ciTotal = 0;
+      contractItems.forEach(function(ci, i) {
+        var qty = parseFloat(ci.qty || ci.quantity) || 0;
+        var price = parseFloat(ci.price || ci.unit_price) || 0;
+        var sum = parseFloat(ci.amount || ci.sum) || (qty * price);
+        ciTotal += sum;
+        var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+        h += '<tr style="' + bg + '">';
+        h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(ci.name || ci.description || '—') + '</td>';
+        h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (qty || '—') + '</td>';
+        h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (price ? _ccFmtNum(price) : '—') + '</td>';
+        h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:500">' + (sum ? _ccFmtNum(sum) : '—') + '</td>';
+        h += '</tr>';
+      });
+      if (ciTotal > 0) {
+        h += '<tr style="font-weight:600"><td style="padding:6px 10px">Итого</td><td></td><td></td><td style="padding:6px 10px;text-align:right">' + _ccFmtNum(ciTotal) + ' руб.</td></tr>';
+      }
+      h += '</tbody></table></div>';
+    }
+  }
+
+  // ── Условия аренды (Аренды / Субаренды) ────────────────────────────────────
   if (sp.rent_objects) {
     var rentObjs = [];
     try { rentObjs = JSON.parse(sp.rent_objects); } catch(ex) {}
@@ -80,8 +135,8 @@ function renderSupplementCard(supp) {
       h += '</tr></thead><tbody>';
       var totalMonthly = 0;
       validObjs.forEach(function(ro, i) {
-        var isLandPlot = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');
-        var objName = isLandPlot
+        var isLP = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');
+        var objName = isLP
           ? (ro.land_plot_part_name || ro.land_plot_name || ro.room || ro.room_name || '—')
           : (ro.room || ro.room_name || ro.object_type || '—');
         var area = parseFloat(ro.area) || 0;
@@ -107,6 +162,50 @@ function renderSupplementCard(supp) {
         h += '</div>';
       }
       h += '</div>';
+    }
+  }
+
+  // ── Доп. услуги (Аренды / Субаренды) ───────────────────────────────────────
+  var hasExtra = (sp.extra_services === 'true' || sp.extra_services === true);
+  if (hasExtra && (sp.extra_services_desc || sp.extra_services_cost)) {
+    h += '<div style="margin-bottom:12px;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px">';
+    h += '<span style="color:var(--text-secondary);font-weight:600">Доп. услуги:</span> ';
+    if (sp.extra_services_desc) h += escapeHtml(sp.extra_services_desc);
+    if (sp.extra_services_cost) h += ' — <strong>' + _ccFmtNum(sp.extra_services_cost) + ' руб./мес.</strong>';
+    h += '</div>';
+  }
+
+  // ── Аренда оборудования (equipment_rent_items) ──────────────────────────────
+  if (sp.equipment_rent_items) {
+    var rentItems = [];
+    try { rentItems = JSON.parse(sp.equipment_rent_items); } catch(ex) {}
+    if (rentItems.length > 0) {
+      h += '<div style="margin-bottom:16px">';
+      h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase">Предметы аренды</div>';
+      h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      h += '<thead><tr style="background:#4F6BCC;color:#fff">';
+      h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 4px">Оборудование</th>';
+      h += '<th style="padding:7px 10px;text-align:right">Кол-во</th>';
+      h += '<th style="padding:7px 10px;text-align:right;border-radius:0 4px 4px 0">Ставка (руб/мес)</th>';
+      h += '</tr></thead><tbody>';
+      var rentTotal = 0;
+      rentItems.forEach(function(ri, i) {
+        _enrichFromRegistry(ri);
+        var eqName = ri.equipment_name || ri.name || '—';
+        var qty = parseFloat(ri.qty) || 1;
+        var rate = parseFloat(ri.rate || ri.rent_rate) || 0;
+        rentTotal += rate * qty;
+        var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+        h += '<tr style="' + bg + '">';
+        h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(eqName) + '</td>';
+        h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + qty + '</td>';
+        h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (rate ? _ccFmtNum(rate) : '—') + '</td>';
+        h += '</tr>';
+      });
+      if (rentTotal > 0) {
+        h += '<tr style="font-weight:600"><td style="padding:6px 10px">Итого</td><td></td><td style="padding:6px 10px;text-align:right">' + _ccFmtNum(rentTotal) + ' руб./мес.</td></tr>';
+      }
+      h += '</tbody></table></div>';
     }
   }
 
