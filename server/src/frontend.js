@@ -252,11 +252,10 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
         <i data-lucide="pie-chart" class="lucide"></i> BI-дашборды
       </div>
       <div class="nav-item" onclick="showFinancePage()">
-        <i data-lucide="landmark" class="lucide"></i> Финансы (1С)
+        <i data-lucide="landmark" class="lucide"></i> Расходы
       </div>
       <div class="nav-item" onclick="window.open('/finance','_blank')">
-        <i data-lucide="banknote" class="lucide"></i> Финансы (1С)
-        <span style="background:#10b981;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-left:auto;">DEMO</span>
+        <i data-lucide="banknote" class="lucide"></i> Должники
       </div>
       <div class="nav-item" onclick="showBudgetPage()">
         <i data-lucide="trending-up" class="lucide"></i> Бюджеты
@@ -490,16 +489,13 @@ function _srchInitAll() {
     textEl.addEventListener('focus', function() { _srchFilter(id); });
     textEl.addEventListener('input', function() { hiddenEl.value = ''; _srchFilter(id); });
     textEl.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') { dropEl.style.display = 'none'; var _m=dropEl.closest('.modal');if(_m)_m.style.overflow=''; textEl.blur(); }
+      if (e.key === 'Escape') { dropEl.style.display = 'none'; textEl.blur(); }
       if (e.key === 'ArrowDown') { e.preventDefault(); var first = dropEl.querySelector('.srch-item'); if (first) first.focus(); }
     });
-    // Click handlers are attached in _srchFilter on each render
-    // Close on click outside (pointerdown + touchstart for iOS)
-    function _closeOutside(e) {
-      if (!wrap.contains(e.target)) { dropEl.style.display = 'none'; var _m=dropEl.closest('.modal');if(_m)_m.style.overflow=''; }
-    }
-    document.addEventListener('pointerdown', _closeOutside);
-    document.addEventListener('touchstart', _closeOutside);
+    // Close on click outside
+    document.addEventListener('mousedown', function(e) {
+      if (!wrap.contains(e.target)) dropEl.style.display = 'none';
+    });
   });
 }
 
@@ -556,34 +552,20 @@ function _srchFilter(id) {
   }
   dropEl.innerHTML = h;
   dropEl.style.display = '';
-  // Temporarily disable modal overflow clipping so dropdown is clickable
-  var _modal = dropEl.closest('.modal');
-  if (_modal) _modal.style.overflow = 'visible';
-  // Bind click handlers (pointerdown + touchstart for iOS Safari)
-  function _bindPickHandler(el) {
-    function handler(ev) {
-      ev.preventDefault(); ev.stopPropagation();
-      if (el._srchFired) return; el._srchFired = true;
-      setTimeout(function() { el._srchFired = false; }, 300);
+  // Bind click handlers on each item
+  dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
+    el.addEventListener('mousedown', function(ev) {
+      ev.preventDefault();
       var pv = el.getAttribute('data-srch-pick');
       _srchPick(id, /^\d+$/.test(pv) ? parseInt(pv) : pv);
-    }
-    el.addEventListener('pointerdown', handler);
-    el.addEventListener('touchstart', handler, {passive: false});
-    el.addEventListener('mousedown', handler);
-  }
-  dropEl.querySelectorAll('[data-srch-pick]').forEach(_bindPickHandler);
+    });
+  });
   var newBtn = dropEl.querySelector('[data-srch-new]');
   if (newBtn) {
-    function _newHandler(ev) {
-      ev.preventDefault(); ev.stopPropagation();
-      if (newBtn._srchFired) return; newBtn._srchFired = true;
-      setTimeout(function() { newBtn._srchFired = false; }, 300);
+    newBtn.addEventListener('mousedown', function(ev) {
+      ev.preventDefault();
       _srchPickNew(id);
-    }
-    newBtn.addEventListener('pointerdown', _newHandler);
-    newBtn.addEventListener('touchstart', _newHandler, {passive: false});
-    newBtn.addEventListener('mousedown', _newHandler);
+    });
   }
 }
 
@@ -593,9 +575,7 @@ function _srchPick(id, entityId) {
   if (!ent) return;
   document.getElementById(id).value = String(entityId);
   document.getElementById(id + '_text').value = ent.name;
-  var _dropEl = document.getElementById(id + '_drop');
-  _dropEl.style.display = 'none';
-  var _m = _dropEl.closest('.modal'); if (_m) _m.style.overflow = '';
+  document.getElementById(id + '_drop').style.display = 'none';
   var customEl = document.getElementById(id + '_custom');
   if (customEl) customEl.style.display = 'none';
   // Callbacks for searchable selectors in rent blocks
@@ -5410,7 +5390,7 @@ function showBudgetPage() {
 async function showFinancePage() {
   currentView = 'finance';
   setActive('[onclick*="showFinancePage"]');
-  document.getElementById('pageTitle').textContent = 'Финансы (1С)';
+  document.getElementById('pageTitle').textContent = 'Расходы';
   document.getElementById('breadcrumb').textContent = '';
   document.getElementById('topActions').innerHTML =
     '<button class="btn btn-sm" onclick="showFinancePage()"><i data-lucide="refresh-cw" class="lucide" style="width:14px;height:14px"></i> Обновить</button>';
