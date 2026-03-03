@@ -1193,8 +1193,11 @@ async function _navLoadGroupChildren(name, container) {
           '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> Из 1С (справочник)</div>';
   } else if (name === 'land_plot') {
     var plots = await api('/entities?type=land_plot');
+    // "Все части ЗУ" — всегда первым, аналогично "все помещения" у корпусов
+    h += '<div class="nav-sub-item" data-etype="land_plot_part" data-title="" onclick="navSubClick(this)" style="color:rgba(255,255,255,0.45);font-style:italic">' +
+      '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> все части ЗУ</div>';
     if (plots.length === 0) {
-      container.innerHTML = '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Нет участков</div>';
+      container.innerHTML = h + '<div style="padding:4px 8px 4px 28px;font-size:11px;color:rgba(255,255,255,0.3)">Нет участков</div>';
       return;
     }
     plots.forEach(function(p) {
