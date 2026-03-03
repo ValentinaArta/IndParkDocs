@@ -39,6 +39,13 @@ const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
 const landPlotParts = require('./land-plot-parts');
 const acts = require('./acts');
+// NEW reports:
+const aggReport   = require('./reports/aggregate');
+const pivotReport = require('./reports/pivot');
+const linkedReport = require('./reports/linked-report');
+const rentAnalysis = require('./reports/rent-analysis');
+const workHistory = require('./reports/work-history');
+// OLD reports (now empty stub):
 const reports = require('./reports');
 const relations = require('./relations');
 const settings = require('./settings');
@@ -113,6 +120,11 @@ const FRONTEND_HTML =
   '\n' +
   acts +
   '\n' +
+  aggReport + '\n' +
+  pivotReport + '\n' +
+  linkedReport + '\n' +
+  rentAnalysis + '\n' +
+  workHistory + '\n' +
   reports +
   '\n' +
   relations +
