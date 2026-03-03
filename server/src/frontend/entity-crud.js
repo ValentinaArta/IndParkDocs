@@ -4534,7 +4534,7 @@ function renderContractCard(data) {
       h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">ТЕКУЩИЕ УСЛОВИЯ' + srcNote + '</div>';
       h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
       h += '<thead><tr style="background:#4F6BCC;color:#fff">';
-      h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 4px">Название помещения</th>';
+      h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 4px">Объект аренды</th>';
       h += '<th style="padding:8px 10px;text-align:right">Площадь, м²</th>';
       h += '<th style="padding:8px 10px;text-align:right;border-radius:0 4px 4px 0">Ставка (руб/м²/мес)</th>';
       h += '</tr></thead><tbody>';

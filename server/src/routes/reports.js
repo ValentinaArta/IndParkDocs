@@ -623,8 +623,13 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const rd = roomMap[roomId] || {};
     const area = parseFloat(ro.area) || 0;
     const rate = parseFloat(ro.rent_rate) || 0;
+    // Для объектов типа ЗУ название берётся из части ЗУ, затем из ЗУ целиком
+    const isLandPlot = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');
+    const displayName = isLandPlot
+      ? (ro.land_plot_part_name || ro.land_plot_name || ro.room || rd.name || '')
+      : (ro.room || rd.name || '');
     return {
-      room_name: ro.room || rd.name || '',
+      room_name: displayName,
       description: (rd.props || {}).description || '',
       area, rate, monthly: area * rate,
       object_type: ro.object_type || '',
