@@ -177,7 +177,7 @@ router.get('/overdue', authenticate, async (req, res) => {
     //   ОплатаПокупателя → Кт62 (они заплатили, долг гасится)
     //   Дебиторка = sum(реализация) - sum(оплаты) per contractor
     const [allRealize, allPayments, contractorsRaw] = await Promise.all([
-      odataGetAll(`Document_РеализацияТоваровУслуг?$format=json&$filter=${dateFilter}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,Posted`),
+      odataGetAll(`Document_РеализацияТоваровУслуг?$format=json&$filter=${dateFilter}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,ДоговорКонтрагента_Key,Posted`),
       odataGetAll(`Document_ПоступлениеНаРасчетныйСчет?$format=json&$filter=${payFilter}&$select=Date,СуммаДокумента,Организация_Key,Контрагент,Posted`),
       odataGet(`Catalog_Контрагенты?$format=json&$top=3000&$select=Ref_Key,Description`),
     ]);
@@ -186,6 +186,18 @@ router.get('/overdue', authenticate, async (req, res) => {
     const payItems  = allPayments.filter(x => x.Posted && x.Организация_Key === orgKey);
     const nameMap = {};
     (contractorsRaw.value || []).forEach(x => { nameMap[x.Ref_Key] = x.Description; });
+
+    // Загружаем справочник договоров 1С (все, без фильтра — небольшой справочник)
+    const contractNumMap = {}; // guid → короткий номер
+    try {
+      const contractsData = await odataGetAll(
+        `Catalog_ДоговорыКонтрагентов?$format=json&$filter=DeletionMark%20eq%20false%20and%20IsFolder%20eq%20false&$select=Ref_Key,Номер,Description`,
+        500
+      );
+      contractsData.forEach(c => {
+        contractNumMap[c.Ref_Key] = c.Номер || c.Description || '';
+      });
+    } catch (_) { /* не критично — продолжаем без номеров договоров */ }
 
     // Реализация по контрагентам (Дт62)
     const realByContr = {};
@@ -198,6 +210,7 @@ router.get('/overdue', authenticate, async (req, res) => {
         num: x.Number || '',
         date: (x.Date || '').slice(0, 10),
         sum: Math.round(x.СуммаДокумента || 0),
+        contract_num: contractNumMap[x.ДоговорКонтрагента_Key] || '',
       });
     }
 

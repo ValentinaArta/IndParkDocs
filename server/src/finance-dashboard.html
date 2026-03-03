@@ -167,7 +167,7 @@ async function loadData() {
     // Top invoices per debtor
     h += '<div class="section"><div class="section-card">';
     h += '<h3>📋 Последние счета по должникам</h3>';
-    h += '<table><thead><tr><th>Контрагент</th><th>Номер</th><th>Дата</th><th class="num">Сумма, ₽</th><th>Просрочка</th><th style="width:100px"></th></tr></thead><tbody>';
+    h += '<table><thead><tr><th>Контрагент</th><th>Номер счёта</th><th>Договор 1С</th><th>Дата</th><th class="num">Сумма, ₽</th><th>Просрочка</th><th style="width:100px"></th></tr></thead><tbody>';
     for (const deb of debtors.slice(0, 12)) {
       for (const inv of deb.top_invoices.slice(0, 3)) {
         const days = Math.floor((new Date() - new Date(inv.date)) / 86400000);
@@ -175,6 +175,7 @@ async function loadData() {
         h += '<tr>';
         h += '<td>'+icon+' '+deb.name+'</td>';
         h += '<td style="color:#94a3b8">'+inv.num+'</td>';
+        h += '<td style="color:#60a5fa;font-size:12px">'+(inv.contract_num || '<span style="color:#374151">—</span>')+'</td>';
         h += '<td>'+inv.date+'</td>';
         h += '<td class="num">'+fmtFull(inv.sum)+'</td>';
         h += '<td>'+ageBadge(days)+'</td>';
