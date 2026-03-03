@@ -410,7 +410,11 @@ function renderRentObjectBlock(index, obj) {
     if (room) { var _bld = _getRoomBuilding(room); selRoomName = room.name + (_bld ? ' (' + _bld + ')' : ''); }
     h += '<div class="form-group"><label>Помещение</label>';
     h += renderSearchableSelect(roSrchId, roomList, obj.room_id || '', selRoomName, 'начните вводить...', 'rent_room');
+    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleRentRoomCreate(this,' + index + ')">+ Создать помещение</button>';
     h += '</div>';
+
+    // Inline form for creating a new room
+    h += _roRoomCreateMiniForm(index);
 
     // Auto-filled room properties (read-only display)
     h += '<div id="ro_room_info_' + index + '" style="' + (room ? '' : 'display:none;') + 'font-size:13px;color:var(--text-secondary);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px">';
