@@ -107,7 +107,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .srch-input { width:100%; box-sizing:border-box; }
 .srch-drop { position:absolute;top:100%;left:0;right:0;z-index:9999;background:var(--bg);border:1px solid var(--primary);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12); }
 .srch-wrap { position:relative; }
-.srch-item { padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.srch-item { padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;touch-action:manipulation; }
 .srch-item:hover,.srch-item.srch-active { background:var(--bg-hover); }
 .srch-new { color:var(--primary);font-style:italic;border-top:1px solid var(--border); }
 .srch-custom { width:100%;box-sizing:border-box;margin-top:6px; }
@@ -494,10 +494,12 @@ function _srchInitAll() {
       if (e.key === 'ArrowDown') { e.preventDefault(); var first = dropEl.querySelector('.srch-item'); if (first) first.focus(); }
     });
     // Click handlers are attached in _srchFilter on each render
-    // Close on click outside
-    document.addEventListener('mousedown', function(e) {
+    // Close on click outside (pointerdown + touchstart for iOS)
+    function _closeOutside(e) {
       if (!wrap.contains(e.target)) { dropEl.style.display = 'none'; var _m=dropEl.closest('.modal');if(_m)_m.style.overflow=''; }
-    });
+    }
+    document.addEventListener('pointerdown', _closeOutside);
+    document.addEventListener('touchstart', _closeOutside);
   });
 }
 
@@ -557,16 +559,32 @@ function _srchFilter(id) {
   // Temporarily disable modal overflow clipping so dropdown is clickable
   var _modal = dropEl.closest('.modal');
   if (_modal) _modal.style.overflow = 'visible';
-  // Bind click handlers directly on each item
-  dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
-    el.onmousedown = function(ev) {
-      ev.preventDefault();
-      var pv = this.getAttribute('data-srch-pick');
+  // Bind click handlers (pointerdown + touchstart for iOS Safari)
+  function _bindPickHandler(el) {
+    function handler(ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      if (el._srchFired) return; el._srchFired = true;
+      setTimeout(function() { el._srchFired = false; }, 300);
+      var pv = el.getAttribute('data-srch-pick');
       _srchPick(id, /^\d+$/.test(pv) ? parseInt(pv) : pv);
-    };
-  });
+    }
+    el.addEventListener('pointerdown', handler);
+    el.addEventListener('touchstart', handler, {passive: false});
+    el.addEventListener('mousedown', handler);
+  }
+  dropEl.querySelectorAll('[data-srch-pick]').forEach(_bindPickHandler);
   var newBtn = dropEl.querySelector('[data-srch-new]');
-  if (newBtn) newBtn.onmousedown = function(ev) { ev.preventDefault(); _srchPickNew(id); };
+  if (newBtn) {
+    function _newHandler(ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      if (newBtn._srchFired) return; newBtn._srchFired = true;
+      setTimeout(function() { newBtn._srchFired = false; }, 300);
+      _srchPickNew(id);
+    }
+    newBtn.addEventListener('pointerdown', _newHandler);
+    newBtn.addEventListener('touchstart', _newHandler, {passive: false});
+    newBtn.addEventListener('mousedown', _newHandler);
+  }
 }
 
 function _srchPick(id, entityId) {
@@ -7211,6 +7229,8 @@ async function openEditModal(id) {
   showLoadingModal();
   clearEntityCache();
   const e = await api('/entities/' + id);
+  // Акты — специальная форма
+  if (e.type_name === 'act') { await openEditActModal(id, e); return; }
   const fields = e.fields || [];
   const allEntities = await api('/entities');
   await loadContractEntities();
@@ -7721,6 +7741,86 @@ async function submitCreateLandPlotPart(parentLandPlotId) {
 }
 
 // ============ ACTS ============
+
+async function openEditActModal(actId, actEntity) {
+  try {
+    await loadEntityLists();
+    var e = actEntity || await api('/entities/' + actId);
+    var props = e.properties || {};
+    var parentContractId = e.parent_id || parseInt(props.parent_contract_id) || null;
+
+    // Загружаем список оборудования для этого договора
+    _actEquipmentList = null;
+    if (parentContractId) {
+      try {
+        var parentEntity = await api('/entities/' + parentContractId);
+        var contractEqItems = [];
+        try { contractEqItems = JSON.parse((parentEntity.properties || {}).equipment_list || '[]'); } catch(ex) {}
+        var contractEqIds = contractEqItems.map(function(i) { return parseInt(i.equipment_id); }).filter(Boolean);
+        _actEquipmentList = contractEqIds.length > 0
+          ? _equipment.filter(function(eq) { return contractEqIds.indexOf(eq.id) !== -1; })
+          : null;
+      } catch(ex) {}
+    }
+
+    // Разбираем сохранённые позиции
+    var savedItems = [];
+    try { savedItems = JSON.parse(props.act_items || '[]'); } catch(ex) {}
+
+    var parentName = props.parent_contract_name || (parentContractId ? 'Договор #' + parentContractId : '—');
+    var html = '<h3>Редактировать акт</h3>';
+    html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-hover);border-radius:6px">Договор-основание: <strong>' + escapeHtml(parentName) + '</strong></div>';
+    html += '<div class="form-group"><label>Номер акта *</label><input id="f_act_number" value="' + escapeHtml(props.act_number || '') + '"></div>';
+    html += '<div class="form-group"><label>Дата акта</label><input type="date" id="f_act_date" value="' + escapeHtml(props.act_date || '') + '"></div>';
+    html += '<div class="form-group"><label>Комментарий</label><textarea id="f_comment" style="width:100%;resize:both;min-height:48px;box-sizing:border-box">' + escapeHtml(props.comment || '') + '</textarea></div>';
+    html += '<div class="form-group"><label>Заключение</label><textarea id="f_conclusion" style="width:100%;resize:both;min-height:72px;box-sizing:border-box">' + escapeHtml(props.conclusion || '') + '</textarea></div>';
+    html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="' + escapeHtml(String(props.total_amount || 0)) + '" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
+    html += '<div class="form-group"><label>Оборудование и работы</label>' + renderActItemsField(savedItems) + '</div>';
+    html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>';
+    html += '<button class="btn btn-primary" onclick="if(!_submitting){_submitting=true;_doSubmitEditAct(' + actId + ',' + (parentContractId||'null') + ').finally(function(){_submitting=false;})}">Сохранить</button></div>';
+    setModalContent(html);
+    // Пересчитать итого из уже заполненных позиций
+    recalcActTotal();
+  } catch(err) {
+    setModalContent('<div style="color:#dc2626;padding:20px">Ошибка открытия акта: ' + escapeHtml(String(err.message || err)) + '</div>');
+  }
+}
+
+async function _doSubmitEditAct(actId, parentContractId) {
+  try {
+    var actNumber = (document.getElementById('f_act_number') || {}).value || '';
+    if (!actNumber.trim()) { alert('Введите номер акта'); _submitting = false; return; }
+    var actItems = getActItemsValue();
+    var actDate = (document.getElementById('f_act_date') || {}).value || '';
+    var comment = (document.getElementById('f_comment') || {}).value || '';
+    var conclusion = (document.getElementById('f_conclusion') || {}).value || '';
+    var total = actItems.reduce(function(s, i) { return s + (i.amount || 0); }, 0);
+
+    var parentName = '';
+    if (parentContractId) {
+      try { var pe = await api('/entities/' + parentContractId); parentName = pe.name; } catch(ex) {}
+    }
+
+    var properties = {
+      act_number: actNumber.trim(),
+      act_date: actDate,
+      comment: comment,
+      conclusion: conclusion,
+      parent_contract_id: String(parentContractId || ''),
+      parent_contract_name: parentName,
+      act_items: JSON.stringify(actItems),
+      total_amount: String(total),
+    };
+
+    var actName = 'Акт №' + actNumber.trim() + (actDate ? ' от ' + actDate : '') + (parentName ? ' — ' + parentName : '');
+    await api('/entities/' + actId, { method: 'PUT', body: JSON.stringify({ name: actName, properties }) });
+    closeModal();
+    clearEntityCache();
+    showEntity(actId);
+  } catch(err) {
+    alert('Ошибка сохранения: ' + (err.message || String(err)));
+  }
+}
 
 async function openCreateActModal(parentContractId) {
   try {
