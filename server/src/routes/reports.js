@@ -5,6 +5,24 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
+/**
+ * Resolve actual area for a rent_objects item.
+ * Stored ro.area takes priority (e.g. partial ЗУ or overridden value).
+ * Falls back to room's DB properties.area when ro.area is absent (rooms added via searchable-select
+ * don't save area into the JSON because it's shown read-only in the form).
+ * @param {object} ro - rent_objects row
+ * @param {object} roomPropsMap - map of room id → properties (pre-fetched from DB)
+ */
+function resolveRoArea(ro, roomPropsMap) {
+  const stored = parseFloat(ro.area);
+  if (stored > 0) return stored;
+  const roomId = parseInt(ro.room_id) || 0;
+  if (roomId && roomPropsMap && roomPropsMap[roomId]) {
+    return parseFloat(roomPropsMap[roomId].area) || 0;
+  }
+  return 0;
+}
+
 // GET /api/reports/pivot?groupBy=building&filterType=contract&search=...
 router.get('/pivot', authenticate, asyncHandler(async (req, res) => {
   const { groupBy, filterType, search } = req.query;
@@ -387,7 +405,7 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
     const fromSupp = c.from_supplement === true || c.from_supplement === 't';
     roList.forEach(function(ro) {
       seq++;
-      const area = parseFloat(ro.area) || 0;
+      const area = resolveRoArea(ro, roomPropsMap);
       const rate = parseFloat(ro.rent_rate) || 0;
       // rent_rate is per m² per MONTH (same as contract form recalcRentMonthly)
       const monthly = area * rate;
@@ -584,6 +602,9 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
       'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [roomIds]);
     rRes.rows.forEach(r => { roomMap[r.id] = { name: r.name, props: r.properties || {} }; });
   }
+  // Derived map for resolveRoArea (shares the same DB query — no extra round-trip)
+  const roomPropsMapCC = {};
+  Object.entries(roomMap).forEach(([id, r]) => { roomPropsMapCC[id] = r.props; });
 
   // 6. Equipment details + located_in + broken-from-acts
   const eqIds = [...new Set(transferEquipment.map(eq => parseInt(eq.equipment_id)).filter(id => id > 0))];
@@ -621,8 +642,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const rentRows = rentObjects.map(ro => {
     const roomId = parseInt(ro.room_id) || 0;
     const rd = roomMap[roomId] || {};
-    // area: use stored value first, then fall back to room's DB properties (rooms don't store area in rent_objects)
-    const area = parseFloat(ro.area) || parseFloat((rd.props || {}).area) || 0;
+    const area = resolveRoArea(ro, roomPropsMapCC);
     const rate = parseFloat(ro.rent_rate) || 0;
     // Для объектов типа ЗУ название берётся из части ЗУ, затем из ЗУ целиком
     const isLandPlot = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');
@@ -806,6 +826,14 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
     }
   });
 
+  // Pre-load room properties for resolveRoArea fallback
+  const areaStatsRoomsRes = await pool.query(
+    `SELECT e.id, e.properties FROM entities e
+     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'room'
+     WHERE e.deleted_at IS NULL`);
+  const roomPropsMapAS = {};
+  areaStatsRoomsRes.rows.forEach(r => { roomPropsMapAS[r.id] = r.properties || {}; });
+
   // Calculate rented area per building + per contract breakdown
   const rentedByBuilding = {};
   const contractsByBuilding = {}; // buildingName -> [{contract_id, contract_name, tenant, area}]
@@ -816,7 +844,7 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
     try { objects = JSON.parse(raw); } catch(e) { return; }
     if (!Array.isArray(objects)) return;
     objects.forEach(ro => {
-      const area = parseFloat(ro.area) || 0;
+      const area = resolveRoArea(ro, roomPropsMapAS);
       if (!area) return;
       const buildingName = ro.building || '';
       if (buildingName) {
