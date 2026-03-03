@@ -292,7 +292,10 @@ async function loadBrokenEquipment() {
   } catch(e) { /* non-fatal */ }
 }
 
-function renderContractFormFields(fields, props, headerHtml) {
+function renderContractFormFields(fields, props, headerHtml, options) {
+  options = options || {};
+  var isEdit = options.isEdit || false;
+  var entityId = options.entityId || null;
   _contractFormFields = fields;
   _contractFormProps = props || {};
   var contractType = props.contract_type || '';
@@ -304,9 +307,15 @@ function renderContractFormFields(fields, props, headerHtml) {
     var val = props[f.name] || '';
     var ef = f;
 
-    // contract_type — first, with onchange
+    // contract_type — first, with onchange (read-only for supplement edit)
     if (f.name === 'contract_type') {
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      if (isEdit && _contractFormTypeName === 'supplement') {
+        html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
+        html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
+        html += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(val) + '"></div>';
+      } else {
+        html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      }
       return;
     }
 
@@ -375,13 +384,17 @@ function renderContractFormFields(fields, props, headerHtml) {
 
   html += '<div id="dynamicFieldsContainer"></div>';
 
-  // Determine typeName for submit button
-  var isSupp = fields.some(function(f) { return f.name === 'changes_description'; });
-  var typeName = isSupp ? 'supplement' : 'contract';
-  if (_contractFormTypeName) typeName = _contractFormTypeName;
-
-  html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
-    '<button class="btn btn-primary" onclick="submitCreate(\\''+typeName+'\\')">Создать</button></div>';
+  // Submit button: Сохранить for edit, Создать for create
+  var submitBtn;
+  if (isEdit && entityId) {
+    submitBtn = '<button class="btn btn-primary" onclick="submitEdit(' + entityId + ')">Сохранить</button>';
+  } else {
+    var isSupp = fields.some(function(f) { return f.name === 'changes_description'; });
+    var typeName = isSupp ? 'supplement' : 'contract';
+    if (_contractFormTypeName) typeName = _contractFormTypeName;
+    submitBtn = '<button class="btn btn-primary" onclick="submitCreate(\\''+typeName+'\\')">Создать</button>';
+  }
+  html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' + submitBtn + '</div>';
 
   setModalContent(html);
   _srchInitAll(); // init searchable selects
@@ -4915,88 +4928,8 @@ async function openEditModal(id) {
   }
 
   if (isContractLike) {
-    // Use renderContractFormFields but with edit button
-    var editHtml = html;
-    _contractFormFields = fields;
-    _contractFormProps = props;
-    var contractType = props.contract_type || '';
-    var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
-
-    fields.forEach(function(f) {
-      var val = props[f.name] || '';
-      var ef = f;
-
-      if (f.name === 'contract_type') {
-        if (e.type_name === 'supplement') {
-          // ДС наследует тип от родительского договора — не редактируется
-          editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
-          editHtml += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
-          editHtml += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(val) + '"></div>';
-        } else {
-          editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
-        }
-      } else if (f.name === 'our_role_label') {
-        // Defer: rendered with our_legal_entity
-      } else if (f.name === 'our_legal_entity') {
-        var ourDefaultRole2 = roles.our;
-        var ourRoleVal2 = props.our_role_label || ourDefaultRole2;
-        editHtml += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
-        editHtml += '<div id="wrap_our_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль нашей стороны</label>' +
-          '<input id="f_our_role_label" value="' + escapeHtml(ourRoleVal2) + '" placeholder="' + escapeHtml(ourDefaultRole2) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
-        editHtml += '<div id="wrap_our_legal_entity"><label id="label_our_legal_entity" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(ourRoleVal2) + '</label>' +
-          renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, props.our_legal_entity || '', 'начните вводить...', 'our_legal_entity') + '</div>';
-        editHtml += '</div>';
-      } else if (f.name === 'contractor_role_label') {
-        // Defer: rendered with contractor_name
-      } else if (f.name === 'contractor_name') {
-        var contrDefaultRole2 = roles.contractor;
-        var contrRoleVal2 = props.contractor_role_label || contrDefaultRole2;
-        editHtml += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
-        editHtml += '<div id="wrap_contractor_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль контрагента</label>' +
-          '<input id="f_contractor_role_label" value="' + escapeHtml(contrRoleVal2) + '" placeholder="' + escapeHtml(contrDefaultRole2) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
-        editHtml += '<div id="wrap_contractor_name"><label id="label_contractor_name" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(contrRoleVal2) + '</label>' +
-          renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, props.contractor_name || '', 'начните вводить...', 'contractor_name') + '</div>';
-        editHtml += '</div>';
-      } else if (f.name === 'subtenant_name') {
-        var show = (contractType === 'Субаренды');
-        editHtml += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
-          renderSearchableSelect('f_subtenant_name', _allCompanies, props.subtenant_id, val, 'начните вводить...', 'subtenant_name') + '</div>';
-      } else {
-        // Skip fields already covered by CONTRACT_TYPE_FIELDS for this type
-        var ctTypeFieldsEdit = CONTRACT_TYPE_FIELDS[contractType] || [];
-        if (ctTypeFieldsEdit.find(function(cf) { return cf.name === f.name; })) return;
-        // Hide payment_frequency, sale_item_type for rent types
-        var _isRentalEdit = (contractType === 'Аренды' || contractType === 'Субаренды' || contractType === 'Аренда оборудования');
-        if (_isRentalEdit && (f.name === 'payment_frequency' || f.name === 'sale_item_type')) return;
-        // Hide vat_rate for rent (rendered in rent section)
-        if (_isRentalEdit && f.name === 'vat_rate') return;
-        // Hide duration fields for supplements (shown as regular fields)
-        if (e.type_name !== 'supplement' && (f.name === 'contract_end_date' || f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text')) return;
-        // Default vat_rate to 22
-        if (f.name === 'vat_rate' && !val) val = '22';
-        editHtml += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
-      }
-    });
-
-    editHtml += '<div id="dynamicFieldsContainer"></div>';
-    editHtml += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
-      '<button class="btn btn-primary" onclick="submitEdit(' + id + ')">Сохранить</button></div>';
-
-    setModalContent(editHtml);
-    _srchInitAll();
-
-    var ctEl = document.getElementById('f_contract_type');
-    if (ctEl) {
-      ctEl.addEventListener('change', function() { onContractTypeChange(); });
-      var ctCustom = document.getElementById('f_contract_type_custom');
-      if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
-    }
-    var ourRE = document.getElementById('f_our_role_label');
-    if (ourRE) ourRE.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
-    var contrRE = document.getElementById('f_contractor_role_label');
-    if (contrRE) contrRE.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
-    if (contractType) renderDynamicFields(contractType, props);
-
+    // Delegate entirely to renderContractFormFields (same as create, but isEdit=true)
+    renderContractFormFields(fields, props, html, { isEdit: true, entityId: id });
     return;
   }
 
