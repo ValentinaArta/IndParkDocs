@@ -20,6 +20,20 @@ router.post('/login', authLimiter, validate(schemas.login), asyncHandler(async (
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Неверный логин или пароль' });
 
+  // Check if TOTP is enabled
+  if (user.totp_enabled) {
+    const { totp_code } = req.body;
+    if (!totp_code) {
+      return res.json({ requireTotp: true, message: 'Введите код 2FA' });
+    }
+    const { verifySync } = require('otplib');
+    const totpResult = verifySync({ token: totp_code, secret: user.totp_secret });
+    const isValidTotp = totpResult.valid;
+    if (!isValidTotp) {
+      return res.status(401).json({ error: 'Неверный код 2FA' });
+    }
+  }
+
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 

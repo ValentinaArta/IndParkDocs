@@ -17,6 +17,7 @@ const schemas = {
   login: Joi.object({
     username: Joi.string().min(2).max(50).required(),
     password: Joi.string().min(6).max(100).required(),
+    totp_code: Joi.string().length(6).pattern(/^\d+$/).allow('', null),
   }),
   register: Joi.object({
     username: Joi.string().min(2).max(50).pattern(/^[a-zA-Z0-9_]+$/).required(),

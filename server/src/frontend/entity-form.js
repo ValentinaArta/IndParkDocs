@@ -217,23 +217,46 @@ function _renderEqListItem(item, rowId) {
   h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
   h += '</div>';
   // Inline create panel (hidden)
-  h += '<div class="eq-list-create-panel" id="eq_create_' + rowId + '" style="display:none;border:1px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-secondary)">';
-  h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px">Новое оборудование</div>';
+  h += '<div class="eq-list-create-panel" id="eq_create_' + rowId + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg-secondary)">';
+  h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">Новая единица оборудования — полная форма</div>';
   h += '<div class="form-group"><label>Название *</label><input class="eq-create-name" data-row="' + rowId + '" placeholder="Введите название" style="width:100%"></div>';
-  h += '<div class="form-group"><label>Категория</label><select class="eq-create-cat" data-row="' + rowId + '" onchange="onEqCatChange(this)"><option value="">—</option>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h += '<div class="form-group"><label>Категория</label><select class="eq-create-cat" data-row="' + rowId + '" onchange="onEqCatChange(this)" style="width:100%"><option value="">—</option>';
   getEquipmentCategories().forEach(function(c) { h += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
   h += '<option value="__custom__">Другое...</option></select>';
   h += '<input class="eq-create-cat-custom" data-row="' + rowId + '" placeholder="Введите категорию" style="display:none;margin-top:4px;width:100%"></div>';
+  h += '<div class="form-group"><label>Вид / тип</label><input class="eq-create-kind" data-row="' + rowId + '" placeholder="кран, насос, котёл..." style="width:100%"></div>';
+  h += '<div class="form-group"><label>Инв. номер</label><input class="eq-create-inv" data-row="' + rowId + '" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Зав. номер</label><input class="eq-create-serial" data-row="' + rowId + '" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Год выпуска</label><input type="number" class="eq-create-year" data-row="' + rowId + '" placeholder="2010" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Производитель</label><input class="eq-create-mfr" data-row="' + rowId + '" style="width:100%"></div>';
+  h += '<div class="form-group"><label>Статус</label><select class="eq-create-status" data-row="' + rowId + '" style="width:100%">';
+  (EQUIPMENT_STATUSES.length ? EQUIPMENT_STATUSES : ['В работе','На ремонте','Законсервировано','Списано','Аварийное']).forEach(function(s) { h += '<option value="' + s + '">' + s + '</option>'; });
+  h += '</select></div>';
+  h += '<div class="form-group"><label>Собственник</label><select class="eq-create-owner" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
+  _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
+  h += '</select></div>';
+  h += '</div>';
+  // Location: Корпус/Помещение OR ЗУ (row-scoped via data-row)
+  h += '<div class="form-group"><label>Тип расположения</label>';
+  h += '<select class="eq-create-loc-type" data-row="' + rowId + '" style="width:100%" onchange="onEqInlineLocTypeChange(this)">';
+  h += '<option value="building">Корпус / Помещение</option>';
+  h += '<option value="land_plot">Земельный участок</option>';
+  h += '</select></div>';
+  h += '<div class="eq-create-bld-section" data-row="' + rowId + '">';
   h += '<div class="form-group"><label>Корпус</label><select class="eq-create-building" data-row="' + rowId + '" style="width:100%" onchange="onEqInlineBuildingChange(this)"><option value="">—</option>';
   _buildings.forEach(function(b) { h += '<option value="' + b.id + '">' + escapeHtml(b.name) + '</option>'; });
   h += '</select></div>';
   h += '<div class="form-group"><label>Помещение</label><select class="eq-create-room" data-row="' + rowId + '" style="width:100%"><option value="">— не указано —</option>';
   (_rooms || []).forEach(function(r) { h += '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>'; });
   h += '</select></div>';
-  h += '<div class="form-group"><label>Собственник</label><select class="eq-create-owner" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
-  _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
+  h += '</div>';
+  h += '<div class="eq-create-lp-section" data-row="' + rowId + '" style="display:none">';
+  h += '<div class="form-group"><label>Земельный участок</label><select class="eq-create-lp" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
+  (_landPlots || []).forEach(function(lp) { h += '<option value="' + lp.id + '">' + escapeHtml(lp.name) + '</option>'; });
   h += '</select></div>';
-  h += '<div style="display:flex;gap:8px;margin-top:4px">';
+  h += '</div>';
+  h += '<div style="display:flex;gap:8px;margin-top:8px">';
   h += '<button type="button" class="btn btn-primary btn-sm" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateSubmit(this)">Создать и выбрать</button>';
   h += '<button type="button" class="btn btn-sm" data-row="' + rowId + '" onclick="eqListCreateShow(this)">Отмена</button>';
   h += '</div>';
@@ -323,6 +346,19 @@ function onEqInlineBuildingChange(sel) {
   });
 }
 
+function onEqInlineLocTypeChange(sel) {
+  var rowId = sel.getAttribute('data-row');
+  var bldSec = document.querySelector('.eq-create-bld-section[data-row="' + rowId + '"]');
+  var lpSec = document.querySelector('.eq-create-lp-section[data-row="' + rowId + '"]');
+  if (sel.value === 'land_plot') {
+    if (bldSec) bldSec.style.display = 'none';
+    if (lpSec) lpSec.style.display = '';
+  } else {
+    if (bldSec) bldSec.style.display = '';
+    if (lpSec) lpSec.style.display = 'none';
+  }
+}
+
 async function eqListCreateSubmit(btn) {
   var rowId = btn.getAttribute('data-row');
   var eqTypeId = parseInt(btn.getAttribute('data-eqtype'));
@@ -338,15 +374,36 @@ async function eqListCreateSubmit(btn) {
       props.equipment_category = catEl.value;
     }
   }
-  var buildingEl = document.querySelector('.eq-create-building[data-row="' + rowId + '"]');
+  // Collect all extra fields
+  var kindEl   = document.querySelector('.eq-create-kind[data-row="' + rowId + '"]');
+  var invEl    = document.querySelector('.eq-create-inv[data-row="' + rowId + '"]');
+  var serialEl = document.querySelector('.eq-create-serial[data-row="' + rowId + '"]');
+  var yearEl   = document.querySelector('.eq-create-year[data-row="' + rowId + '"]');
+  var mfrEl    = document.querySelector('.eq-create-mfr[data-row="' + rowId + '"]');
+  var statusEl = document.querySelector('.eq-create-status[data-row="' + rowId + '"]');
+  if (kindEl && kindEl.value.trim()) props.equipment_kind = kindEl.value.trim();
+  if (invEl && invEl.value.trim()) props.inv_number = invEl.value.trim();
+  if (serialEl && serialEl.value.trim()) props.serial_number = serialEl.value.trim();
+  if (yearEl && yearEl.value) props.year = yearEl.value;
+  if (mfrEl && mfrEl.value.trim()) props.manufacturer = mfrEl.value.trim();
+  if (statusEl && statusEl.value) props.status = statusEl.value;
+
+  // Location: building or land plot
+  var locTypeSel = document.querySelector('.eq-create-loc-type[data-row="' + rowId + '"]');
+  var locType = locTypeSel ? locTypeSel.value : 'building';
   var ownerEl = document.querySelector('.eq-create-owner[data-row="' + rowId + '"]');
-  var parentId = buildingEl && buildingEl.value ? parseInt(buildingEl.value) : null;
-  // Validation: required fields
-  var missing = [];
-  if (!props.equipment_category) missing.push('Категория');
-  if (!ownerEl || !ownerEl.value) missing.push('Собственник');
-  if (!parentId) missing.push('Корпус');
-  if (missing.length) { alert('Заполните обязательные поля: ' + missing.join(', ')); return; }
+  var parentId = null;
+  var roomId = null;
+  if (locType === 'land_plot') {
+    var lpEl = document.querySelector('.eq-create-lp[data-row="' + rowId + '"]');
+    parentId = lpEl && lpEl.value ? parseInt(lpEl.value) : null;
+  } else {
+    var buildingEl = document.querySelector('.eq-create-building[data-row="' + rowId + '"]');
+    parentId = buildingEl && buildingEl.value ? parseInt(buildingEl.value) : null;
+    var roomEl = document.querySelector('.eq-create-room[data-row="' + rowId + '"]');
+    roomId = roomEl && roomEl.value ? parseInt(roomEl.value) : null;
+  }
+  if (!props.equipment_category) { alert('Заполните обязательные поля: Категория'); return; }
   if (ownerEl && ownerEl.value) {
     var ownerEnt = _ownCompanies.find(function(c) { return c.id === parseInt(ownerEl.value); });
     if (ownerEnt) { props.balance_owner_id = ownerEnt.id; props.balance_owner_name = ownerEnt.name; }
@@ -364,13 +421,11 @@ async function eqListCreateSubmit(btn) {
     var panel = document.getElementById('eq_create_' + rowId);
     if (panel) panel.style.display = 'none';
   }
-  var roomEl = document.querySelector('.eq-create-room[data-row="' + rowId + '"]');
-  var roomId = roomEl && roomEl.value ? parseInt(roomEl.value) : null;
   var body = { entity_type_id: eqTypeId, name: nameEl.value.trim(), properties: props };
   if (parentId) body.parent_id = parentId;
   try {
     var newEq = await api('/entities', { method: 'POST', body: JSON.stringify(body) });
-    // Create located_in relation if room selected
+    // Create located_in relation if room selected (building mode only)
     if (roomId && newEq && newEq.id) {
       await api('/relations', { method: 'POST', body: JSON.stringify({
         from_entity_id: newEq.id, to_entity_id: roomId, relation_type: 'located_in'
