@@ -1,15 +1,61 @@
 // Inline frontend served as HTML
 // This keeps the MVP simple — one deploy, no build step
 // Assembled from modules in server/src/frontend/
+//
+// Load order (matters for dependencies):
+//   1. core/utils.js  — pure utils (escapeHtml, _fmtNum, _fmtDate) — no deps
+//   2. core.js        — globals (API, TOKEN, CONTRACT_TYPE_FIELDS, icon, etc.)
+//   3. core/api.js    — fetch wrapper (depends on TOKEN, API, logout from core.js)
+//   4. core/globals.js — ENTITY_TYPE_ICONS, entityIcon (depends on icon from core.js)
+//   5. components, forms, entities, reports...
 
-const core = require('./core');
+const coreUtils    = require('./core/utils');
+const core         = require('./core');
+const coreApi      = require('./core/api');
+const coreGlobals  = require('./core/globals');
 const searchableSelect = require('./searchable-select');
-const entityForm = require('./entity-form');
+// components/*
+const amountInput  = require('./components/amount-input');
+const advances     = require('./components/advances');
+const contacts     = require('./components/contacts');
+const duration     = require('./components/duration');
+const contractItems = require('./components/contract-items');
+const actItems     = require('./components/act-items');
+// forms/*
+const fieldInput   = require('./forms/field-input');
+const equipmentForm = require('./forms/equipment-form');
+const landPlotQuick = require('./forms/land-plot-quick');
+const contractForm = require('./forms/contract-form');
+// entity-form.js deleted (empty stub kept for safety)
+const entityHelpers = require('./entities/entity-helpers');
+const entityData    = require('./entities/data');
+const entityList    = require('./entities/entity-list');
+const entityDetail  = require('./entities/entity-detail');
+const entityCreate  = require('./entities/entity-create');
+const entityEdit    = require('./entities/entity-edit');
+const entityDelete  = require('./entities/entity-delete');
+const contractCard  = require('./entities/contract-card');
+const supplementCard = require('./entities/supplement-card');
+const modal        = require('./modal');
+const navPage      = require('./pages/nav');
+const totpPage     = require('./pages/totp');
+const legalZachety = require('./pages/legal-zachety');
+const dashboard    = require('./pages/dashboard');
+const financePage  = require('./pages/finance-page');
+const budgetPage   = require('./pages/budget-page');
+const mapPage      = require('./pages/map-page');
 const rentObjects = require('./rent-objects');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
 const landPlotParts = require('./land-plot-parts');
 const acts = require('./acts');
+// NEW reports:
+const aggReport   = require('./reports/aggregate');
+const pivotReport = require('./reports/pivot');
+const linkedReport = require('./reports/linked-report');
+const rentAnalysis = require('./reports/rent-analysis');
+const workHistory = require('./reports/work-history');
+// OLD reports (now empty stub):
 const reports = require('./reports');
 const relations = require('./relations');
 const settings = require('./settings');
@@ -30,11 +76,69 @@ const FRONTEND_HTML =
   '\n<style>\n' + css + '\n</style>\n' +
   layout +
   '\n<script>\n' +
+  coreUtils +
+  '\n' +
   core +
+  '\n' +
+  coreApi +
+  '\n' +
+  coreGlobals +
   '\n' +
   searchableSelect +
   '\n' +
-  entityForm +
+  amountInput +
+  '\n' +
+  advances +
+  '\n' +
+  contacts +
+  '\n' +
+  duration +
+  '\n' +
+  contractItems +
+  '\n' +
+  actItems +
+  '\n' +
+  fieldInput +
+  '\n' +
+  equipmentForm +
+  '\n' +
+  landPlotQuick +
+  '\n' +
+  modal +
+  '\n' +
+  navPage +
+  '\n' +
+  totpPage +
+  '\n' +
+  legalZachety +
+  '\n' +
+  dashboard +
+  '\n' +
+  financePage +
+  '\n' +
+  budgetPage +
+  '\n' +
+  mapPage +
+  '\n' +
+  contractForm +
+  '\n' +
+  entityHelpers +
+  '\n' +
+  entityData +
+  '\n' +
+  entityList +
+  '\n' +
+  entityDetail +
+  '\n' +
+  entityCreate +
+  '\n' +
+  entityEdit +
+  '\n' +
+  entityDelete +
+  '\n' +
+  contractCard +
+  '\n' +
+  supplementCard +
   '\n' +
   rentObjects +
   '\n' +
@@ -46,6 +150,11 @@ const FRONTEND_HTML =
   '\n' +
   acts +
   '\n' +
+  aggReport + '\n' +
+  pivotReport + '\n' +
+  linkedReport + '\n' +
+  rentAnalysis + '\n' +
+  workHistory + '\n' +
   reports +
   '\n' +
   relations +
