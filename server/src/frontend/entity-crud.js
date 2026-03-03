@@ -4078,6 +4078,37 @@ function closeModal() {
   _submitting = false;
 }
 
+// ── Кадастровый номер для частей ЗУ — только из существующих ЗУ ─────────────
+function _getLpCadastralOptions() {
+  var seen = {};
+  var opts = [];
+  (_landPlots || []).forEach(function(lp) {
+    var cn = ((lp.properties || {}).cadastral_number || '').trim();
+    if (cn && !seen[cn]) { seen[cn] = true; opts.push({ cn: cn, lp: lp }); }
+  });
+  return opts;
+}
+
+function _renderCadastralSelect(inputId, selectedVal) {
+  var opts = _getLpCadastralOptions();
+  var h = '<select id="' + inputId + '"><option value="">— выберите —</option>';
+  opts.forEach(function(item) {
+    h += '<option value="' + escapeHtml(item.cn) + '"' + (item.cn === selectedVal ? ' selected' : '') + '>' +
+      escapeHtml(item.cn) + ' (' + escapeHtml(item.lp.name) + ')</option>';
+  });
+  h += '</select>';
+  return h;
+}
+
+// Смена родительского ЗУ → автоподстановка кадастрового номера
+function onLpPartParentChange(sel) {
+  var lpId = parseInt(sel.value) || 0;
+  var lp = (_landPlots || []).find(function(x) { return x.id === lpId; });
+  var cnSel = document.getElementById('f_cadastral_number');
+  if (!cnSel) return;
+  cnSel.value = lp ? ((lp.properties || {}).cadastral_number || '') : '';
+}
+
 // ── Room parent field: buildings only + inline quick-create ──
 function renderRoomBuildingParent(selectedId) {
   var h = '<div class="form-group"><label>Находится в корпусе</label>';
@@ -4198,6 +4229,14 @@ async function openCreateModal(typeName, preParentId) {
       html += renderRoomBuildingParent(preParentId ? parseInt(preParentId) : null);
     } else if (typeName === 'equipment') {
       html += renderEquipmentLocationFields(null, null);
+    } else if (typeName === 'land_plot_part') {
+      // Только ЗУ как варианты родителя
+      html += '<div class="form-group"><label>Земельный участок</label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
+      allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
+        var sel = (preParentId && parseInt(preParentId) === x.id) ? ' selected' : '';
+        html += '<option value="' + x.id + '"' + sel + '>' + escapeHtml(x.name) + '</option>';
+      });
+      html += '</select></div>';
     } else if (typeName !== 'land_plot' && typeName !== 'company') {
       html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
       allEntities.filter(function(x) { return x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
@@ -4213,7 +4252,14 @@ async function openCreateModal(typeName, preParentId) {
 
   fields.forEach(f => {
     if (f.sort_order >= 999) return; // hidden field (room_number, room_type etc.)
-    if (f.name === 'balance_owner' || f.name === 'owner') {
+    if (typeName === 'land_plot_part' && f.name === 'cadastral_number') {
+      // Кадастровый номер — только из существующих ЗУ, auto-fill из выбранного родителя
+      var autoFillCad = preParentId ? (function() {
+        var _lp = (_landPlots||[]).find(function(x) { return x.id === parseInt(preParentId); });
+        return _lp ? ((_lp.properties||{}).cadastral_number||'') : '';
+      })() : '';
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + _renderCadastralSelect('f_cadastral_number', autoFillCad) + '</div>';
+    } else if (f.name === 'balance_owner' || f.name === 'owner') {
       var fieldId = f.name === 'owner' ? 'f_owner' : 'f_balance_owner';
       var fieldNameS = f.name === 'owner' ? 'owner' : 'balance_owner';
       var ownerList = (f.name === 'balance_owner') ? (_ownCompanies||_allCompanies) : _allCompanies;
@@ -4295,6 +4341,17 @@ async function _doSubmitCreate(typeName) {
     const num = properties.number || '?';
     const contractor = properties.contractor_name || '';
     name = (typeName === 'supplement' ? 'ДС' : 'Договор') + ' №' + num + (contractor ? ' — ' + contractor : '');
+    // Добавляем названия частей ЗУ (или самих ЗУ) в имя договора аренды
+    if (properties.rent_objects) {
+      try {
+        var _rosN = JSON.parse(properties.rent_objects);
+        var _lpN = _rosN
+          .filter(function(ro) { return ro.object_type === 'ЗУ'; })
+          .map(function(ro) { return ro.land_plot_part_name || ro.land_plot_name; })
+          .filter(Boolean);
+        if (_lpN.length) name += ' / ' + _lpN.join(', ');
+      } catch(e) {}
+    }
   }
   if (!name) return alert('Введите название');
 
@@ -4813,6 +4870,12 @@ async function openEditModal(id) {
       var locInRel = eqRels.find(function(r) { return r.relation_type === 'located_in' && r.from_entity_id === id; });
       var existingRoomId = locInRel ? (locInRel.to_entity_id || null) : null;
       html += renderEquipmentLocationFields(e.parent_id, existingRoomId);
+    } else if (e.type_name === 'land_plot_part') {
+      html += '<div class="form-group"><label>Земельный участок</label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
+      allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
+        html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + escapeHtml(x.name) + '</option>';
+      });
+      html += '</select></div>';
     } else if (e.type_name !== 'land_plot' && e.type_name !== 'company') {
       html += '<div class="form-group"><label>Входит в (родительский объект)</label><select id="f_parent"><option value="">— нет (корневой объект) —</option>';
       allEntities.filter(function(x) { return x.id !== id && x.type_name !== 'contract' && x.type_name !== 'supplement'; }).forEach(function(x) {
@@ -4847,7 +4910,9 @@ async function openEditModal(id) {
         return;
       }
     }
-    if (f.name === 'balance_owner') {
+    if (e.type_name === 'land_plot_part' && f.name === 'cadastral_number') {
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + _renderCadastralSelect('f_cadastral_number', val) + '</div>';
+    } else if (f.name === 'balance_owner') {
       html += '<div class="form-group"><label>Собственник</label>' +
         renderSearchableSelect('f_balance_owner', _ownCompanies, props.balance_owner_id || '', val, 'начните вводить...', 'balance_owner') + '</div>';
     } else if (f.name === 'owner') {
@@ -4932,6 +4997,16 @@ async function _doSubmitEdit(id) {
     const num = properties.number || '?';
     const contractor = properties.contractor_name || '';
     name = (e.type_name === 'supplement' ? 'ДС' : 'Договор') + ' №' + num + (contractor ? ' — ' + contractor : '');
+    if (properties.rent_objects) {
+      try {
+        var _rosE = JSON.parse(properties.rent_objects);
+        var _lpE = _rosE
+          .filter(function(ro) { return ro.object_type === 'ЗУ'; })
+          .map(function(ro) { return ro.land_plot_part_name || ro.land_plot_name; })
+          .filter(Boolean);
+        if (_lpE.length) name += ' / ' + _lpE.join(', ');
+      } catch(e) {}
+    }
   }
   if (e.type_name === 'act') {
     var actNum = (properties.act_number || '').trim() || 'б/н';
