@@ -1086,6 +1086,20 @@ async function runMigration023() {
   } catch(e) { logger.error('runMigration023 error (non-fatal):', e.message); }
 }
 
+async function runMigration024() {
+  const pool = require('./db');
+  try {
+    // Make cadastral_number required for land_plot_part
+    await pool.query(`
+      UPDATE field_definitions
+      SET required = true
+      WHERE name = 'cadastral_number'
+        AND entity_type_id = (SELECT id FROM entity_types WHERE name = 'land_plot_part');
+    `);
+    logger.info('runMigration024: cadastral_number required=true for land_plot_part');
+  } catch(e) { logger.error('runMigration024 error (non-fatal):', e.message); }
+}
+
 
 initMigrationTracker()
   .then(() => runOnce('003', runMigration003))
@@ -1109,6 +1123,7 @@ initMigrationTracker()
   .then(() => runOnce('021', runMigration021))
   .then(() => runOnce('022', runMigration022))
   .then(() => runOnce('023', runMigration023))
+  .then(() => runOnce('024', runMigration024))
   .then(() => runOnce('mergeORRVesta', mergeORRVesta))
   .then(() => createBIViews())
   .then(() => syncMetabase())

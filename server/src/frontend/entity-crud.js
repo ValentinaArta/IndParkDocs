@@ -4231,7 +4231,7 @@ async function openCreateModal(typeName, preParentId) {
       html += renderEquipmentLocationFields(null, null);
     } else if (typeName === 'land_plot_part') {
       // Только ЗУ как варианты родителя
-      html += '<div class="form-group"><label>Земельный участок</label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
+      html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
       allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
         var sel = (preParentId && parseInt(preParentId) === x.id) ? ' selected' : '';
         html += '<option value="' + x.id + '"' + sel + '>' + escapeHtml(x.name) + '</option>';
@@ -4258,7 +4258,7 @@ async function openCreateModal(typeName, preParentId) {
         var _lp = (_landPlots||[]).find(function(x) { return x.id === parseInt(preParentId); });
         return _lp ? ((_lp.properties||{}).cadastral_number||'') : '';
       })() : '';
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + _renderCadastralSelect('f_cadastral_number', autoFillCad) + '</div>';
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + ' <span style="color:var(--danger)">*</span></label>' + _renderCadastralSelect('f_cadastral_number', autoFillCad) + '</div>';
     } else if (f.name === 'balance_owner' || f.name === 'owner') {
       var fieldId = f.name === 'owner' ? 'f_owner' : 'f_balance_owner';
       var fieldNameS = f.name === 'owner' ? 'owner' : 'balance_owner';
@@ -4304,6 +4304,13 @@ async function _doSubmitCreate(typeName) {
   } else {
     parent_id = document.getElementById('f_parent') ? document.getElementById('f_parent').value || null : null;
   }
+  // Validate required fields for land_plot_part
+  if (typeName === 'land_plot_part') {
+    if (!parent_id) { alert('Выберите Земельный участок — это обязательное поле'); return; }
+    var cadCreateEl = document.getElementById('f_cadastral_number');
+    if (!cadCreateEl || !(cadCreateEl.value || '').trim()) { alert('Кадастровый номер обязателен для части ЗУ'); return; }
+  }
+
   const properties = {};
   fields.forEach(f => { const v = getFieldValue(f); if (v) properties[f.name] = v; });
 
@@ -4871,7 +4878,7 @@ async function openEditModal(id) {
       var existingRoomId = locInRel ? (locInRel.to_entity_id || null) : null;
       html += renderEquipmentLocationFields(e.parent_id, existingRoomId);
     } else if (e.type_name === 'land_plot_part') {
-      html += '<div class="form-group"><label>Земельный участок</label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
+      html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
       allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
         html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + escapeHtml(x.name) + '</option>';
       });
@@ -4911,7 +4918,7 @@ async function openEditModal(id) {
       }
     }
     if (e.type_name === 'land_plot_part' && f.name === 'cadastral_number') {
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + _renderCadastralSelect('f_cadastral_number', val) + '</div>';
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + ' <span style="color:var(--danger)">*</span></label>' + _renderCadastralSelect('f_cadastral_number', val) + '</div>';
     } else if (f.name === 'balance_owner') {
       html += '<div class="form-group"><label>Собственник</label>' +
         renderSearchableSelect('f_balance_owner', _ownCompanies, props.balance_owner_id || '', val, 'начните вводить...', 'balance_owner') + '</div>';
@@ -4957,6 +4964,13 @@ async function _doSubmitEdit(id) {
   } else {
     parent_id = fParentEl ? fParentEl.value || null : null;
   }
+  // Validate required fields for land_plot_part
+  if (e.type_name === 'land_plot_part') {
+    if (!parent_id) { alert('Выберите Земельный участок — это обязательное поле'); return; }
+    var cadEl = document.getElementById('f_cadastral_number');
+    if (!cadEl || !(cadEl.value || '').trim()) { alert('Кадастровый номер обязателен для части ЗУ'); return; }
+  }
+
   // Start with existing properties to preserve map coords, owner_id and other "extra" fields
   const properties = Object.assign({}, e.properties || {});
   fields.forEach(f => { properties[f.name] = getFieldValue(f); });
