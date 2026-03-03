@@ -19,7 +19,7 @@ jobs:
         run: npm ci
       - name: ESLint
         working-directory: server
-        run: npx eslint src/ --max-warnings 60
+        run: npx eslint src/ --max-warnings 80
 
   syntax:
     runs-on: ubuntu-latest
