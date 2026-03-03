@@ -2827,6 +2827,15 @@ function _renderFinancePage(d, exp) {
 
   content.innerHTML = h;
   renderIcons();
+  // Восстанавливаем раскрытые строки контрагентов
+  _expOpenGids.forEach(function(gid) {
+    var rows = document.querySelectorAll('[data-expgroup="' + gid + '"]');
+    var icon = document.getElementById('expicon_' + gid);
+    if (rows.length) {
+      rows.forEach(function(r) { r.style.display = 'table-row'; });
+      if (icon) icon.textContent = '▼';
+    }
+  });
 }
 
 function _expFmt(n) {
@@ -2837,6 +2846,7 @@ function _expFmt(n) {
 }
 
 var _expOrg = 'ИП'; // текущая вкладка
+var _expOpenGids = new Set(); // раскрытые строки контрагентов
 
 function switchExpOrg(org) {
   _expOrg = org;
@@ -2859,10 +2869,13 @@ function _renderExpensesSection(exp) {
   if (exp.cached) h += '<span style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 7px;border-radius:8px">кеш 5 мин</span>';
   h += '</div>';
 
-  // Вкладки орг
+  // Вкладки орг (используем _expOrg для начального состояния)
   h += '<div style="display:flex;gap:8px;margin-bottom:16px">';
-  h += '<button class="exp-org-tab" data-org="ИП" onclick="switchExpOrg(this.dataset.org)" style="padding:6px 18px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;background:var(--accent);color:#fff">АО ИПЗ</button>';
-  h += '<button class="exp-org-tab" data-org="ЭК" onclick="switchExpOrg(this.dataset.org)" style="padding:6px 18px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg-secondary);color:var(--text-muted)">ЭКЗ</button>';
+  ['ИП', 'ЭК'].forEach(function(org) {
+    var isActive = (org === _expOrg);
+    var label = org === 'ИП' ? 'АО ИПЗ' : 'ЭКЗ';
+    h += '<button class="exp-org-tab" data-org="' + org + '" onclick="switchExpOrg(this.dataset.org)" style="padding:6px 18px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;background:' + (isActive ? 'var(--accent)' : 'var(--bg-secondary)') + ';color:' + (isActive ? '#fff' : 'var(--text-muted)') + '">' + label + '</button>';
+  });
   h += '</div>';
 
   ['ИП', 'ЭК'].forEach(function(cfo) {
@@ -2874,7 +2887,7 @@ function _renderExpensesSection(exp) {
     var devCls = dev <= 0 ? '#22c55e' : '#ef4444'; // расходы: меньше плана = хорошо
     var devSign = dev >= 0 ? '+' : '−';
 
-    h += '<div id="expSection_' + cfo + '" style="display:' + (cfo === 'ИП' ? 'block' : 'none') + '">';
+    h += '<div id="expSection_' + cfo + '" style="display:' + (cfo === _expOrg ? 'block' : 'none') + '">';
     h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">' + escapeHtml(orgLabel) + ' · 2026 г.</div>';
 
     // KPI cards
@@ -2984,6 +2997,7 @@ function toggleExpense(gid) {
   var isOpen = rows[0].style.display !== 'none';
   rows.forEach(function(r) { r.style.display = isOpen ? 'none' : 'table-row'; });
   if (icon) icon.textContent = isOpen ? '▶' : '▼';
+  if (isOpen) { _expOpenGids.delete(gid); } else { _expOpenGids.add(gid); }
 }
 
 function editBIUrl() {
