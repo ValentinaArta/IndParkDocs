@@ -475,7 +475,24 @@ function renderSearchableSelect(id, entities, selectedId, selectedName, placehol
   return h;
 }
 
-// Init all searchable selects in the DOM after setModalContent
+// === Searchable select engine (v2 — desktop + iOS Safari) ===
+// Close all dropdowns when tapping/clicking outside any .srch-wrap
+// Single global handler, never accumulates
+(function() {
+  if (window._srchGlobalInit) return;
+  window._srchGlobalInit = true;
+
+  // Close dropdowns on outside interaction — uses focusin on another element
+  // This avoids the race between close and item click
+  document.addEventListener('click', function(e) {
+    // If the click is inside any srch-wrap, don't close anything
+    if (e.target.closest && e.target.closest('.srch-wrap')) return;
+    document.querySelectorAll('.srch-drop').forEach(function(d) {
+      d.style.display = 'none';
+    });
+  }); // bubbling phase — item onclick fires first via stopPropagation
+})();
+
 function _srchInitAll() {
   document.querySelectorAll('.srch-wrap').forEach(function(wrap) {
     var id = wrap.dataset.srchId;
@@ -483,18 +500,16 @@ function _srchInitAll() {
     var hiddenEl = document.getElementById(id);
     var dropEl = document.getElementById(id + '_drop');
     if (!textEl || !hiddenEl || !dropEl) return;
-    if (textEl._srchBound) return; // already bound
+    if (textEl._srchBound) return;
     textEl._srchBound = true;
 
+    // Open dropdown on focus, click (re-tap), and typing
     textEl.addEventListener('focus', function() { _srchFilter(id); });
+    textEl.addEventListener('click', function(e) { e.stopPropagation(); _srchFilter(id); });
     textEl.addEventListener('input', function() { hiddenEl.value = ''; _srchFilter(id); });
     textEl.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') { dropEl.style.display = 'none'; textEl.blur(); }
       if (e.key === 'ArrowDown') { e.preventDefault(); var first = dropEl.querySelector('.srch-item'); if (first) first.focus(); }
-    });
-    // Close on click outside
-    document.addEventListener('mousedown', function(e) {
-      if (!wrap.contains(e.target)) dropEl.style.display = 'none';
     });
   });
 }
@@ -539,6 +554,9 @@ function _srchFilter(id) {
   var dropEl = document.getElementById(id + '_drop');
   if (!textEl || !dropEl) return;
   var q = textEl.value.toLowerCase().trim();
+  // Don't rebuild if dropdown is already visible with same query (prevents destroying click targets on iOS)
+  if (dropEl.style.display !== 'none' && dropEl._lastQ === q) return;
+  dropEl._lastQ = q;
   var list = _srchGetList(id);
   var filtered = q ? list.filter(function(e) { return e.name.toLowerCase().indexOf(q) >= 0; }) : list;
   var h = '';
@@ -552,27 +570,27 @@ function _srchFilter(id) {
   }
   dropEl.innerHTML = h;
   dropEl.style.display = '';
-  // Bind click handlers on each item
-  dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
-    el.addEventListener('mousedown', function(ev) {
-      ev.preventDefault();
-      var pv = el.getAttribute('data-srch-pick');
+  // Prevent text input blur when touching dropdown (desktop)
+  dropEl.onmousedown = function(ev) { ev.preventDefault(); };
+  // Single delegated click handler (works on iOS Safari, Android, desktop)
+  dropEl.onclick = function(ev) {
+    var item = ev.target.closest ? ev.target.closest('[data-srch-pick], [data-srch-new]') : ev.target;
+    if (!item) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (item.hasAttribute('data-srch-pick')) {
+      var pv = item.getAttribute('data-srch-pick');
       _srchPick(id, /^\d+$/.test(pv) ? parseInt(pv) : pv);
-    });
-  });
-  var newBtn = dropEl.querySelector('[data-srch-new]');
-  if (newBtn) {
-    newBtn.addEventListener('mousedown', function(ev) {
-      ev.preventDefault();
+    } else if (item.hasAttribute('data-srch-new')) {
       _srchPickNew(id);
-    });
-  }
+    }
+  };
 }
 
 function _srchPick(id, entityId) {
   var list = _srchGetList(id);
-  var ent = list.find(function(e) { return e.id === entityId; });
-  if (!ent) return;
+  var ent = list.find(function(e) { return e.id == entityId; });
+  if (!ent) { console.warn('_srchPick: entity not found', id, entityId, typeof entityId, list.slice(0,3).map(function(x){return typeof x.id + ':' + x.id})); return; }
   document.getElementById(id).value = String(entityId);
   document.getElementById(id + '_text').value = ent.name;
   document.getElementById(id + '_drop').style.display = 'none';

@@ -1,12 +1,11 @@
 const logger = require('../logger');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
-
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-  logger.error('⚠️  WARNING: JWT_SECRET not set in production! Using insecure default.');
+  throw new Error('FATAL: JWT_SECRET must be set in production! Refusing to start with insecure default.');
 }
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization;

@@ -5,8 +5,8 @@ const http = require('http');
 const { authenticate } = require('../middleware/auth');
 const db = require('../db');
 
-const ODATA_BASE = 'http://192.168.2.3/BF/odata/standard.odata';
-const ODATA_AUTH = 'Basic ' + Buffer.from('odata.user:gjdbh2642!').toString('base64');
+const ODATA_BASE = process.env.ODATA_BASE_URL || 'http://192.168.2.3/BF/odata/standard.odata';
+const ODATA_AUTH = 'Basic ' + Buffer.from((process.env.ODATA_USER || '') + ':' + (process.env.ODATA_PASS || '')).toString('base64');
 
 const ORG_IPZ = '1df6218d-8996-11e8-b18d-001e67301201';
 const ORG_EKZ = '6bf16c76-8993-11e8-b18d-001e67301201';

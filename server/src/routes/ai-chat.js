@@ -1,7 +1,10 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router  = express.Router();
 const pool    = require('../db');
 const { authenticate } = require('../middleware/auth');
+
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Слишком много запросов к AI. Подождите минуту.' } });
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-haiku-4-5'; // быстрая модель для чата
@@ -66,16 +69,31 @@ async function callClaude(messages, tools = []) {
   return res.json();
 }
 
-// ─── Выполнить SQL (только SELECT) ───────────────────────────────────────────
+// ─── Выполнить SQL (только SELECT, read-only транзакция) ─────────────────────
 async function runSql(sql) {
-  // Безопасность: только SELECT
   const clean = sql.trim().toLowerCase();
+  // Блокируем всё кроме SELECT/WITH ... SELECT
   if (!clean.startsWith('select') && !clean.startsWith('with')) {
     throw new Error('Только SELECT запросы разрешены');
   }
-  const result = await pool.query(sql);
-  // Возвращаем не более 50 строк
-  return result.rows.slice(0, 50);
+  // Блокируем точку с запятой (multi-statement) и опасные ключевые слова
+  if (/;/.test(clean)) throw new Error('Multi-statement запросы запрещены');
+  if (/\b(insert|update|delete|drop|alter|truncate|create|grant|revoke)\b/.test(clean)) {
+    throw new Error('Модифицирующие запросы запрещены');
+  }
+  // Выполняем в read-only транзакции для гарантии
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN TRANSACTION READ ONLY');
+    const result = await client.query(sql);
+    await client.query('COMMIT');
+    return result.rows.slice(0, 50);
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 // ─── Инструменты для Claude ───────────────────────────────────────────────────
@@ -156,7 +174,7 @@ async function generateReply(userMessage, sessionId) {
 }
 
 // ─── POST /api/ai/chat — отправить сообщение и получить ответ ─────────────────
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, aiLimiter, async (req, res) => {
   try {
     const { message, session_id } = req.body;
     if (!message || !message.trim()) return res.status(400).json({ error: 'Message required' });
