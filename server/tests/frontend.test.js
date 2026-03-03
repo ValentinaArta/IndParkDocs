@@ -5,7 +5,7 @@
  */
 
 // frontend.js не требует DB или других модулей, мокать ничего не нужно
-const FRONTEND_HTML = require('../src/frontend.js');
+const FRONTEND_HTML = require('../src/frontend/index');
 
 describe('Frontend HTML export', () => {
   it('экспортирует строку с HTML', () => {

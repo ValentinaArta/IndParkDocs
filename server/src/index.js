@@ -62,7 +62,7 @@ if (process.env.NODE_ENV === 'production' && process.env.FORCE_HTTPS !== 'false'
 app.use('/maps', express.static(path.join(__dirname, '../public/maps')));
 
 // Inline frontend
-const FRONTEND_HTML = require('./frontend');
+const FRONTEND_HTML = require('./frontend/index');
 app.get('/', (req, res) => { res.type('html').send(FRONTEND_HTML); });
 
 // Finance dashboard (demo)
