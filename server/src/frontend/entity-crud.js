@@ -2209,10 +2209,11 @@ async function showEntity(id, _forceDetail) {
   document.getElementById('breadcrumb').innerHTML = bcParts.join(' › ');
   var _ePropsForBtn = e.properties || {};
   var _isContract = (e.type_name === 'contract');
+  var _isSupp = (e.type_name === 'supplement');
   var _topAct = '<button class="btn btn-sm" onclick="openEditModal(' + id + ')">Редактировать</button>' +
     '<button class="btn btn-sm" onclick="openRelationModal(' + id + ')">+ Связь</button>' +
     '<button class="btn btn-sm btn-danger" onclick="deleteEntity(' + id + ')">Удалить</button>';
-  if (_isContract) {
+  if (_isContract || _isSupp) {
     _topAct = '<button class="btn btn-sm" onclick="showEntityDetail(' + id + ')">⚙ Детали</button>' + _topAct;
   }
   document.getElementById('topActions').innerHTML = _topAct;
@@ -2227,6 +2228,13 @@ async function showEntity(id, _forceDetail) {
     } catch(cardErr) {
       contentEl.innerHTML = '<div style="color:#dc2626;padding:20px">Ошибка загрузки карточки: ' + escapeHtml(cardErr.message || String(cardErr)) + '</div>';
     }
+    return;
+  }
+
+  // For supplements — show card inline
+  if (_isSupp && !_forceDetail) {
+    var suppContentEl = document.getElementById('content');
+    suppContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderSupplementCard(e) + '</div>';
     return;
   }
 
@@ -4435,6 +4443,119 @@ async function _doSubmitCreate(typeName) {
 // ── Contract rental card ─────────────────────────────────────────────────────
 function _ccFmtDate(d) { return d ? d.split('-').reverse().join('.') : '—'; }
 function _ccFmtNum(v) { return v ? Number(v).toLocaleString('ru-RU', {maximumFractionDigits:2}) : '0'; }
+
+// ── Supplement card (аналог renderContractCard для ДС) ───────────────────────
+function renderSupplementCard(supp) {
+  var sp = supp.properties || {};
+  var isRental = (sp.contract_type === 'Аренды' || sp.contract_type === 'Субаренды' || sp.contract_type === 'Аренда оборудования');
+
+  var h = '';
+
+  // ── Header ─────────────────────────────────────────────────────────────────
+  var titleParts = [];
+  if (sp.contractor_name) titleParts.push(sp.contractor_name);
+  if (sp.number) titleParts.push('ДС №' + sp.number);
+  if (sp.contract_date) titleParts.push(_ccFmtDate(sp.contract_date));
+  h += '<div style="margin-bottom:20px">';
+  h += '<h2 style="font-size:1.3rem;font-weight:700;margin:0 0 4px">' + escapeHtml(titleParts.join(', ')) + '</h2>';
+  h += '<span style="font-size:13px;color:var(--text-secondary)">Доп. соглашение' + (sp.contract_type ? ' к договору ' + escapeHtml(sp.contract_type) : '') + '</span>';
+  h += '</div>';
+
+  // ── Link to parent contract ─────────────────────────────────────────────────
+  if (supp.parent_id) {
+    var parentName = (supp.parent && supp.parent.name) ? supp.parent.name : ('Договор #' + supp.parent_id);
+    h += '<div style="margin-bottom:14px;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px">';
+    h += '<span style="color:var(--text-muted)">⬆ Основной договор:</span> ';
+    h += '<a href="#" onclick="showEntity(' + supp.parent_id + ');return false" style="color:var(--accent);font-weight:600">' + escapeHtml(parentName) + '</a>';
+    h += '</div>';
+  }
+
+  // ── Стороны ────────────────────────────────────────────────────────────────
+  h += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;font-size:14px">';
+  var ourLabel = sp.our_role_label || (isRental ? 'Арендодатель' : 'Наше юр. лицо');
+  var contrLabel = sp.contractor_role_label || (isRental ? 'Арендатор' : 'Контрагент');
+  if (sp.our_legal_entity) {
+    h += '<div><span style="color:var(--text-secondary)">' + escapeHtml(ourLabel) + ':</span> <strong>' + escapeHtml(sp.our_legal_entity) + '</strong></div>';
+  }
+  if (sp.contractor_name) {
+    h += '<div><span style="color:var(--text-secondary)">' + escapeHtml(contrLabel) + ':</span> <strong>' + escapeHtml(sp.contractor_name) + '</strong></div>';
+  }
+  if (sp.subtenant_name) {
+    h += '<div><span style="color:var(--text-secondary)">Субарендатор:</span> <strong>' + escapeHtml(sp.subtenant_name) + '</strong></div>';
+  }
+  h += '</div>';
+
+  // ── Что изменилось ─────────────────────────────────────────────────────────
+  if (sp.changes_description) {
+    h += '<div style="margin-bottom:16px;padding:10px 14px;background:rgba(99,102,241,.07);border-left:3px solid var(--accent);border-radius:0 6px 6px 0">';
+    h += '<div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin-bottom:4px;text-transform:uppercase">Что изменилось</div>';
+    h += '<div style="font-size:14px">' + escapeHtml(sp.changes_description) + '</div>';
+    h += '</div>';
+  }
+
+  // ── Срок действия ──────────────────────────────────────────────────────────
+  var durStr = sp.contract_end_date
+    ? ('до ' + _ccFmtDate(sp.contract_end_date))
+    : (sp.duration_date ? ('до ' + _ccFmtDate(sp.duration_date)) : sp.duration_text || '');
+  if (durStr) {
+    h += '<div style="margin-bottom:16px;font-size:14px"><span style="color:var(--text-secondary)">Срок действия:</span> <strong>' + escapeHtml(durStr) + '</strong></div>';
+  }
+
+  // ── Условия аренды (rent_objects) ─────────────────────────────────────────
+  if (sp.rent_objects) {
+    var rentObjs = [];
+    try { rentObjs = JSON.parse(sp.rent_objects); } catch(ex) {}
+    var validObjs = rentObjs.filter(function(ro) { return ro.object_type; });
+    if (validObjs.length > 0) {
+      h += '<div style="margin-bottom:16px">';
+      h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase">Условия аренды</div>';
+      h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      h += '<thead><tr style="background:#4F6BCC;color:#fff">';
+      h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 4px">Объект аренды</th>';
+      h += '<th style="padding:8px 10px;text-align:right">Площадь, м²</th>';
+      h += '<th style="padding:8px 10px;text-align:right;border-radius:0 4px 4px 0">Ставка (руб/м²/мес)</th>';
+      h += '</tr></thead><tbody>';
+      var totalMonthly = 0;
+      validObjs.forEach(function(ro, i) {
+        var isLandPlot = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');
+        var objName = isLandPlot
+          ? (ro.land_plot_part_name || ro.land_plot_name || ro.room || ro.room_name || '—')
+          : (ro.room || ro.room_name || ro.object_type || '—');
+        var area = parseFloat(ro.area) || 0;
+        var rate = parseFloat(ro.rent_rate) || 0;
+        var monthly = ro.fixed_rent ? parseFloat(ro.fixed_rent) : (area * rate);
+        totalMonthly += monthly || 0;
+        var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+        h += '<tr style="' + bg + '">';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(objName) + '</td>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (area ? _ccFmtNum(area) : '—') + '</td>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (rate ? _ccFmtNum(rate) : '—') + '</td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+      if (totalMonthly > 0) {
+        var vat = parseFloat(sp.vat_rate) || 0;
+        var vatAmt = totalMonthly * vat / 100;
+        h += '<div style="text-align:right;font-size:14px;font-weight:600;margin-top:8px">';
+        h += 'Ежемесячный платёж: ' + _ccFmtNum(totalMonthly) + ' руб.';
+        if (vat > 0) {
+          h += '<div style="font-size:12px;color:var(--text-secondary);font-weight:400">в т.ч. НДС (' + vat + '%) = ' + _ccFmtNum(vatAmt) + ' руб.</div>';
+        }
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+  }
+
+  // ── Кнопка "+ ДС" ──────────────────────────────────────────────────────────
+  if (supp.parent_id) {
+    h += '<div style="margin-top:20px">';
+    h += '<button class="btn btn-primary btn-sm" onclick="openCreateSupplementModal(' + supp.parent_id + ')">+ Доп. соглашение</button>';
+    h += '</div>';
+  }
+
+  return h;
+}
 
 function renderContractCard(data) {
   var h = '';
