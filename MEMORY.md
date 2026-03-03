@@ -24,8 +24,10 @@
 ## Ключевые технические решения
 
 ### Миграции БД
-- НЕ запускать из Procfile (нет DATABASE_URL при старте)
-- Встраивать в index.js при старте сервера (runMigration003, runMigration004)
+- Файлы в `server/src/migrations/` (001-024 + merge_orr_vesta)
+- index.js подключает их через require() и запускает через runOnce()
+- Новая миграция: создать файл `server/src/migrations/025_auto.js` с сигнатурой `module.exports = async function(pool) { ... }`, добавить в require-список и цепочку runOnce в index.js
+- createBIViews() вынесена в `server/src/bi-views.js`
 - Всегда использовать ON CONFLICT DO NOTHING / DO UPDATE
 
 ### CI
@@ -33,16 +35,25 @@
 - npm ci (не npm install) — нужен синхронизированный package-lock.json
 - Проверяет синтаксис + frontend JS через new Function()
 
-### Frontend JS (МОДУЛЬНЫЙ — с 2026-03-03)
-- **НЕ один frontend.js** — код разбит на модули в `server/src/frontend/`:
-  - `index.js` — точка входа, сборка HTML
-  - `core.js`, `css.js`, `layout.js` — основа
-  - `entity-crud.js` — CRUD модалки и навигация
-  - `entity-form.js` — рендер полей форм
-  - `acts.js`, `ai-chat.js`, `land-plot-parts.js`, `relations.js`
-  - `rent-objects.js`, `reports.js`, `searchable-select.js`
-  - `settings.js`, `supplements.js`
-- Сборка всё равно отдаётся как один HTML (template literals конкатенируются в index.js)
+### Frontend JS (МОДУЛЬНЫЙ — рефакторинг завершён 2026-03-03)
+- **57 модулей** в `server/src/frontend/`. Структура:
+  - `index.js` — точка входа, сборка HTML (порядок загрузки критичен!)
+  - `core/utils.js` — escapeHtml, _fmtNum, _fmtDate (ЕДИНСТВЕННОЕ место!)
+  - `core/api.js` — api() fetch wrapper (ЕДИНСТВЕННОЕ место!)
+  - `core/globals.js` — ENTITY_TYPE_ICONS, entityIcon()
+  - `core.js` — глобальные переменные, CONTRACT_TYPE_FIELDS, icon()
+  - `components/` — amount-input, advances, contacts, duration, act-items, contract-items
+  - `forms/` — field-input, equipment-form, land-plot-quick, contract-form
+  - `modal.js` — showLoadingModal, setModalContent, closeModal
+  - `pages/` — nav, totp, legal-zachety, dashboard, finance-page, budget-page, map-page
+  - `entities/` — entity-list, entity-detail, entity-create, entity-edit, entity-delete, contract-card, supplement-card, entity-helpers, data
+  - `reports/` — aggregate, pivot, linked-report, rent-analysis, work-history
+  - `rent-objects.js`, `acts.js`, `supplements.js`, `land-plot-parts.js`
+  - `relations.js`, `settings.js`, `ai-chat.js`
+- **ВАЖНО**: entity-crud.js, entity-form.js, reports.js — пустые stubs (не редактировать!)
+- Каждый модуль: `/* eslint-disable */\nmodule.exports = \`...JS code...\`;\n`
+- Сборка отдаётся как один HTML (все модули конкатенируются в index.js)
+- **Новые функции**: создавать новый файл в нужной папке + добавить в index.js
 - ОПАСНЫЕ конструкции:
   - `\'string\'` внутри template literal → становится `'string'` и ломает строки в new Function
   - Решение: использовать data-* атрибуты вместо строк в onclick, или `\\' ` 
