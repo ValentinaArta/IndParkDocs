@@ -5398,9 +5398,12 @@ async function showFinancePage() {
   content.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)"><div class="spinner-ring" style="margin:40px auto"></div><div style="margin-top:12px">Загружаю данные из 1С...</div></div>';
   renderIcons();
   try {
-    var d = await api('/finance/summary');
+    var [d, exp] = await Promise.all([
+      api('/finance/summary').catch(function() { return null; }),
+      api('/finance/expenses').catch(function() { return null; }),
+    ]);
     if (currentView !== 'finance') return;
-    _renderFinancePage(d);
+    _renderFinancePage(d, exp);
   } catch(e) {
     content.innerHTML = '<div style="padding:24px"><div style="color:var(--red);font-size:14px;padding:20px;background:var(--bg-secondary);border-radius:8px">⚠️ Ошибка: ' + escapeHtml(e.message || String(e)) + '</div></div>';
   }
@@ -5431,7 +5434,7 @@ function _finCard(title, ipz, ekz, icon, color) {
   '</div>';
 }
 
-function _renderFinancePage(d) {
+function _renderFinancePage(d, exp) {
   var content = document.getElementById('content');
   if (!d || !d.totals) {
     content.innerHTML = '<div style="padding:24px;color:var(--red)">Нет данных</div>';
@@ -5515,8 +5518,143 @@ function _renderFinancePage(d) {
 
   h += '</div>';
   h += '</div>';
+
+  // ── Аналитика расходов (факт vs план) ─────────────────────────────────────
+  if (exp && exp.kpi) {
+    h += _renderExpensesSection(exp);
+  } else if (!exp) {
+    h += '<div style="margin:16px;padding:14px;background:var(--bg-secondary);border-radius:8px;color:var(--text-muted);font-size:13px">📡 Аналитика расходов недоступна (ошибка загрузки данных)</div>';
+  }
+
   content.innerHTML = h;
   renderIcons();
+}
+
+function _expFmt(n) {
+  if (!n) return '0';
+  var abs = Math.abs(Math.round(n));
+  var s = abs >= 1e6 ? (abs/1e6).toFixed(1) + ' млн' : abs >= 1e3 ? (abs/1e3).toFixed(0) + ' тыс' : String(abs);
+  return (n < 0 ? '−' : '') + s;
+}
+
+var _expOrg = 'ИП'; // текущая вкладка
+
+function switchExpOrg(org) {
+  _expOrg = org;
+  document.querySelectorAll('.exp-org-tab').forEach(function(t) {
+    t.style.background = t.dataset.org === org ? 'var(--accent)' : 'var(--bg-secondary)';
+    t.style.color = t.dataset.org === org ? '#fff' : 'var(--text-muted)';
+  });
+  var ipz = document.getElementById('expSection_ИП');
+  var ekz = document.getElementById('expSection_ЭК');
+  if (ipz) ipz.style.display = org === 'ИП' ? 'block' : 'none';
+  if (ekz) ekz.style.display = org === 'ЭК' ? 'block' : 'none';
+}
+
+function _renderExpensesSection(exp) {
+  var MONTHS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+  var h = '';
+  h += '<div style="margin:0 16px 16px">';
+  h += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">';
+  h += '<div style="font-size:14px;font-weight:700;color:var(--text)">📊 Аналитика расходов (факт 1С vs план бюджет)</div>';
+  if (exp.cached) h += '<span style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 7px;border-radius:8px">кеш 5 мин</span>';
+  h += '</div>';
+
+  // Вкладки орг
+  h += '<div style="display:flex;gap:8px;margin-bottom:16px">';
+  h += '<button class="exp-org-tab" data-org="ИП" onclick="switchExpOrg(this.dataset.org)" style="padding:6px 18px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;background:var(--accent);color:#fff">АО ИПЗ</button>';
+  h += '<button class="exp-org-tab" data-org="ЭК" onclick="switchExpOrg(this.dataset.org)" style="padding:6px 18px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg-secondary);color:var(--text-muted)">ЭКЗ</button>';
+  h += '</div>';
+
+  ['ИП', 'ЭК'].forEach(function(cfo) {
+    var k = exp.kpi[cfo] || {};
+    var contractors = (exp.contractors || {})[cfo] || [];
+    var months = exp.months || [];
+    var orgLabel = cfo === 'ИП' ? 'АО «Индустриальный Парк Звезда»' : 'Экспериментальный комплекс';
+    var dev = k.fact_ytd - k.plan_ytd;
+    var devCls = dev <= 0 ? '#22c55e' : '#ef4444'; // расходы: меньше плана = хорошо
+    var devSign = dev >= 0 ? '+' : '−';
+
+    h += '<div id="expSection_' + cfo + '" style="display:' + (cfo === 'ИП' ? 'block' : 'none') + '">';
+    h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">' + escapeHtml(orgLabel) + ' · 2026 г.</div>';
+
+    // KPI cards
+    h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
+    h += '<div class="stat-card" style="padding:14px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Факт YTD</div><div style="font-size:20px;font-weight:700;color:#60a5fa">' + _expFmt(k.fact_ytd) + '</div><div style="font-size:10px;color:var(--text-muted);margin-top:3px">фактические расходы</div></div>';
+    h += '<div class="stat-card" style="padding:14px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">План YTD</div><div style="font-size:20px;font-weight:700;color:#4ade80">' + _expFmt(k.plan_ytd) + '</div><div style="font-size:10px;color:var(--text-muted);margin-top:3px">бюджет на этот период</div></div>';
+    h += '<div class="stat-card" style="padding:14px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Отклонение</div><div style="font-size:20px;font-weight:700;color:' + devCls + '">' + devSign + _expFmt(Math.abs(dev)) + '</div><div style="font-size:10px;color:var(--text-muted);margin-top:3px">' + (dev <= 0 ? '▼ экономия' : '▲ перерасход') + '</div></div>';
+    h += '<div class="stat-card" style="padding:14px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Прогноз год</div><div style="font-size:20px;font-weight:700;color:#c084fc">' + _expFmt(k.forecast) + '</div><div style="font-size:10px;color:var(--text-muted);margin-top:3px">план: ' + _expFmt(k.plan_year) + '</div></div>';
+    h += '</div>';
+
+    // Помесячный график (CSS bars)
+    var maxBar = 0;
+    months.forEach(function(m) {
+      maxBar = Math.max(maxBar, m.fact[cfo] || 0, m.plan[cfo] || 0);
+    });
+    if (maxBar > 0) {
+      h += '<div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">';
+      h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text)">Помесячная динамика расходов</div>';
+      h += '<div style="display:flex;align-items:flex-end;gap:4px;height:100px">';
+      months.forEach(function(m) {
+        var fh = Math.round((m.fact[cfo] || 0) / maxBar * 90);
+        var ph = Math.round((m.plan[cfo] || 0) / maxBar * 90);
+        h += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px">';
+        h += '<div style="width:100%;display:flex;align-items:flex-end;gap:1px;height:90px">';
+        // Факт
+        h += '<div style="flex:1;background:' + (m.isPast ? '#3b82f6' : '#1e3a5f') + ';height:' + fh + 'px;border-radius:2px 2px 0 0;min-height:2px" title="Факт: ' + _expFmt(m.fact[cfo]) + '"></div>';
+        // План
+        h += '<div style="flex:1;background:' + (m.isPast ? '#16a34a55' : '#16a34a') + ';height:' + ph + 'px;border-radius:2px 2px 0 0;min-height:2px;border:1px dashed #16a34a" title="План: ' + _expFmt(m.plan[cfo]) + '"></div>';
+        h += '</div>';
+        h += '<div style="font-size:9px;color:var(--text-muted);margin-top:3px">' + escapeHtml(m.name) + '</div>';
+        h += '</div>';
+      });
+      h += '</div>';
+      h += '<div style="display:flex;gap:16px;margin-top:6px;font-size:10px;color:var(--text-muted)">';
+      h += '<span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:4px"></span>Факт (1С)</span>';
+      h += '<span><span style="display:inline-block;width:10px;height:10px;background:transparent;border:1px dashed #16a34a;border-radius:2px;margin-right:4px"></span>План (бюджет)</span>';
+      h += '</div>';
+      h += '</div>';
+    }
+
+    // Таблица по контрагентам
+    if (contractors.length > 0) {
+      h += '<div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">';
+      h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text)">Расходы по контрагентам (топ-20) — факт с начала 2026</div>';
+      h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+      h += '<thead><tr style="border-bottom:2px solid var(--border)">';
+      h += '<th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-weight:500">Контрагент</th>';
+      h += '<th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-weight:500">Договор 1С</th>';
+      months.forEach(function(m) {
+        if (m.isPast) h += '<th style="text-align:right;padding:6px 6px;color:var(--text-muted);font-weight:500;font-size:10px">' + escapeHtml(m.name) + '</th>';
+      });
+      h += '<th style="text-align:right;padding:6px 10px;color:var(--text-muted);font-weight:500">Итого</th>';
+      h += '</tr></thead><tbody>';
+
+      var grandTotal = contractors.reduce(function(s, c) { return s + c.total; }, 0);
+      contractors.forEach(function(c, idx) {
+        var rowBg = idx % 2 === 0 ? '' : 'background:rgba(255,255,255,0.02)';
+        h += '<tr style="border-bottom:1px solid var(--border);' + rowBg + '">';
+        h += '<td style="padding:6px 10px;font-weight:500;color:var(--text)">' + escapeHtml(c.name) + '</td>';
+        h += '<td style="padding:6px 10px;color:var(--accent);font-size:11px">' + (c.contractNum ? escapeHtml(c.contractNum) : '<span style="color:#374151">—</span>') + '</td>';
+        months.forEach(function(m, i) {
+          if (!m.isPast) return;
+          var v = c.monthly[i] || 0;
+          h += '<td style="text-align:right;padding:6px 6px;color:' + (v > 0 ? '#e2e8f0' : '#374151') + '">' + (v > 0 ? _expFmt(v) : '—') + '</td>';
+        });
+        var pct = grandTotal > 0 ? Math.round(c.total / grandTotal * 100) : 0;
+        h += '<td style="text-align:right;padding:6px 10px;font-weight:700;color:#60a5fa">' + _expFmt(c.total) + ' <span style="font-size:10px;color:var(--text-muted)">(' + pct + '%)</span></td>';
+        h += '</tr>';
+      });
+
+      h += '</tbody></table></div>';
+      h += '</div>';
+    }
+
+    h += '</div>'; // expSection
+  });
+
+  h += '</div>'; // outer
+  return h;
 }
 
 function editBIUrl() {

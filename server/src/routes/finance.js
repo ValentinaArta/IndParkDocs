@@ -586,4 +586,158 @@ router.get('/budget/meta', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/finance/expenses — фактические расходы 1С vs бюджет (ИПЗ и ЭКЗ)
+router.get('/expenses', authenticate, async (req, res) => {
+  const cacheKey = 'expenses_all';
+  const cached = cacheGet(cacheKey);
+  if (cached) return res.json({ ...cached, cached: true });
+
+  try {
+    const dateFilter = encodeURIComponent("Date gt datetime'2026-01-01T00:00:00' and Posted eq true");
+
+    // Загружаем параллельно: расходы, справочники, бюджет
+    const [expensesRaw, contractorsRaw, contractsRaw] = await Promise.all([
+      odataGetAll(`Document_ПоступлениеТоваровУслуг?$format=json&$filter=${dateFilter}&$select=Date,Number,СуммаДокумента,Организация_Key,Контрагент_Key,ДоговорКонтрагента_Key,ВидОперации`),
+      odataGet(`Catalog_Контрагенты?$format=json&$top=3000&$select=Ref_Key,Description`),
+      odataGetAll(`Catalog_ДоговорыКонтрагентов?$format=json&$filter=${encodeURIComponent("DeletionMark eq false and IsFolder eq false")}&$select=Ref_Key,Номер,Description`, 500),
+    ]);
+
+    // Словари
+    const nameMap = {};
+    (contractorsRaw.value || []).forEach(c => { nameMap[c.Ref_Key] = c.Description; });
+    const contractNumMap = {};
+    contractsRaw.forEach(c => { contractNumMap[c.Ref_Key] = c.Номер || c.Description || ''; });
+
+    // Бюджет расходов (БДР) из БД
+    const budgetRes = await db.query(`
+      SELECT cfo, article, level, plan
+      FROM budget_data
+      WHERE budget_type = 'БДР'
+        AND cfo IN ('ИП', 'ЭК')
+        AND level IN (0, 2)
+      ORDER BY cfo, level, article
+    `);
+
+    // Группируем расходы по org → month → contractors
+    const MONTHS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+    const curMonth = new Date().getMonth(); // 0-based
+
+    // Маппинг org → cfo
+    const orgToCfo = { [ORG_IPZ]: 'ИП', [ORG_EKZ]: 'ЭК' };
+
+    const byOrg = { 'ИП': {}, 'ЭК': {} };
+    // byOrg[cfo][contractorKey] = { name, contractNum, contractKey, monthly[12], total }
+
+    for (const x of expensesRaw) {
+      const cfo = orgToCfo[x.Организация_Key];
+      if (!cfo) continue;
+      const cid = x.Контрагент_Key || '';
+      if (!cid) continue;
+      const m = x.Date ? new Date(x.Date).getMonth() : -1;
+      if (m < 0 || m > 11) continue;
+      const amt = x.СуммаДокумента || 0;
+
+      if (!byOrg[cfo][cid]) {
+        byOrg[cfo][cid] = {
+          name: nameMap[cid] || cid.slice(0, 8) + '...',
+          contractKey: x.ДоговорКонтрагента_Key || '',
+          contractNum: contractNumMap[x.ДоговорКонтрагента_Key] || '',
+          monthly: new Array(12).fill(0),
+          total: 0,
+        };
+      }
+      byOrg[cfo][cid].monthly[m] += amt;
+      byOrg[cfo][cid].total += amt;
+    }
+
+    // Собираем помесячные итоги факта по ИП и ЭК
+    const monthlyFact = { 'ИП': new Array(12).fill(0), 'ЭК': new Array(12).fill(0) };
+    for (const [cfo, contractors] of Object.entries(byOrg)) {
+      for (const c of Object.values(contractors)) {
+        c.monthly.forEach((v, i) => { monthlyFact[cfo][i] += v; });
+      }
+    }
+
+    // Бюджет РАСХОДОВ (раздел level=2 с "РАСХОДЫ" в названии)
+    const budgetPlan = { 'ИП': {}, 'ЭК': {} };
+    const totalPlan = { 'ИП': 0, 'ЭК': 0 };
+    const expArticles = { 'ИП': [], 'ЭК': [] };
+
+    for (const row of budgetRes.rows) {
+      const cfo = row.cfo;
+      const plan = row.plan || new Array(12).fill(0);
+      const totalP = plan.reduce ? plan.reduce((s, v) => s + (v || 0), 0) : 0;
+
+      if (row.level === 0) {
+        // итоговая строка ЦФО (содержит весь план — доходы и расходы)
+        continue;
+      }
+      if (row.level === 2 && row.article.includes('РАСХОДЫ')) {
+        const totalPAbs = Math.abs(totalP); // расходы в БДР отрицательные
+        totalPlan[cfo] += totalPAbs;
+        expArticles[cfo].push({
+          name: row.article.replace(/^-/, '').trim(),
+          plan: totalPAbs,
+          fact: 0,
+        });
+        plan.forEach((v, i) => {
+          if (!budgetPlan[cfo][i]) budgetPlan[cfo][i] = 0;
+          budgetPlan[cfo][i] += Math.abs(v || 0); // берём модуль
+        });
+      }
+    }
+
+    // Считаем factYTD (факт за прошедшие месяцы)
+    function ytd(arr) { return arr.slice(0, curMonth).reduce((s, v) => s + v, 0); }
+    function planYTD(arr) { return Object.values(arr).slice(0, curMonth).reduce((s, v) => s + (v || 0), 0); }
+
+    // Топ контрагентов (сортируем по total desc)
+    const topContractors = {};
+    for (const cfo of ['ИП', 'ЭК']) {
+      topContractors[cfo] = Object.values(byOrg[cfo])
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 20)
+        .map(c => ({
+          name: c.name,
+          contractNum: c.contractNum,
+          monthly: c.monthly,
+          total: Math.round(c.total),
+        }));
+    }
+
+    // Формируем месячные данные для графика
+    const months = MONTHS.map((name, i) => ({
+      name,
+      isPast: i < curMonth,
+      fact: { 'ИП': Math.round(monthlyFact['ИП'][i]), 'ЭК': Math.round(monthlyFact['ЭК'][i]) },
+      plan: { 'ИП': Math.round(budgetPlan['ИП'][i] || 0), 'ЭК': Math.round(budgetPlan['ЭК'][i] || 0) },
+    }));
+
+    const result = {
+      months,
+      kpi: {
+        'ИП': {
+          fact_ytd: Math.round(ytd(monthlyFact['ИП'])),
+          plan_ytd: Math.round(Object.values(budgetPlan['ИП']).slice(0, curMonth).reduce((s, v) => s + v, 0)),
+          plan_year: Math.round(totalPlan['ИП']),
+          forecast: Math.round(ytd(monthlyFact['ИП']) + Object.values(budgetPlan['ИП']).slice(curMonth).reduce((s, v) => s + v, 0)),
+        },
+        'ЭК': {
+          fact_ytd: Math.round(ytd(monthlyFact['ЭК'])),
+          plan_ytd: Math.round(Object.values(budgetPlan['ЭК']).slice(0, curMonth).reduce((s, v) => s + v, 0)),
+          plan_year: Math.round(totalPlan['ЭК']),
+          forecast: Math.round(ytd(monthlyFact['ЭК']) + Object.values(budgetPlan['ЭК']).slice(curMonth).reduce((s, v) => s + v, 0)),
+        },
+      },
+      contractors: topContractors,
+    };
+
+    cacheSet(cacheKey, result);
+    res.json(result);
+  } catch (e) {
+    console.error('Finance expenses error:', e.message);
+    res.status(503).json({ error: e.message });
+  }
+});
+
 module.exports = router;
