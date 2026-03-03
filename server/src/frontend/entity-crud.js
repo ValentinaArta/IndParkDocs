@@ -2251,9 +2251,13 @@ async function showEntity(id, _forceDetail) {
     return;
   }
 
-  // For supplements — show card inline
+  // For supplements — show card inline (with parent entity data for link display)
   if (_isSupp && !_forceDetail) {
     var suppContentEl = document.getElementById('content');
+    suppContentEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)">Загрузка...</div>';
+    if (e.parent_id && !e.parent) {
+      try { e.parent = await api('/entities/' + e.parent_id); } catch(ex) {}
+    }
     suppContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderSupplementCard(e) + '</div>';
     return;
   }
@@ -4513,19 +4517,27 @@ function _ccFmtDate(d) { return d ? d.split('-').reverse().join('.') : '—'; }
 function _ccFmtNum(v) { return v ? Number(v).toLocaleString('ru-RU', {maximumFractionDigits:2}) : '0'; }
 
 // ── Supplement card (аналог renderContractCard для ДС) ───────────────────────
+/**
+ * Рендерит карточку ДС.
+ * @param {Object} supp - entity объект supplement
+ * supp.parent — опционально, подгружается если доступен (для показа названия родит. договора)
+ */
 function renderSupplementCard(supp) {
   var sp = supp.properties || {};
+  // Если поля сторон не заполнены на ДС — берём из родительского договора
+  var pp = (supp.parent && supp.parent.properties) ? supp.parent.properties : {};
   var isRental = (sp.contract_type === 'Аренды' || sp.contract_type === 'Субаренды' || sp.contract_type === 'Аренда оборудования');
 
   var h = '';
 
   // ── Header ─────────────────────────────────────────────────────────────────
+  var contractorName = sp.contractor_name || pp.contractor_name || '';
   var titleParts = [];
-  if (sp.contractor_name) titleParts.push(sp.contractor_name);
+  if (contractorName) titleParts.push(contractorName);
   if (sp.number) titleParts.push('ДС №' + sp.number);
   if (sp.contract_date) titleParts.push(_ccFmtDate(sp.contract_date));
   h += '<div style="margin-bottom:20px">';
-  h += '<h2 style="font-size:1.3rem;font-weight:700;margin:0 0 4px">' + escapeHtml(titleParts.join(', ')) + '</h2>';
+  h += '<h2 style="font-size:1.3rem;font-weight:700;margin:0 0 4px">' + escapeHtml(titleParts.join(', ') || supp.name || '') + '</h2>';
   h += '<span style="font-size:13px;color:var(--text-secondary)">Доп. соглашение' + (sp.contract_type ? ' к договору ' + escapeHtml(sp.contract_type) : '') + '</span>';
   h += '</div>';
 
@@ -4538,20 +4550,19 @@ function renderSupplementCard(supp) {
     h += '</div>';
   }
 
-  // ── Стороны ────────────────────────────────────────────────────────────────
-  h += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;font-size:14px">';
-  var ourLabel = sp.our_role_label || (isRental ? 'Арендодатель' : 'Наше юр. лицо');
-  var contrLabel = sp.contractor_role_label || (isRental ? 'Арендатор' : 'Контрагент');
-  if (sp.our_legal_entity) {
-    h += '<div><span style="color:var(--text-secondary)">' + escapeHtml(ourLabel) + ':</span> <strong>' + escapeHtml(sp.our_legal_entity) + '</strong></div>';
+  // ── Стороны (берём из ДС или из родительского договора) ───────────────────
+  var ourLabel = sp.our_role_label || pp.our_role_label || (isRental ? 'Арендодатель' : 'Наше юр. лицо');
+  var contrLabel = sp.contractor_role_label || pp.contractor_role_label || (isRental ? 'Арендатор' : 'Контрагент');
+  var ourEntity = sp.our_legal_entity || pp.our_legal_entity || '';
+  var contrName = sp.contractor_name || pp.contractor_name || '';
+  var subName = sp.subtenant_name || pp.subtenant_name || '';
+  if (ourEntity || contrName) {
+    h += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;font-size:14px">';
+    if (ourEntity) h += '<div><span style="color:var(--text-secondary)">' + escapeHtml(ourLabel) + ':</span> <strong>' + escapeHtml(ourEntity) + '</strong></div>';
+    if (contrName) h += '<div><span style="color:var(--text-secondary)">' + escapeHtml(contrLabel) + ':</span> <strong>' + escapeHtml(contrName) + '</strong></div>';
+    if (subName)   h += '<div><span style="color:var(--text-secondary)">Субарендатор:</span> <strong>' + escapeHtml(subName) + '</strong></div>';
+    h += '</div>';
   }
-  if (sp.contractor_name) {
-    h += '<div><span style="color:var(--text-secondary)">' + escapeHtml(contrLabel) + ':</span> <strong>' + escapeHtml(sp.contractor_name) + '</strong></div>';
-  }
-  if (sp.subtenant_name) {
-    h += '<div><span style="color:var(--text-secondary)">Субарендатор:</span> <strong>' + escapeHtml(sp.subtenant_name) + '</strong></div>';
-  }
-  h += '</div>';
 
   // ── Что изменилось ─────────────────────────────────────────────────────────
   if (sp.changes_description) {
@@ -4847,99 +4858,30 @@ async function openContractCard(id) {
 }
 
 // ── Карточка ДС (только изменения) ─────────────────────────────────────────
+/** Открывает карточку ДС в модальном окне — использует renderSupplementCard (DRY) */
 async function openSupplementCard(id) {
   showLoadingModal();
   try {
     var supp = await api('/entities/' + id);
-    var sp = supp.properties || {};
-    var parentId = supp.parent_id;
-    var parentData = null;
-    if (parentId) {
-      try { parentData = await api('/reports/contract-card/' + parentId); } catch(ex) {}
+    // Подгружаем родительский договор для отображения ссылки
+    if (supp.parent_id && !supp.parent) {
+      try { supp.parent = await api('/entities/' + supp.parent_id); } catch(ex) {}
     }
 
-    var h = '';
-    // Header
-    h += '<div style="margin-bottom:16px">';
-    h += '<h2 style="font-size:1.2rem;font-weight:700;margin:0 0 4px"' + escapeHtml(supp.name) + '</h2>';
-    h += '<span style="font-size:13px;color:var(--text-secondary)">Доп. соглашение' + (sp.contract_type ? ' к договору ' + escapeHtml(sp.contract_type) : '') + '</span>';
-    h += '</div>';
+    var cardHtml = renderSupplementCard(supp);
 
-    // Link to parent contract
-    if (parentId) {
-      h += '<div style="margin-bottom:12px;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px">';
-      h += '<span style="color:var(--text-muted)">Основной договор:</span> ';
-      h += '<a href="#" onclick="openContractCard(' + parentId + ');return false" style="color:var(--accent);font-weight:600">';
-      h += parentData ? escapeHtml(parentData.name) : ' Договор #' + parentId;
-      h += '</a>';
-      h += '</div>';
+    // Кнопки действий в модальном окне
+    var actionsHtml = '<div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">';
+    actionsHtml += '<button class="btn btn-primary btn-sm" onclick="closeModal();openEditModal(' + id + ')">✏ Редактировать</button>';
+    actionsHtml += '<button class="btn btn-sm" onclick="closeModal();showEntity(' + id + ')">⚙ Полные детали</button>';
+    if (supp.parent_id) {
+      actionsHtml += '<button class="btn btn-sm" onclick="closeModal();showEntity(' + supp.parent_id + ')">← К договору</button>';
     }
+    actionsHtml += '</div>';
 
-    // Изменения (changes_description)
-    if (sp.changes_description) {
-      h += '<div style="margin-bottom:16px;padding:10px 14px;background:rgba(99,102,241,.07);border-left:3px solid var(--accent);border-radius:0 6px 6px 0">';
-      h += '<div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px">ИЗМЕНЕНИЯ</div>';
-      h += '<div style="font-size:14px">' + escapeHtml(sp.changes_description) + '</div>';
-      h += '</div>';
-    }
-
-    // Changed rental terms (rent_objects)
-    if (sp.rent_objects) {
-      var rentObjs = [];
-      try { rentObjs = JSON.parse(sp.rent_objects); } catch(ex) {}
-      if (rentObjs.length > 0) {
-        h += '<div style="margin-bottom:16px">';
-        h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">ИЗМЕНЁННЫЕ УСЛОВИЯ АРЕНДЫ</div>';
-        h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-        h += '<thead><tr style="border-bottom:2px solid var(--border)">';
-        h += '<th style="text-align:left;padding:6px">Объект</th>';
-        h += '<th style="text-align:right;padding:6px">Площадь, м²</th>';
-        h += '<th style="text-align:right;padding:6px">Ставка, ₽/м²</th>';
-        h += '<th style="text-align:right;padding:6px">Сумма, ₽</th>';
-        h += '</tr></thead><tbody>';
-        var suppTotal = 0;
-        rentObjs.forEach(function(ro) {
-          var sum = ro.fixed_rent ? parseFloat(ro.fixed_rent) : (parseFloat(ro.area) || 0) * (parseFloat(ro.rent_rate) || 0);
-          suppTotal += sum || 0;
-          h += '<tr style="border-bottom:1px solid var(--border)">';
-          h += '<td style="padding:6px">' + escapeHtml(ro.room_name || ro.object_type || '—') + '</td>';
-          h += '<td style="text-align:right;padding:6px">' + (ro.area ? ro.area + ' м²' : '—') + '</td>';
-          h += '<td style="text-align:right;padding:6px">' + (ro.rent_rate ? ro.rent_rate + ' ₽' : '—') + '</td>';
-          h += '<td style="text-align:right;padding:6px;font-weight:500">' + (sum > 0 ? _fmtNum(sum) + ' ₽' : '—') + '</td>';
-          h += '</tr>';
-        });
-        if (suppTotal > 0) {
-          h += '<tr style="font-weight:600;background:var(--bg-hover)"><td style="padding:6px">Итого</td><td></td><td></td><td style="text-align:right;padding:6px">' + _fmtNum(suppTotal) + ' ₽/мес</td></tr>';
-        }
-        h += '</tbody></table></div>';
-      }
-    }
-
-    // Other changed fields (amount, dates etc.)
-    var shownFields = ['contract_date','contract_end_date','contract_amount','number'];
-    var fieldLabels = { contract_date: 'Дата', contract_end_date: 'Срок действия до', contract_amount: 'Сумма договора', number: 'Номер' };
-    var changedFields = shownFields.filter(function(k) {
-      return sp[k] && (!parentData || String(sp[k]) !== String((parentData.properties || {})[k] || ''));
-    });
-    if (changedFields.length > 0) {
-      h += '<div style="display:flex;flex-direction:column;gap:6px;font-size:14px;margin-bottom:16px">';
-      changedFields.forEach(function(k) {
-        h += '<div><span style="color:var(--text-secondary)">' + (fieldLabels[k] || k) + ':</span> <strong>' + escapeHtml(sp[k]) + '</strong></div>';
-      });
-      h += '</div>';
-    }
-
-    // Actions
-    h += '<div style="margin-top:16px;display:flex;gap:8px">';
-    h += '<button class="btn btn-sm" onclick="closeModal();showEntity(' + id + ')">Полные детали</button>';
-    if (parentId) {
-      h += '<button class="btn btn-sm btn-primary" onclick="openContractCard(' + parentId + ')">К договору</button>';
-    }
-    h += '</div>';
-
-    setModalContent(h);
-  } catch(e) {
-    setModalContent('<div style="color:#dc2626;padding:20px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>');
+    setModalContent(cardHtml + actionsHtml);
+  } catch(err) {
+    setModalContent('<div style="color:#dc2626;padding:20px">Ошибка: ' + escapeHtml(err.message || String(err)) + '</div>');
   }
 }
 
