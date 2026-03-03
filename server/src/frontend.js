@@ -105,7 +105,8 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 /* Searchable select */
 .srch-wrap { position:relative; }
 .srch-input { width:100%; box-sizing:border-box; }
-.srch-drop { position:absolute;top:100%;left:0;right:0;z-index:300;background:var(--bg);border:1px solid var(--primary);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+.srch-drop { position:absolute;top:100%;left:0;right:0;z-index:9999;background:var(--bg);border:1px solid var(--primary);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+.srch-wrap { position:relative; }
 .srch-item { padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 .srch-item:hover,.srch-item.srch-active { background:var(--bg-hover); }
 .srch-new { color:var(--primary);font-style:italic;border-top:1px solid var(--border); }
@@ -489,13 +490,13 @@ function _srchInitAll() {
     textEl.addEventListener('focus', function() { _srchFilter(id); });
     textEl.addEventListener('input', function() { hiddenEl.value = ''; _srchFilter(id); });
     textEl.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') { dropEl.style.display = 'none'; textEl.blur(); }
+      if (e.key === 'Escape') { dropEl.style.display = 'none'; var _m=dropEl.closest('.modal');if(_m)_m.style.overflow=''; textEl.blur(); }
       if (e.key === 'ArrowDown') { e.preventDefault(); var first = dropEl.querySelector('.srch-item'); if (first) first.focus(); }
     });
     // Click handlers are attached in _srchFilter on each render
     // Close on click outside
     document.addEventListener('mousedown', function(e) {
-      if (!wrap.contains(e.target)) dropEl.style.display = 'none';
+      if (!wrap.contains(e.target)) { dropEl.style.display = 'none'; var _m=dropEl.closest('.modal');if(_m)_m.style.overflow=''; }
     });
   });
 }
@@ -553,6 +554,9 @@ function _srchFilter(id) {
   }
   dropEl.innerHTML = h;
   dropEl.style.display = '';
+  // Temporarily disable modal overflow clipping so dropdown is clickable
+  var _modal = dropEl.closest('.modal');
+  if (_modal) _modal.style.overflow = 'visible';
   // Bind click handlers directly on each item
   dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
     el.onmousedown = function(ev) {
@@ -571,7 +575,9 @@ function _srchPick(id, entityId) {
   if (!ent) return;
   document.getElementById(id).value = String(entityId);
   document.getElementById(id + '_text').value = ent.name;
-  document.getElementById(id + '_drop').style.display = 'none';
+  var _dropEl = document.getElementById(id + '_drop');
+  _dropEl.style.display = 'none';
+  var _m = _dropEl.closest('.modal'); if (_m) _m.style.overflow = '';
   var customEl = document.getElementById(id + '_custom');
   if (customEl) customEl.style.display = 'none';
   // Callbacks for searchable selectors in rent blocks
@@ -7048,19 +7054,33 @@ function renderContractCard(data) {
   if (data.history && data.history.length) {
     h += '<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
     h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
-    h += '<span>История ДопСоглашений (' + (data.history.length - 1) + ')</span><span>▼</span>';
+    var histSupplCount = data.history.filter(function(s) { return !s.is_contract && !s.is_act; }).length;
+    var histActCount   = data.history.filter(function(s) { return s.is_act; }).length;
+    var histLabel = 'История ДС';
+    if (histSupplCount > 0) histLabel += ' · ' + histSupplCount + ' ДС';
+    if (histActCount   > 0) histLabel += ' · ' + histActCount + ' актов';
+    h += '<span>' + histLabel + '</span><span>▼</span>';
     h += '</button>';
     h += '<div style="display:none;padding:12px 14px">';
     data.history.forEach(function(s) {
       h += '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">';
       if (s.is_contract) {
-        // Основной договор — кликабельный
+        // Основной договор
         h += '<a href="#" onclick="openContractCard(' + s.id + ');return false" style="color:var(--accent);font-weight:600">';
         h += escapeHtml(s.name);
         h += '</a>';
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         h += ' <span style="background:var(--bg-hover);color:var(--text-secondary);font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px">Основной договор</span>';
+      } else if (s.is_act) {
+        // Акт выполненных работ
+        h += '<span style="background:#0f2a1a;color:#4ade80;font-size:10px;padding:1px 6px;border-radius:3px;margin-right:6px;font-weight:600">АКТ</span>';
+        h += '<a href="#" onclick="showEntity(' + s.id + ');return false" style="color:var(--accent)">';
+        h += escapeHtml(s.name);
+        h += '</a>';
+        if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
+        if (s.total) h += ' — <span style="color:#4ade80;font-weight:600">' + Math.round(s.total).toLocaleString('ru-RU') + ' ₽</span>';
       } else {
+        // Доп. соглашение
         h += '<a href="#" onclick="openSupplementCard(' + s.id + ');return false" style="color:var(--accent)">';
         h += escapeHtml(s.name);
         h += '</a>';

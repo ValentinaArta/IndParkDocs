@@ -647,15 +647,38 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     };
   });
 
-  // 9. Supplements history (contract first, then supplements)
-  const history = [
-    { id: contract.id, name: contract.name, number: cProps.number || '',
-      date: cProps.contract_date || '', changes: 'Основной договор', is_contract: true },
+  // 9. Acts for this contract
+  const aRes = await pool.query(
+    `SELECT e.id, e.name, e.properties
+     FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'act'
+     WHERE e.parent_id = $1 AND e.deleted_at IS NULL
+     ORDER BY e.properties->>'act_date' ASC NULLS LAST, e.id ASC`, [contractId]);
+  const acts = aRes.rows.map(a => {
+    const p = a.properties || {};
+    let total = 0;
+    try {
+      const items = JSON.parse(p.act_items || '[]');
+      total = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    } catch(e) {}
+    return { id: a.id, name: a.name, number: p.act_number || p.number || '',
+      date: p.act_date || p.contract_date || '', total, is_act: true };
+  });
+
+  // 10. Supplements history (contract first, then supplements + acts sorted by date)
+  const histItems = [
     ...supplements.map(sp => {
       const p = sp.properties || {};
       return { id: sp.id, name: sp.name, number: p.number || '',
-        date: p.contract_date || '', changes: p.changes_description || '', is_contract: false };
+        date: p.contract_date || '', changes: p.changes_description || '',
+        is_contract: false, is_act: false };
     }),
+    ...acts,
+  ].sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.id - b.id);
+
+  const history = [
+    { id: contract.id, name: contract.name, number: cProps.number || '',
+      date: cProps.contract_date || '', changes: 'Основной договор', is_contract: true },
+    ...histItems,
   ];
 
   // Parse contract_items for non-rental types
