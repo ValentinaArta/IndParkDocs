@@ -2646,7 +2646,11 @@ function onRoLpCombinedPick(index) {
 
 function toggleLpPartCreate(index) {
   var div = document.getElementById('ro_lpp_create_' + index);
-  if (div) div.style.display = div.style.display === 'none' ? '' : 'none';
+  if (div) {
+    var show = div.style.display === 'none';
+    div.style.display = show ? '' : 'none';
+    if (show) setTimeout(function() { _srchInitAll(); }, 50);
+  }
 }
 
 async function submitLpPartCreate(index) {
@@ -5635,7 +5639,7 @@ function _renderExpensesSection(exp) {
         var rowBg = idx % 2 === 0 ? '' : 'background:rgba(255,255,255,0.02)';
         h += '<tr style="border-bottom:1px solid var(--border);' + rowBg + '">';
         h += '<td style="padding:6px 10px;font-weight:500;color:var(--text)">' + escapeHtml(c.name) + '</td>';
-        h += '<td style="padding:6px 10px;color:var(--accent);font-size:11px">' + (c.contractNum ? escapeHtml(c.contractNum) : '<span style="color:#374151">—</span>') + '</td>';
+        h += '<td style="padding:6px 10px;color:var(--accent);font-size:11px;max-width:200px;white-space:normal">' + (c.contracts && c.contracts !== '—' ? escapeHtml(c.contracts) : '<span style="color:#374151">—</span>') + '</td>';
         months.forEach(function(m, i) {
           if (!m.isPast) return;
           var v = c.monthly[i] || 0;

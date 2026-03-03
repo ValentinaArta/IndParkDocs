@@ -640,11 +640,14 @@ router.get('/expenses', authenticate, async (req, res) => {
       if (!byOrg[cfo][cid]) {
         byOrg[cfo][cid] = {
           name: nameMap[cid] || cid.slice(0, 8) + '...',
-          contractKey: x.ДоговорКонтрагента_Key || '',
-          contractNum: contractNumMap[x.ДоговорКонтрагента_Key] || '',
+          contractKeys: new Set(),  // все уникальные договоры
           monthly: new Array(12).fill(0),
           total: 0,
         };
+      }
+      const ck = x.ДоговорКонтрагента_Key;
+      if (ck && ck !== '00000000-0000-0000-0000-000000000000' && contractNumMap[ck]) {
+        byOrg[cfo][cid].contractKeys.add(contractNumMap[ck]);
       }
       byOrg[cfo][cid].monthly[m] += amt;
       byOrg[cfo][cid].total += amt;
@@ -699,7 +702,7 @@ router.get('/expenses', authenticate, async (req, res) => {
         .slice(0, 20)
         .map(c => ({
           name: c.name,
-          contractNum: c.contractNum,
+          contracts: [...c.contractKeys].join(', ') || '—',  // все договоры через запятую
           monthly: c.monthly,
           total: Math.round(c.total),
         }));
