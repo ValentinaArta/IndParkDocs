@@ -520,38 +520,7 @@ function collectDynamicFieldValues(contractType) {
   return result;
 }
 
-async function api(url, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
-  const r = await fetch(API + url, { ...opts, headers });
-  if (r.status === 401 && REFRESH) {
-    const ref = await fetch(API + '/auth/refresh', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: REFRESH })
-    });
-    if (ref.ok) {
-      const data = await ref.json();
-      TOKEN = data.accessToken;
-      localStorage.setItem('accessToken', TOKEN);
-      headers['Authorization'] = 'Bearer ' + TOKEN;
-      const r2 = await fetch(API + url, { ...opts, headers });
-      return r2.json();
-    } else {
-      logout();
-      return {};
-    }
-  }
-  if (r.status === 401) { logout(); return {}; }
-  if (!r.ok) {
-    const errData = await r.json().catch(() => ({ error: 'Ошибка сервера' }));
-    const err = new Error(errData.error || 'Ошибка');
-    err.status = r.status;
-    err.data = errData;
-    if (r.status !== 409) alert(errData.error || 'Ошибка');
-    throw err;
-  }
-  return r.json();
-}
+// api() moved to core/api.js
 
 function showLegalZachety() {
   setActiveNav('legal-zachety');
@@ -759,8 +728,8 @@ function showSuggestDropdown(input, items, query) {
       var label = (num || e.name) + (typeName ? ' (' + typeName + ')' : '');
       var opt = document.createElement('div');
       opt.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bg);transition:background .1s';
-      opt.innerHTML = '<div style="font-weight:600">' + escHtml(num || e.name) + '</div>' +
-        (typeName ? '<div style="font-size:11px;color:var(--text-muted)">' + escHtml(typeName) + (e.properties && e.properties.contractor_name ? ' — ' + escHtml(e.properties.contractor_name) : '') + '</div>' : '');
+      opt.innerHTML = '<div style="font-weight:600">' + escapeHtml(num || e.name) + '</div>' +
+        (typeName ? '<div style="font-size:11px;color:var(--text-muted)">' + escapeHtml(typeName) + (e.properties && e.properties.contractor_name ? ' — ' + escapeHtml(e.properties.contractor_name) : '') + '</div>' : '');
       opt.onmouseenter = function() { opt.style.background = 'var(--bg-hover)'; };
       opt.onmouseleave = function() { opt.style.background = ''; };
       opt.onmousedown = function(ev) {
@@ -798,7 +767,7 @@ function removeSuggestDropdown(input) {
   if (dd) dd.remove();
 }
 
-function escHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+// escHtml removed — use escapeHtml() from core/utils.js
 
 async function showNewContractForm(returnInput) {
   // Load all entity types and their field definitions
@@ -809,7 +778,7 @@ async function showNewContractForm(returnInput) {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
 
   var typeOptions = entityTypes.map(function(et) {
-    return '<option value="' + et.id + '" data-name="' + escHtml(et.name) + '">' + (et.icon || '') + ' ' + escHtml(et.name_ru) + '</option>';
+    return '<option value="' + et.id + '" data-name="' + escapeHtml(et.name) + '">' + (et.icon || '') + ' ' + escapeHtml(et.name_ru) + '</option>';
   }).join('');
 
   overlay.innerHTML = '<div style="background:var(--bg-card);border-radius:12px;padding:24px;max-width:520px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">' +
@@ -854,17 +823,17 @@ async function showNewContractForm(returnInput) {
         inputHtml = '<input id="ncf_' + f.name + '" type="number" placeholder="0">';
       } else if (f.field_type === 'select' && f.options) {
         var opts = '<option value="">—</option>';
-        (Array.isArray(f.options) ? f.options : []).forEach(function(o) { opts += '<option>' + escHtml(o) + '</option>'; });
+        (Array.isArray(f.options) ? f.options : []).forEach(function(o) { opts += '<option>' + escapeHtml(o) + '</option>'; });
         inputHtml = '<select id="ncf_' + f.name + '">' + opts + '</select>';
       } else if (f.field_type === 'select_or_custom' && f.options) {
         inputHtml = '<input id="ncf_' + f.name + '" list="ncl_' + f.name + '" placeholder="Выберите или введите">' +
-          '<datalist id="ncl_' + f.name + '">' + (Array.isArray(f.options) ? f.options : []).map(function(o) { return '<option value="' + escHtml(o) + '">'; }).join('') + '</datalist>';
+          '<datalist id="ncl_' + f.name + '">' + (Array.isArray(f.options) ? f.options : []).map(function(o) { return '<option value="' + escapeHtml(o) + '">'; }).join('') + '</datalist>';
       } else if (f.field_type === 'boolean') {
         inputHtml = '<label style="display:flex;align-items:center;gap:6px"><input id="ncf_' + f.name + '" type="checkbox"> Да</label>';
       } else {
-        inputHtml = '<input id="ncf_' + f.name + '" placeholder="' + escHtml(f.name_ru || f.name) + '">';
+        inputHtml = '<input id="ncf_' + f.name + '" placeholder="' + escapeHtml(f.name_ru || f.name) + '">';
       }
-      html += '<div class="form-group"><label>' + escHtml(f.name_ru || f.name) + (f.required ? ' *' : '') + '</label>' + inputHtml + '</div>';
+      html += '<div class="form-group"><label>' + escapeHtml(f.name_ru || f.name) + (f.required ? ' *' : '') + '</label>' + inputHtml + '</div>';
     });
     dynamicFields.innerHTML = html;
   }
@@ -1256,13 +1225,7 @@ function navSubClick(el) {
 }
 
 // Lucide icon mapping for entity types
-var ENTITY_TYPE_ICONS = {
-  building: 'building-2', workshop: 'warehouse', room: 'door-open',
-  land_plot: 'map-pin', land_plot_part: 'map-pin', company: 'landmark',
-  contract: 'file-text', supplement: 'paperclip', equipment: 'cog',
-  order: 'scroll', document: 'file', crane_track: 'move-horizontal', act: 'file-check'
-};
-function entityIcon(typeName, size) { return icon(ENTITY_TYPE_ICONS[typeName] || 'file', size); }
+// ENTITY_TYPE_ICONS and entityIcon() moved to core/globals.js
 
 function renderTypeNav() {
   const nav = document.getElementById('typeNav');
@@ -1828,7 +1791,6 @@ async function loadAreaPieChart() {
   }
 }
 
-function _fmtNum(n) { return n.toLocaleString('ru-RU'); }
 
 function _svgDonut(cx, cy, R, r, segments, labels) {
   var h = '<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="#e5e7eb" />';
@@ -3667,12 +3629,7 @@ function _isNumericField(name) {
   return f && f.field_type === 'number';
 }
 
-function _fmtNum(v) {
-  if (!v && v !== 0) return '—';
-  var n = parseFloat(v);
-  if (isNaN(n)) return String(v);
-  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
-}
+// _fmtNum moved to core/utils.js
 
 var _pivotCellData = {}; // stored for drill-down clicks
 

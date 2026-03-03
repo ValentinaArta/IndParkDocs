@@ -697,7 +697,7 @@ function onRentObjectCalcChange(index) {
     block.replaceWith(div.firstChild);
     recalcRentMonthly();
   }
-
+}
 
 // ─── Room select (no __new__ — uses dedicated create button) ───
 function renderRoRoomSelect(index, selectedId) {

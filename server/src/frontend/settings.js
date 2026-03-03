@@ -298,11 +298,7 @@ function _syncFrontendListsFromDB(fieldId, items) {
   }
 }
 
-// ============ UTILS ============
-
-function escapeHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+// escapeHtml moved to core/utils.js
 
 init();
 `;

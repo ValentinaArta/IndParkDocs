@@ -1,8 +1,18 @@
 // Inline frontend served as HTML
 // This keeps the MVP simple — one deploy, no build step
 // Assembled from modules in server/src/frontend/
+//
+// Load order (matters for dependencies):
+//   1. core/utils.js  — pure utils (escapeHtml, _fmtNum, _fmtDate) — no deps
+//   2. core.js        — globals (API, TOKEN, CONTRACT_TYPE_FIELDS, icon, etc.)
+//   3. core/api.js    — fetch wrapper (depends on TOKEN, API, logout from core.js)
+//   4. core/globals.js — ENTITY_TYPE_ICONS, entityIcon (depends on icon from core.js)
+//   5. components, forms, entities, reports...
 
-const core = require('./core');
+const coreUtils    = require('./core/utils');
+const core         = require('./core');
+const coreApi      = require('./core/api');
+const coreGlobals  = require('./core/globals');
 const searchableSelect = require('./searchable-select');
 const entityForm = require('./entity-form');
 const rentObjects = require('./rent-objects');
@@ -30,7 +40,13 @@ const FRONTEND_HTML =
   '\n<style>\n' + css + '\n</style>\n' +
   layout +
   '\n<script>\n' +
+  coreUtils +
+  '\n' +
   core +
+  '\n' +
+  coreApi +
+  '\n' +
+  coreGlobals +
   '\n' +
   searchableSelect +
   '\n' +
