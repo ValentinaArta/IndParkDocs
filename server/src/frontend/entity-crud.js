@@ -1098,7 +1098,7 @@ async function startApp() {
     _settingsLists.forEach(function(f) {
       var items = Array.isArray(f.options) ? f.options : [];
       try { if (typeof f.options === 'string') items = JSON.parse(f.options); } catch(ex) {}
-      if (f.name === 'object_type') { OBJECT_TYPES.length = 0; items.forEach(function(i){ OBJECT_TYPES.push(i); }); }
+      if (f.name === 'object_type' || f.name === 'room_type') { OBJECT_TYPES.length = 0; items.forEach(function(i){ OBJECT_TYPES.push(i); }); }
       else if (f.name === 'equipment_category') { EQUIPMENT_CATEGORIES.length = 0; items.forEach(function(i){ EQUIPMENT_CATEGORIES.push(i); }); }
       else if (f.name === 'status' && f.entity_type_name === 'equipment') { EQUIPMENT_STATUSES.length = 0; items.forEach(function(i){ EQUIPMENT_STATUSES.push(i); }); }
     });

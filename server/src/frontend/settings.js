@@ -285,7 +285,7 @@ async function saveListEditor(fieldId) {
 function _syncFrontendListsFromDB(fieldId, items) {
   var field = _settingsLists.find(function(f) { return f.id === fieldId; });
   if (!field) return;
-  if (field.name === 'object_type') {
+  if (field.name === 'object_type' || field.name === 'room_type') {
     // Обновляем OBJECT_TYPES
     OBJECT_TYPES.length = 0;
     items.forEach(function(i) { OBJECT_TYPES.push(i); });
