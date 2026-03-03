@@ -16,9 +16,15 @@ function recalcRentMonthly() {
     if (obj.calc_mode === 'fixed') {
       total += parseFloat(obj.fixed_rent) || 0;
     } else {
-      // Get area from room registry if room_id exists
+      // Get area: 1) from room registry, 2) from area span (rooms), 3) from area input (land plots)
       var room = _getRoomById(obj.room_id);
-      area = room ? (parseFloat((room.properties || {}).area) || 0) : (parseFloat(obj.area) || 0);
+      if (room) {
+        area = parseFloat((room.properties || {}).area) || 0;
+      } else {
+        var areaSpan = document.getElementById('ro_room_area_' + idx);
+        area = areaSpan ? (parseFloat(areaSpan.textContent) || 0) : 0;
+        if (!area) area = parseFloat(obj.area) || 0;
+      }
       var rate = parseFloat(obj.rent_rate) || 0;
       total += area * rate;
       // Update monthly display (works for both rooms and land plots)
