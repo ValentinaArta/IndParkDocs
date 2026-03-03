@@ -137,11 +137,11 @@ function _srchPick(id, entityId) {
   var customEl = document.getElementById(id + '_custom');
   if (customEl) customEl.style.display = 'none';
   // Callbacks for searchable selectors in rent blocks
-  var m = id.match(/^eq_rent_sel_(d+)$/);
+  var m = id.match(/^eq_rent_sel_(\\d+)$/);
   if (m) onEquipmentRentSelected(parseInt(m[1]));
-  var m2 = id.match(/^ro_room_sel_(d+)$/);
+  var m2 = id.match(/^ro_room_sel_(\\d+)$/);
   if (m2) onRentRoomSelected(parseInt(m2[1]));
-  var m3 = id.match(/^ro_lp_combined_(d+)$/);
+  var m3 = id.match(/^ro_lp_combined_(\\d+)$/);
   if (m3) onRoLpCombinedPick(parseInt(m3[1]));
 }
 
