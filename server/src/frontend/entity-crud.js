@@ -4202,10 +4202,21 @@ async function submitBuildingInline() {
 }
 
 // ── Equipment location fields (Корпус + Помещение) ───────────────────────────
-function renderEquipmentLocationFields(selectedBuildingId, selectedRoomId) {
+function renderEquipmentLocationFields(selectedBuildingId, selectedRoomId, selectedLandPlotId) {
   var bid = parseInt(selectedBuildingId) || 0;
   var rid = parseInt(selectedRoomId) || 0;
-  var h = '<div class="form-group"><label>Корпус</label>';
+  var lpid = parseInt(selectedLandPlotId) || 0;
+  var locType = lpid ? 'land_plot' : 'building';
+
+  var h = '<div class="form-group"><label>Тип расположения</label>';
+  h += '<select id="f_eq_loc_type" style="width:100%" onchange="onEqLocTypeChange()">';
+  h += '<option value="building"' + (locType === 'building' ? ' selected' : '') + '>Корпус / Помещение</option>';
+  h += '<option value="land_plot"' + (locType === 'land_plot' ? ' selected' : '') + '>Земельный участок</option>';
+  h += '</select></div>';
+
+  // Building + Room section
+  h += '<div id="eq_loc_building_section" style="' + (locType === 'building' ? '' : 'display:none') + '">';
+  h += '<div class="form-group"><label>Корпус</label>';
   h += '<select id="f_eq_building" style="width:100%" onchange="onEqBuildingChange()">';
   h += '<option value="">— не указано —</option>';
   (_buildings || []).forEach(function(b) {
@@ -4220,7 +4231,34 @@ function renderEquipmentLocationFields(selectedBuildingId, selectedRoomId) {
     h += '<option value="' + r.id + '"' + (r.id === rid ? ' selected' : '') + '>' + escapeHtml(r.name) + '</option>';
   });
   h += '</select></div>';
+  h += '</div>';
+
+  // Land plot section
+  h += '<div id="eq_loc_land_section" style="' + (locType === 'land_plot' ? '' : 'display:none') + '">';
+  h += '<div class="form-group"><label>Земельный участок</label>';
+  h += '<select id="f_eq_land_plot" style="width:100%">';
+  h += '<option value="">— не указано —</option>';
+  (_landPlots || []).forEach(function(lp) {
+    h += '<option value="' + lp.id + '"' + (lp.id === lpid ? ' selected' : '') + '>' + escapeHtml(lp.name) + '</option>';
+  });
+  h += '</select></div>';
+  h += '</div>';
+
   return h;
+}
+
+function onEqLocTypeChange() {
+  var sel = document.getElementById('f_eq_loc_type');
+  if (!sel) return;
+  var bldSec = document.getElementById('eq_loc_building_section');
+  var lpSec = document.getElementById('eq_loc_land_section');
+  if (sel.value === 'land_plot') {
+    if (bldSec) bldSec.style.display = 'none';
+    if (lpSec) lpSec.style.display = '';
+  } else {
+    if (bldSec) bldSec.style.display = '';
+    if (lpSec) lpSec.style.display = 'none';
+  }
 }
 
 function onEqBuildingChange() {
@@ -4341,8 +4379,14 @@ async function _doSubmitCreate(typeName) {
   if (isContractLike) {
     parent_id = null;
   } else if (typeName === 'equipment') {
-    const eqBldEl = document.getElementById('f_eq_building');
-    parent_id = eqBldEl ? (eqBldEl.value || null) : null;
+    var _eqLocType = document.getElementById('f_eq_loc_type');
+    if (_eqLocType && _eqLocType.value === 'land_plot') {
+      var _eqLpEl = document.getElementById('f_eq_land_plot');
+      parent_id = _eqLpEl ? (_eqLpEl.value || null) : null;
+    } else {
+      const eqBldEl = document.getElementById('f_eq_building');
+      parent_id = eqBldEl ? (eqBldEl.value || null) : null;
+    }
   } else {
     parent_id = document.getElementById('f_parent') ? document.getElementById('f_parent').value || null : null;
   }
@@ -4442,13 +4486,17 @@ async function _doSubmitCreate(typeName) {
     }
   }
 
-  // Handle located_in relation for equipment (room)
+  // Handle located_in relation for equipment (room — only when location type is building)
   if (typeName === 'equipment' && createdEntity && createdEntity.id) {
-    var eqRoomSel = document.getElementById('f_eq_room');
-    if (eqRoomSel && eqRoomSel.value) {
-      await api('/relations', { method: 'POST', body: JSON.stringify({
-        from_entity_id: createdEntity.id, to_entity_id: parseInt(eqRoomSel.value), relation_type: 'located_in'
-      }) }).catch(function() {});
+    var _eqLocTypeC = document.getElementById('f_eq_loc_type');
+    var _isLocBuildingC = !_eqLocTypeC || _eqLocTypeC.value !== 'land_plot';
+    if (_isLocBuildingC) {
+      var eqRoomSel = document.getElementById('f_eq_room');
+      if (eqRoomSel && eqRoomSel.value) {
+        await api('/relations', { method: 'POST', body: JSON.stringify({
+          from_entity_id: createdEntity.id, to_entity_id: parseInt(eqRoomSel.value), relation_type: 'located_in'
+        }) }).catch(function() {});
+      }
     }
   }
 
@@ -4951,7 +4999,11 @@ async function openEditModal(id) {
       var eqRels = e.relations || [];
       var locInRel = eqRels.find(function(r) { return r.relation_type === 'located_in' && r.from_entity_id === id; });
       var existingRoomId = locInRel ? (locInRel.to_entity_id || null) : null;
-      html += renderEquipmentLocationFields(e.parent_id, existingRoomId);
+      // Determine if parent is a building or a land plot
+      var eqParentIsLP = e.parent_id && (_landPlots || []).some(function(lp) { return lp.id === parseInt(e.parent_id); });
+      var eqBldId = eqParentIsLP ? null : e.parent_id;
+      var eqLpId  = eqParentIsLP ? e.parent_id : null;
+      html += renderEquipmentLocationFields(eqBldId, existingRoomId, eqLpId);
     } else if (e.type_name === 'land_plot_part') {
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
       allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
@@ -5034,8 +5086,14 @@ async function _doSubmitEdit(id) {
   } else if (e.type_name === 'act') {
     parent_id = e.parent_id;
   } else if (e.type_name === 'equipment') {
-    const eqBldEditEl = document.getElementById('f_eq_building');
-    parent_id = eqBldEditEl ? (eqBldEditEl.value || null) : e.parent_id;
+    var _eqLocTypeEdit = document.getElementById('f_eq_loc_type');
+    if (_eqLocTypeEdit && _eqLocTypeEdit.value === 'land_plot') {
+      var _eqLpEditEl = document.getElementById('f_eq_land_plot');
+      parent_id = _eqLpEditEl ? (_eqLpEditEl.value || null) : e.parent_id;
+    } else {
+      const eqBldEditEl = document.getElementById('f_eq_building');
+      parent_id = eqBldEditEl ? (eqBldEditEl.value || null) : e.parent_id;
+    }
   } else {
     parent_id = fParentEl ? fParentEl.value || null : null;
   }
@@ -5126,19 +5184,21 @@ async function _doSubmitEdit(id) {
     }
   }
 
-  // Handle located_in relation for equipment (room)
+  // Handle located_in relation for equipment (room) — only for building location type
   if (e.type_name === 'equipment') {
-    var eqRoomEdit = document.getElementById('f_eq_room');
-    if (eqRoomEdit) {
-      // Delete existing located_in relations from this equipment
-      var eqExistRels = e.relations || [];
-      for (var ri2 = 0; ri2 < eqExistRels.length; ri2++) {
-        if (eqExistRels[ri2].relation_type === 'located_in' && eqExistRels[ri2].from_entity_id === id) {
-          await api('/relations/' + eqExistRels[ri2].id, { method: 'DELETE' }).catch(function() {});
-        }
+    // Delete existing located_in relations regardless of new location type
+    var eqExistRels = e.relations || [];
+    for (var ri2 = 0; ri2 < eqExistRels.length; ri2++) {
+      if (eqExistRels[ri2].relation_type === 'located_in' && eqExistRels[ri2].from_entity_id === id) {
+        await api('/relations/' + eqExistRels[ri2].id, { method: 'DELETE' }).catch(function() {});
       }
-      // Create new if selected
-      if (eqRoomEdit.value) {
+    }
+    // Create new located_in only when location type is building and room is selected
+    var _eqLocTypeEdit2 = document.getElementById('f_eq_loc_type');
+    var _isLocBuilding = !_eqLocTypeEdit2 || _eqLocTypeEdit2.value !== 'land_plot';
+    if (_isLocBuilding) {
+      var eqRoomEdit = document.getElementById('f_eq_room');
+      if (eqRoomEdit && eqRoomEdit.value) {
         await api('/relations', { method: 'POST', body: JSON.stringify({
           from_entity_id: id, to_entity_id: parseInt(eqRoomEdit.value), relation_type: 'located_in'
         }) }).catch(function() {});

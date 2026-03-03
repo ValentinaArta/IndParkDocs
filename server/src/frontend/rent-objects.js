@@ -268,10 +268,9 @@ function _roEqCreateMiniForm(index, eqTypeId) {
   h += '<div class="form-group"><label>Статус</label><select class="ro-eq-status" data-idx="' + index + '" style="width:100%">';
   (EQUIPMENT_STATUSES.length ? EQUIPMENT_STATUSES : ['В работе','На ремонте','Законсервировано','Списано','Аварийное']).forEach(function(s) { h += '<option value="' + s + '">' + s + '</option>'; });
   h += '</select></div>';
-  h += '<div class="form-group"><label>Помещение</label><select class="ro-eq-room" data-idx="' + index + '" style="width:100%"><option value="">— не указано —</option>';
-  (_rooms || []).forEach(function(r) { h += '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>'; });
-  h += '</select></div>';
-  h += '<div class="form-group"><label>Собственник</label><select class="ro-eq-owner" data-idx="' + index + '" style="width:100%"><option value="">—</option>';
+  // Location fields — shared with main equipment form
+  h += renderEquipmentLocationFields(null, null, null);
+  h += '<div class="form-group"><label>Собственник</label><select id="f_roEq_owner_' + index + '" style="width:100%"><option value="">—</option>';
   _ownCompanies.forEach(function(c) { h += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
   h += '</select></div>';
   h += '</div>';
