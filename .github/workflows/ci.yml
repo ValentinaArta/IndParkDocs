@@ -7,34 +7,72 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Install dependencies
         working-directory: server
         run: npm ci
+      - name: ESLint
+        working-directory: server
+        run: npx eslint src/ --max-warnings 60
 
-      - name: Check syntax
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax (all JS files)
         run: |
-          node --check server/src/index.js
-          node --check server/src/frontend.js
-          node --check server/src/db.js
-          for f in server/src/routes/*.js; do node --check "$f"; done
-          for f in server/src/middleware/*.js; do node --check "$f"; done
+          for f in $(find server/src -name "*.js" -not -name "*.min.js"); do
+            node --check "$f" || exit 1
+          done
           echo "✅ All syntax checks passed"
-
       - name: Validate frontend JS
         run: |
           node -e "
             const fe = require('./server/src/frontend');
-            const m = fe.match(/<script>([\s\S]*?)<\/script>/);
+            const html = typeof fe === 'string' ? fe : fe;
+            const m = html.match(/<script>([\s\S]*?)<\/script>/);
+            if (!m) { console.error('No script tag found'); process.exit(1); }
             try { new Function('async function __t(){' + m[1] + '}'); console.log('✅ Frontend JS valid'); }
             catch(e) { console.error('❌ Frontend JS error:', e.message); process.exit(1); }
           "
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+      - name: Run tests
+        working-directory: server
+        run: npm test -- --forceExit --detectOpenHandles
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret
+          DATABASE_URL: postgresql://localhost/test
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+      - name: Audit dependencies
+        working-directory: server
+        run: npm audit --audit-level=high
