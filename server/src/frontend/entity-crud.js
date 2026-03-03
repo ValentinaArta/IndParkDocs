@@ -4344,7 +4344,11 @@ async function _doSubmitCreate(typeName) {
   }
 
   closeModal();
-  showEntityList(typeName);
+  if (isContractLike && createdEntity && createdEntity.id) {
+    showEntity(createdEntity.id);
+  } else {
+    showEntityList(typeName);
+  }
 }
 
 // ── Contract rental card ─────────────────────────────────────────────────────
