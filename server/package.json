@@ -18,12 +18,20 @@
     "helmet": "^8.0.0",
     "joi": "^17.13.0",
     "jsonwebtoken": "^9.0.2",
+    "otplib": "^13.3.0",
     "pg": "^8.13.0",
     "pino": "^10.3.1",
+    "qrcode": "^1.5.4",
     "xss": "^1.0.15"
   },
   "devDependencies": {
     "jest": "^29.7.0",
     "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testTimeout": 15000,
+    "moduleNameMapper": {
+      "^otplib$": "<rootDir>/tests/__mocks__/otplib.js"
+    }
   }
 }
