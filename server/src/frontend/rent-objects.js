@@ -933,13 +933,8 @@ async function submitRentRoomCreate(btn, index) {
     if (buildingId) body.parent_id = buildingId;
     var newRoom = await api('/entities', { method: 'POST', body: JSON.stringify(body) });
     _rooms.push(newRoom); clearEntityCache();
-    var roomSel = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="room_id"]');
-    if (roomSel) {
-      var opt = document.createElement('option');
-      opt.value = newRoom.id; opt.textContent = '🚪 ' + roomName.trim(); opt.selected = true;
-      Array.from(roomSel.options).forEach(function(o) { o.selected = false; });
-      roomSel.appendChild(opt);
-    }
+    // Select new room in searchable-select component
+    _srchPick('ro_room_sel_' + index, newRoom.id);
     block.style.display = 'none';
   } catch(e) { alert('Ошибка: ' + (e.message || e)); }
   finally { btn.disabled = false; btn.textContent = 'Создать и выбрать'; }
