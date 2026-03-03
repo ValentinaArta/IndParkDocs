@@ -33,13 +33,29 @@
 - npm ci (не npm install) — нужен синхронизированный package-lock.json
 - Проверяет синтаксис + frontend JS через new Function()
 
-### Frontend JS
-- Вся логика инлайн в frontend.js, отдаётся как HTML (один большой template literal)
-- Проверять синтаксис: node -e "new Function('async function __t(){' + m[1] + '}')"
+### Frontend JS (МОДУЛЬНЫЙ — с 2026-03-03)
+- **НЕ один frontend.js** — код разбит на модули в `server/src/frontend/`:
+  - `index.js` — точка входа, сборка HTML
+  - `core.js`, `css.js`, `layout.js` — основа
+  - `entity-crud.js` — CRUD модалки и навигация
+  - `entity-form.js` — рендер полей форм
+  - `acts.js`, `ai-chat.js`, `land-plot-parts.js`, `relations.js`
+  - `rent-objects.js`, `reports.js`, `searchable-select.js`
+  - `settings.js`, `supplements.js`
+- Сборка всё равно отдаётся как один HTML (template literals конкатенируются в index.js)
 - ОПАСНЫЕ конструкции:
   - `\'string\'` внутри template literal → становится `'string'` и ломает строки в new Function
-  - Решение: использовать data-* атрибуты вместо строк в onclick, или &apos;
+  - Решение: использовать data-* атрибуты вместо строк в onclick, или `\\' ` 
+  - `\d` внутри template literal → `d` (бэкслеш съедается) → писать `\\d` для регулярок
   - catch {} без параметра
+- Проверка JS: `cd server && node -e "const html = require('./src/frontend.js'); ..."` (или npm test)
+
+### Тесты и CI
+- **Тест-сьют**: `server/tests/` — 8 файлов, **94 теста**; `npm test` в папке server
+- `tests/__mocks__/otplib.js` — ESM mock (ОБЯЗАТЕЛЕН для Jest)
+- Mock pattern: `jest.fn().mockResolvedValue({ rows: [] })` объявлять сразу (до beforeEach!)
+- `moduleNameMapper` для otplib в `package.json` jest config
+- **Pre-deploy**: `bash scripts/pre-deploy.sh` от корня — 7 проверок (1-6 блокируют, 7 advisory)
 
 ### Git workflow
 - feature/task → dev → (PR) → main → автодеплой
@@ -144,7 +160,7 @@
 - **Красная подсветка аварийного оборудования** — теперь работает везде: карточка сущности + реестр (ранее только отчёты)
 
 ## Задеплоенный коммит
-`0e6c472` (main) — fix: hide duplicate VAT for rent (2026-02-27 утро)
+`48aebf7` (main, dev) — finance page state preservation (_expOpenGids) (2026-03-03)
 
 **Промежуточные коммиты (dev→main сегодня):**
 - `e7b105d`, `438b7d7` — emergency/broken badges в agg report + entity registry
@@ -305,6 +321,53 @@
 - ⚠️ Только 4 договора аренды в БД для ИПЗ → 38 из 42 контрагентов "нет в системе" → deviation только через тренд
 - VPN watchdog улучшен: полный цикл `ipsec down/up` (устранил stale SA); keepalive в options.l2tpd.zvezda
 
+## Что реализовано (2026-03-03) — AI Chat + Company split + Act edit + 1С contracts
+
+### AI Chat (ai-chat.js)
+- Полный переписанный `routes/ai-chat.js`: inline Anthropic API, claude-haiku-4-5, sync ответ
+- SQL tool `run_sql`, история 10 сообщений, макс 3 tool-use шага
+- ANTHROPIC_API_KEY в `server/.env` (не в git)
+- `sendAIMessage()` в frontend.js: `●●●` blink анимация, формат ответа `{user_id, reply:{id,content,created_at}}`
+- Heartbeat: `GET /api/ai/chat/pending` для проверки входящих
+
+### Company split в sidebar
+- "Наши" → is_own=true (4 компании)
+- "Сторонние" → is_own=false AND no_1c=true (5 вручную)
+- "Из 1С (справочник)" → only_1c=true (421 компания с odata_ref_key)
+- `navSubClick` получает `no1c`/`only1c` opts; лимит entities поднят 200→2000
+
+### 1С номера договоров в Должниках
+- `finance-dashboard.html` + `routes/finance.js`: загружает `Catalog_ДоговорыКонтрагентов` целиком, добавляет колонку "Договор 1С"
+
+### Акты в истории договора
+- `/reports/contract-card/:id` запрашивает acts с `parent_id = contractId`
+- Акты отсортированы по дате, смержены с ДС в массиве истории
+- Frontend: зелёный badge "АКТ", заголовок "· N ДС · M актов"
+
+### Редактирование акта
+- `openEditModal` → если `type_name === 'act'` → `openEditActModal(id, entity)`
+- `openEditActModal`: полная форма номер/дата/комментарий/заключение/итого/позиции
+- `_doSubmitEditAct`: PATCH + refresh
+
+### Что сделано (2026-03-03 утро/день)
+- **Должники**: expandable contractor rows + contract breakdown (`56880cb`)
+- **Расходы**: expandable contractor rows (`245f06b`); `data-gid` + `this.dataset.gid` вместо `\'` в onclick
+- **Frontend разбит на модули** `server/src/frontend/` (16 файлов) — больше нет одного frontend.js
+- **searchable-select.js regex fix** `(d+)` → `(\\d+)` (`d5a69ca`) — area auto-fill заработал
+- **Тест-сьют 94 теста** + `scripts/pre-deploy.sh` (`df1ca68`)
+- **Nav rename ЗАДЕПЛОЕН**: "Расходы" + "Должники", DEMO badge убран
+
+### Текущий HEAD (оба dev + main)
+- nav rename задеплоен; HEAD содержит все задачи выше
+- **🔄 В процессе**: после создания договора → `showEntity(newId)` вместо `showEntityList(type)` в `entity-crud.js`
+
+## 🚧 В очереди (не реализовано, первоочерёдное)
+- **Supplement card (ДС)** — стилизованная карточка (ТЕКУЩАЯ ЗАДАЧА, в процессе)
+  - Паттерн: как `renderContractCard`; перехват в `showEntity`; данные из `/entities/:id`
+  - Свойства ДС: `contract_type`, `changes_description`, `rent_objects`, `contract_date`, `number`
+  - Стороны + parent contract link + блок "Что изменилось" + таблица объектов аренды
+- **После создания договора → showEntity(newId)** — entity-crud.js (post-save handler)
+
 ## 🚧 В очереди (не реализовано)
 - **🐛 Краны: нестинг в дереве** — все краны (id:30-41, `parent_id=29`) отображаются вложенными под первый кран в каком-то tree-widget во frontend; данные в БД ВЕРНЫЕ; баг в frontend tree-rendering; нужно найти и исправить
 - **Room form cleanup** — Migration 015: удалить `room_type` из field_definitions + добавить `room_number` (text, sort_order=4) с ON CONFLICT DO NOTHING
@@ -330,7 +393,11 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 ```
 
 ## Планы / Next Steps
-- **Контакты**: дописать frontend рендеринг field_type='contacts' (~line 1186 в frontend.js)
+- ▶️ **ТЕКУЩАЯ ЗАДАЧА**: Supplement card (ДС) — стилизованная карточка как у договора
+  - `showEntity()` перехват supplement type → `renderSupplementCard(supp)`
+  - Файл: `server/src/frontend/entity-crud.js`; образец: `renderContractCard` (~line 4438)
+- ▶️ **Завершить**: после создания договора → `showEntity(newId)` вместо `showEntityList` в `entity-crud.js`
+- **Контакты**: дописать frontend рендеринг field_type='contacts' в `entity-form.js`
 - **Контакты**: миграция старых contact_person/phone/email → новый JSON формат
 - **Финансы**: date range filter UI для `/finance` (сейчас hardcoded 2025-01-01)
 - **Финансы**: stale data fallback при недоступности VPN (показывать кеш с timestamp)
@@ -338,3 +405,22 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 - **Аренда drill-down**: добавить больше договоров аренды в IndParkDocs → contract deviation заработает для большинства контрагентов
 - **DNS**: добавить A-record `docs → 89.167.75.91` для `docs.zvezda-park.com` (Валентина делает в DNS)
 - Дописать JS функции для "Анализ аренды"
+
+## ⚠️ Новые правила (03.03.2026)
+
+### Branch Protection настроен на GitHub:
+- **main**: прямые пуши ЗАПРЕЩЕНЫ — только через PR + CI должен пройти → автодеплой
+- **dev**: force push запрещён
+
+### Многоагентная работа:
+- В проекте работают 2 агента: main (Opus) и indparkdocs (Sonnet)
+- **ОБЯЗАТЕЛЬНО**: каждая задача = своя feature-ветка от dev
+- Имя ветки: `feature/ipd-название` (для IndParkDocs агента)
+- Никогда не пушить прямо в dev или main!
+```bash
+git checkout dev && git pull origin dev
+git checkout -b feature/ipd-название-задачи
+# ... работа ...
+git push origin feature/ipd-название-задачи
+gh pr create --base dev --title "feat: описание"
+```
