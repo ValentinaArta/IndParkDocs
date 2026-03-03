@@ -255,7 +255,9 @@ function getEqListValue() {
     if (sel && sel.value) {
       var eqId = parseInt(sel.value);
       var eqEntity = _equipment.find(function(e) { return e.id === eqId; });
-      result.push({ equipment_id: eqId, equipment_name: eqEntity ? eqEntity.name : '' });
+      var eqItem = { equipment_id: eqId, equipment_name: eqEntity ? eqEntity.name : '' };
+      if (eqEntity) { var _inv = (eqEntity.properties || {}).inv_number; if (_inv) eqItem.inv_number = _inv; }
+      result.push(eqItem);
     }
   });
   return result;

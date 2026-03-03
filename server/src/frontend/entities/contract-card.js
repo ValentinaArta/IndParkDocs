@@ -155,6 +155,7 @@ function renderContractCard(data) {
       var txtStyle = isBroken ? 'color:#dc2626;font-weight:600' : (isEmerg ? 'color:#b85c5c;font-weight:600' : '');
       h += '<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;' + txtStyle + '">';
       h += escapeHtml(eq.name || '—');
+      if (eq.inv_number) h += ' <span style="color:var(--text-secondary);font-size:12px">инв. ' + escapeHtml(eq.inv_number) + '</span>';
       if (eq.kind || eq.category) h += ' <span style="color:var(--text-secondary);font-size:12px">(' + escapeHtml((eq.kind || eq.category || '')) + ')</span>';
       if (eq.location) h += ' — ' + escapeHtml(eq.location);
       if (isBroken) h += ' <span style="background:#fef2f2;color:#dc2626;font-size:11px;padding:1px 5px;border-radius:3px;border:1px solid #dc2626">⚠ Нерабочий</span>';
