@@ -5620,34 +5620,55 @@ function _renderExpensesSection(exp) {
       h += '</div>';
     }
 
-    // Таблица по контрагентам
+    // Таблица по контрагентам (раскрываемая до договоров)
     if (contractors.length > 0) {
+      var pastMonths = months.filter(function(m) { return m.isPast; });
       h += '<div style="background:var(--bg-secondary);border-radius:8px;padding:14px;margin-bottom:16px">';
-      h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text)">Расходы по контрагентам (топ-20) — факт с начала 2026</div>';
+      h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text)">Расходы по контрагентам (топ-20) — факт с начала 2026 <span style="font-weight:400;color:var(--text-muted);font-size:11px">— нажмите строку для раскрытия договоров</span></div>';
       h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
       h += '<thead><tr style="border-bottom:2px solid var(--border)">';
+      h += '<th style="width:22px;padding:6px 4px"></th>';
       h += '<th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-weight:500">Контрагент</th>';
-      h += '<th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-weight:500">Договор 1С</th>';
-      months.forEach(function(m) {
-        if (m.isPast) h += '<th style="text-align:right;padding:6px 6px;color:var(--text-muted);font-weight:500;font-size:10px">' + escapeHtml(m.name) + '</th>';
+      pastMonths.forEach(function(m) {
+        h += '<th style="text-align:right;padding:6px 6px;color:var(--text-muted);font-weight:500;font-size:10px">' + escapeHtml(m.name) + '</th>';
       });
       h += '<th style="text-align:right;padding:6px 10px;color:var(--text-muted);font-weight:500">Итого</th>';
       h += '</tr></thead><tbody>';
 
       var grandTotal = contractors.reduce(function(s, c) { return s + c.total; }, 0);
+      var cfoKey = cfo === '\u0418\u041f' ? 'IP' : (cfo === '\u042d\u041a' ? 'EK' : cfo.replace(/[^a-zA-Z0-9]/g, ''));
       contractors.forEach(function(c, idx) {
+        var gid = 'exp_' + cfoKey + '_' + idx;
+        var hasBreakdown = c.contractBreakdown && c.contractBreakdown.length > 1;
         var rowBg = idx % 2 === 0 ? '' : 'background:rgba(255,255,255,0.02)';
-        h += '<tr style="border-bottom:1px solid var(--border);' + rowBg + '">';
+        h += '<tr data-gid="' + gid + '" style="border-bottom:1px solid var(--border);' + rowBg + ';cursor:' + (hasBreakdown ? 'pointer' : 'default') + '" onclick="toggleExpense(this.dataset.gid)">';
+        h += '<td style="padding:6px 4px;color:var(--text-muted);font-size:10px;text-align:center"><span id="expicon_' + gid + '">' + (hasBreakdown ? '\u25b6' : '') + '</span></td>';
         h += '<td style="padding:6px 10px;font-weight:500;color:var(--text)">' + escapeHtml(c.name) + '</td>';
-        h += '<td style="padding:6px 10px;color:var(--accent);font-size:11px;max-width:200px;white-space:normal">' + (c.contracts && c.contracts !== '—' ? escapeHtml(c.contracts) : '<span style="color:#374151">—</span>') + '</td>';
         months.forEach(function(m, i) {
           if (!m.isPast) return;
           var v = c.monthly[i] || 0;
-          h += '<td style="text-align:right;padding:6px 6px;color:' + (v > 0 ? '#e2e8f0' : '#374151') + '">' + (v > 0 ? _expFmt(v) : '—') + '</td>';
+          h += '<td style="text-align:right;padding:6px 6px;color:' + (v > 0 ? '#e2e8f0' : '#374151') + '">' + (v > 0 ? _expFmt(v) : '\u2014') + '</td>';
         });
         var pct = grandTotal > 0 ? Math.round(c.total / grandTotal * 100) : 0;
         h += '<td style="text-align:right;padding:6px 10px;font-weight:700;color:#60a5fa">' + _expFmt(c.total) + ' <span style="font-size:10px;color:var(--text-muted)">(' + pct + '%)</span></td>';
         h += '</tr>';
+        // Строки по договорам (скрыты)
+        if (hasBreakdown) {
+          c.contractBreakdown.forEach(function(br) {
+            var cname = br.contract_num === '\u2014' ? '\u0431\u0435\u0437 \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430' : br.contract_num;
+            h += '<tr data-expgroup="' + gid + '" style="display:none;background:rgba(0,0,0,0.2)">';
+            h += '<td></td>';
+            h += '<td style="padding:4px 10px 4px 28px;color:var(--accent);font-size:11px">\ud83d\udcc4 ' + escapeHtml(cname) + '</td>';
+            months.forEach(function(m, i) {
+              if (!m.isPast) return;
+              var v = br.monthly[i] || 0;
+              h += '<td style="text-align:right;padding:4px 6px;font-size:11px;color:' + (v > 0 ? '#94a3b8' : '#374151') + '">' + (v > 0 ? _expFmt(v) : '\u2014') + '</td>';
+            });
+            var bpct = c.total > 0 ? Math.round(br.total / c.total * 100) : 0;
+            h += '<td style="text-align:right;padding:4px 10px;font-size:11px;color:#93c5fd">' + _expFmt(br.total) + ' <span style="color:#475569">(' + bpct + '%)</span></td>';
+            h += '</tr>';
+          });
+        }
       });
 
       h += '</tbody></table></div>';
@@ -5659,6 +5680,15 @@ function _renderExpensesSection(exp) {
 
   h += '</div>'; // outer
   return h;
+}
+
+function toggleExpense(gid) {
+  var rows = document.querySelectorAll('[data-expgroup="' + gid + '"]');
+  var icon = document.getElementById('expicon_' + gid);
+  if (!rows.length) return;
+  var isOpen = rows[0].style.display !== 'none';
+  rows.forEach(function(r) { r.style.display = isOpen ? 'none' : 'table-row'; });
+  if (icon) icon.textContent = isOpen ? '▶' : '▼';
 }
 
 function editBIUrl() {

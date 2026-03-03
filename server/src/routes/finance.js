@@ -651,15 +651,19 @@ router.get('/expenses', authenticate, async (req, res) => {
       if (!byOrg[cfo][cid]) {
         byOrg[cfo][cid] = {
           name: nameMap[cid] || cid.slice(0, 8) + '...',
-          contractKeys: new Set(),  // все уникальные договоры
+          contractData: {},  // contractNum → { monthly[], total }
           monthly: new Array(12).fill(0),
           total: 0,
         };
       }
       const ck = x.ДоговорКонтрагента_Key;
-      if (ck && ck !== '00000000-0000-0000-0000-000000000000' && contractNumMap[ck]) {
-        byOrg[cfo][cid].contractKeys.add(contractNumMap[ck]);
+      const cnum = (ck && ck !== '00000000-0000-0000-0000-000000000000' && contractNumMap[ck])
+        ? contractNumMap[ck] : '—';
+      if (!byOrg[cfo][cid].contractData[cnum]) {
+        byOrg[cfo][cid].contractData[cnum] = { monthly: new Array(12).fill(0), total: 0 };
       }
+      byOrg[cfo][cid].contractData[cnum].monthly[m] += amt;
+      byOrg[cfo][cid].contractData[cnum].total += amt;
       byOrg[cfo][cid].monthly[m] += amt;
       byOrg[cfo][cid].total += amt;
     }
@@ -711,12 +715,18 @@ router.get('/expenses', authenticate, async (req, res) => {
       topContractors[cfo] = Object.values(byOrg[cfo])
         .sort((a, b) => b.total - a.total)
         .slice(0, 20)
-        .map(c => ({
-          name: c.name,
-          contracts: [...c.contractKeys].join(', ') || '—',  // все договоры через запятую
-          monthly: c.monthly,
-          total: Math.round(c.total),
-        }));
+        .map(c => {
+          const breakdown = Object.entries(c.contractData)
+            .map(([cnum, d]) => ({ contract_num: cnum, monthly: d.monthly, total: Math.round(d.total) }))
+            .sort((a, b) => b.total - a.total);
+          return {
+            name: c.name,
+            contracts: breakdown.map(b => b.contract_num).filter(n => n !== '—').join(', ') || '—',
+            contractBreakdown: breakdown,
+            monthly: c.monthly,
+            total: Math.round(c.total),
+          };
+        });
     }
 
     // Формируем месячные данные для графика
