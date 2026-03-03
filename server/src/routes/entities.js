@@ -9,7 +9,7 @@ const router = express.Router();
 // GET /api/entities
 router.get('/', authenticate, asyncHandler(async (req, res) => {
   const { type, parent_id, search, limit = 50, offset = 0 } = req.query;
-  const safeLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+  const safeLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 2000);
   const safeOffset = Math.max(parseInt(offset) || 0, 0);
 
   let sql = `SELECT e.*, et.name as type_name, et.name_ru as type_name_ru, et.icon, et.color,
@@ -37,7 +37,11 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     WHERE e.deleted_at IS NULL`;
   const params = [];
 
-  if (type) {
+  if (req.query.types) {
+    var typeList = req.query.types.split(',').map(function(t) { return t.trim(); });
+    params.push(typeList);
+    sql += ` AND et.name = ANY($${params.length})`;
+  } else if (type) {
     params.push(type);
     sql += ` AND et.name = $${params.length}`;
   }
@@ -48,6 +52,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
   if (search) {
     const pi = params.push('%' + search.replace(/[%_]/g, '\\$&') + '%');
     sql += ` AND (e.name ILIKE $${pi}
+      OR e.properties->>'number' ILIKE $${pi}
       OR e.properties->>'subtenant_name' ILIKE $${pi}
       OR e.properties->>'contractor_name' ILIKE $${pi}
       OR e.properties->>'our_legal_entity' ILIKE $${pi}
@@ -57,6 +62,14 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     sql += ` AND (e.properties->>'is_own' = 'true')`;
   } else if (req.query.is_own === 'false') {
     sql += ` AND (e.properties->>'is_own' IS DISTINCT FROM 'true')`;
+    // Без 1С-импортированных (только ручные)
+    if (req.query.no_1c === 'true') {
+      sql += ` AND (e.properties->>'odata_ref_key' IS NULL OR e.properties->>'odata_ref_key' = '')`;
+    }
+    // Только 1С-импортированные
+    if (req.query.only_1c === 'true') {
+      sql += ` AND e.properties->>'odata_ref_key' IS NOT NULL AND e.properties->>'odata_ref_key' != ''`;
+    }
   }
   sql += ' ORDER BY e.name';
   params.push(safeLimit);

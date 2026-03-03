@@ -492,6 +492,7 @@ function _srchInitAll() {
       if (e.key === 'Escape') { dropEl.style.display = 'none'; textEl.blur(); }
       if (e.key === 'ArrowDown') { e.preventDefault(); var first = dropEl.querySelector('.srch-item'); if (first) first.focus(); }
     });
+    // Click handlers are attached in _srchFilter on each render
     // Close on click outside
     document.addEventListener('mousedown', function(e) {
       if (!wrap.contains(e.target)) dropEl.style.display = 'none';
@@ -512,8 +513,21 @@ function _srchGetList(id) {
     return { id: r.id, name: r.name + (bld ? ' (' + bld + ')' : '') };
   });
   if (fn === 'rent_land_plot') return (_landPlots || []).map(function(lp) {
-    return { id: lp.id, name: lp.name };
+    var cad = (lp.properties || {}).cadastral_number;
+    return { id: lp.id, name: lp.name + (cad ? ' [' + cad + ']' : '') };
   });
+  if (fn === 'rent_lp_combined') {
+    var items = [];
+    (_landPlots || []).forEach(function(lp) {
+      var cad = (lp.properties||{}).cadastral_number;
+      items.push({ id: 'lp_' + lp.id, name: lp.name + (cad ? ' ['+cad+']' : '') + ' (целиком)' });
+      (_landPlotParts || []).filter(function(p) { return p.parent_id === lp.id; }).forEach(function(p) {
+        var pArea = (p.properties||{}).area;
+        items.push({ id: 'lpp_' + p.id, name: p.name + (pArea ? ' ('+pArea+' м²)' : '') + ' — ' + lp.name });
+      });
+    });
+    return items;
+  }
   if (fn === 'act_equipment') return (_equipment || []).map(function(e) {
     var invNum = (e.properties || {}).inv_number;
     return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
@@ -534,17 +548,21 @@ function _srchFilter(id) {
   });
   if (filtered.length > 50) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...</div>';
   var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
-  if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'act_equipment') {
+  if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'rent_lp_part' && fn !== 'rent_lp_combined' && fn !== 'act_equipment') {
     h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
   }
   dropEl.innerHTML = h;
   dropEl.style.display = '';
-  // Bind click handlers via delegation
+  // Bind click handlers directly on each item
   dropEl.querySelectorAll('[data-srch-pick]').forEach(function(el) {
-    el.addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPick(id, parseInt(el.dataset.srchPick)); });
+    el.onmousedown = function(ev) {
+      ev.preventDefault();
+      var pv = this.getAttribute('data-srch-pick');
+      _srchPick(id, /^\d+$/.test(pv) ? parseInt(pv) : pv);
+    };
   });
   var newBtn = dropEl.querySelector('[data-srch-new]');
-  if (newBtn) newBtn.addEventListener('mousedown', function(ev) { ev.preventDefault(); _srchPickNew(id); });
+  if (newBtn) newBtn.onmousedown = function(ev) { ev.preventDefault(); _srchPickNew(id); };
 }
 
 function _srchPick(id, entityId) {
@@ -561,6 +579,8 @@ function _srchPick(id, entityId) {
   if (m) onEquipmentRentSelected(parseInt(m[1]));
   var m2 = id.match(/^ro_room_sel_(\d+)$/);
   if (m2) onRentRoomSelected(parseInt(m2[1]));
+  var m3 = id.match(/^ro_lp_combined_(\d+)$/);
+  if (m3) onRoLpCombinedPick(parseInt(m3[1]));
 }
 
 function _srchPickNew(id) {
@@ -1611,7 +1631,10 @@ function renderRentFields(container, allFields, props) {
   html += '<div id="rent_objects_container">';
   objects.forEach(function(obj, i) { html += renderRentObjectBlock(i, obj); });
   html += '</div>';
-  html += '<button type="button" class="btn btn-sm" onclick="addRentObject()" style="margin-bottom:16px">+ Добавить объект</button>';
+  html += '<div style="display:flex;gap:8px;margin-bottom:16px">';
+  html += '<button type="button" class="btn btn-sm" onclick="addRentObject()">+ Помещение</button>';
+  html += '<button type="button" class="btn btn-sm" onclick="addRentObjectLand()">+ Земельный участок</button>';
+  html += '</div>';
 
   // Rent monthly (auto-calculated, readonly)
   var rentMonthly = props.rent_monthly || '';
@@ -1891,35 +1914,66 @@ function renderRentObjectBlock(index, obj) {
   h += '</div>';
 
   if (isLandPlot) {
-    // ЗУ: keep old logic
-    h += '<div class="form-group"><label>Тип объекта</label>';
-    h += '<select class="ro-field" data-idx="' + index + '" data-name="object_type" onchange="onRentObjectTypeChange(' + index + ')">';
-    h += '<option value="">—</option>';
-    typeOptions.forEach(function(t) {
-      h += '<option value="' + escapeHtml(t) + '"' + (objectType === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
-    });
-    h += '</select></div>';
-    h += '<div class="form-group"><label>Земельный участок</label>';
-    h += '<select class="ro-field" data-idx="' + index + '" data-name="land_plot_id" onchange="onRoLandPlotChange(' + index + ')" style="width:100%">';
-    h += '<option value="">— не выбран —</option>';
+    // Hidden field to store object_type
+    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="object_type" value="ЗУ">';
+
+    // Unified: select existing part OR whole land plot
+    // Build combined list: whole plots + parts (with parent name)
+    var _lpItems = [];
     (_landPlots || []).forEach(function(lp) {
-      h += '<option value="' + lp.id + '"' + (parseInt(obj.land_plot_id) === lp.id ? ' selected' : '') + '>' + escapeHtml(lp.name) + '</option>';
+      var cad = (lp.properties||{}).cadastral_number;
+      _lpItems.push({ id: 'lp_' + lp.id, name: lp.name + (cad ? ' ['+cad+']' : '') + ' (целиком)', _lpId: lp.id, _partId: null });
+      (_landPlotParts || []).filter(function(p) { return p.parent_id === lp.id; }).forEach(function(p) {
+        var pArea = (p.properties||{}).area;
+        _lpItems.push({ id: 'lpp_' + p.id, name: p.name + (pArea ? ' ('+pArea+' м²)' : '') + ' — ' + lp.name, _lpId: lp.id, _partId: p.id });
+      });
     });
-    h += '</select>';
-    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="land_plot_name" value="' + escapeHtml(obj.land_plot_name || '') + '">';
+    // Determine current selection
+    var _curSelId = '';
+    var _curSelName = '';
+    if (obj.land_plot_part_id) {
+      var _sp = _lpItems.find(function(x) { return x._partId === parseInt(obj.land_plot_part_id); });
+      if (_sp) { _curSelId = _sp.id; _curSelName = _sp.name; }
+    } else if (obj.land_plot_id) {
+      var _sl = _lpItems.find(function(x) { return x._lpId === parseInt(obj.land_plot_id) && !x._partId; });
+      if (_sl) { _curSelId = _sl.id; _curSelName = _sl.name; }
+    }
+    var lpCombinedId = 'ro_lp_combined_' + index;
+    h += '<div class="form-group"><label>Земельный участок / часть ЗУ</label>';
+    h += renderSearchableSelect(lpCombinedId, _lpItems.map(function(x) { return {id: x.id, name: x.name}; }), _curSelId, _curSelName, 'название или кад. номер...', 'rent_lp_combined');
+    h += '<button type="button" class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="toggleLpPartCreate(' + index + ')">+ Создать часть ЗУ</button>';
     h += '</div>';
-    var selLpId = parseInt(obj.land_plot_id) || 0;
-    var availParts = (_landPlotParts || []).filter(function(p) { return p.parent_id === selLpId; });
-    h += '<div class="form-group"><label>Часть ЗУ (необязательно)</label>';
-    h += '<select class="ro-field" data-idx="' + index + '" data-name="land_plot_part_id" id="ro_lp_part_' + index + '" style="width:100%">';
-    h += '<option value="">— весь участок —</option>';
-    availParts.forEach(function(p) {
-      h += '<option value="' + p.id + '"' + (parseInt(obj.land_plot_part_id) === p.id ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
-    });
-    h += '</select>';
-    h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="land_plot_part_name" value="' + escapeHtml(obj.land_plot_part_name || '') + '">';
+    // Hidden fields for actual IDs (filled by callback)
+    var _initLpId = obj.land_plot_id || '';
+    var _initLppId = obj.land_plot_part_id || '';
+    h += '<input type="hidden" id="ro_lp_id_' + index + '" class="ro-field" data-idx="' + index + '" data-name="land_plot_id" value="' + _initLpId + '">';
+    h += '<input type="hidden" id="ro_lpp_id_' + index + '" class="ro-field" data-idx="' + index + '" data-name="land_plot_part_id" value="' + _initLppId + '">';
+
+    // Inline create land plot part form (with ЗУ selector inside)
+    h += '<div id="ro_lpp_create_' + index + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg)">';
+    h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">Новая часть ЗУ</div>';
+    var lpCreateId = 'ro_lpp_parent_' + index;
+    var lpCreateList = (_landPlots || []).map(function(lp) { var cad = (lp.properties||{}).cadastral_number; return {id: lp.id, name: lp.name + (cad ? ' ['+cad+']' : '')}; });
+    h += '<div class="form-group"><label>Земельный участок</label>';
+    h += renderSearchableSelect(lpCreateId, lpCreateList, '', '', 'выберите ЗУ...', 'rent_land_plot');
     h += '</div>';
-    h += _roCalcFields(index, obj, obj.calc_mode || 'area_rate');
+    h += '<div class="form-group"><label>Название части</label><input id="ro_lpp_name_' + index + '" placeholder="Напр. Часть 1 (склад)" style="width:100%"></div>';
+    h += '<div class="form-group"><label>Площадь, м²</label><input type="number" id="ro_lpp_area_' + index + '" style="width:100%"></div>';
+    h += '<div class="form-group"><label>Описание</label><input id="ro_lpp_desc_' + index + '" style="width:100%" placeholder="Доп. информация"></div>';
+    h += '<div style="display:flex;gap:8px;margin-top:8px">';
+    h += '<button type="button" class="btn btn-primary btn-sm" onclick="submitLpPartCreate(' + index + ')">Создать и выбрать</button>';
+    h += '<button type="button" class="btn btn-sm" onclick="toggleLpPartCreate(' + index + ')">Отмена</button>';
+    h += '</div></div>';
+
+    // Auto-fill area from selected part
+    var _partArea = '';
+    if (obj.land_plot_part_id) {
+      var _pp = (_landPlotParts || []).find(function(p) { return p.id === parseInt(obj.land_plot_part_id); });
+      if (_pp && _pp.properties) _partArea = _pp.properties.area || '';
+    }
+    var _calcObj = Object.assign({}, obj);
+    if (_partArea && !_calcObj.area) _calcObj.area = _partArea;
+    h += _roCalcFields(index, _calcObj, obj.calc_mode || 'area_rate');
   } else if (obj.room_name && !obj.room_id) {
     // Legacy: rent object without room_id (text description)
     h += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">';
@@ -2203,6 +2257,16 @@ function addRentObject() {
   if (!container) return;
   var div = document.createElement('div');
   div.innerHTML = renderRentObjectBlock(_rentObjectCounter, {});
+  container.appendChild(div.firstChild);
+  _rentObjectCounter++;
+  _srchInitAll();
+}
+
+function addRentObjectLand() {
+  var container = document.getElementById('rent_objects_container');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.innerHTML = renderRentObjectBlock(_rentObjectCounter, { object_type: 'ЗУ' });
   container.appendChild(div.firstChild);
   _rentObjectCounter++;
   _srchInitAll();
@@ -2505,6 +2569,7 @@ function collectRentObjectData(index) {
   // Read from searchable select hidden inputs
   var roRoomHidden = document.getElementById('ro_room_sel_' + index);
   if (roRoomHidden && roRoomHidden.value) obj.room_id = roRoomHidden.value;
+  // land_plot_id and land_plot_part_id are read from hidden .ro-field inputs (ro_lp_id_N, ro_lpp_id_N)
   // Resolve entity names from IDs
   if (obj.building_id) {
     var b = _buildings.find(function(e) { return e.id === parseInt(obj.building_id); });
@@ -2541,6 +2606,96 @@ function onRoLandPlotChange(index) {
     opt.value = p.id; opt.text = p.name;
     partSel.appendChild(opt);
   });
+}
+
+// Called when combined land plot/part is picked
+function onRoLpCombinedPick(index) {
+  var combinedHidden = document.getElementById('ro_lp_combined_' + index);
+  var val = combinedHidden ? combinedHidden.value : '';
+  var lpIdEl = document.getElementById('ro_lp_id_' + index);
+  var lppIdEl = document.getElementById('ro_lpp_id_' + index);
+  if (val.indexOf('lpp_') === 0) {
+    var partId = parseInt(val.replace('lpp_', ''));
+    var part = (_landPlotParts || []).find(function(p) { return p.id === partId; });
+    if (lppIdEl) lppIdEl.value = partId;
+    if (lpIdEl) lpIdEl.value = part ? part.parent_id : '';
+    // Auto-fill area
+    if (part && part.properties && part.properties.area) {
+      var areaEl = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="area"]');
+      if (areaEl) { areaEl.value = part.properties.area; recalcRentMonthly(); }
+    }
+  } else if (val.indexOf('lp_') === 0) {
+    var lpId = parseInt(val.replace('lp_', ''));
+    if (lpIdEl) lpIdEl.value = lpId;
+    if (lppIdEl) lppIdEl.value = '';
+    // Auto-fill area from whole plot
+    var lp = (_landPlots || []).find(function(p) { return p.id === lpId; });
+    if (lp && lp.properties && lp.properties.area) {
+      var areaEl = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="area"]');
+      if (areaEl) { areaEl.value = lp.properties.area; recalcRentMonthly(); }
+    }
+  } else {
+    if (lpIdEl) lpIdEl.value = '';
+    if (lppIdEl) lppIdEl.value = '';
+  }
+}
+
+function toggleLpPartCreate(index) {
+  var div = document.getElementById('ro_lpp_create_' + index);
+  if (div) div.style.display = div.style.display === 'none' ? '' : 'none';
+}
+
+async function submitLpPartCreate(index) {
+  var lpHidden = document.getElementById('ro_lpp_parent_' + index);
+  var parentLpId = lpHidden ? parseInt(lpHidden.value) : 0;
+  if (!parentLpId) {
+    var lpText = document.getElementById('ro_lpp_parent_' + index + '_text');
+    if (lpText) { lpText.style.border = '2px solid red'; lpText.focus(); }
+    alert('Выберите земельный участок');
+    return;
+  }
+
+  var name = (document.getElementById('ro_lpp_name_' + index).value || '').trim();
+  if (!name) { alert('Укажите название'); return; }
+  var area = (document.getElementById('ro_lpp_area_' + index).value || '').trim();
+  var desc = (document.getElementById('ro_lpp_desc_' + index).value || '').trim();
+
+  var lpPartType = entityTypes.find(function(t) { return t.name === 'land_plot_part'; });
+  if (!lpPartType) { alert('Тип "Часть ЗУ" не найден'); return; }
+
+  var properties = {};
+  if (area) properties.area = area;
+  if (desc) properties.description = desc;
+
+  try {
+    var created = await api('/entities', {
+      method: 'POST',
+      body: JSON.stringify({ entity_type_id: lpPartType.id, name: name, properties: properties, parent_id: parentLpId })
+    });
+    _landPlotParts.push(created);
+
+    // Select the new part in combined dropdown
+    var parentLp = (_landPlots || []).find(function(lp) { return lp.id === parentLpId; });
+    var combinedHidden = document.getElementById('ro_lp_combined_' + index);
+    var combinedText = document.getElementById('ro_lp_combined_' + index + '_text');
+    var label = name + (area ? ' (' + area + ' м²)' : '') + (parentLp ? ' — ' + parentLp.name : '');
+    if (combinedHidden) combinedHidden.value = 'lpp_' + created.id;
+    if (combinedText) combinedText.value = label;
+
+    // Set hidden IDs
+    var lpIdEl = document.getElementById('ro_lp_id_' + index);
+    var lppIdEl = document.getElementById('ro_lpp_id_' + index);
+    if (lpIdEl) lpIdEl.value = parentLpId;
+    if (lppIdEl) lppIdEl.value = created.id;
+
+    // Auto-fill area
+    if (area) {
+      var areaEl = document.querySelector('.ro-field[data-idx="' + index + '"][data-name="area"]');
+      if (areaEl) { areaEl.value = area; recalcRentMonthly(); }
+    }
+
+    toggleLpPartCreate(index);
+  } catch(e) { alert('Ошибка: ' + (e.message || e)); }
 }
 
 function collectAllRentObjects() {
@@ -3732,8 +3887,10 @@ async function _navLoadGroupChildren(name, container) {
   } else if (name === 'company') {
     h = '<div class="nav-sub-item" data-etype="company" data-isown="true" onclick="navSubClick(this)">' +
           '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> Наши</div>' +
-        '<div class="nav-sub-item" data-etype="company" data-isown="false" onclick="navSubClick(this)">' +
-          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> Сторонние</div>';
+        '<div class="nav-sub-item" data-etype="company" data-isown="false" data-no1c="true" onclick="navSubClick(this)">' +
+          '<span style="font-size:9px;color:rgba(255,255,255,0.3)">▸</span> Сторонние</div>' +
+        '<div class="nav-sub-item" data-etype="company" data-isown="false" data-only1c="true" onclick="navSubClick(this)" style="color:rgba(255,255,255,0.35)">' +
+          '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> Из 1С (справочник)</div>';
   } else if (name === 'land_plot') {
     var plots = await api('/entities?type=land_plot');
     if (plots.length === 0) {
@@ -3770,6 +3927,8 @@ function navSubClick(el) {
   if (isOwn === 'true') opts.isOwn = true;
   else if (isOwn === 'false') opts.isOwn = false;
   if (contractType) opts.contractType = contractType;
+  if (el.dataset.no1c === 'true') opts.no1c = true;
+  if (el.dataset.only1c === 'true') opts.only1c = true;
   showEntityList(type, opts);
 }
 
@@ -4595,6 +4754,7 @@ async function showEntityList(typeName, opts) {
   // Page title
   var title = type ? type.name_ru : typeName;
   if (opts.isOwn === true) title = 'Наши компании';
+  else if (opts.only1c) title = 'Контрагенты из 1С';
   else if (opts.isOwn === false) title = 'Сторонние компании';
   document.getElementById('pageTitle').textContent = title;
   document.getElementById('breadcrumb').textContent = opts.subtitle ? opts.subtitle : '';
@@ -4608,6 +4768,10 @@ async function showEntityList(typeName, opts) {
   if (opts.parentId) url += '&parent_id=' + opts.parentId;
   if (opts.isOwn === true) url += '&is_own=true';
   else if (opts.isOwn === false) url += '&is_own=false';
+  if (opts.no1c) url += '&no_1c=true';
+  if (opts.only1c) url += '&only_1c=true';
+  // Для компаний запрашиваем больший лимит
+  if (typeName === 'company') url += '&limit=1000';
 
   var entities = await api(url);
   if (currentView !== 'list' || currentTypeFilter !== typeName) return; // user navigated away
