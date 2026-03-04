@@ -277,7 +277,7 @@ function renderMetersTable() {
   }
 
   h += '<div style="overflow-x:auto;max-height:calc(100vh - 220px);overflow-y:auto;border-radius:8px;border:1px solid var(--border)">';
-  h += '<table id="metersTable" style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">';
+  h += '<table id="metersTable" style="border-collapse:collapse;font-size:13px;table-layout:auto;white-space:nowrap">';
   h += '<thead style="position:sticky;top:0;z-index:4"><tr>';
   visibleCols.forEach(function(col) { h += _th(col); });
   h += '</tr></thead><tbody>';
@@ -318,7 +318,7 @@ function renderMetersTable() {
       var borderBot = 'border-bottom:1px solid var(--border);';
 
       if (col.id === 'name') {
-        h += '<td class="mc-col-name" onclick="showEntity(' + e.id + ')" style="' + borderBot + 'padding:7px 10px;position:sticky;left:0;z-index:1;background:' + stickyBg + ';cursor:pointer;color:' + (isDismantled ? '#9ca3af' : 'var(--accent)') + ';font-weight:500">' + escapeHtml(e.name || '—') + '</td>';
+        h += '<td class="mc-col-name" onclick="showEntity(' + e.id + ')" style="' + borderBot + 'padding:7px 10px;position:sticky;left:0;z-index:1;background:' + stickyBg + ';cursor:pointer;color:' + (isDismantled ? '#9ca3af' : 'var(--accent)') + ';font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="' + escapeHtml(e.name || '') + '">' + escapeHtml(e.name || '—') + '</td>';
 
       } else if (col.id === 'status') {
         h += '<td class="mc-col-status" style="' + dispStyle + borderBot + 'padding:7px 10px;white-space:nowrap">' + _meterStatusBadge(p.status || '') + '</td>';
