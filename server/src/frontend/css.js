@@ -46,6 +46,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .entity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .entity-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all 0.15s; }
 .entity-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(99,102,241,0.1); transform: translateY(-1px); }
+.meter-row:hover td { background: rgba(99,102,241,0.05) !important; }
 .entity-card .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .entity-card .card-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .entity-card .card-title { font-weight: 600; font-size: 14px; }
