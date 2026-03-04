@@ -156,6 +156,7 @@ async function openCreateModal(typeName, preParentId) {
       html += renderRoomBuildingParent(preParentId ? parseInt(preParentId) : null);
     } else if (typeName === 'equipment') {
       html += renderEquipmentLocationFields(null, null);
+      html += renderEqParentField(null);
     } else if (typeName === 'land_plot_part') {
       // Только ЗУ как варианты родителя
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
@@ -273,6 +274,14 @@ async function _doSubmitCreate(typeName) {
     var boEnt = (_ownCompanies||[]).concat(_allCompanies||[]).find(function(c){ return c.id === boId; });
     if (boEnt) { properties.balance_owner_id = boId; properties.balance_owner_name = boEnt.name; }
     delete properties.balance_owner;
+  }
+
+  // Collect parent_equipment_id (hierarchy field for equipment)
+  if (typeName === 'equipment') {
+    var eqParentEl = document.getElementById('f_eq_parent');
+    if (eqParentEl && eqParentEl.value) {
+      properties.parent_equipment_id = eqParentEl.value;
+    }
   }
 
   // Auto-generate name for contracts

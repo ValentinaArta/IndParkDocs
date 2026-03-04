@@ -304,4 +304,23 @@ function getEqListValue() {
   return result;
 }
 
+// === EQUIPMENT PARENT FIELD ===
+function renderEqParentField(selectedId) {
+  var selId = parseInt(selectedId) || 0;
+  var selName = '';
+  if (selId) {
+    var found = (_equipment || []).find(function(e) { return e.id === selId; });
+    selName = found ? found.name : '';
+  }
+  var h = '<div class="form-group" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)">';
+  h += '<label style="display:flex;align-items:center;gap:6px">🔗 Входит в <span style="font-size:11px;color:var(--text-muted);font-weight:400">(составная часть оборудования)</span></label>';
+  h += renderSearchableSelect('f_eq_parent', _equipment || [], selId, selName, 'Начните вводить название...', 'eq_parent');
+  if (selId && selName) {
+    h += '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Текущий родитель: <a href="#" onclick="showEntity(' + selId + ');return false" style="color:var(--accent)">' + escapeHtml(selName) + '</a></div>';
+  }
+  h += '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Оставьте пустым если это самостоятельный объект</div>';
+  h += '</div>';
+  return h;
+}
+
 `;
