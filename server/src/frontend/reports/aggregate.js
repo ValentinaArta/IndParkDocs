@@ -40,6 +40,7 @@ var _reportFieldLabels = {
 
 async function showReports() {
   currentView = 'reports';
+  _setNavHash('reports');
   setActive(null);
   document.getElementById('pageTitle').textContent = 'Отчёты';
   document.getElementById('breadcrumb').textContent = '';
