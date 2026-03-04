@@ -73,6 +73,16 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
   ],
+  'ТО и ППР': [
+    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
+    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
+    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
+    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
+    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
+    { name: 'contract_items', name_ru: 'Перечень работ', field_type: 'contract_items' },
+    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
+    { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
+  ],
   'Купли-продажи': [
     { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
     { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
