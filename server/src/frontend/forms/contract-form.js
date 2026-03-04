@@ -228,6 +228,10 @@ function renderContractFormFields(fields, props, headerHtml, options) {
     // Default vat_rate to 22; hide for rent types (rendered in renderRentFields instead)
     if (f.name === 'vat_rate' && _isRentalType) return;
     if (f.name === 'vat_rate' && !val) val = '22';
+    if (f.name === 'vat_rate') {
+      html += '<div class="form-group" id="wrap_f_vat_rate"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+      return;
+    }
 
     // Regular fields
     html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
@@ -307,6 +311,11 @@ function onContractTypeChange() {
   if (subWrap) {
     subWrap.style.display = (contractType === 'Субаренды') ? '' : 'none';
   }
+
+  // Show/hide common vat_rate field (hidden for rental types — they render it in their own section)
+  var isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды' || contractType === 'Аренда оборудования');
+  var vatWrap = document.getElementById('wrap_f_vat_rate');
+  if (vatWrap) vatWrap.style.display = isRentalType ? 'none' : '';
 
   // Render dynamic fields
   renderDynamicFields(contractType, {});
