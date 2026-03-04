@@ -237,12 +237,7 @@ function renderSupplementCard(supp) {
     h += '</tbody></table></div>';
   }
 
-  // ── Кнопка "+ ДС" ──────────────────────────────────────────────────────────
-  if (supp.parent_id) {
-    h += '<div style="margin-top:20px">';
-    h += '<button class="btn btn-primary btn-sm" onclick="openCreateSupplementModal(' + supp.parent_id + ')">+ Доп. соглашение</button>';
-    h += '</div>';
-  }
+  // Кнопка "+ ДС" намеренно убрана: ДС не может иметь своё ДС.
 
   return h;
 }

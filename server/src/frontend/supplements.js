@@ -48,6 +48,26 @@ async function openCreateSupplementModal(parentContractId) {
   }, 0);
   var autoSuppNum = String(maxSuppNum + 1);
 
+  // Найти последнее ДС по contract_date — для предзаполнения полей
+  var SUPP_PARENT_FIELDS = new Set(['number', 'contract_date', 'changes_description',
+    'our_legal_entity', 'our_legal_entity_id', 'contractor_name', 'contractor_id',
+    'subtenant_name', 'subtenant_id', 'our_role_label', 'contractor_role_label', 'contract_type']);
+  var lastSuppProps = {};
+  if (existingSupps.length > 0) {
+    var sortedSupps = existingSupps.slice().sort(function(a, b) {
+      var da = ((a.properties||{}).contract_date)||'';
+      var db = ((b.properties||{}).contract_date)||'';
+      return db.localeCompare(da) || b.id - a.id;
+    });
+    lastSuppProps = sortedSupps[0].properties || {};
+  }
+
+  // Вспомогательная функция: берём из последнего ДС, если поле заполнено и не "родительское"
+  function _suppPrefill(fieldName) {
+    if (SUPP_PARENT_FIELDS.has(fieldName)) return parentProps[fieldName] || '';
+    return lastSuppProps[fieldName] || parentProps[fieldName] || '';
+  }
+
   var html = '<h3>Новое доп. соглашение</h3>';
   html += '<input type="hidden" id="f_name" value="">';
   html += '<input type="hidden" id="f_parent" value="' + parentContractId + '">';
@@ -57,7 +77,7 @@ async function openCreateSupplementModal(parentContractId) {
   var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
 
   fields.forEach(function(f) {
-    var val = parentProps[f.name] || '';
+    var val = _suppPrefill(f.name);
     var ef = f;
 
     if (f.name === 'number') {
@@ -93,7 +113,7 @@ async function openCreateSupplementModal(parentContractId) {
 
   // НДС (%) — show for all supplement types (Аренда/Субаренда get it via renderDynamicFields)
   if (contractType !== 'Аренды' && contractType !== 'Субаренды' && contractType !== 'Аренда оборудования') {
-    var vatVal = parentProps.vat_rate || '22';
+    var vatVal = _suppPrefill('vat_rate') || '22';
     html += '<div class="form-group"><label>НДС (%)</label>' +
       '<input type="number" id="f_vat_rate" value="' + escapeHtml(vatVal) + '" style="width:80px" min="0" max="100"></div>';
   }
@@ -115,7 +135,13 @@ async function openCreateSupplementModal(parentContractId) {
   if (ourRE2) ourRE2.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
   var contrRE2 = document.getElementById('f_contractor_role_label');
   if (contrRE2) contrRE2.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
-  if (contractType) renderDynamicFields(contractType, parentProps);
+
+  // Предзаполнение динамических полей: из последнего ДС (не родительские), иначе из договора
+  var prefillProps = Object.assign({}, parentProps);
+  Object.keys(lastSuppProps).forEach(function(k) {
+    if (!SUPP_PARENT_FIELDS.has(k) && lastSuppProps[k]) prefillProps[k] = lastSuppProps[k];
+  });
+  if (contractType) renderDynamicFields(contractType, prefillProps);
 }
 
 async function submitCreateSupplement(parentContractId) {
