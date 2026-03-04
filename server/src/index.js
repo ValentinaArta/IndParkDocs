@@ -90,6 +90,7 @@ app.use('/api/finance', require('./routes/finance'));
 app.use('/api/auth/totp', require('./routes/totp'));
 app.use('/api/legal', require('./routes/legal'));
 app.use('/api/companies', require('./routes/companies'));
+app.use('/api/entities/:id/files', require('./routes/files'));
 
 // SPA fallback
 app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });
