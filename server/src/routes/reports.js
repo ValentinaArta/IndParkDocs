@@ -612,7 +612,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const brokenEqIds = new Set();
   if (eqIds.length) {
     const eRes = await pool.query(
-      'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [eqIds]);
+      'SELECT id, name, properties FROM entities WHERE id = ANY($1)', [eqIds]);
     eRes.rows.forEach(eq => { eqMap[eq.id] = { name: eq.name, props: eq.properties || {}, location: '' }; });
     const locRes = await pool.query(
       `SELECT r.from_entity_id AS eq_id, t.name AS loc
@@ -666,7 +666,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const isEmerg = p.status === 'Аварийное';
     const isBroken = brokenEqIds.has(id);
     return {
-      name: eq.equipment_name || d.name || '',
+      name: d.name || eq.equipment_name || '',
       inv_number: p.inv_number || eq.inv_number || '',
       category: p.equipment_category || '', kind: p.equipment_kind || '',
       location: d.location || '', status: p.status || '',
@@ -731,7 +731,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const deqIds = directEquipment.map(eq => parseInt(eq.equipment_id)).filter(id => id > 0);
     if (deqIds.length) {
       const deRes = await pool.query(
-        'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [deqIds]);
+        'SELECT id, name, properties FROM entities WHERE id = ANY($1)', [deqIds]);
       const deMap = {};
       deRes.rows.forEach(eq => { deMap[eq.id] = { name: eq.name, props: eq.properties || {} }; });
       directEquipment.forEach(eq => {
@@ -739,7 +739,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
         const d = deMap[id] || {};
         const p = d.props || {};
         eqList.push({
-          name: eq.equipment_name || d.name || '',
+          name: d.name || eq.equipment_name || '',
           inv_number: p.inv_number || eq.inv_number || '',
           category: p.equipment_category || '',
           kind: p.equipment_kind || '', location: '', status: p.status || '',
