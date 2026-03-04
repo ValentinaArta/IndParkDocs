@@ -63,6 +63,9 @@ function _renderMetersTopActions() {
   // Text search
   acts += '<input id="meterSrchFilter" type="text" placeholder="Поиск по наим. / №..." value="' + escapeHtml(_metersFilter.search) + '" oninput="applyMetersFilter()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text);width:180px">';
 
+  // Add new meter button
+  acts += '<button class="btn btn-primary" onclick="openCreateModal(\\'meter\\')" style="font-size:12px;white-space:nowrap">+ Добавить счётчик</button>';
+
   // Columns picker button
   acts += '<div style="position:relative;display:inline-block">';
   acts += '<button class="btn btn-sm" onclick="_toggleMeterColPicker(event)" id="meterColPickerBtn" style="font-size:12px">Столбцы ▾</button>';
