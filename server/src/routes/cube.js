@@ -6,8 +6,6 @@ const { authenticate } = require('../middleware/auth');
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // ── Dimension registry ──────────────────────────────────────────────────────
-// group: 'contract' → use contract-primary fact query
-// group: 'equipment' → use equipment-primary fact query
 const DIM_META = {
   contract_type:      { group: 'contract',   col: 'contract_type' },
   our_company:        { group: 'contract',   col: 'our_company' },
@@ -24,8 +22,7 @@ const DIM_META = {
 };
 
 // ── Contract-primary fact ───────────────────────────────────────────────────
-// Grain: one row per contract. Building = first located_in building.
-const CONTRACT_FACT_SQL = `
+const CONTRACT_FACT_BASE = `
 WITH cbase AS (
   SELECT e.id AS contract_id, e.name AS contract_name, e.properties AS p
   FROM entities e
@@ -34,7 +31,7 @@ WITH cbase AS (
 ),
 cbld AS (
   SELECT DISTINCT ON (r.from_entity_id)
-    r.from_entity_id AS contract_id, b.name AS building_name, b.id AS building_id
+    r.from_entity_id AS contract_id, b.name AS building_name
   FROM relations r
   JOIN entities b ON b.id = r.to_entity_id AND b.deleted_at IS NULL
   JOIN entity_types et ON et.id = b.entity_type_id AND et.name IN ('building','workshop')
@@ -59,12 +56,10 @@ SELECT
   COALESCE(NULLIF(cb.p->>'contract_amount',''),'0')::numeric AS contract_amount,
   bld.building_name
 FROM cbase cb
-LEFT JOIN cbld bld ON bld.contract_id = cb.contract_id
-`;
+LEFT JOIN cbld bld ON bld.contract_id = cb.contract_id`;
 
 // ── Equipment-primary fact ──────────────────────────────────────────────────
-// Grain: one row per (equipment × contract) pair. No contract → one row with NULLs.
-const EQUIPMENT_FACT_SQL = `
+const EQUIPMENT_FACT_BASE = `
 WITH eqbase AS (
   SELECT e.id AS equipment_id, e.name AS equipment_name, e.properties AS p
   FROM entities e
@@ -95,12 +90,11 @@ eq_via_transfer AS (
 eq_contracts AS (
   SELECT DISTINCT equipment_id, contract_id FROM eq_via_rel
   UNION
-  SELECT equipment_id, contract_id FROM eq_via_transfer
-  WHERE equipment_id IS NOT NULL
+  SELECT equipment_id, contract_id FROM eq_via_transfer WHERE equipment_id IS NOT NULL
 ),
 eq_bld AS (
   SELECT DISTINCT ON (r.from_entity_id)
-    r.from_entity_id AS equipment_id, b.name AS building_name, b.id AS building_id
+    r.from_entity_id AS equipment_id, b.name AS building_name
   FROM relations r
   JOIN entities b ON b.id = r.to_entity_id AND b.deleted_at IS NULL
   JOIN entity_types et ON et.id = b.entity_type_id AND et.name IN ('building','workshop')
@@ -147,18 +141,51 @@ SELECT
 FROM eqbase eq
 LEFT JOIN eq_contracts ec  ON ec.equipment_id  = eq.equipment_id
 LEFT JOIN cmeta cm          ON cm.contract_id   = ec.contract_id
-LEFT JOIN eq_bld eqb        ON eqb.equipment_id = eq.equipment_id
-`;
+LEFT JOIN eq_bld eqb        ON eqb.equipment_id = eq.equipment_id`;
+
+// ── Build WHERE from filters ────────────────────────────────────────────────
+// Returns { clause: ' WHERE ...', params: [] }
+function buildWhere(filters, isEq) {
+  if (!filters || typeof filters !== 'object') return { clause: '', params: [] };
+
+  const conds  = [];
+  const params = [];
+  let   p      = 1;
+
+  // contract_type filter
+  const ct = filters.contract_type;
+  if (Array.isArray(ct) && ct.length) {
+    const col = isEq ? 'cm.contract_type' : "cb.p->>'contract_type'";
+    conds.push(`${col} = ANY($${p})`);
+    params.push(ct);
+    p++;
+  }
+
+  // doc_status filter
+  const ds = filters.doc_status;
+  if (Array.isArray(ds) && ds.length) {
+    const col = isEq ? 'cm.doc_status' : "cb.p->>'doc_status'";
+    conds.push(`${col} = ANY($${p})`);
+    params.push(ds);
+    p++;
+  }
+
+  return {
+    clause: conds.length ? '\nWHERE ' + conds.join(' AND ') : '',
+    params,
+  };
+}
 
 // ── Pivot builder ───────────────────────────────────────────────────────────
-function buildPivot(rows, rowCol, colCol, isEqPrimary) {
+function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
+  const EM    = '\u2014'; // em-dash for null values
   const rowKeys = new Map();
   const colKeys = new Map();
   const cells   = {};
 
   for (const row of rows) {
-    const rKey = (row[rowCol] != null) ? String(row[rowCol]) : '\u2014';
-    const cKey = (row[colCol] != null) ? String(row[colCol]) : '\u2014';
+    const rKey = (row[rowCol] != null) ? String(row[rowCol]) : EM;
+    const cKey = (row[colCol] != null) ? String(row[colCol]) : EM;
 
     if (!rowKeys.has(rKey)) rowKeys.set(rKey, true);
     if (!colKeys.has(cKey)) colKeys.set(cKey, true);
@@ -171,17 +198,17 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary) {
     };
 
     const c = cells[rKey][cKey];
-    if (row.contract_id)   c.contractIds.add(row.contract_id);
-    if (row.equipment_id)  c.equipmentIds.add(row.equipment_id);
-    if (isEqPrimary && row.equipment_name) c.names.add(row.equipment_name);
+    if (row.contract_id)  c.contractIds.add(row.contract_id);
+    if (row.equipment_id) c.equipmentIds.add(row.equipment_id);
+    if (isEqPrimary && row.equipment_name)   c.names.add(row.equipment_name);
     else if (!isEqPrimary && row.contractor_name) c.names.add(row.contractor_name);
   }
 
-  // Compute amounts: avoid double-counting by using unique contract amounts
-  const contractAmounts = {};
+  // Unique contract amounts to avoid double-counting
+  const amounts = {};
   for (const row of rows) {
     if (row.contract_id && row.contract_amount > 0)
-      contractAmounts[row.contract_id] = parseFloat(row.contract_amount) || 0;
+      amounts[row.contract_id] = parseFloat(row.contract_amount) || 0;
   }
 
   const serial = {};
@@ -191,10 +218,10 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary) {
       const contractIds  = [...c.contractIds];
       const equipmentIds = [...c.equipmentIds];
       let sum = 0;
-      for (const cid of contractIds) sum += contractAmounts[cid] || 0;
+      for (const cid of contractIds) sum += amounts[cid] || 0;
       serial[rKey][cKey] = {
         count: isEqPrimary ? (equipmentIds.length || contractIds.length) : contractIds.length,
-        sum: Math.round(sum),
+        sum:   Math.round(sum),
         names: [...c.names].slice(0, 8),
         contractIds,
         equipmentIds,
@@ -202,38 +229,64 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary) {
     }
   }
 
-  // Sort keys
   const sort = (a, b) => {
-    if (a === '\u2014') return 1;
-    if (b === '\u2014') return -1;
+    if (a === EM) return 1;
+    if (b === EM) return -1;
     if (/^\d{4}/.test(a) && /^\d{4}/.test(b)) return a < b ? -1 : a > b ? 1 : 0;
     return String(a).localeCompare(String(b), 'ru');
   };
 
+  let rKeys = [...rowKeys.keys()].sort(sort);
+  let cKeys = [...colKeys.keys()].sort(sort);
+
+  // Hide empty rows / cols if requested
+  if (hideEmpty) {
+    cKeys = cKeys.filter(ck => rKeys.some(rk => serial[rk] && serial[rk][ck] && serial[rk][ck].count > 0));
+    rKeys = rKeys.filter(rk => cKeys.some(ck => serial[rk] && serial[rk][ck] && serial[rk][ck].count > 0));
+  }
+
   return {
-    rows: [...rowKeys.keys()].sort(sort).map(k => ({ key: k })),
-    cols: [...colKeys.keys()].sort(sort).map(k => ({ key: k })),
+    rows:  rKeys.map(k => ({ key: k })),
+    cols:  cKeys.map(k => ({ key: k })),
     cells: serial,
   };
 }
 
 // ── POST /api/cube/query ────────────────────────────────────────────────────
 router.post('/query', authenticate, asyncHandler(async (req, res) => {
-  const { rowDim, colDim } = req.body;
+  const { rowDim, colDim, filters = {}, hideEmpty = false } = req.body;
+
   if (!rowDim || !colDim)
     return res.status(400).json({ error: 'rowDim and colDim required' });
   if (!DIM_META[rowDim] || !DIM_META[colDim])
-    return res.status(400).json({ error: 'Unknown dimension: ' + [rowDim, colDim].join(', ') });
+    return res.status(400).json({ error: 'Unknown dimension' });
 
   const rMeta = DIM_META[rowDim];
   const cMeta = DIM_META[colDim];
   const isEq  = rMeta.group === 'equipment' || cMeta.group === 'equipment';
-  const sql   = isEq ? EQUIPMENT_FACT_SQL : CONTRACT_FACT_SQL;
+  const base  = isEq ? EQUIPMENT_FACT_BASE : CONTRACT_FACT_BASE;
 
-  const { rows } = await pool.query(sql);
-  const pivot = buildPivot(rows, rMeta.col, cMeta.col, isEq);
+  const { clause, params } = buildWhere(filters, isEq);
+  const sql = base + clause;
+
+  const { rows } = await pool.query(sql, params);
+  const pivot = buildPivot(rows, rMeta.col, cMeta.col, isEq, hideEmpty);
 
   res.json({ ...pivot, rowDim, colDim, factRows: rows.length });
+}));
+
+// ── GET /api/cube/filter-values ─────────────────────────────────────────────
+// Returns available values for each filter field
+router.get('/filter-values', authenticate, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT
+      ARRAY_AGG(DISTINCT p->>'contract_type' ORDER BY p->>'contract_type') FILTER (WHERE p->>'contract_type' IS NOT NULL AND p->>'contract_type' <> '') AS contract_types,
+      ARRAY_AGG(DISTINCT p->>'doc_status'    ORDER BY p->>'doc_status')    FILTER (WHERE p->>'doc_status'    IS NOT NULL AND p->>'doc_status'    <> '') AS doc_statuses
+    FROM entities e
+    JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
+    WHERE e.deleted_at IS NULL
+  `);
+  res.json(rows[0] || { contract_types: [], doc_statuses: [] });
 }));
 
 // ── GET /api/cube/drilldown ─────────────────────────────────────────────────

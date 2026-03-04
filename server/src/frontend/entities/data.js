@@ -19,6 +19,12 @@ async function loadEntityLists() {
   loadBrokenEquipment(); // background load, no await
 }
 
+// Helper: land plot label = "кадастровый_номер — название" (или просто название)
+function _lpLabel(lp) {
+  var cn = ((lp.properties || {}).cadastral_number || '').trim();
+  return cn ? cn + ' — ' + lp.name : lp.name;
+}
+
 async function loadBrokenEquipment() {
   try {
     var ids = await api('/reports/broken-equipment');

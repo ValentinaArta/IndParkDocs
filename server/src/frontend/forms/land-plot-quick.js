@@ -53,10 +53,8 @@ async function submitQuickLandPlot() {
     var sel = document.getElementById('f_land_plot_id');
     if (sel) {
       sel.innerHTML = '<option value="">— не указано —</option>' + _landPlots.map(function(lp) {
-        var c = (lp.properties || {}).cadastral_number;
-        var label = c ? c + ' — ' + escapeHtml(lp.name) : escapeHtml(lp.name);
         var s = lp.id === created.id ? ' selected' : '';
-        return '<option value="' + lp.id + '"' + s + '>' + label + '</option>';
+        return '<option value="' + lp.id + '"' + s + '>' + escapeHtml(_lpLabel(lp)) + '</option>';
       }).join('');
     }
     var panel = document.getElementById('lp_quick_panel');

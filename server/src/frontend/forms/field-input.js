@@ -5,8 +5,7 @@ module.exports = `
 function renderLandPlotSelectorField(selectedId) {
   var lpOptions = '<option value="">— не указано —</option>';
   (_landPlots || []).forEach(function(lp) {
-    var cn = (lp.properties || {}).cadastral_number;
-    var label = cn ? cn + ' — ' + escapeHtml(lp.name) : escapeHtml(lp.name);
+    var label = escapeHtml(_lpLabel(lp));
     var sel = (lp.id === selectedId) ? ' selected' : '';
     lpOptions += '<option value="' + lp.id + '"' + sel + '>' + label + '</option>';
   });
@@ -153,6 +152,22 @@ function renderFieldInput(f, value) {
     if (!Array.isArray(contacts)) contacts = [];
     if (contacts.length === 0) contacts = [{}];
     return _renderContactsList(id, contacts);
+  } else if (f.field_type === 'equipment_selector') {
+    var eqSelId = parseInt(val) || 0;
+    var eqSelList = (_equipment || []).map(function(e) {
+      var p = e.properties || {};
+      var cat = p.equipment_category || '';
+      var inv = p.inv_number || '';
+      var suffix = [cat, inv ? 'инв. ' + inv : ''].filter(Boolean).join(', ');
+      return { id: e.id, name: e.name + (suffix ? ' (' + suffix + ')' : '') };
+    });
+    var eqSelFound = (eqSelId && (_equipment || []).find(function(e) { return e.id === eqSelId; })) || null;
+    var eqSelName = eqSelFound ? eqSelFound.name : '';
+    var h = renderSearchableSelect(id, eqSelList, eqSelId, eqSelName, 'начните вводить название...', 'meter_equipment');
+    if (eqSelFound) {
+      h += '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Текущее: <a href="#" onclick="showEntity(' + eqSelId + ');return false" style="color:var(--accent)">' + escapeHtml(eqSelName) + '</a></div>';
+    }
+    return h;
   } else {
     return '<input id="' + id + '" value="' + escapeHtml(String(val)) + '">';
   }
@@ -206,6 +221,10 @@ function getFieldValue(f) {
   if (f.field_type === 'contacts') {
     var cts = _collectContacts('f_' + f.name);
     return cts.length > 0 ? JSON.stringify(cts) : null;
+  }
+  if (f.field_type === 'equipment_selector') {
+    var eqEl = document.getElementById('f_' + f.name);
+    return (eqEl && eqEl.value) ? eqEl.value : null;
   }
   if (f.field_type === 'checkbox' || f.field_type === 'boolean') {
     const cb = document.getElementById('f_' + f.name);

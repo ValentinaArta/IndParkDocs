@@ -60,7 +60,7 @@ function _renderEqListItem(item, rowId) {
   h += '</div>';
   h += '<div class="eq-create-lp-section" data-row="' + rowId + '" style="display:none">';
   h += '<div class="form-group"><label>Земельный участок</label><select class="eq-create-lp" data-row="' + rowId + '" style="width:100%"><option value="">—</option>';
-  (_landPlots || []).forEach(function(lp) { h += '<option value="' + lp.id + '">' + escapeHtml(lp.name) + '</option>'; });
+  (_landPlots || []).forEach(function(lp) { h += '<option value="' + lp.id + '">' + escapeHtml(_lpLabel(lp)) + '</option>'; });
   h += '</select></div>';
   h += '</div>';
   h += '<div style="display:flex;gap:8px;margin-top:8px">';

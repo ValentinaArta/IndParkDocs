@@ -116,6 +116,27 @@ async function showEntity(id, _forceDetail) {
         }
         return;
       }
+      if (f.field_type === 'number') {
+        var numVal = val !== null && val !== undefined && val !== '' ? parseFloat(val) : null;
+        var numDisplay = numVal !== null && !isNaN(numVal) ? _fmtNum(numVal) : '—';
+        html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
+          '<div class="prop-value">' + numDisplay + '</div></div>';
+        return;
+      }
+      if (f.field_type === 'equipment_selector') {
+        var eqId = parseInt(val) || 0;
+        var eqEnt = eqId ? (_equipment || []).find(function(eq) { return eq.id === eqId; }) : null;
+        html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div><div class="prop-value">';
+        if (eqEnt) {
+          html += '<a href="#" onclick="showEntity(' + eqId + ');return false" style="color:var(--accent)">' + escapeHtml(eqEnt.name) + '</a>';
+        } else if (eqId) {
+          html += '<span style="color:var(--text-muted)">ID: ' + eqId + '</span>';
+        } else {
+          html += '—';
+        }
+        html += '</div></div>';
+        return;
+      }
       html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
         '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });

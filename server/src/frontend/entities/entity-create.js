@@ -86,7 +86,7 @@ function renderEquipmentLocationFields(selectedBuildingId, selectedRoomId, selec
   h += '<select id="f_eq_land_plot" style="width:100%">';
   h += '<option value="">— не указано —</option>';
   (_landPlots || []).forEach(function(lp) {
-    h += '<option value="' + lp.id + '"' + (lp.id === lpid ? ' selected' : '') + '>' + escapeHtml(lp.name) + '</option>';
+    h += '<option value="' + lp.id + '"' + (lp.id === lpid ? ' selected' : '') + '>' + escapeHtml(_lpLabel(lp)) + '</option>';
   });
   h += '</select></div>';
   h += '</div>';
@@ -162,7 +162,7 @@ async function openCreateModal(typeName, preParentId) {
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
       allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
         var sel = (preParentId && parseInt(preParentId) === x.id) ? ' selected' : '';
-        html += '<option value="' + x.id + '"' + sel + '>' + escapeHtml(x.name) + '</option>';
+        html += '<option value="' + x.id + '"' + sel + '>' + escapeHtml(_lpLabel(x)) + '</option>';
       });
       html += '</select></div>';
     } else if (typeName !== 'land_plot' && typeName !== 'company') {

@@ -363,7 +363,7 @@ function renderRentObjectBlock(index, obj) {
     h += '<div id="ro_lpp_create_' + index + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg)">';
     h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">Новая часть ЗУ</div>';
     var lpCreateId = 'ro_lpp_parent_' + index;
-    var lpCreateList = (_landPlots || []).map(function(lp) { var cad = (lp.properties||{}).cadastral_number; return {id: lp.id, name: lp.name + (cad ? ' ['+cad+']' : '')}; });
+    var lpCreateList = (_landPlots || []).map(function(lp) { return { id: lp.id, name: _lpLabel(lp) }; });
     h += '<div class="form-group"><label>Земельный участок</label>';
     h += renderSearchableSelect(lpCreateId, lpCreateList, '', '', 'выберите ЗУ...', 'rent_land_plot');
     h += '</div>';
