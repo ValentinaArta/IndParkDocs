@@ -106,6 +106,7 @@ function _routeFromHash(hash) {
   if (hash === '#zachety')  { showLegalZachety(); return; }
   if (hash === '#meters')   { showMetersPage();   return; }
   if (hash === '#reports')  { showReports();      return; }
+  if (hash === '#cube')     { showCubePage();     return; }
   showDashboard();
 }
 
