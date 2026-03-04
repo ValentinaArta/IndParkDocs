@@ -202,4 +202,21 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .map-editor-bar { display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap; }
 .map-shape { transition:filter .15s,stroke-width .15s; }
 .map-shape[style*="pointer"] { cursor:pointer; }
-.map-shape:hover { filter:brightness(1.15) saturate(1.2); }`;
+.map-shape:hover { filter:brightness(1.15) saturate(1.2); }
+/* File attachments */
+.files-section { margin-top:20px; border-top:1px solid var(--border); padding-top:14px; }
+.files-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.files-section-title { font-size:13px; font-weight:600; color:var(--text-secondary); }
+.btn-attach { display:inline-block; padding:5px 12px; font-size:12px; border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; background:var(--bg); color:var(--text); transition:background .15s; }
+.btn-attach:hover { background:var(--bg-secondary); }
+.btn-attach.is-loading { opacity:.6; pointer-events:none; }
+.files-list { display:flex; flex-direction:column; gap:6px; }
+.files-empty { font-size:13px; color:var(--text-muted); }
+.file-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); }
+.file-link { display:flex; align-items:center; gap:8px; flex:1; text-decoration:none; color:var(--text); min-width:0; }
+.file-link:hover .file-name { text-decoration:underline; }
+.file-ext { font-size:10px; font-weight:700; color:#fff; background:var(--accent); border-radius:3px; padding:1px 5px; white-space:nowrap; flex-shrink:0; }
+.file-name { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.file-size { font-size:11px; color:var(--text-muted); white-space:nowrap; flex-shrink:0; }
+.file-delete { border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:13px; padding:2px 6px; border-radius:4px; flex-shrink:0; }
+.file-delete:hover { color:var(--red); background:var(--bg-secondary); }`;
