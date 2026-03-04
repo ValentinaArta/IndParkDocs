@@ -14,8 +14,18 @@ function renderContractCard(data) {
   if (data.number)          titleParts.push('№' + data.number);
   if (data.date)            titleParts.push(_ccFmtDate(data.date));
   h += '<div style="margin-bottom:20px">';
-  h += '<h2 style="font-size:1.3rem;font-weight:700;margin:0 0 4px">' + escapeHtml(titleParts.join(', ')) + '</h2>';
+  h += '<h2 style="font-size:1.3rem;font-weight:700;margin:0 0 6px">' + escapeHtml(titleParts.join(', ')) + '</h2>';
+  h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
   h += '<span style="font-size:13px;color:var(--text-secondary)">' + escapeHtml(data.contract_type || '') + '</span>';
+  if (data.direction === 'income') {
+    h += '<span style="background:#dcfce7;color:#166534;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">🟢 Доход</span>';
+  } else if (data.direction === 'expense') {
+    h += '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">🔴 Расход</span>';
+  }
+  if (data.is_vgo) {
+    h += '<span style="background:#eff6ff;color:#1d4ed8;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">🔵 ВГО</span>';
+  }
+  h += '</div>';
   h += '</div>';
 
   // ── Main info ──────────────────────────────────────────────────────────────
@@ -138,6 +148,36 @@ function renderContractCard(data) {
       }
       h += '</div>';
     }
+  }
+
+  // ── Аренда оборудования (equipment_rent_items) ────────────────────────────
+  if (data.equipment_rent_items && data.equipment_rent_items.length) {
+    var erSrcNote = data.equipment_rent_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">(из ' + escapeHtml(data.equipment_rent_source_name) + ')</span>' : '';
+    var dirLabel = data.direction === 'income' ? 'мы сдаём' : (data.direction === 'expense' ? 'мы берём' : '');
+    h += '<div style="margin-bottom:16px">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">ПРЕДМЕТЫ АРЕНДЫ' + erSrcNote + (dirLabel ? ' <span style="font-weight:400;font-style:italic">(' + escapeHtml(dirLabel) + ')</span>' : '') + '</div>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    h += '<thead><tr style="background:#4F6BCC;color:#fff">';
+    h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 4px">Оборудование</th>';
+    h += '<th style="padding:8px 10px;text-align:right">Кол-во</th>';
+    h += '<th style="padding:8px 10px;text-align:right;border-radius:0 4px 4px 0">Ставка (руб/мес)</th>';
+    h += '</tr></thead><tbody>';
+    data.equipment_rent_items.forEach(function(item, i) {
+      var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+      var nameStr = escapeHtml(item.name || '—');
+      if (item.inv_number) nameStr += ' <span style="color:var(--text-muted);font-size:11px">инв. ' + escapeHtml(item.inv_number) + '</span>';
+      if (item.category) nameStr += ' <span style="color:var(--text-secondary);font-size:11px">(' + escapeHtml(item.category) + ')</span>';
+      h += '<tr style="' + bg + '">';
+      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + nameStr + '</td>';
+      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.qty || 1) + '</td>';
+      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.rate ? _ccFmtNum(item.rate) : '—') + '</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    if (data.equipment_rent_monthly > 0) {
+      h += '<div style="text-align:right;font-size:14px;font-weight:600;margin-top:8px">Ежемесячный платёж: ' + _ccFmtNum(data.equipment_rent_monthly) + ' руб.</div>';
+    }
+    h += '</div>';
   }
 
   // ── Переданное оборудование (collapsible) ──────────────────────────────────
