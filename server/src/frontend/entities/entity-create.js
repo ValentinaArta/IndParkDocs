@@ -193,6 +193,15 @@ async function openCreateModal(typeName, preParentId) {
       var ownerList = (f.name === 'balance_owner') ? (_ownCompanies||_allCompanies) : _allCompanies;
       html += '<div class="form-group"><label>Собственник</label>' +
         renderSearchableSelect(fieldId, ownerList, '', '', 'начните вводить...', fieldNameS) + '</div>';
+    } else if (f.name === 'connected_to_id') {
+      var ctCreateList = (_equipment || []).map(function(eq) {
+        var p = eq.properties || {};
+        var suffix = [p.equipment_category, p.inv_number ? 'инв. ' + p.inv_number : ''].filter(Boolean).join(', ');
+        return { id: eq.id, name: eq.name + (suffix ? ' (' + suffix + ')' : '') };
+      });
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
+      html += renderSearchableSelect('f_connected_to_id', ctCreateList, 0, '', 'начните вводить название оборудования...', 'meter_equipment');
+      html += '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, '') + '</div>';
     }
