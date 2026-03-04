@@ -135,6 +135,44 @@ function renderSaleContractFields(container, extraFields, props, contractType) {
   container.innerHTML = html;
 }
 
+// ========== Подряда — subject-only with toggle buttons ==========
+function renderContractSubjectOnly(container, extraFields, props) {
+  props = props || {};
+  function _parseArr(v) { if (!v) return []; if (Array.isArray(v)) return v; try { return JSON.parse(v) || []; } catch(e) { return []; } }
+  function _hasReal(arr) { return Array.isArray(arr) && arr.some(function(i) { return i && (i.name || i.id || i.equipment_id); }); }
+
+  var sbIds  = _parseArr(props.subject_buildings);
+  var srIds  = _parseArr(props.subject_rooms);
+  var slIds  = _parseArr(props.subject_land_plots);
+  var slpIds = _parseArr(props.subject_land_plot_parts);
+  var eqList = _parseArr(props.equipment_list);
+  var ciList = _parseArr(props.contract_items);
+
+  var hasBld  = _hasReal(sbIds),  hasRoom = _hasReal(srIds);
+  var hasLp   = _hasReal(slIds),  hasLpp  = _hasReal(slpIds);
+  var hasEq   = _hasReal(eqList), hasItems = _hasReal(ciList);
+
+  var html = '<div class="form-group"><label>Предмет договора</label><input type="text" id="f_subject" value="' + escapeHtml(props.subject || '') + '" style="width:100%"></div>';
+
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
+  html += _saleSectionBtn('bld',  'Корпус',     hasBld);
+  html += _saleSectionBtn('room', 'Помещение',  hasRoom);
+  html += _saleSectionBtn('lp',   'ЗУ',         hasLp);
+  html += _saleSectionBtn('lpp',  'Часть ЗУ',   hasLpp);
+  html += _saleSectionBtn('eq',   'Оборудование', hasEq);
+  html += _saleSectionBtn('items','Работы',       hasItems);
+  html += '</div>';
+
+  html += '<div id="sale_sec_bld" style="margin-bottom:12px;' + (hasBld ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Корпуса</div>' + renderSubjectBuildingsField(sbIds) + '</div>';
+  html += '<div id="sale_sec_room" style="margin-bottom:12px;' + (hasRoom ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Помещения</div>' + renderSubjectRoomsField(srIds) + '</div>';
+  html += '<div id="sale_sec_lp" style="margin-bottom:12px;' + (hasLp ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Земельные участки</div>' + renderSubjectLandPlotsField(slIds) + '</div>';
+  html += '<div id="sale_sec_lpp" style="margin-bottom:12px;' + (hasLpp ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Части ЗУ</div>' + renderSubjectLandPlotPartsField(slpIds) + '</div>';
+  html += '<div id="sale_sec_eq" style="margin-bottom:12px;' + (hasEq ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Оборудование</div>' + renderEquipmentListField(eqList) + '</div>';
+  html += '<div id="sale_sec_items" style="margin-bottom:12px;' + (hasItems ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Перечень работ</div>' + renderContractItemsField(ciList, false) + '</div>';
+
+  container.innerHTML = html;
+}
+
 // ========== Обслуживания — subject-only with toggle buttons ==========
 function renderServiceSubjectOnly(container, allFields, props) {
   props = props || {};

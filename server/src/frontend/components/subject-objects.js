@@ -5,6 +5,7 @@ module.exports = `
 var _subjRoomCnt = 0;
 var _subjBldCnt  = 0;
 var _subjLpCnt   = 0;
+var _subjLppCnt  = 0;
 
 // ── Generic row renderer ────────────────────────────────────────────────────
 
@@ -24,6 +25,9 @@ function _renderSubjRow(type, item, rowId) {
   } else if (type === 'lp') {
     list = (_landPlots || []).map(function(l) { return { id: l.id, name: l.name }; });
     srchField = 'land_plot';
+  } else if (type === 'lpp') {
+    list = (_landPlotParts || []).map(function(p) { return { id: p.id, name: p.name }; });
+    srchField = 'land_plot_part';
   }
   var selId = item ? item.id : '';
   var selName = item ? item.name : '';
@@ -98,6 +102,17 @@ function renderSubjectLandPlotsField(ids) {
   return h;
 }
 
+function renderSubjectLandPlotPartsField(ids) {
+  var items = _idsToItems(ids, _landPlotParts, 'lpp');
+  if (!items.length) items = [null];
+  _subjLppCnt = items.length;
+  var h = '<div id="f_subject_land_plot_parts">';
+  items.forEach(function(item, i) { h += _renderSubjRow('lpp', item, i); });
+  h += '<button type="button" class="btn btn-sm" style="margin-top:2px" data-subj-type="lpp" onclick="addSubjectRow(this)">+ Добавить часть ЗУ</button>';
+  h += '</div>';
+  return h;
+}
+
 // ── Helper: IDs → items with names ─────────────────────────────────────────
 
 function _idsToItems(ids, registry, type) {
@@ -115,12 +130,25 @@ function _idsToItems(ids, registry, type) {
 
 // ── Add / remove rows ───────────────────────────────────────────────────────
 
+function _subjContainerId(type) {
+  if (type === 'room') return 'f_subject_rooms';
+  if (type === 'bld')  return 'f_subject_buildings';
+  if (type === 'lp')   return 'f_subject_land_plots';
+  if (type === 'lpp')  return 'f_subject_land_plot_parts';
+  return 'f_subject_' + type;
+}
+
 function addSubjectRow(btn) {
   var type = btn.getAttribute('data-subj-type');
-  var containerId = type === 'room' ? 'f_subject_rooms' : (type === 'bld' ? 'f_subject_buildings' : 'f_subject_land_plots');
+  var containerId = _subjContainerId(type);
   var container = document.getElementById(containerId);
   if (!container) return;
-  var rowId = (type === 'room' ? _subjRoomCnt++ : (type === 'bld' ? _subjBldCnt++ : _subjLpCnt++));
+  var rowId;
+  if      (type === 'room') rowId = _subjRoomCnt++;
+  else if (type === 'bld')  rowId = _subjBldCnt++;
+  else if (type === 'lp')   rowId = _subjLpCnt++;
+  else if (type === 'lpp')  rowId = _subjLppCnt++;
+  else                      rowId = Date.now();
   var div = document.createElement('div');
   div.innerHTML = _renderSubjRow(type, null, rowId);
   var addBtn = container.querySelector('[data-subj-type="' + type + '"]');
@@ -132,7 +160,7 @@ function addSubjectRow(btn) {
 
 function removeSubjectRow(btn) {
   var type = btn.getAttribute('data-subj-type');
-  var containerId = type === 'room' ? 'f_subject_rooms' : (type === 'bld' ? 'f_subject_buildings' : 'f_subject_land_plots');
+  var containerId = _subjContainerId(type);
   var container = document.getElementById(containerId);
   var row = btn.closest('.subj-row');
   var rows = container ? container.querySelectorAll('.subj-row') : [];
