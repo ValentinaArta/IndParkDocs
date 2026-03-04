@@ -425,8 +425,9 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 ```
 
 ## Текущий HEAD (04.03.2026)
-- **`origin/main`** = `1736d9d` — fix: contractor name в ДС + inv_number деdup
-- **`origin/dev`** ≈ main (расхождение минимальное)
+- **`origin/main`** = `145e85a` — migration 026 + doc_status (Создан/Подписан/Архив)
+- **`origin/dev`** = same (в синхронизации)
+- 94 теста, 8 сьютов
 
 ## ✅ Выполнено (03-04.03.2026, всё задеплоено)
 - Авто-открытие договора — уже было в entity-create.js
@@ -437,8 +438,28 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 - `_doSubmitCreateSupplement` → `collectEntityIds` — contractor_name теперь имя не ID
 - `contract-card.js` inv_number деdup — нет дублей если уже в названии
 - DB fix: ДС №2/№4 — исправлено с "311" на "ВРС ЦЕНТР ООО"
+- **PR #24/#25: Duplicate check scoped by parent_id** — supplements из разных договоров могут иметь одинаковые имена; `POST /api/entities` теперь фильтрует дубликаты по parent_id
+- **PR #26: doc_status (Создан/Подписан/Архив)** — migration 026; `_docStatusBadge()` в core/utils.js; бейджи в entity-list, entity-detail, contract-card, legal-zachety; фильтр в aggregate/rent-analysis/area-stats; all existing → "Подписан"
+
+## 🔲 Следующая задача: Subject objects (план утверждён)
+**Цель:** В Обслуживания/Услуги/Купля-продажа — указывать объекты договора (помещения, ЗУ, оборудование, здания) как DB relations.
+
+**Ключевые решения:**
+- Данные → DB relations (`located_in` / `subject_of`), НЕ JSON в properties
+- `autoLinkEntities()` в `server/src/routes/entities.js` (~165–240) — единое место
+- PUT cleanup: добавить `'subject_of'` к `IN ('party_to','located_in')` в DELETE
+- Поля в properties: `subject_rooms`, `subject_land_plots`, `subject_equipment`, `subject_buildings`
+
+**5 файлов для изменения:**
+1. `core.js` — CONTRACT_TYPE_FIELDS (Обслуживания: +subject_rooms/subject_land_plots; Услуги/Купля-продажа: +4 поля)
+2. `components/subject-objects.js` ← NEW (~180 строк)
+3. `forms/field-input.js` — 2 новые ветки
+4. `entities/contract-card.js` — секция "Объекты договора"
+5. `index.js` — загрузить после act-items, до forms/
+6. `server/src/routes/entities.js` — `autoLinkEntities` + PUT cleanup
 
 ## Планы / Next Steps (backlog)
+- **Subject objects** — следующая задача (план готов, см. выше)
 - Заполнить `inv_number` для eq id=581 (ЖД путь инв. №593000) — поле пустое
 - Добавить больше договоров аренды (38 из 42 арендаторов не в системе)
 - Date range filter для Должники (overdue hardcoded 2025-01-01)
@@ -446,6 +467,7 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 - Бюджет 1С live: нужен доступ к бюджетным регистрам
 - Полнотекстовый поиск по всем полям
 - Дописать JS функции для "Анализ аренды"
+- Анализ аренды: добавить "Аренда оборудования" + ВГО фильтр (Все/Только внешние/Только ВГО)
 
 ## ⚠️ Новые правила (03.03.2026)
 
