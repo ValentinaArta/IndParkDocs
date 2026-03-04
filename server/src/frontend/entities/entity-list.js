@@ -82,12 +82,12 @@ function _getEntityTableCols(typeName) {
         render: function(e) { return escapeHtml((e.properties || {}).contract_type || '—'); }
       },
       { id: 'our_legal_entity', label: 'Наше юр. лицо', sortable: true,
-        getValue: function(e) { return (e.properties || {}).our_legal_entity || ''; },
-        render: function(e) { return escapeHtml((e.properties || {}).our_legal_entity || '—'); }
+        getValue: function(e) { return e.effective_our_legal_entity || (e.properties || {}).our_legal_entity || ''; },
+        render: function(e) { return escapeHtml(e.effective_our_legal_entity || (e.properties || {}).our_legal_entity || '—'); }
       },
       { id: 'contractor_name', label: 'Контрагент', sortable: true,
-        getValue: function(e) { return (e.properties || {}).contractor_name || ''; },
-        render: function(e) { return escapeHtml((e.properties || {}).contractor_name || '—'); }
+        getValue: function(e) { return e.effective_contractor_name || (e.properties || {}).contractor_name || ''; },
+        render: function(e) { return escapeHtml(e.effective_contractor_name || (e.properties || {}).contractor_name || '—'); }
       },
       { id: 'contract_date', label: 'Дата', sortable: true,
         getValue: function(e) { return (e.properties || {}).contract_date || ''; },
