@@ -350,6 +350,10 @@ async function showEntityList(typeName, opts) {
     });
     document.getElementById('pageTitle').textContent = 'Договоры: ' + opts.contractType;
   }
+  // На странице "Договоры" никогда не показываем доп.соглашения
+  if (typeName === 'contract') {
+    entities = Array.isArray(entities) ? entities.filter(function(e) { return e.type_name !== 'supplement'; }) : [];
+  }
   _listCurrentEntities = Array.isArray(entities) ? entities : [];
   _renderListCurrent();
 }
@@ -444,8 +448,13 @@ async function searchEntities(q) {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(async () => {
     const url = '/entities?' + (currentTypeFilter ? 'type=' + currentTypeFilter + '&' : '') + 'search=' + encodeURIComponent(q);
-    const entities = await api(url);
-    _listCurrentEntities = Array.isArray(entities) ? entities : [];
+    var entities = await api(url);
+    entities = Array.isArray(entities) ? entities : [];
+    // На странице "Договоры" никогда не показываем доп.соглашения
+    if (currentTypeFilter === 'contract') {
+      entities = entities.filter(function(e) { return e.type_name !== 'supplement'; });
+    }
+    _listCurrentEntities = entities;
     _renderListCurrent();
   }, 300);
 }
