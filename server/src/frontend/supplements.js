@@ -89,23 +89,25 @@ async function openCreateSupplementModal(parentContractId) {
       html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
       html += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(val) + '"></div>';
     } else if (f.name === 'our_role_label') {
-      html += '<div class="form-group" id="wrap_our_role_label"><label>Роль нашей стороны</label>' +
-        '<input id="f_our_role_label" value="' + escapeHtml(val || roles.our) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
+      html += '<div class="form-group"><label>Роль нашей стороны</label>';
+      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || roles.our) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
     } else if (f.name === 'contractor_role_label') {
-      html += '<div class="form-group" id="wrap_contractor_role_label"><label>Роль контрагента</label>' +
-        '<input id="f_contractor_role_label" value="' + escapeHtml(val || roles.contractor) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary)"></div>';
+      html += '<div class="form-group"><label>Роль контрагента</label>';
+      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || roles.contractor) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
     } else if (f.name === 'our_legal_entity') {
-      var label = (parentProps.our_role_label || roles.our);
-      html += '<div class="form-group" id="wrap_our_legal_entity"><label id="label_our_legal_entity">' + escapeHtml(label) + '</label>' +
-        renderSearchableSelect('f_our_legal_entity', _ownCompanies, parentProps.our_legal_entity_id, val, 'начните вводить...', 'our_legal_entity') + '</div>';
+      var labelOur = (parentProps.our_role_label || roles.our);
+      html += '<div class="form-group"><label>' + escapeHtml(labelOur) + '</label>';
+      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || '—') + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
     } else if (f.name === 'contractor_name') {
-      var label = (parentProps.contractor_role_label || roles.contractor);
-      html += '<div class="form-group" id="wrap_contractor_name"><label id="label_contractor_name">' + escapeHtml(label) + '</label>' +
-        renderSearchableSelect('f_contractor_name', _allCompanies, parentProps.contractor_id, val, 'начните вводить...', 'contractor_name') + '</div>';
+      var labelContr = (parentProps.contractor_role_label || roles.contractor);
+      html += '<div class="form-group"><label>' + escapeHtml(labelContr) + '</label>';
+      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || '—') + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
     } else if (f.name === 'subtenant_name') {
       var show = (contractType === 'Субаренды');
       html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
         renderSearchableSelect('f_subtenant_name', _allCompanies, parentProps.subtenant_id, val, 'начните вводить...', 'subtenant_name') + '</div>';
+    } else if (f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text' || f.name === 'contract_end_date') {
+      // пропускаем — рендерится через renderDurationSection ниже
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
     }
@@ -119,6 +121,7 @@ async function openCreateSupplementModal(parentContractId) {
   }
 
   html += '<div id="dynamicFieldsContainer"></div>';
+  html += renderDurationSection(Object.assign({}, parentProps, lastSuppProps));
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreateSupplement(' + parentContractId + ')">Создать</button></div>';
 
@@ -131,11 +134,6 @@ async function openCreateSupplementModal(parentContractId) {
     var ctCustom = document.getElementById('f_contract_type_custom');
     if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
   }
-  var ourRE2 = document.getElementById('f_our_role_label');
-  if (ourRE2) ourRE2.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
-  var contrRE2 = document.getElementById('f_contractor_role_label');
-  if (contrRE2) contrRE2.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
-
   // Предзаполнение динамических полей: из последнего ДС (не родительские), иначе из договора
   var prefillProps = Object.assign({}, parentProps);
   Object.keys(lastSuppProps).forEach(function(k) {
@@ -177,9 +175,25 @@ async function _doSubmitCreateSupplement(parentContractId) {
   var vatEl = document.getElementById('f_vat_rate');
   if (vatEl && vatEl.value) properties.vat_rate = vatEl.value;
 
+  // Collect duration fields from renderDurationSection
+  var durType = document.getElementById('f_duration_type');
+  var durDate = document.getElementById('f_duration_date');
+  var durText = document.getElementById('f_duration_text');
+  if (durType && durType.value) properties.duration_type = durType.value;
+  if (durDate && durDate.value) properties.duration_date = durDate.value;
+  if (durText && durText.value) properties.duration_text = durText.value;
+
+  // Наследуемые поля — не сохраняем в ДС, они берутся из родительского договора
+  delete properties.our_legal_entity;
+  delete properties.our_legal_entity_id;
+  delete properties.contractor_name;
+  delete properties.contractor_id;
+  delete properties.our_role_label;
+  delete properties.contractor_role_label;
+
   const num = properties.number || '?';
-  const contractor = properties.contractor_name || '';
-  const name = 'ДС №' + num + (contractor ? ' — ' + contractor : '');
+  const parentContractorName = (await api('/entities/' + parentContractId)).properties.contractor_name || '';
+  const name = 'ДС №' + num + (parentContractorName ? ' — ' + parentContractorName : '');
 
   await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: suppType.id, name, properties, parent_id: parentContractId }) });
   closeModal();
