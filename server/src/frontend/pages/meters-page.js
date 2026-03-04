@@ -455,6 +455,7 @@ function showMeterReplaceForm(meterId) {
 
   // Новый счётчик
   h += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px">🔢 Новый счётчик</div>';
+  h += '<div class="form-group"><label style="font-size:12px">Название нового счётчика</label><input id="mrName" value="' + escapeHtml(meter.name || '') + '" style="width:100%"></div>';
   h += '<div class="form-group"><label style="font-size:12px">Тип и марка (модель)</label><input id="mrBrand" value="" placeholder="ЦЭ6803В УНМТ" style="width:100%"></div>';
   h += '<div class="form-group"><label style="font-size:12px">№ счётчика</label><input id="mrNumber" placeholder="12345678" style="width:100%"></div>';
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
@@ -487,6 +488,7 @@ async function _submitMeterReplace(oldId) {
   if (!oldMeter) return;
   var op = oldMeter.properties || {};
 
+  var newName  = ((document.getElementById('mrName')      || {}).value || '').trim();
   var brand    = (document.getElementById('mrBrand')     || {}).value || '';
   var number   = (document.getElementById('mrNumber')    || {}).value || '';
   var manufDate = (document.getElementById('mrManufDate') || {}).value || '';
@@ -497,8 +499,8 @@ async function _submitMeterReplace(oldId) {
 
   var msgEl = document.getElementById('mrMsg');
 
-  if (!brand && !number) {
-    if (msgEl) { msgEl.textContent = 'Введите марку или номер нового счётчика'; msgEl.style.display = ''; }
+  if (!newName) {
+    if (msgEl) { msgEl.textContent = 'Введите название нового счётчика'; msgEl.style.display = ''; }
     return;
   }
 
@@ -519,8 +521,7 @@ async function _submitMeterReplace(oldId) {
     act_date:              actDate,
   };
 
-  // Name for new meter
-  var newName = (brand || op.meter_type || 'Счётчик') + (number ? ' №' + number : '');
+  // newName is taken from mrName input (already set above)
 
   var saveBtn = document.querySelector('#meterReplaceOverlay .btn-primary');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...'; }
