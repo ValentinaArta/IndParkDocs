@@ -91,6 +91,7 @@ app.use('/api/auth/totp', require('./routes/totp'));
 app.use('/api/legal', require('./routes/legal'));
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/entities/:id/files', require('./routes/files'));
+app.use('/api/cube', require('./routes/cube'));
 
 // SPA fallback
 app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });
