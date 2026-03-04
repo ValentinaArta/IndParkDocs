@@ -128,11 +128,31 @@ function eqListCreateShow(btn) {
         if (matchB) buildingSel.value = String(matchB.id);
       }
     }
-    // Auto-fill balance owner from contract's our_legal_entity_id
+    // Auto-fill balance owner: для Купли-продажи — покупатель, иначе — наше юр. лицо
     var ownerSel = panel.querySelector('.eq-create-owner');
     if (ownerSel && !ownerSel.value) {
-      var ownerId = _contractFormProps && _contractFormProps.our_legal_entity_id;
-      if (ownerId) ownerSel.value = String(ownerId);
+      var contractTypeEl = document.getElementById('f_contract_type');
+      var contractType = (contractTypeEl && contractTypeEl.value) || (_contractFormProps && _contractFormProps.contract_type) || '';
+      var ourRoleEl = document.getElementById('f_our_role_label');
+      var ourRole = (ourRoleEl && ourRoleEl.value) || (_contractFormProps && _contractFormProps.our_role_label) || '';
+      var buyerId = null;
+      if (contractType === 'Купли-продажи') {
+        if (ourRole === 'Продавец') {
+          // Наша сторона — продавец, покупатель — контрагент
+          var contrInput = document.getElementById('f_contractor_name');
+          buyerId = contrInput ? parseInt(contrInput.value) || null : null;
+        } else {
+          // Наша сторона — покупатель (по умолчанию для Купли-продажи)
+          var ourInput = document.getElementById('f_our_legal_entity');
+          buyerId = ourInput ? parseInt(ourInput.value) || null : null;
+        }
+      } else {
+        // Для остальных типов — наше юр. лицо
+        var ourInputDef = document.getElementById('f_our_legal_entity');
+        buyerId = (ourInputDef ? parseInt(ourInputDef.value) || null : null)
+          || (_contractFormProps && _contractFormProps.our_legal_entity_id) || null;
+      }
+      if (buyerId) ownerSel.value = String(buyerId);
     }
   }
 }
