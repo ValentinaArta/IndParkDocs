@@ -82,6 +82,25 @@ function renderContractCard(data) {
   if (data.payment_frequency) {
     h += '<div><span style="color:var(--text-secondary)">Периодичность оплаты:</span> ' + escapeHtml(data.payment_frequency) + '</div>';
   }
+  // НДС
+  if (data.vat_rate) {
+    var _vatLabel = data.vat_rate === 'exempt' ? 'не облагается' : (data.vat_rate + '%');
+    h += '<div><span style="color:var(--text-secondary)">НДС:</span> ' + escapeHtml(_vatLabel) + '</div>';
+  }
+  // Авансы
+  var _advances = [];
+  try { if (data.advances) _advances = JSON.parse(data.advances); } catch(ex) {}
+  if (_advances.length) {
+    h += '<div><span style="color:var(--text-secondary)">Авансы:</span>';
+    h += '<ul style="margin:4px 0 0 18px;padding:0;font-size:13px">';
+    _advances.forEach(function(adv) {
+      var parts = [];
+      if (adv.amount) parts.push(_ccFmtNum(adv.amount) + '\u00a0₽');
+      if (adv.date) parts.push(_ccFmtDate(adv.date));
+      h += '<li>' + escapeHtml(parts.join(' — ')) + '</li>';
+    });
+    h += '</ul></div>';
+  }
   // Комментарий
   if (data.service_comment) {
     h += '<div><span style="color:var(--text-secondary)">Комментарий:</span> ' + escapeHtml(data.service_comment) + '</div>';
@@ -120,7 +139,6 @@ function renderContractCard(data) {
   if (!isRental && data.contract_amount) {
     h += '<div style="font-size:15px;font-weight:600;margin-bottom:16px;color:var(--accent)">';
     h += 'Сумма договора: ' + _ccFmtNum(data.contract_amount) + ' ₽';
-    if (data.vat_rate) h += ' <span style="font-size:12px;color:var(--text-secondary);font-weight:400">(в т.ч. НДС ' + data.vat_rate + '%)</span>';
     h += '</div>';
   }
 

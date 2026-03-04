@@ -106,8 +106,8 @@ async function openCreateSupplementModal(parentContractId) {
       var show = (contractType === 'Субаренды');
       html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
         renderSearchableSelect('f_subtenant_name', _allCompanies, parentProps.subtenant_id, val, 'начните вводить...', 'subtenant_name') + '</div>';
-    } else if (f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text' || f.name === 'contract_end_date') {
-      // пропускаем — рендерится через renderDurationSection ниже
+    } else if (f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text' || f.name === 'contract_end_date' || f.name === 'vat_rate') {
+      // пропускаем — duration рендерится через renderDurationSection; vat_rate — ниже или через renderDynamicFields
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
     }
