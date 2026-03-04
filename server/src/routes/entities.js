@@ -101,8 +101,8 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 
   const { rows: relations } = await pool.query(
     `SELECT r.*,
-      fe.name as from_name, fet.icon as from_icon, fet.name_ru as from_type_ru,
-      te.name as to_name, tet.icon as to_icon, tet.name_ru as to_type_ru,
+      fe.name as from_name, fet.icon as from_icon, fet.name_ru as from_type_ru, fet.name as from_type_name,
+      te.name as to_name, tet.icon as to_icon, tet.name_ru as to_type_ru, tet.name as to_type_name,
       rt.name_ru as relation_name_ru, rt.color as relation_color
     FROM relations r
     JOIN entities fe ON r.from_entity_id = fe.id
@@ -234,6 +234,22 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
           ).catch(() => {});
         }
       }
+    }
+  }
+
+  // Link subject_room_ids / subject_building_ids / subject_land_plot_ids → located_in
+  for (const prop of ['subject_room_ids', 'subject_building_ids', 'subject_land_plot_ids']) {
+    if (!properties[prop]) continue;
+    let ids = [];
+    try { ids = typeof properties[prop] === 'string' ? JSON.parse(properties[prop]) : properties[prop]; } catch(e) {}
+    if (!Array.isArray(ids)) continue;
+    for (const targetId of ids) {
+      const tid = parseInt(targetId);
+      if (!tid) continue;
+      await pool.query(
+        'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+        [entityId, tid, 'located_in']
+      ).catch(() => {});
     }
   }
 }
