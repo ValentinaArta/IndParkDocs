@@ -23,16 +23,27 @@ async function fetchOnecOrganizations() {
   return (data.value || []).filter(o => o.ИНН);
 }
 
-/** Поиск в 1С: Catalog_Контрагенты по названию или ИНН */
+/** Поиск в 1С: Catalog_Контрагенты по названию или ИНН.
+ *  Важно: contains/tolower не поддерживаются этой 1С OData.
+ *  Работает: substringof (регистронезависимо), ИНН eq, $orderby (снимает AUTOORDER).
+ */
 async function searchOnecCounterparties(q) {
   const isInn = /^\d{10,12}$/.test(q.trim());
-  const filter = isInn
+  const baseFilter = isInn
     ? `ИНН eq '${q.trim()}'`
-    : `contains(tolower(Description),tolower('${q.replace(/'/g, '')}'))`;
-  const url = `${ONEC_URL}/Catalog_Контрагенты?$format=json&$select=Ref_Key,Description,ИНН,КПП,НаименованиеПолное&$filter=${encodeURIComponent(filter)}`;
+    : `substringof('${q.replace(/'/g, '')}',Description)`;
+  const filter = `${baseFilter} and DeletionMark eq false and IsFolder eq false`;
+  const url = `${ONEC_URL}/Catalog_Контрагенты?$format=json&$orderby=Description&$top=20&$select=Ref_Key,Description,ИНН,КПП,НаименованиеПолное&$filter=${encodeURIComponent(filter)}`;
   const res = await fetch(url, { headers: { Authorization: ONEC_AUTH }, signal: AbortSignal.timeout(10000) });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    logger.warn({ msg: '1С counterparty search failed', status: res.status, q });
+    return [];
+  }
   const data = await res.json();
+  if (data['odata.error']) {
+    logger.warn({ msg: '1С counterparty search odata error', err: data['odata.error'], q });
+    return [];
+  }
   return (data.value || []).filter(o => o.Description && o.Description !== 'Физические лица');
 }
 
