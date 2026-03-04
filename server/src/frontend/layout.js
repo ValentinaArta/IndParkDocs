@@ -72,7 +72,7 @@ module.exports = `</head>
   </div>
 </div>
 
-<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+<div class="modal-overlay" id="modalOverlay">
   <div class="modal" id="modal"></div>
 </div>
 `;
