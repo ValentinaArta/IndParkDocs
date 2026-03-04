@@ -219,4 +219,8 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .file-name { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .file-size { font-size:11px; color:var(--text-muted); white-space:nowrap; flex-shrink:0; }
 .file-delete { border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:13px; padding:2px 6px; border-radius:4px; flex-shrink:0; }
-.file-delete:hover { color:var(--red); background:var(--bg-secondary); }`;
+.file-delete:hover { color:var(--red); background:var(--bg-secondary); }
+/* Contract form sections */
+.form-section { border:1px solid var(--border);border-radius:8px;margin-bottom:14px;overflow:hidden; }
+.form-section-title { font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.7px;padding:8px 14px;background:var(--bg-secondary);border-bottom:1px solid var(--border); }
+.form-section-body { padding:14px; }`;
