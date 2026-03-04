@@ -237,6 +237,12 @@ function renderDynamicFields(contractType, props) {
     return;
   }
 
+  if (contractType === 'Купли-продажи' || contractType === 'Эксплуатации' || contractType === 'ТО и ППР') {
+    renderSaleContractFields(container, extraFields, props || {}, contractType);
+    _srchInitAll();
+    return;
+  }
+
   let html = '';
   extraFields.forEach(function(f) {
     const val = props ? (props[f.name] || '') : '';

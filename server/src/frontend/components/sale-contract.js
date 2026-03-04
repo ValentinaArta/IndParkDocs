@@ -38,8 +38,9 @@ function _saleSectionBtn(type, label, isActive) {
     (isActive ? escapeHtml(label) + ' \\u2715' : '+ ' + escapeHtml(label)) + '</button>';
 }
 
-function renderSaleContractFields(container, extraFields, props) {
+function renderSaleContractFields(container, extraFields, props, contractType) {
   props = props || {};
+  var isSaleItems = (contractType === 'Купли-продажи');
 
   function _parseArr(v) { if (!v) return []; if (Array.isArray(v)) return v; try { return JSON.parse(v) || []; } catch(e) { return []; } }
   function _hasReal(arr) { return Array.isArray(arr) && arr.some(function(i) { return i && (i.name || i.id || i.equipment_id); }); }
@@ -67,7 +68,7 @@ function renderSaleContractFields(container, extraFields, props) {
   html += _saleSectionBtn('room',  'Помещение',    hasRoom);
   html += _saleSectionBtn('lp',    'ЗУ',           hasLp);
   html += _saleSectionBtn('eq',    'Оборудование', hasEq);
-  html += _saleSectionBtn('items', 'Товар',        hasItems);
+  html += _saleSectionBtn('items', isSaleItems ? 'Товар' : 'Работы/услуги', hasItems);
   html += '</div>';
 
   // Секции (скрыты если нет данных)
@@ -92,12 +93,20 @@ function renderSaleContractFields(container, extraFields, props) {
   html += '</div>';
 
   html += '<div id="sale_sec_items" style="margin-bottom:12px;' + (hasItems ? '' : 'display:none') + '">';
-  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Перечень товаров</div>';
-  html += renderContractItemsField(ciList, true);
+  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">' + (isSaleItems ? 'Перечень товаров' : 'Перечень работ/услуг') + '</div>';
+  html += renderContractItemsField(ciList, isSaleItems);
   html += '</div>';
 
   // Сумма договора (авто)
   html += '<div class="form-group"><label>Сумма договора (итого)</label><input type="number" id="f_contract_amount" value="' + escapeHtml(String(props.contract_amount || '')) + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
+
+  // Extra fields (payment_frequency, vat_rate, etc.) — not handled above
+  var _knownSaleFields = ['subject','subject_buildings','subject_rooms','subject_land_plots','equipment_list','contract_items','contract_items_sale','contract_amount','advances'];
+  (extraFields || []).forEach(function(f) {
+    if (_knownSaleFields.indexOf(f.name) >= 0) return;
+    var val = props[f.name] || '';
+    html += '<div class="form-group"><label>' + escapeHtml(f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
+  });
 
   container.innerHTML = html;
 }
