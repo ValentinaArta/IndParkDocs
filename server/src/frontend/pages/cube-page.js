@@ -2,6 +2,34 @@
 module.exports = `
 // === CUBE PAGE ===
 
+var CUBE_DIM_GROUPS = [
+  { id: 'contract', label: 'Договор', icon: '📄', dims: [
+    { id: 'contract_type',  label: 'Тип договора' },
+    { id: 'our_company',    label: 'Наша организация' },
+    { id: 'doc_status',     label: 'Статус документа' },
+    { id: 'period_month',   label: 'Период (месяц)' },
+    { id: 'period_quarter', label: 'Период (квартал)' },
+    { id: 'period_year',    label: 'Период (год)' },
+  ]},
+  { id: 'contractor', label: 'Контрагент', icon: '🏛', dims: [
+    { id: 'contractor_name', label: 'Название' },
+  ]},
+  { id: 'building', label: 'Корпус', icon: '🏢', dims: [
+    { id: 'building_name', label: 'Название' },
+  ]},
+  { id: 'equipment', label: 'Оборудование', icon: '🔧', dims: [
+    { id: 'equipment_status',   label: 'Статус' },
+    { id: 'equipment_category', label: 'Категория' },
+    { id: 'equipment_kind',     label: 'Вид' },
+    { id: 'equipment_name',     label: 'Название' },
+  ]},
+];
+
+var _cubeRowDim   = null;
+var _cubeColDim   = null;
+var _cubeMeasure  = 'count';
+var _cubeLastData = null;
+
 async function showCubePage() {
   currentView = 'cube';
   _setNavHash('cube');
@@ -9,169 +37,292 @@ async function showCubePage() {
   document.getElementById('pageTitle').textContent = 'Куб';
   document.getElementById('breadcrumb').textContent = '';
   document.getElementById('topActions').innerHTML = '';
+  document.getElementById('content').innerHTML = _cubeLayout();
+  renderIcons();
+  _cubeRenderPool();
+  _cubeRenderCtrl();
+}
 
-  var content = document.getElementById('content');
-  content.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted)"><div class="spinner-ring" style="margin:0 auto 16px"></div>Загрузка данных куба...</div>';
+function _cubeLayout() {
+  return '<style>' +
+    '.cube-di{padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--border)}' +
+    '.cube-di:hover{background:var(--bg-hover)}' +
+    '</style>' +
+    '<div id="cubeWrap" style="display:flex;flex-direction:column;height:100%;overflow:hidden">' +
+    '<div id="cubeDimPool" style="padding:12px 16px 10px;background:var(--bg-card);border-bottom:1px solid var(--border);flex-shrink:0"></div>' +
+    '<div id="cubeCtrl" style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--bg-secondary);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap"></div>' +
+    '<div style="display:flex;flex:1;overflow:hidden">' +
+      '<div id="cubeTableWrap" style="flex:1;overflow:auto;padding:16px"></div>' +
+      '<div id="cubeDrill" style="width:0;overflow:hidden;border-left:1px solid var(--border);transition:width 0.25s;background:var(--bg-card);flex-shrink:0"></div>' +
+    '</div></div>';
+}
+
+function _cubeRenderPool() {
+  var el = document.getElementById('cubeDimPool');
+  if (!el) return;
+  var h = '<div style="display:flex;flex-wrap:wrap;gap:16px">';
+  CUBE_DIM_GROUPS.forEach(function(g) {
+    h += '<div><div style="font-size:10px;font-weight:700;color:var(--text-secondary);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px">' +
+         escapeHtml(g.icon + ' ' + g.label) + '</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+    g.dims.forEach(function(d) {
+      var isRow  = _cubeRowDim === d.id;
+      var isCol  = _cubeColDim === d.id;
+      var active = isRow || isCol;
+      var suffix = isRow ? ' \u2195' : (isCol ? ' \u2194' : '');
+      h += '<button type="button" data-cube-dim="' + d.id + '" onclick="_cubeDimClick(this.dataset.cubeDim)" style="' +
+           'padding:4px 10px;border-radius:12px;font-size:12px;cursor:pointer;white-space:nowrap;transition:all .15s;' +
+           'border:1px solid ' + (active ? 'var(--accent)' : 'var(--border)') + ';' +
+           'background:' + (active ? 'var(--accent)' : 'var(--bg-secondary)') + ';' +
+           'color:' + (active ? 'white' : 'var(--text)') + '">' +
+           escapeHtml(d.label + suffix) + '</button>';
+    });
+    h += '</div></div>';
+  });
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+function _cubeRenderCtrl() {
+  var el = document.getElementById('cubeCtrl');
+  if (!el) return;
+
+  function slot(axis) {
+    var dimId  = axis === 'row' ? _cubeRowDim : _cubeColDim;
+    var icon   = axis === 'row' ? '\u2195 Строки' : '\u2194 Колонки';
+    var label  = _cubeDimLabel(dimId);
+    if (!dimId) {
+      return '<div data-cube-axis="' + axis + '" onclick="_cubeFocusAxis(this.dataset.cubeAxis)" ' +
+             'style="padding:5px 12px;border:1px dashed var(--border);border-radius:6px;font-size:12px;color:var(--text-muted);cursor:pointer;min-width:110px">' +
+             icon + '...</div>';
+    }
+    return '<div style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:white;font-size:12px">' +
+           '<span style="opacity:.7;font-size:10px">' + icon + '</span> ' + escapeHtml(label) +
+           '<button type="button" data-cube-axis="' + axis + '" onclick="_cubeClearAxis(this.dataset.cubeAxis)" ' +
+           'style="background:none;border:none;color:white;opacity:.7;cursor:pointer;font-size:16px;padding:0 0 0 4px;line-height:1">\xd7</button></div>';
+  }
+
+  var mBtns = [['count','Количество'],['sum','Сумма \u20bd'],['list','Список']].map(function(m) {
+    var on = _cubeMeasure === m[0];
+    return '<button type="button" data-cube-measure="' + m[0] + '" onclick="_cubeSetMeasure(this.dataset.cubeMeasure)" ' +
+           'style="padding:5px 10px;font-size:12px;border-radius:5px;cursor:pointer;' +
+           'border:1px solid ' + (on ? 'var(--accent)' : 'var(--border)') + ';' +
+           'background:' + (on ? 'var(--accent)' : 'var(--bg)') + ';' +
+           'color:' + (on ? 'white' : 'var(--text)') + '">' + escapeHtml(m[1]) + '</button>';
+  }).join('');
+
+  var canRun = _cubeRowDim && _cubeColDim && _cubeRowDim !== _cubeColDim;
+  el.innerHTML =
+    slot('row') + slot('col') +
+    '<div style="display:flex;gap:4px;margin-left:4px">' + mBtns + '</div>' +
+    '<button type="button" onclick="_cubeRun()" ' + (canRun ? '' : 'disabled ') +
+    'style="padding:6px 16px;border-radius:6px;border:none;font-size:13px;font-weight:600;margin-left:auto;white-space:nowrap;' +
+    (canRun ? 'cursor:pointer;background:var(--accent);color:white' : 'cursor:not-allowed;background:var(--border);color:var(--text-muted)') +
+    '">\u25b6 Построить</button>';
+}
+
+var _cubeFocusedAxis = 'row';
+function _cubeFocusAxis(a) { _cubeFocusedAxis = a; }
+
+function _cubeDimClick(id) {
+  if      (_cubeRowDim === id) { _cubeRowDim = null; }
+  else if (_cubeColDim === id) { _cubeColDim = null; }
+  else if (!_cubeRowDim || _cubeFocusedAxis === 'row') { _cubeRowDim = id; _cubeFocusedAxis = 'col'; }
+  else                                                  { _cubeColDim = id; _cubeFocusedAxis = 'row'; }
+  _cubeRenderPool();
+  _cubeRenderCtrl();
+}
+
+function _cubeClearAxis(a) {
+  if (a === 'row') _cubeRowDim = null; else _cubeColDim = null;
+  _cubeRenderPool(); _cubeRenderCtrl();
+}
+
+function _cubeSetMeasure(m) {
+  _cubeMeasure = m;
+  _cubeRenderCtrl();
+  if (_cubeLastData) _cubeRenderTable(_cubeLastData);
+}
+
+async function _cubeRun() {
+  if (!_cubeRowDim || !_cubeColDim) return;
+  var wrap = document.getElementById('cubeTableWrap');
+  if (wrap) wrap.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text-muted)">' +
+    '<div class="spinner-ring" style="margin:0 auto 12px"></div>Строю сводную\u2026</div>';
+  var drill = document.getElementById('cubeDrill');
+  if (drill) { drill.style.width = '0'; drill.innerHTML = ''; }
 
   try {
-    await _cubeRender();
+    var data = await api('/cube/query', { method: 'POST', body: JSON.stringify({ rowDim: _cubeRowDim, colDim: _cubeColDim }) });
+    _cubeLastData = data;
+    _cubeRenderTable(data);
   } catch(e) {
-    content.innerHTML = '<div style="padding:24px;color:var(--red)">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>';
+    if (wrap) wrap.innerHTML = '<div style="padding:24px;color:var(--red)">Ошибка: ' + escapeHtml(String(e.message || e)) + '</div>';
   }
 }
 
-// ── State ───────────────────────────────────────────────────────────────────
-
-var _cubeState = {
-  rowDim:    'contract_type',   // Строки
-  colDim:    'period_month',    // Колонки
-  measure:   'amount',          // Мера
-  filters:   {}
-};
-
-var _CUBE_DIMS = [
-  { id: 'contract_type',  label: 'Тип договора' },
-  { id: 'counterparty',   label: 'Контрагент' },
-  { id: 'building',       label: 'Корпус' },
-  { id: 'our_company',    label: 'Наша организация' },
-  { id: 'period_month',   label: 'Период (месяц)' },
-  { id: 'period_quarter', label: 'Период (квартал)' },
-  { id: 'period_year',    label: 'Период (год)' },
-];
-
-var _CUBE_MEASURES = [
-  { id: 'amount',  label: 'Сумма, ₽' },
-  { id: 'count',   label: 'Количество' },
-  { id: 'area',    label: 'Площадь, м²' },
-];
-
-// ── Main render ─────────────────────────────────────────────────────────────
-
-async function _cubeRender() {
-  var data = await api('/cube/data?' + _cubeBuildQuery());
-  var content = document.getElementById('content');
-  content.innerHTML = _cubeRenderLayout(data);
-  renderIcons();
-}
-
-function _cubeBuildQuery() {
-  var p = 'rowDim=' + encodeURIComponent(_cubeState.rowDim) +
-          '&colDim=' + encodeURIComponent(_cubeState.colDim) +
-          '&measure=' + encodeURIComponent(_cubeState.measure);
-  Object.keys(_cubeState.filters).forEach(function(k) {
-    if (_cubeState.filters[k]) p += '&filter_' + encodeURIComponent(k) + '=' + encodeURIComponent(_cubeState.filters[k]);
-  });
-  return p;
-}
-
-function _cubeRenderLayout(data) {
-  var rows = (data && data.rows) || [];
-  var cols = (data && data.cols) || [];
-  var cells = (data && data.cells) || {};
-  var totalsRow = (data && data.totalsRow) || {};
-  var totalsCol = (data && data.totalsCol) || {};
-  var grand = (data && data.grand) || 0;
-
-  var measureLabel = (_CUBE_MEASURES.find(function(m) { return m.id === _cubeState.measure; }) || {}).label || _cubeState.measure;
-
-  var html = '<div style="max-width:100%;padding:0 0 24px">';
-
-  // ── Controls ──
-  html += '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:20px;padding:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius)">';
-
-  html += '<div style="display:flex;flex-direction:column;gap:4px">';
-  html += '<label style="font-size:11px;color:var(--text-secondary);font-weight:500">СТРОКИ</label>';
-  html += '<select data-cube-axis="row" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text)" onchange="_cubeSetDim(this.dataset.cubeAxis,this.value)">';
-  _CUBE_DIMS.forEach(function(d) {
-    html += '<option value="' + d.id + '"' + (d.id === _cubeState.rowDim ? ' selected' : '') + '>' + escapeHtml(d.label) + '</option>';
-  });
-  html += '</select></div>';
-
-  html += '<div style="display:flex;flex-direction:column;gap:4px">';
-  html += '<label style="font-size:11px;color:var(--text-secondary);font-weight:500">КОЛОНКИ</label>';
-  html += '<select data-cube-axis="col" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text)" onchange="_cubeSetDim(this.dataset.cubeAxis,this.value)">';
-  _CUBE_DIMS.forEach(function(d) {
-    html += '<option value="' + d.id + '"' + (d.id === _cubeState.colDim ? ' selected' : '') + '>' + escapeHtml(d.label) + '</option>';
-  });
-  html += '</select></div>';
-
-  html += '<div style="display:flex;flex-direction:column;gap:4px">';
-  html += '<label style="font-size:11px;color:var(--text-secondary);font-weight:500">МЕРА</label>';
-  html += '<select style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text)" onchange="_cubeSetMeasure(this.value)">';
-  _CUBE_MEASURES.forEach(function(m) {
-    html += '<option value="' + m.id + '"' + (m.id === _cubeState.measure ? ' selected' : '') + '>' + escapeHtml(m.label) + '</option>';
-  });
-  html += '</select></div>';
-
-  html += '<button class="btn btn-primary btn-sm" onclick="_cubeRender()"><i data-lucide="refresh-cw" class="lucide" style="width:14px;height:14px"></i> Обновить</button>';
-  html += '</div>';
-
-  // ── Table ──
+function _cubeRenderTable(data) {
+  var wrap = document.getElementById('cubeTableWrap');
+  if (!wrap) return;
+  var rows = data.rows || [], cols = data.cols || [], cells = data.cells || {};
   if (!rows.length || !cols.length) {
-    html += '<div style="padding:40px;text-align:center;color:var(--text-muted);background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius)">Нет данных для выбранных параметров</div>';
-    html += '</div>';
-    return html;
+    wrap.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text-muted)">Нет данных для выбранных измерений</div>';
+    return;
   }
 
-  html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:13px;background:var(--bg-card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)">';
-
-  // Header row
-  html += '<thead><tr style="background:var(--bg-sidebar);color:white">';
-  html += '<th style="padding:10px 14px;text-align:left;font-weight:600;border-right:1px solid rgba(255,255,255,0.1)">' + escapeHtml(_dimLabel(_cubeState.rowDim)) + ' \\ ' + escapeHtml(_dimLabel(_cubeState.colDim)) + '</th>';
-  cols.forEach(function(c) {
-    html += '<th style="padding:10px 14px;text-align:right;font-weight:500;border-right:1px solid rgba(255,255,255,0.1);white-space:nowrap">' + escapeHtml(String(c.label || c.key)) + '</th>';
+  var rLabel = _cubeDimLabel(data.rowDim), cLabel = _cubeDimLabel(data.colDim);
+  var rowTotals = {}, colTotals = {};
+  rows.forEach(function(r) {
+    var t = 0;
+    cols.forEach(function(c) { var cell = (cells[r.key] || {})[c.key]; if (cell) t += _cubeVal(cell); });
+    rowTotals[r.key] = t;
   });
-  html += '<th style="padding:10px 14px;text-align:right;font-weight:700;background:rgba(0,0,0,0.2)">Итого</th>';
-  html += '</tr></thead>';
+  cols.forEach(function(c) {
+    var t = 0;
+    rows.forEach(function(r) { var cell = (cells[r.key] || {})[c.key]; if (cell) t += _cubeVal(cell); });
+    colTotals[c.key] = t;
+  });
+  var grand = Object.values(rowTotals).reduce(function(s, v) { return s + v; }, 0);
 
-  // Data rows
-  html += '<tbody>';
+  var h = '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">' +
+    'Строки: <b>' + escapeHtml(rLabel) + '</b> &nbsp;&middot;&nbsp; Колонки: <b>' + escapeHtml(cLabel) + '</b> &nbsp;&middot;&nbsp;' +
+    rows.length + ' стр., ' + cols.length + ' кол.</div>';
+
+  h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;background:var(--bg-card)">';
+
+  h += '<thead><tr style="background:var(--bg-sidebar)">';
+  h += '<th style="padding:8px 12px;text-align:left;position:sticky;left:0;background:var(--bg-sidebar);z-index:2;min-width:130px;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff)">' +
+       escapeHtml(_cubeShort(rLabel,16)) + ' / ' + escapeHtml(_cubeShort(cLabel,14)) + '</th>';
+  cols.forEach(function(c) {
+    h += '<th style="padding:8px 10px;text-align:right;font-weight:500;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff);max-width:110px" title="' +
+         escapeHtml(c.key) + '">' + escapeHtml(_cubeShort(c.key, 16)) + '</th>';
+  });
+  h += '<th style="padding:8px 10px;text-align:right;font-weight:700;background:rgba(0,0,0,.2);color:var(--sidebar-text,#fff)">Итого</th></tr></thead>';
+
+  h += '<tbody>';
   rows.forEach(function(r, ri) {
-    var bg = ri % 2 === 0 ? '' : 'background:var(--bg-secondary)';
-    html += '<tr style="border-top:1px solid var(--border);' + bg + '">';
-    html += '<td style="padding:8px 14px;font-weight:500;border-right:1px solid var(--border)">' + escapeHtml(String(r.label || r.key)) + '</td>';
+    var bg = ri % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-secondary)';
+    h += '<tr style="border-top:1px solid var(--border)">';
+    h += '<td style="padding:7px 12px;font-weight:500;position:sticky;left:0;background:' + bg + ';z-index:1;border-right:1px solid var(--border);max-width:200px" title="' +
+         escapeHtml(r.key) + '">' + escapeHtml(_cubeShort(r.key, 28)) + '</td>';
     cols.forEach(function(c) {
-      var v = (cells[r.key] || {})[c.key];
-      html += '<td style="padding:8px 14px;text-align:right;border-right:1px solid var(--border);color:' + (v ? 'var(--text)' : 'var(--text-muted)') + '">' + _cubeFmt(v, _cubeState.measure) + '</td>';
+      var cell = (cells[r.key] || {})[c.key];
+      var val  = cell ? _cubeVal(cell) : 0;
+      var has  = val > 0;
+      h += '<td style="padding:7px 10px;text-align:right;border-right:1px solid var(--border);background:' + bg + ';' +
+           (has ? 'cursor:pointer' : 'color:var(--text-muted)') + '"' +
+           (has ? ' data-rk="' + escapeHtml(r.key) + '" data-ck="' + escapeHtml(c.key) + '" onclick="_cubeCellClick(this.dataset.rk,this.dataset.ck)"' : '') + '>' +
+           (has ? '<span style="color:var(--accent)">' + escapeHtml(_cubeCellDisp(cell)) + '</span>' : '\u2014') + '</td>';
     });
-    html += '<td style="padding:8px 14px;text-align:right;font-weight:600;background:var(--bg-secondary)">' + _cubeFmt(totalsRow[r.key], _cubeState.measure) + '</td>';
-    html += '</tr>';
+    h += '<td style="padding:7px 10px;text-align:right;font-weight:600;background:var(--bg-secondary)">' + _cubeFmtV(rowTotals[r.key]) + '</td></tr>';
   });
 
-  // Totals row
-  html += '<tr style="border-top:2px solid var(--border);background:var(--bg-secondary);font-weight:700">';
-  html += '<td style="padding:10px 14px;border-right:1px solid var(--border)">Итого</td>';
+  h += '<tr style="border-top:2px solid var(--border);background:var(--bg-secondary);font-weight:700">';
+  h += '<td style="padding:8px 12px;position:sticky;left:0;background:var(--bg-secondary);border-right:1px solid var(--border)">Итого</td>';
   cols.forEach(function(c) {
-    html += '<td style="padding:10px 14px;text-align:right;border-right:1px solid var(--border)">' + _cubeFmt(totalsCol[c.key], _cubeState.measure) + '</td>';
+    h += '<td style="padding:8px 10px;text-align:right;border-right:1px solid var(--border)">' + _cubeFmtV(colTotals[c.key]) + '</td>';
   });
-  html += '<td style="padding:10px 14px;text-align:right;font-size:14px;color:var(--accent)">' + _cubeFmt(grand, _cubeState.measure) + '</td>';
-  html += '</tr>';
-
-  html += '</tbody></table></div>';
-  html += '</div>';
-  return html;
+  h += '<td style="padding:8px 10px;text-align:right;font-size:14px;color:var(--accent)">' + _cubeFmtV(grand) + '</td></tr>';
+  h += '</tbody></table></div>';
+  wrap.innerHTML = h;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+async function _cubeCellClick(rk, ck) {
+  var data = _cubeLastData;
+  if (!data) return;
+  var cell = (data.cells[rk] || {})[ck];
+  if (!cell) return;
 
-function _dimLabel(dimId) {
-  var d = _CUBE_DIMS.find(function(x) { return x.id === dimId; });
-  return d ? d.label : dimId;
+  var drill = document.getElementById('cubeDrill');
+  if (!drill) return;
+  drill.style.width = '320px';
+  drill.innerHTML =
+    '<div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">' +
+      '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px">' +
+      escapeHtml(_cubeShort(rk,20)) + ' \xd7 ' + escapeHtml(_cubeShort(ck,20)) + '</div>' +
+      '<button onclick="_cubeCloseDrill()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">&times;</button>' +
+    '</div>' +
+    '<div id="cubeDrillBody" style="overflow-y:auto;height:calc(100% - 43px)">' +
+      '<div style="padding:24px;text-align:center"><div class="spinner-ring" style="margin:0 auto"></div></div>' +
+    '</div>';
+
+  try {
+    var cIds = (cell.contractIds  || []).join(',');
+    var eIds = (cell.equipmentIds || []).join(',');
+    var qs   = [];
+    if (cIds) qs.push('contractIds='  + encodeURIComponent(cIds));
+    if (eIds) qs.push('equipmentIds=' + encodeURIComponent(eIds));
+    var entities = await api('/cube/drilldown?' + qs.join('&'));
+    _cubeDrillRender(entities);
+  } catch(e) {
+    var body = document.getElementById('cubeDrillBody');
+    if (body) body.innerHTML = '<div style="padding:12px;color:var(--red)">Ошибка загрузки</div>';
+  }
 }
 
-function _cubeFmt(v, measure) {
-  if (v === undefined || v === null || v === 0) return '<span style="color:var(--text-muted)">—</span>';
-  if (measure === 'amount') return _fmtNum(v) + ' ₽';
-  if (measure === 'area')   return _fmtNum(v) + ' м²';
-  return String(v);
+function _cubeDrillRender(entities) {
+  var body = document.getElementById('cubeDrillBody');
+  if (!body) return;
+  if (!entities.length) {
+    body.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px">Нет данных</div>';
+    return;
+  }
+  var h = '<div style="font-size:11px;color:var(--text-secondary);padding:8px 14px;border-bottom:1px solid var(--border)">' +
+    entities.length + '\u00a0записей</div>';
+  entities.forEach(function(e) {
+    var sub = '';
+    if (e.type_name === 'contract') {
+      sub = [e.contract_type, e.contractor_name, e.contract_amount ? _fmtNum(parseFloat(e.contract_amount)) + '\u00a0\u20bd' : null].filter(Boolean).join('\u00a0\xb7\u00a0');
+    } else if (e.type_name === 'equipment') {
+      sub = [e.equipment_status, e.equipment_category].filter(Boolean).join('\u00a0\xb7\u00a0');
+    }
+    h += '<div class="cube-di" data-eid="' + e.id + '" onclick="showEntity(+this.dataset.eid)">' +
+         '<div style="font-size:13px;font-weight:500">' + escapeHtml(e.name || '\u2014') + '</div>' +
+         (sub ? '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">' + escapeHtml(sub) + '</div>' : '') +
+         '</div>';
+  });
+  body.innerHTML = h;
 }
 
-function _cubeSetDim(axis, value) {
-  if (axis === 'row') _cubeState.rowDim = value;
-  else _cubeState.colDim = value;
+function _cubeCloseDrill() {
+  var d = document.getElementById('cubeDrill');
+  if (d) { d.style.width = '0'; d.innerHTML = ''; }
 }
 
-function _cubeSetMeasure(value) {
-  _cubeState.measure = value;
+function _cubeDimLabel(id) {
+  if (!id) return '';
+  for (var i = 0; i < CUBE_DIM_GROUPS.length; i++) {
+    var g = CUBE_DIM_GROUPS[i];
+    for (var j = 0; j < g.dims.length; j++) {
+      if (g.dims[j].id === id) return g.label + ': ' + g.dims[j].label;
+    }
+  }
+  return id;
+}
+
+function _cubeVal(cell) {
+  return _cubeMeasure === 'sum' ? (cell.sum || 0) : (cell.count || 0);
+}
+
+function _cubeCellDisp(cell) {
+  if (_cubeMeasure === 'list') {
+    var names = cell.names || [];
+    var extra = (cell.count || 0) - names.length;
+    var t = names.slice(0, 3).join(', ');
+    if (extra > 0) t += ' +' + extra;
+    return t || String(cell.count || 0);
+  }
+  if (_cubeMeasure === 'sum') return _fmtNum(cell.sum || 0) + '\u00a0\u20bd';
+  return String(cell.count || 0);
+}
+
+function _cubeFmtV(v) {
+  if (!v) return '<span style="color:var(--text-muted)">\u2014</span>';
+  return _cubeMeasure === 'sum' ? _fmtNum(v) + '\u00a0\u20bd' : String(v);
+}
+
+function _cubeShort(s, n) {
+  s = String(s || '');
+  return s.length > n ? s.substring(0, n) + '\u2026' : s;
 }
 `;
