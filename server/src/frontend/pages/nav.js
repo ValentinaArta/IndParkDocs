@@ -104,6 +104,7 @@ function _routeFromHash(hash) {
   if (hash === '#finance')  { showFinancePage();  return; }
   if (hash === '#settings') { showSettings();     return; }
   if (hash === '#zachety')  { showLegalZachety(); return; }
+  if (hash === '#meters')   { showMetersPage();   return; }
   showDashboard();
 }
 
@@ -252,6 +253,8 @@ function renderTypeNav() {
   var eq = T('equipment');
   html += '<div class="nav-item" data-type="equipment" data-etype="equipment" onclick="showEntityList(this.dataset.etype)">' +
     entityIcon('equipment') + ' ' + escapeHtml(eq.name_ru || 'Оборудование') + '</div>';
+
+  html += '<div class="nav-item" onclick="showMetersPage()" style="padding-left:14px">🔢 Счётчики</div>';
 
   nav.innerHTML = html;
   renderIcons();

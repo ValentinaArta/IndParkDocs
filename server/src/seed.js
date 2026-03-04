@@ -16,6 +16,7 @@ const TYPES = [
   { name: 'supplement', name_ru: 'Доп. соглашение', icon: '📎', color: '#8B5CF6', sort_order: 9 },
   { name: 'land_plot', name_ru: 'Земельный участок', icon: '🌍', color: '#10B981', sort_order: 10 },
   { name: 'order', name_ru: 'Приказ', icon: '📜', color: '#6366F1', sort_order: 11 },
+  { name: 'meter', name_ru: 'Счётчик', icon: '🔢', color: '#0EA5E9', sort_order: 12 },
 ];
 
 const FIELDS = {
@@ -91,6 +92,23 @@ const FIELDS = {
   crane_track: [
     { name: 'length', name_ru: 'Длина (м)', field_type: 'number' },
     { name: 'location', name_ru: 'Расположение', field_type: 'text' },
+  ],
+  meter: [
+    { name: 'meter_type',              name_ru: 'Тип',                                    field_type: 'select', options: JSON.stringify(['Электричество','Вода','Тепло','Газ']) },
+    { name: 'installation_location',   name_ru: 'Место установки',                        field_type: 'text' },
+    { name: 'meter_number',            name_ru: '№ счётчика',                             field_type: 'text' },
+    { name: 'type_and_brand',          name_ru: 'Тип и марка',                            field_type: 'text' },
+    { name: 'manufacture_date',        name_ru: 'Дата выпуска',                           field_type: 'text' },
+    { name: 'tn_tt_ratio',             name_ru: 'Коэфф. тн/тт (эл.)',                    field_type: 'text' },
+    { name: 'limit_current',           name_ru: 'Огранич.ток (эл.)',                      field_type: 'text' },
+    { name: 'connected_to',            name_ru: 'Подключен к (эл.)',                      field_type: 'text' },
+    { name: 'mean_time_to_failure',    name_ru: 'Средняя наработка до отказа',            field_type: 'text' },
+    { name: 'service_life',            name_ru: 'Средний срок службы',                   field_type: 'text' },
+    { name: 'warranty_from_sale',      name_ru: 'Гарантийный срок со дня продажи/ввода', field_type: 'text' },
+    { name: 'warranty_from_manufacture', name_ru: 'Гарантийный срок с даты выпуска',     field_type: 'text' },
+    { name: 'verification_interval',   name_ru: 'Межповерочный интервал (лет)',           field_type: 'number' },
+    { name: 'verification_date',       name_ru: 'Дата выдачи свидетельства поверки',      field_type: 'date' },
+    { name: 'next_verification_date',  name_ru: 'Срок следующей поверки',                 field_type: 'date' },
   ],
 };
 

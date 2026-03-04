@@ -774,7 +774,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
       const p = sp.properties || {};
       return { id: sp.id, name: sp.name, number: p.number || '',
         date: p.contract_date || '', changes: p.changes_description || '',
-        contractor_name: p.contractor_name || '',
+        contractor_name: p.contractor_name || '', doc_status: p.doc_status || '',
         is_contract: false, is_act: false };
     }),
     ...acts,
