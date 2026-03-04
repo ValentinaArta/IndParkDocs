@@ -1,10 +1,232 @@
 module.exports = `
 
 // navigation/auth/init functions moved to pages/nav.js
-
 // map page functions moved to pages/map-page.js
-
 // dashboard functions moved to pages/dashboard.js
+
+// ============ LIST VIEW MODE (cards / table) ============
+
+var _listViewMode       = {};   // { typeName: 'cards' | 'table' }
+var _listSortBy         = 'name';
+var _listSortDir        = 'asc';
+var _listCurrentEntities = [];
+
+var _TABLE_VIEW_TYPES = ['contract', 'supplement', 'company', 'equipment'];
+
+function _svgCards() {
+  return '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" style="vertical-align:middle">' +
+    '<rect x="0.75" y="0.75" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.5"/>' +
+    '<rect x="9.75" y="0.75" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.5"/>' +
+    '<rect x="0.75" y="9.75" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.5"/>' +
+    '<rect x="9.75" y="9.75" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.5"/>' +
+    '</svg>';
+}
+
+function _svgTable() {
+  return '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" style="vertical-align:middle">' +
+    '<rect x="0.75" y="0.75" width="14.5" height="14.5" rx="1" stroke="currentColor" stroke-width="1.5"/>' +
+    '<line x1="0.75" y1="5.25" x2="15.25" y2="5.25" stroke="currentColor" stroke-width="1.2"/>' +
+    '<line x1="0.75" y1="9.5"  x2="15.25" y2="9.5"  stroke="currentColor" stroke-width="1.2"/>' +
+    '<line x1="0.75" y1="13.75" x2="15.25" y2="13.75" stroke="currentColor" stroke-width="1.2"/>' +
+    '</svg>';
+}
+
+function _toggleListView(typeName) {
+  _listViewMode[typeName] = (_listViewMode[typeName] === 'table') ? 'cards' : 'table';
+  var isTable = _listViewMode[typeName] === 'table';
+  var btn = document.getElementById('listViewToggleBtn');
+  if (btn) {
+    btn.innerHTML = isTable ? (_svgCards() + ' Карточки') : (_svgTable() + ' Таблица');
+    btn.title = isTable ? 'Показать карточками' : 'Показать таблицей';
+  }
+  _renderListCurrent();
+}
+
+function _renderListCurrent() {
+  if (_listViewMode[currentTypeFilter] === 'table') {
+    renderEntityTable(_listCurrentEntities, currentTypeFilter);
+  } else {
+    renderEntityGrid(_listCurrentEntities);
+  }
+}
+
+function _listSortByCol(col) {
+  if (_listSortBy === col) {
+    _listSortDir = (_listSortDir === 'asc') ? 'desc' : 'asc';
+  } else {
+    _listSortBy = col;
+    _listSortDir = 'asc';
+  }
+  renderEntityTable(_listCurrentEntities, currentTypeFilter);
+}
+
+function _getEntityTableCols(typeName) {
+  if (typeName === 'contract' || typeName === 'supplement') {
+    return [
+      { id: 'doc_status', label: 'Статус', sortable: true,
+        getValue: function(e) { return (e.properties || {}).doc_status || ''; },
+        render: function(e) {
+          var p = e.properties || {};
+          var h = '';
+          if (p.is_vgo === 'true' || p.is_vgo === true) h += '<span style="background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:700;padding:1px 5px;border-radius:6px;margin-right:3px">ВГО</span>';
+          if (p.doc_status) h += _docStatusBadge(p.doc_status);
+          return h || '—';
+        }
+      },
+      { id: 'number', label: '№', sortable: true,
+        getValue: function(e) { return (e.properties || {}).number || ''; },
+        render: function(e) { return '<span style="font-weight:500">' + escapeHtml((e.properties || {}).number || '—') + '</span>'; }
+      },
+      { id: 'contract_type', label: 'Тип договора', sortable: true,
+        getValue: function(e) { return (e.properties || {}).contract_type || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).contract_type || '—'); }
+      },
+      { id: 'our_legal_entity', label: 'Наше юр. лицо', sortable: true,
+        getValue: function(e) { return (e.properties || {}).our_legal_entity || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).our_legal_entity || '—'); }
+      },
+      { id: 'contractor_name', label: 'Контрагент', sortable: true,
+        getValue: function(e) { return (e.properties || {}).contractor_name || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).contractor_name || '—'); }
+      },
+      { id: 'contract_date', label: 'Дата', sortable: true,
+        getValue: function(e) { return (e.properties || {}).contract_date || ''; },
+        render: function(e) {
+          var d = (e.properties || {}).contract_date || '';
+          if (d && d.length === 10) { var pts = d.split('-'); d = pts[2] + '.' + pts[1] + '.' + pts[0]; }
+          return d || '—';
+        }
+      },
+      { id: 'contract_amount', label: 'Сумма', sortable: true,
+        getValue: function(e) { var v = parseFloat((e.properties || {}).contract_amount || (e.properties || {}).rent_monthly || 0); return isNaN(v) ? 0 : v; },
+        render: function(e) {
+          var amt = (e.properties || {}).contract_amount || (e.properties || {}).rent_monthly || '';
+          if (!amt) return '—';
+          return '<span style="font-weight:600;color:var(--accent)">' + Number(amt).toLocaleString('ru-RU') + ' \\u20bd</span>';
+        }
+      },
+    ];
+  }
+  if (typeName === 'company') {
+    return [
+      { id: 'name', label: 'Название', sortable: true,
+        getValue: function(e) { return e.name || ''; },
+        render: function(e) { return '<span style="font-weight:500">' + escapeHtml(e.name || '—') + '</span>'; }
+      },
+      { id: 'inn', label: 'ИНН', sortable: true,
+        getValue: function(e) { return (e.properties || {}).inn || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).inn || '—'); }
+      },
+      { id: 'contact_person', label: 'Контактное лицо', sortable: true,
+        getValue: function(e) { return (e.properties || {}).contact_person || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).contact_person || '—'); }
+      },
+      { id: 'phone', label: 'Телефон', sortable: false,
+        getValue: function(e) { return (e.properties || {}).phone || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).phone || '—'); }
+      },
+      { id: 'email', label: 'Email', sortable: false,
+        getValue: function(e) { return (e.properties || {}).email || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).email || '—'); }
+      },
+    ];
+  }
+  if (typeName === 'equipment') {
+    return [
+      { id: 'name', label: 'Название', sortable: true,
+        getValue: function(e) { return e.name || ''; },
+        render: function(e) {
+          var isB = _brokenEqIds && _brokenEqIds.has(e.id);
+          var badge = isB ? ' <span class="eq-broken-badge">\\u26a0 Нерабочий</span>' : '';
+          return '<span style="font-weight:500' + (isB ? ';color:#dc2626' : '') + '">' + escapeHtml(e.name || '—') + '</span>' + badge;
+        }
+      },
+      { id: 'equipment_category', label: 'Категория', sortable: true,
+        getValue: function(e) { return (e.properties || {}).equipment_category || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).equipment_category || '—'); }
+      },
+      { id: 'equipment_kind', label: 'Вид', sortable: true,
+        getValue: function(e) { return (e.properties || {}).equipment_kind || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).equipment_kind || '—'); }
+      },
+      { id: 'inv_number', label: 'Инв. №', sortable: true,
+        getValue: function(e) { return (e.properties || {}).inv_number || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).inv_number || '—'); }
+      },
+      { id: 'serial_number', label: 'Серийный №', sortable: true,
+        getValue: function(e) { return (e.properties || {}).serial_number || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).serial_number || '—'); }
+      },
+      { id: 'status', label: 'Статус', sortable: true,
+        getValue: function(e) { return (e.properties || {}).status || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).status || '—'); }
+      },
+      { id: 'balance_owner', label: 'Балансодержатель', sortable: true,
+        getValue: function(e) { return (e.properties || {}).balance_owner_name || ''; },
+        render: function(e) { return escapeHtml((e.properties || {}).balance_owner_name || '—'); }
+      },
+    ];
+  }
+  return [];
+}
+
+function renderEntityTable(entities, typeName) {
+  _listCurrentEntities = Array.isArray(entities) ? entities : [];
+  var cols = _getEntityTableCols(typeName);
+  if (!cols.length) { renderEntityGrid(entities); return; }
+
+  // Sort
+  var sorted = _listCurrentEntities.slice().sort(function(a, b) {
+    var c = null;
+    for (var ci = 0; ci < cols.length; ci++) { if (cols[ci].id === _listSortBy) { c = cols[ci]; break; } }
+    if (!c || !c.getValue) return 0;
+    var va = c.getValue(a);
+    var vb = c.getValue(b);
+    var sd = _listSortDir === 'desc' ? -1 : 1;
+    // Numeric sort
+    if (typeof va === 'number' && typeof vb === 'number') {
+      return (va - vb) * sd;
+    }
+    va = (va === null || va === undefined) ? '' : String(va).toLowerCase();
+    vb = (vb === null || vb === undefined) ? '' : String(vb).toLowerCase();
+    if (va < vb) return -1 * sd;
+    if (va > vb) return  1 * sd;
+    return 0;
+  });
+
+  if (!sorted.length) {
+    document.getElementById('content').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)">Нет записей</div>';
+    return;
+  }
+
+  var h = '<div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border)">';
+  h += '<table style="border-collapse:collapse;font-size:13px;white-space:nowrap;width:100%">';
+  h += '<thead><tr>';
+  cols.forEach(function(col) {
+    var active = (_listSortBy === col.id) && (col.sortable !== false);
+    var arrow  = active ? (_listSortDir === 'asc' ? ' \\u2191' : ' \\u2193') : '';
+    if (col.sortable !== false) {
+      h += '<th onclick="_listSortByCol(\\'' + col.id + '\\')" style="cursor:pointer;padding:9px 12px;background:#4F6BCC;color:#fff;text-align:left;user-select:none' + (active ? ';text-decoration:underline' : '') + '">' + escapeHtml(col.label) + arrow + '</th>';
+    } else {
+      h += '<th style="padding:9px 12px;background:#4F6BCC;color:#fff;text-align:left">' + escapeHtml(col.label) + '</th>';
+    }
+  });
+  h += '</tr></thead><tbody>';
+
+  sorted.forEach(function(e, i) {
+    var rowBg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+    h += '<tr style="' + rowBg + '" class="meter-row" onclick="showEntity(' + e.id + ')">';
+    cols.forEach(function(col) {
+      h += '<td style="padding:7px 12px;border-bottom:1px solid var(--border)">' + col.render(e) + '</td>';
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Всего: ' + sorted.length + '</div>';
+  document.getElementById('content').innerHTML = h;
+}
+
+// ============ END LIST VIEW MODE ============
 
 function _areaBarHover(bi) {
   if (!_areaData) return;
@@ -98,8 +320,16 @@ async function showEntityList(typeName, opts) {
   var createBtn = typeName === 'room' && opts.parentId
     ? '<button class="btn btn-primary" onclick="openCreateModal(\\'' + typeName + '\\',' + opts.parentId + ')">+ Добавить</button>'
     : '<button class="btn btn-primary" onclick="openCreateModal(\\'' + typeName + '\\')">+ Добавить</button>';
+
+  var viewToggleBtn = '';
+  if (_TABLE_VIEW_TYPES.indexOf(typeName) >= 0) {
+    var isTable = _listViewMode[typeName] === 'table';
+    viewToggleBtn = '<button id="listViewToggleBtn" class="btn btn-sm" onclick="_toggleListView(\\'' + typeName + '\\')" title="' + (isTable ? 'Показать карточками' : 'Показать таблицей') + '" style="display:inline-flex;align-items:center;gap:5px">' +
+      (isTable ? _svgCards() + ' Карточки' : _svgTable() + ' Таблица') + '</button>';
+  }
+
   document.getElementById('topActions').innerHTML =
-    '<input class="search-bar" placeholder="Поиск..." oninput="searchEntities(this.value)">' + createBtn;
+    '<input class="search-bar" placeholder="Поиск..." oninput="searchEntities(this.value)">' + viewToggleBtn + createBtn;
 
   var url = '/entities?type=' + typeName;
   if (opts.parentId) url += '&parent_id=' + opts.parentId;
@@ -120,10 +350,12 @@ async function showEntityList(typeName, opts) {
     });
     document.getElementById('pageTitle').textContent = 'Договоры: ' + opts.contractType;
   }
-  renderEntityGrid(entities);
+  _listCurrentEntities = Array.isArray(entities) ? entities : [];
+  _renderListCurrent();
 }
 
 function renderEntityGrid(entities) {
+  _listCurrentEntities = Array.isArray(entities) ? entities : [];
   const content = document.getElementById('content');
   if (entities.length === 0) {
     content.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)">Нет записей</div>';
@@ -213,7 +445,8 @@ async function searchEntities(q) {
   searchTimeout = setTimeout(async () => {
     const url = '/entities?' + (currentTypeFilter ? 'type=' + currentTypeFilter + '&' : '') + 'search=' + encodeURIComponent(q);
     const entities = await api(url);
-    renderEntityGrid(entities);
+    _listCurrentEntities = Array.isArray(entities) ? entities : [];
+    _renderListCurrent();
   }, 300);
 }
 
