@@ -280,6 +280,7 @@ function renderContractCard(data) {
         }
         h += escapeHtml(suppTitle);
         h += '</a>';
+        if (s.doc_status) h += ' ' + _docStatusBadge(s.doc_status);
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         if (s.changes) h += ' — <span style="color:var(--text-secondary)">' + escapeHtml(s.changes) + '</span>';
       }

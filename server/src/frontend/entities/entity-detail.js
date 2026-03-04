@@ -271,7 +271,8 @@ async function showEntity(id, _forceDetail) {
         const sp = s.properties || {};
         html += '<div class="child-card" onclick="showEntity(' + s.id + ')">' +
           '<span>' + icon('paperclip', 18) + '</span>' +
-          '<div><div style="font-weight:500;font-size:13px">' + escapeHtml(s.name) + '</div>' +
+          '<div><div style="font-weight:500;font-size:13px">' + escapeHtml(s.name) +
+          (sp.doc_status ? ' ' + _docStatusBadge(sp.doc_status) : '') + '</div>' +
           '<div style="font-size:11px;color:var(--text-muted)">' + (sp.number || '') + (sp.contract_date ? ' от ' + sp.contract_date : '') + '</div></div></div>';
       });
       html += '</div>';
