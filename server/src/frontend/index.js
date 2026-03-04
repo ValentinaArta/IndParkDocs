@@ -48,6 +48,7 @@ const financePage  = require('./pages/finance-page');
 const budgetPage   = require('./pages/budget-page');
 const mapPage      = require('./pages/map-page');
 const metersPage   = require('./pages/meters-page');
+const cubePage     = require('./pages/cube-page');
 const rentObjects = require('./rent-objects');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
@@ -128,7 +129,10 @@ const FRONTEND_HTML =
   budgetPage +
   '\n' +
   mapPage +
+  '\n' +
   metersPage +
+  '\n' +
+  cubePage +
   '\n' +
   contractForm +
   '\n' +

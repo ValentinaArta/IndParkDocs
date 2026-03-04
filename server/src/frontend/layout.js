@@ -43,6 +43,9 @@ module.exports = `</head>
       <div class="nav-item" onclick="showBudgetPage()">
         <i data-lucide="trending-up" class="lucide"></i> Бюджеты
       </div>
+      <div class="nav-item" onclick="showCubePage()">
+        <i data-lucide="box" class="lucide"></i> Куб
+      </div>
       <div class="nav-section" style="margin-top:12px">Суды и пр.</div>
       <div class="nav-item" onclick="showLegalZachety()">
         <i data-lucide="scale" class="lucide"></i> Зачёты с ПАО

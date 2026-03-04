@@ -277,7 +277,7 @@ function renderMetersTable() {
   }
 
   h += '<div style="overflow-x:auto;max-height:calc(100vh - 220px);overflow-y:auto;border-radius:8px;border:1px solid var(--border)">';
-  h += '<table id="metersTable" style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">';
+  h += '<table id="metersTable" style="border-collapse:collapse;font-size:13px;table-layout:auto;white-space:nowrap">';
   h += '<thead style="position:sticky;top:0;z-index:4"><tr>';
   visibleCols.forEach(function(col) { h += _th(col); });
   h += '</tr></thead><tbody>';
@@ -318,7 +318,7 @@ function renderMetersTable() {
       var borderBot = 'border-bottom:1px solid var(--border);';
 
       if (col.id === 'name') {
-        h += '<td class="mc-col-name" onclick="showEntity(' + e.id + ')" style="' + borderBot + 'padding:7px 10px;position:sticky;left:0;z-index:1;background:' + stickyBg + ';cursor:pointer;color:' + (isDismantled ? '#9ca3af' : 'var(--accent)') + ';font-weight:500">' + escapeHtml(e.name || '—') + '</td>';
+        h += '<td class="mc-col-name" onclick="showEntity(' + e.id + ')" style="' + borderBot + 'padding:7px 10px;position:sticky;left:0;z-index:1;background:' + stickyBg + ';cursor:pointer;color:' + (isDismantled ? '#9ca3af' : 'var(--accent)') + ';font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="' + escapeHtml(e.name || '') + '">' + escapeHtml(e.name || '—') + '</td>';
 
       } else if (col.id === 'status') {
         h += '<td class="mc-col-status" style="' + dispStyle + borderBot + 'padding:7px 10px;white-space:nowrap">' + _meterStatusBadge(p.status || '') + '</td>';
@@ -455,6 +455,7 @@ function showMeterReplaceForm(meterId) {
 
   // Новый счётчик
   h += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px">🔢 Новый счётчик</div>';
+  h += '<div class="form-group"><label style="font-size:12px">Название нового счётчика</label><input id="mrName" value="' + escapeHtml(meter.name || '') + '" style="width:100%"></div>';
   h += '<div class="form-group"><label style="font-size:12px">Тип и марка (модель)</label><input id="mrBrand" value="" placeholder="ЦЭ6803В УНМТ" style="width:100%"></div>';
   h += '<div class="form-group"><label style="font-size:12px">№ счётчика</label><input id="mrNumber" placeholder="12345678" style="width:100%"></div>';
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
@@ -487,6 +488,7 @@ async function _submitMeterReplace(oldId) {
   if (!oldMeter) return;
   var op = oldMeter.properties || {};
 
+  var newName  = ((document.getElementById('mrName')      || {}).value || '').trim();
   var brand    = (document.getElementById('mrBrand')     || {}).value || '';
   var number   = (document.getElementById('mrNumber')    || {}).value || '';
   var manufDate = (document.getElementById('mrManufDate') || {}).value || '';
@@ -497,8 +499,8 @@ async function _submitMeterReplace(oldId) {
 
   var msgEl = document.getElementById('mrMsg');
 
-  if (!brand && !number) {
-    if (msgEl) { msgEl.textContent = 'Введите марку или номер нового счётчика'; msgEl.style.display = ''; }
+  if (!newName) {
+    if (msgEl) { msgEl.textContent = 'Введите название нового счётчика'; msgEl.style.display = ''; }
     return;
   }
 
@@ -519,8 +521,7 @@ async function _submitMeterReplace(oldId) {
     act_date:              actDate,
   };
 
-  // Name for new meter
-  var newName = (brand || op.meter_type || 'Счётчик') + (number ? ' №' + number : '');
+  // newName is taken from mrName input (already set above)
 
   var saveBtn = document.querySelector('#meterReplaceOverlay .btn-primary');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...'; }
@@ -554,6 +555,14 @@ async function _submitMeterReplace(oldId) {
 
     var overlay = document.getElementById('meterReplaceOverlay');
     if (overlay) overlay.remove();
+
+    // Сбрасываем поисковый фильтр — новый счётчик имеет другой номер
+    _metersFilter.search = '';
+    _metersFilter.status = '';
+    var srchEl = document.getElementById('meterSrchFilter');
+    if (srchEl) srchEl.value = '';
+    var stEl = document.getElementById('meterStatusFilter');
+    if (stEl) stEl.value = '';
 
     // Reload
     await reloadMeters();
