@@ -23,7 +23,7 @@ function _renderSubjRow(type, item, rowId) {
     list = (_buildings || []).map(function(b) { return { id: b.id, name: b.name }; });
     srchField = 'building';
   } else if (type === 'lp') {
-    list = (_landPlots || []).map(function(l) { return { id: l.id, name: l.name }; });
+    list = (_landPlots || []).map(function(l) { return { id: l.id, name: _lpLabel(l) }; });
     srchField = 'land_plot';
   } else if (type === 'lpp') {
     list = (_landPlotParts || []).map(function(p) { return { id: p.id, name: p.name }; });
