@@ -47,9 +47,22 @@ function renderContractCard(data) {
   if (data.subject) {
     h += '<div><span style="color:var(--text-secondary)">Предмет:</span> ' + escapeHtml(data.subject) + '</div>';
   }
-  // Корпус
+  // Корпус (legacy text field for Подряда/Обслуживания)
   if (data.building) {
     h += '<div><span style="color:var(--text-secondary)">Корпус:</span> ' + escapeHtml(data.building) + '</div>';
+  }
+  // Объекты договора (relations: rooms / buildings / land_plots)
+  if (data.subject_buildings && data.subject_buildings.length) {
+    h += '<div><span style="color:var(--text-secondary)">Корпуса:</span> ' +
+      data.subject_buildings.map(function(b) { return '<a href="#" onclick="showEntity(' + b.id + ');return false">' + escapeHtml(b.name) + '</a>'; }).join(', ') + '</div>';
+  }
+  if (data.subject_rooms && data.subject_rooms.length) {
+    h += '<div><span style="color:var(--text-secondary)">Помещения:</span> ' +
+      data.subject_rooms.map(function(r) { return '<a href="#" onclick="showEntity(' + r.id + ');return false">' + escapeHtml(r.name) + '</a>'; }).join(', ') + '</div>';
+  }
+  if (data.subject_land_plots && data.subject_land_plots.length) {
+    h += '<div><span style="color:var(--text-secondary)">Земельные участки:</span> ' +
+      data.subject_land_plots.map(function(l) { return '<a href="#" onclick="showEntity(' + l.id + ');return false">' + escapeHtml(l.name) + '</a>'; }).join(', ') + '</div>';
   }
   // Арендатор (для Подряда)
   if (data.tenant) {
