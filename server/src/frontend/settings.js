@@ -2,6 +2,7 @@ module.exports = `// ============ SETTINGS ============
 
 function showSettings(tab) {
   currentView = 'settings';
+  _setNavHash('settings');
   tab = tab || 'types';
   setActive(null);
   document.querySelectorAll('.nav-item').forEach(el => { if (el.textContent.includes('Типы и поля')) el.classList.add('active'); });

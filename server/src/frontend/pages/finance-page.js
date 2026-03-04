@@ -9,6 +9,7 @@ async function showFinancePage(dateFrom, dateTo) {
   if (dateFrom) _finDateFrom = dateFrom;
   if (dateTo   !== undefined) _finDateTo = dateTo || '';
   currentView = 'finance';
+  _setNavHash('finance');
   setActive('[onclick*="showFinancePage"]');
   document.getElementById('pageTitle').textContent = 'Расходы';
   document.getElementById('breadcrumb').textContent = '';

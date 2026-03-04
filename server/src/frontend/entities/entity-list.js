@@ -81,6 +81,7 @@ async function showEntityList(typeName, opts) {
   opts = opts || {};
   currentView = 'list';
   currentTypeFilter = typeName;
+  _setNavHash('list/' + encodeURIComponent(typeName));
   const type = entityTypes.find(t => t.name === typeName);
 
   // Highlight parent group in nav when showing filtered sub-list

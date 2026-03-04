@@ -7,6 +7,7 @@ module.exports = `
 async function showDashboard() {
   currentView = 'dashboard';
   currentTypeFilter = null;
+  _setNavHash('dashboard');
   setActive('.nav-item:first-child');
   document.getElementById('pageTitle').textContent = 'Обзор';
   document.getElementById('breadcrumb').textContent = '';
