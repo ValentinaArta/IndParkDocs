@@ -877,7 +877,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     building: cProps.building || '',
     tenant: cProps.tenant || '',
     vat_rate: effVat,
-    advances: cProps.advances || '',
+    advances: latestSuppValue(supplements, 'advances') || cProps.advances || '',
     completion_deadline: effDeadline,
     service_comment: effComment,
     payment_frequency: effPayFreq,
