@@ -116,6 +116,13 @@ async function showEntity(id, _forceDetail) {
         }
         return;
       }
+      if (f.field_type === 'number') {
+        var numVal = val !== null && val !== undefined && val !== '' ? parseFloat(val) : null;
+        var numDisplay = numVal !== null && !isNaN(numVal) ? _fmtNum(numVal) : '—';
+        html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
+          '<div class="prop-value">' + numDisplay + '</div></div>';
+        return;
+      }
       html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
         '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });
