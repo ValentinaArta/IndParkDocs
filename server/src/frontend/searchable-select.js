@@ -68,6 +68,13 @@ function _srchGetList(id) {
     var invNum = (e.properties || {}).inv_number;
     return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
   });
+  if (fn === 'meter_equipment') return (_equipment || []).map(function(e) {
+    var p = e.properties || {};
+    var cat = p.equipment_category || '';
+    var inv = p.inv_number || '';
+    var suffix = [cat, inv ? 'инв. ' + inv : ''].filter(Boolean).join(', ');
+    return { id: e.id, name: e.name + (suffix ? ' (' + suffix + ')' : '') };
+  });
   if (fn === 'rent_room') return (_rooms || []).map(function(r) {
     var bld = _getRoomBuilding(r);
     return { id: r.id, name: r.name + (bld ? ' (' + bld + ')' : '') };
@@ -113,7 +120,7 @@ function _srchFilter(id) {
   });
   if (filtered.length > 50) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...</div>';
   var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
-  if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'rent_lp_part' && fn !== 'rent_lp_combined' && fn !== 'act_equipment' && fn !== 'building' && fn !== 'land_plot' && fn !== 'eq_parent') {
+  if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'rent_lp_part' && fn !== 'rent_lp_combined' && fn !== 'act_equipment' && fn !== 'building' && fn !== 'land_plot' && fn !== 'eq_parent' && fn !== 'meter_equipment') {
     h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
   }
   var ONEC_COMPANY_FIELDS = ['contractor_name', 'subtenant_name'];
