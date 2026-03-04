@@ -88,6 +88,11 @@ function _srchGetList(id) {
     var invNum = (e.properties || {}).inv_number;
     return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
   });
+  if (fn === 'building') return (_buildings || []).map(function(b) { return { id: b.id, name: b.name }; });
+  if (fn === 'land_plot') return (_landPlots || []).map(function(lp) {
+    var cad = (lp.properties || {}).cadastral_number;
+    return { id: lp.id, name: lp.name + (cad ? ' [' + cad + ']' : '') };
+  });
   return _allCompanies || [];
 }
 
@@ -107,7 +112,7 @@ function _srchFilter(id) {
   });
   if (filtered.length > 50) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...</div>';
   var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
-  if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'rent_lp_part' && fn !== 'rent_lp_combined' && fn !== 'act_equipment') {
+  if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'rent_lp_part' && fn !== 'rent_lp_combined' && fn !== 'act_equipment' && fn !== 'building' && fn !== 'land_plot') {
     h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
   }
   var ONEC_COMPANY_FIELDS = ['contractor_name', 'subtenant_name'];
