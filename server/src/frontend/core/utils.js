@@ -23,4 +23,24 @@ function _docStatusBadge(status) {
       : 'background:#e2e8f0;color:#64748b'; // Создан и прочее — серый
   return '<span style="' + style + ';font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap">' + escapeHtml(status) + '</span>';
 }
+
+function renderVatSelect(val, inputId) {
+  inputId = inputId || 'f_vat_rate';
+  var opts = [
+    { v: 'exempt', l: 'НДС не облагается' },
+    { v: '0',  l: '0%' },
+    { v: '5',  l: '5%' },
+    { v: '18', l: '18%' },
+    { v: '20', l: '20%' },
+    { v: '22', l: '22% (по умолчанию)' },
+  ];
+  var norm = String(val || '22').trim();
+  if (!norm || norm === 'undefined' || norm === 'null') norm = '22';
+  var h = '<select id="' + inputId + '" onchange="updateVatDisplay()" style="width:auto;min-width:160px">';
+  opts.forEach(function(o) {
+    h += '<option value="' + o.v + '"' + (norm === o.v ? ' selected' : '') + '>' + o.l + '</option>';
+  });
+  h += '</select>';
+  return h;
+}
 `;

@@ -14,6 +14,44 @@ function getEquipmentCategories() {
   return EQUIPMENT_CATEGORIES.concat(extra.sort());
 }
 
+// Subject-only version for new 3-section layout
+function renderRentSubjectOnly(container, allFields, props) {
+  props = props || {};
+  var objects = [];
+  try {
+    var ro = props.rent_objects;
+    if (typeof ro === 'string' && ro) objects = JSON.parse(ro);
+    else if (Array.isArray(ro)) objects = ro;
+  } catch(e) {}
+  if (objects.length === 0) objects = [{}];
+  _rentObjectCounter = objects.length;
+
+  var html = '<div id="rent_objects_container">';
+  objects.forEach(function(obj, i) { html += renderRentObjectBlock(i, obj); });
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px;margin-bottom:16px">';
+  html += '<button type="button" class="btn btn-sm" onclick="addRentObject()">+ Помещение</button>';
+  html += '<button type="button" class="btn btn-sm" onclick="addRentObjectLand()">+ Земельный участок</button>';
+  html += '</div>';
+
+  var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
+  html += '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') + ' style="display:none">';
+  if (hasTransfer) {
+    var transferItems = [];
+    try { if (typeof props.equipment_list === 'string' && props.equipment_list) transferItems = JSON.parse(props.equipment_list); else if (Array.isArray(props.equipment_list)) transferItems = props.equipment_list; } catch(ex) {}
+    html += '<div class="form-group" style="margin-top:8px;border-left:3px solid var(--accent);padding-left:12px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><label style="font-weight:600">Передача оборудования</label>';
+    html += '<button type="button" onclick="disableEquipmentTransfer()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer">\\u2715 Убрать</button></div>';
+    html += renderEquipmentListField(transferItems);
+    html += '</div>';
+  } else {
+    html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">+ Передача оборудования по договору</button></div>';
+  }
+
+  container.innerHTML = html;
+  recalcRentMonthly();
+}
+
 function renderRentFields(container, allFields, props) {
   props = props || {};
   var hasExtra = props.extra_services === 'true' || props.extra_services === true;
@@ -470,6 +508,22 @@ function renderEquipmentRentFields(container, allFields, props) {
   html += '<div id="duration_date_wrap" style="' + (durationType === 'Дата' ? '' : 'display:none') + '"><div class="form-group"><label>Дата окончания</label><input type="date" id="f_duration_date" value="' + (props.duration_date || '') + '"></div></div>';
   html += '<div id="duration_text_wrap" style="' + (durationType === 'Текст' ? '' : 'display:none') + '"><div class="form-group"><label>Срок действия (текст)</label><input id="f_duration_text" value="' + escapeHtml(props.duration_text || '') + '"></div></div>';
 
+  container.innerHTML = html;
+  recalcEquipmentRentTotal();
+}
+
+function renderEqRentSubjectOnly(container, allFields, props) {
+  var items = [];
+  try { items = JSON.parse(props.equipment_rent_items || '[]'); } catch(ex) {}
+  if (!items.length) items = [{}];
+  var html = '<div id="eq_rent_items_container">';
+  _eqRentCounter = 0;
+  items.forEach(function(item, i) {
+    html += renderEquipmentRentBlock(i, item);
+    _eqRentCounter = i + 1;
+  });
+  html += '</div>';
+  html += '<button type="button" class="btn btn-sm" onclick="addEquipmentRentItem()" style="margin-bottom:16px">+ Добавить оборудование</button>';
   container.innerHTML = html;
   recalcEquipmentRentTotal();
 }

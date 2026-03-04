@@ -220,31 +220,43 @@ function renderDynamicFields(contractType, props) {
   const container = document.getElementById('dynamicFieldsContainer');
   if (!container) return;
   const extraFields = CONTRACT_TYPE_FIELDS[contractType] || [];
+  var hasFinancial = !!document.getElementById('financialContainer');
+
   if (extraFields.length === 0) {
-    if (_contractFormTypeName !== 'supplement') container.innerHTML = renderDurationSection(props || {});
+    if (hasFinancial) {
+      container.innerHTML = '<div class="form-group"><label>Предмет договора</label><input type="text" id="f_subject" value="' + escapeHtml((props || {}).subject || '') + '" placeholder="Описание"></div>' +
+        '<div class="form-group"><label>Позиции</label>' + renderContractItemsField([], false) + '</div>';
+    } else if (_contractFormTypeName !== 'supplement') {
+      container.innerHTML = renderDurationSection(props || {});
+    }
     return;
   }
 
   if (contractType === 'Аренды' || contractType === 'Субаренды') {
-    renderRentFields(container, extraFields, props);
+    if (hasFinancial) renderRentSubjectOnly(container, extraFields, props);
+    else renderRentFields(container, extraFields, props);
     _srchInitAll();
     return;
   }
 
   if (contractType === 'Аренда оборудования') {
-    renderEquipmentRentFields(container, extraFields, props || {});
+    if (hasFinancial) renderEqRentSubjectOnly(container, extraFields, props || {});
+    else renderEquipmentRentFields(container, extraFields, props || {});
     _srchInitAll();
     return;
   }
 
   if (contractType === 'Купли-продажи' || contractType === 'Эксплуатации' || contractType === 'ТО и ППР') {
-    renderSaleContractFields(container, extraFields, props || {}, contractType);
+    if (hasFinancial) renderSaleSubjectOnly(container, extraFields, props || {}, contractType);
+    else renderSaleContractFields(container, extraFields, props || {}, contractType);
     _srchInitAll();
     return;
   }
 
+  var _financialNames = ['contract_amount', 'vat_rate', 'payment_frequency', 'advances', 'completion_deadline', 'rent_monthly'];
   let html = '';
   extraFields.forEach(function(f) {
+    if (hasFinancial && _financialNames.indexOf(f.name) >= 0) return;
     const val = props ? (props[f.name] || '') : '';
     if (f.name === 'building') {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderRegistrySelectField('f_building', _buildings, val, 'Введите название корпуса') + '</div>';
@@ -256,12 +268,14 @@ function renderDynamicFields(contractType, props) {
       try { items = JSON.parse(val || '[]'); } catch(ex) {}
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderContractItemsField(items, isSale) + '</div>';
     } else if (f.name === 'contract_amount' && f._readonly) {
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + ' (авто)</label><input type="number" id="f_contract_amount" value="' + escapeHtml(String(val)) + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
+      if (!hasFinancial) {
+        html += '<div class="form-group"><label>' + (f.name_ru || f.name) + ' (авто)</label><input type="number" id="f_contract_amount" value="' + escapeHtml(String(val)) + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
+      }
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
     }
   });
-  if (_contractFormTypeName !== 'supplement') html += renderDurationSection(props || {});
+  if (!hasFinancial && _contractFormTypeName !== 'supplement') html += renderDurationSection(props || {});
   container.innerHTML = html;
 }
 `;
