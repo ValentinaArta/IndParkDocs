@@ -132,7 +132,7 @@ async function loadContractEntities() {
 }
 
 async function loadEntitiesByType(typeName, extraParams) {
-  var url = '/entities?type=' + encodeURIComponent(typeName) + '&limit=200';
+  var url = '/entities?type=' + encodeURIComponent(typeName) + '&limit=1000';
   if (extraParams) url += '&' + extraParams;
   var key = url;
   if (!_entityCache[key]) _entityCache[key] = await api(url);
