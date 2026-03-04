@@ -555,6 +555,14 @@ async function _submitMeterReplace(oldId) {
     var overlay = document.getElementById('meterReplaceOverlay');
     if (overlay) overlay.remove();
 
+    // Сбрасываем поисковый фильтр — новый счётчик имеет другой номер
+    _metersFilter.search = '';
+    _metersFilter.status = '';
+    var srchEl = document.getElementById('meterSrchFilter');
+    if (srchEl) srchEl.value = '';
+    var stEl = document.getElementById('meterStatusFilter');
+    if (stEl) stEl.value = '';
+
     // Reload
     await reloadMeters();
 
