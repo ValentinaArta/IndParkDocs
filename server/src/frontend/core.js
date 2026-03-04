@@ -59,7 +59,6 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'contract_items', name_ru: 'Перечень работ', field_type: 'contract_items' },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'tenant', name_ru: 'Арендатор', field_type: 'select_or_custom', options: [] },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
     { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
   ],
