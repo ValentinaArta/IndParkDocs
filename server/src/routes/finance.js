@@ -72,13 +72,16 @@ function fmtMonth(d) {
 router.get('/summary', authenticate, async (req, res) => {
   try {
     const dateFrom = req.query.from || '2026-01-01';
-    const encoded = encodeURIComponent(`Date gt datetime'${dateFrom}T00:00:00'`);
+    const dateTo   = req.query.to   || '';
+    const fromPart = `Date gt datetime'${dateFrom}T00:00:00'`;
+    const toPart   = dateTo ? ` and Date lt datetime'${dateTo}T23:59:59'` : '';
+    const encoded  = encodeURIComponent(fromPart + toPart);
 
     const [incoming, outgoing, revenue, invoices] = await Promise.all([
       odataGet(`Document_ПоступлениеНаРасчетныйСчет?$format=json&$top=500&$filter=${encoded}&$select=Date,СуммаДокумента,Организация_Key,НазначениеПлатежа,Posted`),
       odataGet(`Document_СписаниеСРасчетногоСчета?$format=json&$top=500&$filter=${encoded}&$select=Date,СуммаДокумента,Организация_Key,НазначениеПлатежа,Posted`),
       odataGet(`Document_РеализацияТоваровУслуг?$format=json&$top=500&$filter=${encoded}&$select=Date,СуммаДокумента,Организация_Key,Posted`),
-      odataGet(`Document_СчетНаОплатуПокупателю?$format=json&$top=200&$filter=${encodeURIComponent(`Date gt datetime'2025-01-01T00:00:00'`)}&$select=Date,Number,СуммаДокумента,Организация_Key,Posted`),
+      odataGet(`Document_СчетНаОплатуПокупателю?$format=json&$top=200&$filter=${encoded}&$select=Date,Number,СуммаДокумента,Организация_Key,Posted`),
     ]);
 
     const inItems = incoming.value || [];
@@ -142,6 +145,7 @@ router.get('/summary', authenticate, async (req, res) => {
 
     res.json({
       period: dateFrom,
+      period_to: dateTo || '',
       totals: {
         incoming: { ipz: Math.round(inSum.ipz), ekz: Math.round(inSum.ekz) },
         outgoing: { ipz: Math.round(outSum.ipz), ekz: Math.round(outSum.ekz) },
