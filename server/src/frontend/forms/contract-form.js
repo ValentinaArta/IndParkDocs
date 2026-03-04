@@ -184,6 +184,7 @@ function renderContractFormFields(fields, props, headerHtml, options) {
       html += '<div id="wrap_our_legal_entity"><label id="label_our_legal_entity" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(ourLabel) + '</label>' +
         renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, props.our_legal_entity || '', 'начните вводить...', 'our_legal_entity') + '</div>';
       html += '</div>';
+      html += '<div style="text-align:center;margin:-6px 0 8px"><button type="button" onclick="swapContractRoles()" title="Поменять роли сторон" class="btn-swap-roles">🔄 поменять роли</button></div>';
       return;
     }
     if (f.name === 'contractor_role_label') {
@@ -283,17 +284,19 @@ function onContractTypeChange() {
   var contractType = getSelectedContractType();
   var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
 
-  // Update role label inputs (only if auto-set, not manually edited)
+  // Update role label inputs — always reset on type change
   var ourRoleEl = document.getElementById('f_our_role_label');
-  if (ourRoleEl && ourRoleEl.getAttribute('data-auto-set') !== 'false') {
+  if (ourRoleEl) {
     ourRoleEl.value = roles.our;
     ourRoleEl.placeholder = roles.our;
+    ourRoleEl.setAttribute('data-auto-set', 'true');
   }
 
   var contrRoleEl = document.getElementById('f_contractor_role_label');
-  if (contrRoleEl && contrRoleEl.getAttribute('data-auto-set') !== 'false') {
+  if (contrRoleEl) {
     contrRoleEl.value = roles.contractor;
     contrRoleEl.placeholder = roles.contractor;
+    contrRoleEl.setAttribute('data-auto-set', 'true');
   }
 
   // Update labels on the entity fields
@@ -316,6 +319,19 @@ function updatePartyLabels() {
   var contrLabel = document.getElementById('label_contractor_name');
   if (ourLabel && ourRoleEl) ourLabel.textContent = ourRoleEl.value || 'Наше юр. лицо';
   if (contrLabel && contrRoleEl) contrLabel.textContent = contrRoleEl.value || 'Контрагент';
+}
+
+function swapContractRoles() {
+  var ourRoleEl = document.getElementById('f_our_role_label');
+  var contrRoleEl = document.getElementById('f_contractor_role_label');
+  if (!ourRoleEl || !contrRoleEl) return;
+  var tmp = ourRoleEl.value;
+  ourRoleEl.value = contrRoleEl.value;
+  contrRoleEl.value = tmp;
+  // Зафиксировать: не сбрасывать при смене типа
+  ourRoleEl.setAttribute('data-auto-set', 'false');
+  contrRoleEl.setAttribute('data-auto-set', 'false');
+  updatePartyLabels();
 }
 
 function collectDynamicFieldValues(contractType) {

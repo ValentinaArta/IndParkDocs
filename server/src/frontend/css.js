@@ -37,6 +37,8 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .btn-danger { color: var(--red); border-color: #FCA5A5; }
 .btn-danger:hover { background: #FEF2F2; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-swap-roles { background: none; border: 1px solid var(--border); border-radius: 20px; padding: 3px 12px; cursor: pointer; font-size: 12px; color: var(--text-secondary); transition: background .15s; }
+.btn-swap-roles:hover { background: var(--bg-secondary); }
 
 .content { flex: 1; overflow-y: auto; padding: 24px; }
 
