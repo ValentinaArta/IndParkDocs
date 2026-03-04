@@ -187,18 +187,22 @@ function buildWhere(filters, isEq) {
 }
 
 // ── Pivot builder ───────────────────────────────────────────────────────────
-function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
-  const EM    = '\u2014'; // em-dash for null values
-  const rowKeys = new Map();
-  const colKeys = new Map();
+// rowCols / colCols — arrays of DB column names (support multi-dim hierarchy)
+function buildPivot(rows, rowCols, colCols, isEqPrimary, hideEmpty) {
+  const EM      = '\u2014'; // em-dash for null values
+  const SEP     = '\u2192'; // separator for composite keys
+  const rowKeys = new Map(); // key -> parts[]
+  const colKeys = new Map(); // key -> parts[]
   const cells   = {};
 
   for (const row of rows) {
-    const rKey = (row[rowCol] != null) ? String(row[rowCol]) : EM;
-    const cKey = (row[colCol] != null) ? String(row[colCol]) : EM;
+    const rParts = rowCols.map(c => (row[c] != null && row[c] !== '') ? String(row[c]) : EM);
+    const cParts = colCols.map(c => (row[c] != null && row[c] !== '') ? String(row[c]) : EM);
+    const rKey   = rParts.join(SEP);
+    const cKey   = cParts.join(SEP);
 
-    if (!rowKeys.has(rKey)) rowKeys.set(rKey, true);
-    if (!colKeys.has(cKey)) colKeys.set(cKey, true);
+    if (!rowKeys.has(rKey)) rowKeys.set(rKey, rParts);
+    if (!colKeys.has(cKey)) colKeys.set(cKey, cParts);
 
     if (!cells[rKey])       cells[rKey] = {};
     if (!cells[rKey][cKey]) cells[rKey][cKey] = {
@@ -239,15 +243,21 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
     }
   }
 
-  const sort = (a, b) => {
-    if (a === EM) return 1;
-    if (b === EM) return -1;
-    if (/^\d{4}/.test(a) && /^\d{4}/.test(b)) return a < b ? -1 : a > b ? 1 : 0;
-    return String(a).localeCompare(String(b), 'ru');
+  // Sort by composite parts lexicographically
+  const sortByParts = (partsA, partsB) => {
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const a = partsA[i] ?? '', b = partsB[i] ?? '';
+      if (a === EM && b !== EM) return 1;
+      if (b === EM && a !== EM) return -1;
+      if (/^\d{4}/.test(a) && /^\d{4}/.test(b)) { if (a < b) return -1; if (a > b) return 1; }
+      else { const cmp = String(a).localeCompare(String(b), 'ru'); if (cmp !== 0) return cmp; }
+    }
+    return 0;
   };
+  const sortKeys = (keysMap) => [...keysMap.entries()].sort((x, y) => sortByParts(x[1], y[1])).map(e => e[0]);
 
-  let rKeys = [...rowKeys.keys()].sort(sort);
-  let cKeys = [...colKeys.keys()].sort(sort);
+  let rKeys = sortKeys(rowKeys);
+  let cKeys = sortKeys(colKeys);
 
   // Hide empty rows / cols if requested
   if (hideEmpty) {
@@ -256,33 +266,40 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
   }
 
   return {
-    rows:  rKeys.map(k => ({ key: k })),
-    cols:  cKeys.map(k => ({ key: k })),
+    rows:  rKeys.map(k => ({ key: k, parts: rowKeys.get(k) })),
+    cols:  cKeys.map(k => ({ key: k, parts: colKeys.get(k) })),
     cells: serial,
   };
 }
 
 // ── POST /api/cube/query ────────────────────────────────────────────────────
 router.post('/query', authenticate, asyncHandler(async (req, res) => {
-  const { rowDim, colDim, filters = {}, hideEmpty = false } = req.body;
+  // Accept both new multi-dim arrays (rowDims/colDims) and legacy singles (rowDim/colDim)
+  const body = req.body;
+  const rowDims = Array.isArray(body.rowDims) ? body.rowDims : (body.rowDim ? [body.rowDim] : []);
+  const colDims = Array.isArray(body.colDims) ? body.colDims : (body.colDim ? [body.colDim] : []);
+  const { filters = {}, hideEmpty = false } = body;
 
-  if (!rowDim || !colDim)
-    return res.status(400).json({ error: 'rowDim and colDim required' });
-  if (!DIM_META[rowDim] || !DIM_META[colDim])
-    return res.status(400).json({ error: 'Unknown dimension' });
+  if (!rowDims.length || !colDims.length)
+    return res.status(400).json({ error: 'rowDims and colDims required' });
 
-  const rMeta = DIM_META[rowDim];
-  const cMeta = DIM_META[colDim];
-  const isEq  = rMeta.group === 'equipment' || cMeta.group === 'equipment';
-  const base  = isEq ? EQUIPMENT_FACT_BASE : CONTRACT_FACT_BASE;
+  for (const d of [...rowDims, ...colDims]) {
+    if (!DIM_META[d]) return res.status(400).json({ error: 'Unknown dimension: ' + d });
+  }
+
+  const allMeta = [...rowDims, ...colDims].map(d => DIM_META[d]);
+  const isEq    = allMeta.some(m => m.group === 'equipment');
+  const base    = isEq ? EQUIPMENT_FACT_BASE : CONTRACT_FACT_BASE;
 
   const { clause, params } = buildWhere(filters, isEq);
   const sql = base + clause;
 
   const { rows } = await pool.query(sql, params);
-  const pivot = buildPivot(rows, rMeta.col, cMeta.col, isEq, hideEmpty);
+  const rowCols = rowDims.map(d => DIM_META[d].col);
+  const colCols = colDims.map(d => DIM_META[d].col);
+  const pivot   = buildPivot(rows, rowCols, colCols, isEq, hideEmpty);
 
-  res.json({ ...pivot, rowDim, colDim, factRows: rows.length });
+  res.json({ ...pivot, rowDims, colDims, factRows: rows.length });
 }));
 
 // ── GET /api/cube/filter-values ─────────────────────────────────────────────
