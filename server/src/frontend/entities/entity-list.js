@@ -98,9 +98,9 @@ function _getEntityTableCols(typeName) {
         }
       },
       { id: 'contract_amount', label: 'Сумма', sortable: true,
-        getValue: function(e) { var v = parseFloat((e.properties || {}).contract_amount || (e.properties || {}).rent_monthly || 0); return isNaN(v) ? 0 : v; },
+        getValue: function(e) { var v = parseFloat(e.effective_amount || (e.properties || {}).contract_amount || (e.properties || {}).rent_monthly || 0); return isNaN(v) ? 0 : v; },
         render: function(e) {
-          var amt = (e.properties || {}).contract_amount || (e.properties || {}).rent_monthly || '';
+          var amt = e.effective_amount || (e.properties || {}).contract_amount || (e.properties || {}).rent_monthly || '';
           if (!amt) return '—';
           return '<span style="font-weight:600;color:var(--accent)">' + Number(amt).toLocaleString('ru-RU') + ' \\u20bd</span>';
         }
@@ -379,8 +379,8 @@ function renderEntityGrid(entities) {
       // Предмет
       var subj = props.subject || props.service_subject || '';
       if (subj) tags += '<span class="prop-tag">' + escapeHtml(subj.length > 60 ? subj.substring(0,60)+'…' : subj) + '</span>';
-      // Сумма
-      var amt = props.contract_amount || props.rent_monthly || '';
+      // Сумма — из последнего актуального ДС (если есть), иначе из договора
+      var amt = e.effective_amount || props.contract_amount || props.rent_monthly || '';
       if (amt) tags += '<span class="prop-tag" style="font-weight:500;color:var(--accent)">' + escapeHtml(String(Number(amt).toLocaleString('ru-RU'))) + ' ₽</span>';
     } else if (e.type_name === 'equipment') {
       var _t = function(v) { if (v) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>'; };

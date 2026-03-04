@@ -14,6 +14,21 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
 
   let sql = `SELECT e.*, et.name as type_name, et.name_ru as type_name_ru, et.icon, et.color,
     p.name as parent_name,
+    (SELECT COALESCE(
+       NULLIF(s.properties->>'contract_amount',''),
+       NULLIF(s.properties->>'rent_monthly','')
+     )
+     FROM entities s
+     JOIN entity_types st ON st.id = s.entity_type_id AND st.name = 'supplement'
+     WHERE s.parent_id = e.id AND s.deleted_at IS NULL
+       AND (
+         s.properties->>'contract_date' IS NULL
+         OR s.properties->>'contract_date' = ''
+         OR (s.properties->>'contract_date')::date <= CURRENT_DATE
+       )
+       AND COALESCE(NULLIF(s.properties->>'contract_amount',''), NULLIF(s.properties->>'rent_monthly','')) IS NOT NULL
+     ORDER BY COALESCE(NULLIF(s.properties->>'contract_date',''), '0001-01-01') DESC, s.id DESC
+     LIMIT 1) as effective_amount,
     (SELECT lp.name FROM relations r
      JOIN entities lp ON r.to_entity_id = lp.id
      WHERE r.from_entity_id = e.id AND r.relation_type = 'located_on'
