@@ -330,7 +330,7 @@ function renderFinancialSection(contractType, props) {
     html += '<div class="form-group"><label>Срок выполнения</label><input id="f_completion_deadline" value="' + escapeHtml(props.completion_deadline || '') + '"></div>';
   }
 
-  if (_contractFormTypeName !== 'supplement') html += renderDurationSection(props);
+  html += renderDurationSection(props);
 
   html += '<input type="hidden" id="f_external_rental" value="auto">';
   container.innerHTML = html;

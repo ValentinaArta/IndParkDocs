@@ -253,6 +253,20 @@ function renderDynamicFields(contractType, props) {
     return;
   }
 
+  // Услуг — button-based subject only when financial container exists (create/supplement form)
+  if (contractType === 'Услуг' && hasFinancial) {
+    renderSaleSubjectOnly(container, extraFields, props || {}, 'Услуг');
+    _srchInitAll();
+    return;
+  }
+
+  // Обслуживания — button-based subject only when financial container exists
+  if (contractType === 'Обслуживания' && hasFinancial) {
+    renderServiceSubjectOnly(container, extraFields, props || {});
+    _srchInitAll();
+    return;
+  }
+
   var _financialNames = ['contract_amount', 'vat_rate', 'payment_frequency', 'advances', 'completion_deadline', 'rent_monthly'];
   let html = '';
   extraFields.forEach(function(f) {

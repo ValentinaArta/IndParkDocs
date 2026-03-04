@@ -68,78 +68,89 @@ async function openCreateSupplementModal(parentContractId) {
     return lastSuppProps[fieldName] || parentProps[fieldName] || '';
   }
 
-  var html = '<h3>Новое доп. соглашение</h3>';
-  html += '<input type="hidden" id="f_name" value="">';
-  html += '<input type="hidden" id="f_parent" value="' + parentContractId + '">';
-
   // Use the same contract form with role labels
   var contractType = parentProps.contract_type || '';
   var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
 
-  fields.forEach(function(f) {
-    var val = _suppPrefill(f.name);
-    var ef = f;
-
-    if (f.name === 'number') {
-      // Auto-number: next ДС number for this contract
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, autoSuppNum) + '</div>';
-    } else if (f.name === 'contract_type') {
-      // ДС наследует тип от родительского договора — не редактируется
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
-      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
-      html += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(val) + '"></div>';
-    } else if (f.name === 'our_role_label') {
-      html += '<div class="form-group"><label>Роль нашей стороны</label>';
-      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || roles.our) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
-    } else if (f.name === 'contractor_role_label') {
-      html += '<div class="form-group"><label>Роль контрагента</label>';
-      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || roles.contractor) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
-    } else if (f.name === 'our_legal_entity') {
-      var labelOur = (parentProps.our_role_label || roles.our);
-      html += '<div class="form-group"><label>' + escapeHtml(labelOur) + '</label>';
-      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || '—') + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
-    } else if (f.name === 'contractor_name') {
-      var labelContr = (parentProps.contractor_role_label || roles.contractor);
-      html += '<div class="form-group"><label>' + escapeHtml(labelContr) + '</label>';
-      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val || '—') + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div></div>';
-    } else if (f.name === 'subtenant_name') {
-      var show = (contractType === 'Субаренды');
-      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
-        renderSearchableSelect('f_subtenant_name', _allCompanies, parentProps.subtenant_id, val, 'начните вводить...', 'subtenant_name') + '</div>';
-    } else if (f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text' || f.name === 'contract_end_date' || f.name === 'vat_rate') {
-      // пропускаем — duration рендерится через renderDurationSection; vat_rate — ниже или через renderDynamicFields
-    } else {
-      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
-    }
+  // Prefill from last supplement or parent contract
+  var prefillProps = Object.assign({}, parentProps);
+  Object.keys(lastSuppProps).forEach(function(k) {
+    if (!SUPP_PARENT_FIELDS.has(k) && lastSuppProps[k]) prefillProps[k] = lastSuppProps[k];
   });
 
-  // НДС (%) — show for all supplement types (Аренда/Субаренда get it via renderDynamicFields)
-  if (contractType !== 'Аренды' && contractType !== 'Субаренды' && contractType !== 'Аренда оборудования') {
-    var vatVal = _suppPrefill('vat_rate') || '22';
-    html += '<div class="form-group"><label>НДС (%)</label>' +
-      '<input type="number" id="f_vat_rate" value="' + escapeHtml(vatVal) + '" style="width:80px" min="0" max="100"></div>';
+  // Find specific fields
+  var fNumber    = fields.find(function(f) { return f.name === 'number'; });
+  var fDate      = fields.find(function(f) { return f.name === 'contract_date'; });
+  var fStatus    = fields.find(function(f) { return f.name === 'doc_status'; });
+  var fChanges   = fields.find(function(f) { return f.name === 'changes_description'; });
+  var labelOurS  = parentProps.our_role_label || roles.our;
+  var labelContrS = parentProps.contractor_role_label || roles.contractor;
+
+  var html = '<h3>Новое доп. соглашение</h3>';
+  html += '<input type="hidden" id="f_name" value="">';
+  html += '<input type="hidden" id="f_parent" value="' + parentContractId + '">';
+
+  // ===== СЕКЦИЯ 1: РЕКВИЗИТЫ ДС =====
+  html += '<div class="form-section"><div class="form-section-title">Реквизиты ДС</div><div class="form-section-body">';
+
+  // Тип договора (inherited, readonly)
+  html += '<div class="form-group"><label>Тип договора</label>';
+  html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(contractType || '—') + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
+  html += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(contractType) + '"></div>';
+
+  // Наше юрлицо (inherited, readonly)
+  html += '<div class="form-group"><label>' + escapeHtml(labelOurS) + '</label>';
+  html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(parentProps.our_legal_entity || '—') + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется)</span></div></div>';
+
+  // Контрагент (inherited, readonly)
+  html += '<div class="form-group"><label>' + escapeHtml(labelContrS) + '</label>';
+  html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(parentProps.contractor_name || '—') + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется)</span></div></div>';
+
+  // Субарендатор (только для Субаренды)
+  if (contractType === 'Субаренды') {
+    html += '<div class="form-group" id="wrap_subtenant_name"><label>Субарендатор</label>' +
+      renderSearchableSelect('f_subtenant_name', _allCompanies, parentProps.subtenant_id, _suppPrefill('subtenant_name'), 'начните вводить...', 'subtenant_name') + '</div>';
   }
 
+  // Номер + Дата (в строку)
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  if (fNumber) html += '<div class="form-group"><label>' + escapeHtml(fNumber.name_ru || 'Номер ДС') + '</label>' + renderFieldInput(fNumber, autoSuppNum) + '</div>';
+  if (fDate)   html += '<div class="form-group"><label>' + escapeHtml(fDate.name_ru || 'Дата') + '</label>' + renderFieldInput(fDate, _suppPrefill('contract_date')) + '</div>';
+  html += '</div>';
+
+  // Статус
+  if (fStatus) {
+    html += '<div class="form-group"><label>' + escapeHtml(fStatus.name_ru || 'Статус') + '</label>' + renderFieldInput(fStatus, _suppPrefill('doc_status') || 'Создан') + '</div>';
+  }
+
+  // Что поменялось
+  if (fChanges) {
+    html += '<div class="form-group"><label>' + escapeHtml(fChanges.name_ru || 'Что поменялось') + '</label>' + renderFieldInput(fChanges, _suppPrefill('changes_description')) + '</div>';
+  }
+
+  html += '</div></div>'; // end form-section-body / form-section
+
+  // ===== СЕКЦИЯ 2: ПРЕДМЕТ ИЗМЕНЕНИЙ =====
+  html += '<div class="form-section"><div class="form-section-title">Предмет изменений</div><div class="form-section-body">';
   html += '<div id="dynamicFieldsContainer"></div>';
-  html += renderDurationSection(Object.assign({}, parentProps, lastSuppProps));
+  html += '</div></div>';
+
+  // ===== СЕКЦИЯ 3: УСЛОВИЯ ОПЛАТЫ =====
+  html += '<div class="form-section"><div class="form-section-title">Условия оплаты</div><div class="form-section-body">';
+  html += '<div id="financialContainer"></div>';
+  html += '</div></div>';
+
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' +
     '<button class="btn btn-primary" onclick="submitCreateSupplement(' + parentContractId + ')">Создать</button></div>';
 
   setModalContent(html);
   _srchInitAll();
 
-  var ctEl = document.getElementById('f_contract_type');
-  if (ctEl) {
-    ctEl.addEventListener('change', function() { onContractTypeChange(); });
-    var ctCustom = document.getElementById('f_contract_type_custom');
-    if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
+  // Render dynamic (subject) + financial fields
+  if (contractType) {
+    renderDynamicFields(contractType, prefillProps);
+    renderFinancialSection(contractType, prefillProps);
   }
-  // Предзаполнение динамических полей: из последнего ДС (не родительские), иначе из договора
-  var prefillProps = Object.assign({}, parentProps);
-  Object.keys(lastSuppProps).forEach(function(k) {
-    if (!SUPP_PARENT_FIELDS.has(k) && lastSuppProps[k]) prefillProps[k] = lastSuppProps[k];
-  });
-  if (contractType) renderDynamicFields(contractType, prefillProps);
 }
 
 async function submitCreateSupplement(parentContractId) {

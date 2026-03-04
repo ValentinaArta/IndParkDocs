@@ -134,4 +134,66 @@ function renderSaleContractFields(container, extraFields, props, contractType) {
 
   container.innerHTML = html;
 }
+
+// ========== Обслуживания — subject-only with toggle buttons ==========
+function renderServiceSubjectOnly(container, allFields, props) {
+  props = props || {};
+
+  function _parseArr(v) { if (!v) return []; if (Array.isArray(v)) return v; try { return JSON.parse(v) || []; } catch(e) { return []; } }
+  function _hasReal(arr) { return Array.isArray(arr) && arr.some(function(i) { return i && (i.name || i.id || i.equipment_id); }); }
+
+  var bldVal  = props.building || '';
+  var srIds   = _parseArr(props.subject_rooms);
+  var slIds   = _parseArr(props.subject_land_plots);
+  var eqList  = _parseArr(props.equipment_list);
+  var hasBld  = !!bldVal;
+  var hasRoom = _hasReal(srIds);
+  var hasLp   = _hasReal(slIds);
+  var hasEq   = _hasReal(eqList);
+
+  var html = '';
+
+  // Описание работ / предмет
+  html += '<div class="form-group"><label>Описание работ / предмет</label>' +
+    '<textarea id="f_service_subject" style="width:100%;resize:vertical;min-height:60px;box-sizing:border-box">' +
+    escapeHtml(props.service_subject || '') + '</textarea></div>';
+
+  // Кнопки-переключатели
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
+  html += _saleSectionBtn('bld',  'Корпус',       hasBld);
+  html += _saleSectionBtn('room', 'Помещение',    hasRoom);
+  html += _saleSectionBtn('lp',   'ЗУ',           hasLp);
+  html += _saleSectionBtn('eq',   'Оборудование', hasEq);
+  html += '</div>';
+
+  // Корпус (один — searchable select)
+  html += '<div id="sale_sec_bld" style="margin-bottom:12px;' + (hasBld ? '' : 'display:none') + '">';
+  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Корпус</div>';
+  html += renderRegistrySelectField('f_building', _buildings, bldVal, 'Введите название корпуса');
+  html += '</div>';
+
+  // Помещения
+  html += '<div id="sale_sec_room" style="margin-bottom:12px;' + (hasRoom ? '' : 'display:none') + '">';
+  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Помещения</div>';
+  html += renderSubjectRoomsField(srIds);
+  html += '</div>';
+
+  // Земельные участки
+  html += '<div id="sale_sec_lp" style="margin-bottom:12px;' + (hasLp ? '' : 'display:none') + '">';
+  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Земельные участки</div>';
+  html += renderSubjectLandPlotsField(slIds);
+  html += '</div>';
+
+  // Оборудование
+  html += '<div id="sale_sec_eq" style="margin-bottom:12px;' + (hasEq ? '' : 'display:none') + '">';
+  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Оборудование</div>';
+  html += renderEquipmentListField(eqList);
+  html += '</div>';
+
+  // Комментарий
+  html += '<div class="form-group"><label>Комментарий</label>' +
+    '<input type="text" id="f_service_comment" value="' + escapeHtml(props.service_comment || '') + '" style="width:100%"></div>';
+
+  container.innerHTML = html;
+}
 `;
