@@ -18,6 +18,7 @@ var _mapPanDrag   = null;     // {sx,sy} drag origin minus pan offset
 async function showMapPage() {
   currentView = 'map';
   currentTypeFilter = null;
+  _setNavHash('map');
   _mapEditMode = false; _mapDrawTool = 'rect'; _mapPolyPts = []; _mapRectDraw = null;
   _mapZoom = 1; _mapPanX = 0; _mapPanY = 0; _mapPanDrag = null;
   setActive('.nav-item[onclick*="showMapPage"]');

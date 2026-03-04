@@ -7,6 +7,7 @@ var _biDashboardUrl = localStorage.getItem('bi_dashboard_url') || '';
 
 function showBIPage() {
   currentView = 'bi';
+  _setNavHash('bi');
   setActive('[onclick*="showBIPage"]');
   document.getElementById('pageTitle').textContent = 'BI-дашборды';
   document.getElementById('breadcrumb').textContent = '';
@@ -49,6 +50,7 @@ function saveBIUrl() {
 // ============ BUDGET PAGE ============
 function showBudgetPage() {
   currentView = 'budget';
+  _setNavHash('budget');
   setActive('[onclick*="showBudgetPage"]');
   document.getElementById('pageTitle').textContent = 'Бюджеты';
   document.getElementById('breadcrumb').textContent = '';
