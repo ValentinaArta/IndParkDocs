@@ -94,6 +94,7 @@ const FIELDS = {
     { name: 'location', name_ru: 'Расположение', field_type: 'text' },
   ],
   meter: [
+    { name: 'status',                  name_ru: 'Статус',                                 field_type: 'select', options: JSON.stringify(['Установлен','На поверке','Демонтирован']) },
     { name: 'meter_type',              name_ru: 'Тип',                                    field_type: 'select', options: JSON.stringify(['Электричество','Вода','Тепло','Газ']) },
     { name: 'installation_location',   name_ru: 'Место установки',                        field_type: 'text' },
     { name: 'meter_number',            name_ru: '№ счётчика',                             field_type: 'text' },

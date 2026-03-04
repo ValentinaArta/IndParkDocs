@@ -247,8 +247,8 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
     }
   }
 
-  // Link subject_room_ids / subject_building_ids / subject_land_plot_ids → located_in
-  for (const prop of ['subject_room_ids', 'subject_building_ids', 'subject_land_plot_ids']) {
+  // Link subject_rooms / subject_buildings / subject_land_plots / subject_land_plot_parts → located_in
+  for (const prop of ['subject_rooms', 'subject_buildings', 'subject_land_plots', 'subject_land_plot_parts']) {
     if (!properties[prop]) continue;
     let ids = [];
     try { ids = typeof properties[prop] === 'string' ? JSON.parse(properties[prop]) : properties[prop]; } catch(e) {}

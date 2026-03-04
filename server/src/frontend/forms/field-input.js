@@ -111,6 +111,9 @@ function renderFieldInput(f, value) {
   } else if (f.field_type === 'subject_land_plots') {
     var slIds = []; try { if (typeof val === 'string' && val) slIds = JSON.parse(val); else if (Array.isArray(val)) slIds = val; } catch(e) {}
     return renderSubjectLandPlotsField(slIds);
+  } else if (f.field_type === 'subject_land_plot_parts') {
+    var slpIds = []; try { if (typeof val === 'string' && val) slpIds = JSON.parse(val); else if (Array.isArray(val)) slpIds = val; } catch(e) {}
+    return renderSubjectLandPlotPartsField(slpIds);
   } else if (f.field_type === 'rent_objects') {
     return '';
   } else if (f.field_type === 'multi_comments') {
@@ -188,6 +191,10 @@ function getFieldValue(f) {
     var slIds = collectSubjectIds('f_subject_land_plots');
     return slIds.length > 0 ? JSON.stringify(slIds) : null;
   }
+  if (f.field_type === 'subject_land_plot_parts') {
+    var slpIds = collectSubjectIds('f_subject_land_plot_parts');
+    return slpIds.length > 0 ? JSON.stringify(slpIds) : null;
+  }
   if (f.field_type === 'rent_objects') {
     var objs = collectAllRentObjects();
     return objs.length > 0 ? JSON.stringify(objs) : null;
@@ -263,6 +270,13 @@ function renderDynamicFields(contractType, props) {
   // Обслуживания — button-based subject only when financial container exists
   if (contractType === 'Обслуживания' && hasFinancial) {
     renderServiceSubjectOnly(container, extraFields, props || {});
+    _srchInitAll();
+    return;
+  }
+
+  // Подряда — button-based subject only when financial container exists
+  if (contractType === 'Подряда' && hasFinancial) {
+    renderContractSubjectOnly(container, extraFields, props || {});
     _srchInitAll();
     return;
   }

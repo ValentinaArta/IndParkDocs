@@ -55,10 +55,13 @@ let CURRENT_USER = null;
 const CONTRACT_TYPE_FIELDS = {
   'Подряда': [
     { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
+    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
+    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
+    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
+    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
+    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'contract_items', name_ru: 'Перечень работ', field_type: 'contract_items' },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
     { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
   ],
