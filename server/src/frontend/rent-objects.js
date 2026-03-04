@@ -455,7 +455,7 @@ function renderEquipmentRentFields(container, allFields, props) {
   html += '<button type="button" class="btn btn-sm" onclick="addEquipmentRentItem()" style="margin-bottom:16px">+ Добавить оборудование</button>';
 
   // Total (auto)
-  html += '<div class="form-group"><label>Стоимость аренды в месяц (авто)</label><input type="number" id="f_rent_monthly" value="' + (props.rent_monthly || '') + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
+  html += '<div class="form-group"><label>Стоимость аренды в месяц (итого)</label><input type="number" id="f_rent_monthly" value="' + (props.rent_monthly || '') + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
 
   // НДС
   html += '<div class="form-group"><label>НДС (%)</label><input type="number" id="f_vat_rate" value="' + escapeHtml(vatVal) + '" style="width:80px" min="0" max="100" oninput="updateVatDisplay()"></div>';
