@@ -178,6 +178,8 @@ function renderEntityGrid(entities) {
         if (v && String(v).length < 40) tags += '<span class="prop-tag">' + escapeHtml(String(v)) + '</span>';
       });
     }
+    // Prepend doc status badge for document-type entities
+    if (props.doc_status) tags = _docStatusBadge(props.doc_status) + (tags ? ' ' + tags : '');
     var isEqBroken = (e.type_name === 'equipment') && _brokenEqIds.has(e.id);
     var isEmergency = (e.type_name === 'equipment') && (props.status === 'Аварийное');
     var cardStyle = isEqBroken ? ' style="border-left:3px solid #dc2626;background:rgba(239,68,68,.06)"'

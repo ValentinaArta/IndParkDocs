@@ -22,7 +22,8 @@ async function showEntity(id, _forceDetail) {
   var _eProps = e.properties || {};
   var _eEmergencyBadge = (e.type_name === 'equipment' && _eProps.status === 'Аварийное')
     ? ' <span class="eq-emergency-badge">⚠ Авария</span>' : '';
-  bcParts.push(escapeHtml(e.name) + _eEmergencyBadge);
+  var _eStatusBadge = _eProps.doc_status ? ' ' + _docStatusBadge(_eProps.doc_status) : '';
+  bcParts.push(escapeHtml(e.name) + _eEmergencyBadge + _eStatusBadge);
   document.getElementById('breadcrumb').innerHTML = bcParts.join(' › ');
   var _ePropsForBtn = e.properties || {};
   var _isContract = (e.type_name === 'contract');

@@ -13,4 +13,14 @@ function _fmtNum(v) {
 }
 
 function _fmtDate(d) { return d ? d.split('-').reverse().join('.') : '\u2014'; }
+
+function _docStatusBadge(status) {
+  if (!status) return '';
+  var style = status === 'Подписан'
+    ? 'background:#dcfce7;color:#16a34a'
+    : status === 'Архив'
+      ? 'background:#fee2e2;color:#dc2626'
+      : 'background:#e2e8f0;color:#64748b'; // Создан и прочее — серый
+  return '<span style="' + style + ';font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap">' + escapeHtml(status) + '</span>';
+}
 `;

@@ -276,6 +276,7 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
+      AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p1, 'c')} ORDER BY e.name, c.id`;
   const r1 = await pool.query(sql1, p1);
   const rows1 = r1.rows.map(r => mapRow(r, parseFloat((r.contract_props || {}).contract_amount) || 0));
@@ -302,6 +303,7 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
+      AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p2, 'c')} ORDER BY e.name, act.id`;
   const r2 = await pool.query(sql2, p2);
   const rows2 = r2.rows.map(r => {
@@ -370,6 +372,7 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN latest_supps ls ON ls.contract_id = e.id
     WHERE e.deleted_at IS NULL
       AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
+      AND (e.properties->>'doc_status' = 'Подписан' OR (e.properties->>'doc_status') IS NULL OR e.properties->>'doc_status' = '')
     ORDER BY e.properties->>'contract_date', e.name`;
 
   const result = await pool.query(sql);
@@ -803,6 +806,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
 
   res.json({
     id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
+    doc_status: cProps.doc_status || '',
     number: cProps.number || '', date: cProps.contract_date || '',
     our_legal_entity: cProps.our_legal_entity || '',
     our_role_label: cProps.our_role_label || '',
@@ -873,6 +877,15 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
     WHERE e.deleted_at IS NULL
       AND et.name IN ('contract','supplement')
       AND (e.properties->>'contract_type' IN ('Аренды','Субаренды'))
+      AND (
+        (et.name = 'contract' AND (e.properties->>'doc_status' = 'Подписан' OR (e.properties->>'doc_status') IS NULL OR e.properties->>'doc_status' = ''))
+        OR (et.name = 'supplement' AND e.parent_id IN (
+          SELECT p.id FROM entities p
+          JOIN entity_types pt ON pt.id = p.entity_type_id AND pt.name = 'contract'
+          WHERE p.deleted_at IS NULL
+            AND (p.properties->>'doc_status' = 'Подписан' OR (p.properties->>'doc_status') IS NULL OR p.properties->>'doc_status' = '')
+        ))
+      )
     ORDER BY e.properties->>'contract_date' NULLS FIRST, e.id`);
 
   // Group supplements by parent contract, use latest with rent_objects
