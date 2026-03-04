@@ -197,7 +197,12 @@ function renderContractCard(data) {
       } else {
         // Доп. соглашение
         h += '<a href="#" onclick="openSupplementCard(' + s.id + ');return false" style="color:var(--accent)">';
-        h += escapeHtml(s.name);
+        // Если в имени нет контрагента — добавляем из properties
+        var suppTitle = s.name;
+        if (s.contractor_name && suppTitle.indexOf(s.contractor_name) < 0) {
+          suppTitle += ' — ' + s.contractor_name;
+        }
+        h += escapeHtml(suppTitle);
         h += '</a>';
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         if (s.changes) h += ' — <span style="color:var(--text-secondary)">' + escapeHtml(s.changes) + '</span>';
