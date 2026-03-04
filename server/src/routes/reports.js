@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { getContractDirection, isInternalContract } = require('../utils/contractDirection');
 
 const router = express.Router();
 
@@ -553,6 +554,15 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const contract = cRes.rows[0];
   const cProps = contract.properties || {};
 
+  // 1b. Own company IDs for ВГО detection
+  const ownRes = await pool.query(
+    `SELECT e.id FROM entities e JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'company'
+     WHERE e.deleted_at IS NULL AND e.properties->>'is_own' = 'true'`);
+  const ownIds = new Set(ownRes.rows.map(r => r.id));
+  const contractorId = parseInt(cProps.contractor_id) || 0;
+  const isVgo = isInternalContract(contractorId, ownIds);
+  const direction = getContractDirection(cProps.our_role_label || '');
+
   // 2. All supplements sorted by date asc
   const sRes = await pool.query(
     `SELECT e.id, e.name, e.properties
@@ -593,6 +603,48 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
       } catch(e) {}
     }
   }
+
+  // 4b. Latest supplement with equipment_rent_items (for "Аренда оборудования")
+  let equipmentRentItems = [];
+  let equipmentRentSourceName = '';
+  for (let i = supplements.length - 1; i >= 0; i--) {
+    const sp = supplements[i];
+    const raw = (sp.properties || {}).equipment_rent_items;
+    if (raw && raw !== '[]' && raw !== 'null') {
+      try {
+        const items = JSON.parse(raw);
+        if (Array.isArray(items) && items.length > 0) {
+          equipmentRentItems = items; equipmentRentSourceName = sp.name; break;
+        }
+      } catch(e) {}
+    }
+  }
+  if (!equipmentRentItems.length) {
+    try { equipmentRentItems = JSON.parse(cProps.equipment_rent_items || '[]'); } catch(e) {}
+  }
+
+  // Enrich equipment_rent_items with DB data
+  const rentEqIds = [...new Set(equipmentRentItems.map(i => parseInt(i.equipment_id)).filter(id => id > 0))];
+  const rentEqMap = {};
+  if (rentEqIds.length) {
+    const reRes = await pool.query(
+      'SELECT id, name, properties FROM entities WHERE id = ANY($1)', [rentEqIds]);
+    reRes.rows.forEach(eq => { rentEqMap[eq.id] = { name: eq.name, props: eq.properties || {} }; });
+  }
+  const enrichedRentItems = equipmentRentItems.map(item => {
+    const id = parseInt(item.equipment_id);
+    const d = rentEqMap[id] || {};
+    const p = d.props || {};
+    return {
+      equipment_id: id,
+      name: d.name || item.equipment_name || item.name || '—',
+      inv_number: p.inv_number || item.inv_number || '',
+      category: p.equipment_category || '',
+      qty: parseFloat(item.qty) || 1,
+      rate: parseFloat(item.rate || item.rent_rate) || 0,
+    };
+  });
+  const rentItemsMonthly = enrichedRentItems.reduce((s, i) => s + i.qty * i.rate, 0);
 
   // 5. Room descriptions
   const roomIds = [...new Set(rentObjects.map(ro => parseInt(ro.room_id)).filter(id => id > 0))];
@@ -775,6 +827,10 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     transfer_source_name: transferSourceName,
     rent_rows: rentRows, total_monthly: totalMonthly,
     equipment_list: eqList, history,
+    direction, is_vgo: isVgo,
+    equipment_rent_items: enrichedRentItems,
+    equipment_rent_source_name: equipmentRentSourceName,
+    equipment_rent_monthly: rentItemsMonthly,
   });
 }));
 
