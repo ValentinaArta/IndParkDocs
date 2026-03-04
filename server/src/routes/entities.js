@@ -244,11 +244,12 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
   const cleanProps = properties;
   const cleanName = name;
 
-  // Duplicate check: same name + same type
-  const dupCheck = await pool.query(
-    'SELECT id, name FROM entities WHERE entity_type_id=$1 AND LOWER(name)=LOWER($2) AND deleted_at IS NULL',
-    [entity_type_id, cleanName]
-  );
+  // Duplicate check: same name + same type + same parent (if parent_id provided)
+  const dupQuery = parent_id
+    ? 'SELECT id, name FROM entities WHERE entity_type_id=$1 AND LOWER(name)=LOWER($2) AND parent_id=$3 AND deleted_at IS NULL'
+    : 'SELECT id, name FROM entities WHERE entity_type_id=$1 AND LOWER(name)=LOWER($2) AND parent_id IS NULL AND deleted_at IS NULL';
+  const dupParams = parent_id ? [entity_type_id, cleanName, parent_id] : [entity_type_id, cleanName];
+  const dupCheck = await pool.query(dupQuery, dupParams);
   if (dupCheck.rows.length > 0) {
     return res.status(409).json({ error: 'duplicate', existing: dupCheck.rows[0], message: 'Запись с таким именем уже существует' });
   }
