@@ -327,7 +327,7 @@ function renderFinancialSection(contractType, props) {
   }
 
   if (contractType === 'Подряда') {
-    html += '<div class="form-group"><label>Срок выполнения</label><input id="f_completion_deadline" value="' + escapeHtml(props.completion_deadline || '') + '"></div>';
+    html += renderDeadlineSection(props);
   }
 
   html += renderDurationSection(props);
@@ -440,6 +440,17 @@ function collectDynamicFieldValues(contractType) {
     result.duration_date = durDate.value;
   }
   if (durText) result.duration_text = durText.value;
+  // Collect deadline section values (Подряда)
+  var dlType = document.getElementById('f_deadline_type');
+  var dlDate = document.getElementById('f_deadline_date');
+  var dlText = document.getElementById('f_deadline_text');
+  if (dlType) {
+    result.deadline_type = dlType.value;
+    if (dlType.value === 'Дата' && dlDate) result.completion_deadline = dlDate.value;
+    else if (dlType.value === 'Текст' && dlText) result.completion_deadline = dlText.value;
+    if (dlDate) result.deadline_date = dlDate.value;
+    if (dlText) result.deadline_text = dlText.value;
+  }
   // ВГО checkbox → external_rental (inverse)
   var _vgoEl = document.getElementById('f_is_vgo');
   if (_vgoEl) {

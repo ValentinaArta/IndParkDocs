@@ -76,7 +76,13 @@ function renderContractCard(data) {
   }
   // Срок выполнения
   if (data.completion_deadline) {
-    h += '<div><span style="color:var(--text-secondary)">Срок выполнения:</span> ' + escapeHtml(data.completion_deadline) + '</div>';
+    var dlVal = data.completion_deadline;
+    var isoRe = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    if (isoRe.test(dlVal)) {
+      var dlParts = dlVal.split('-');
+      dlVal = dlParts[2] + '.' + dlParts[1] + '.' + dlParts[0];
+    }
+    h += '<div><span style="color:var(--text-secondary)">Срок выполнения:</span> ' + escapeHtml(dlVal) + '</div>';
   }
   // Периодичность оплаты
   if (data.payment_frequency) {
