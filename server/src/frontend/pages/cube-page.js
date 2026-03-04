@@ -48,6 +48,8 @@ async function showCubePage() {
   _cubeRenderDzBar();
   _cubeLoadFilters();
   _cubeRenderCtrl();
+  // Restore last table if user is returning to the page
+  if (_cubeLastData) _cubeRenderTable(_cubeLastData);
 }
 
 // ── Layout skeleton ────────────────────────────────────────────────────────
@@ -200,6 +202,8 @@ function _cubeClearAxis(a) {
 
 // ── Filters bar ────────────────────────────────────────────────────────────
 async function _cubeLoadFilters() {
+  // Use cached meta if already loaded — no extra API call on return visit
+  if (_cubeFilterMeta) { _cubeRenderFilters(); return; }
   try {
     _cubeFilterMeta = await api('/cube/filter-values');
     _cubeRenderFilters();
