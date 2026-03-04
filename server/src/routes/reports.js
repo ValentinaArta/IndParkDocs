@@ -544,6 +544,15 @@ router.get('/broken-equipment', authenticate, asyncHandler(async (req, res) => {
   res.json(brokenIds);
 }));
 
+// Helper: get value from the most recent supplement where the field is non-empty
+function latestSuppValue(supplements, fieldName) {
+  for (let i = supplements.length - 1; i >= 0; i--) {
+    const v = (supplements[i].properties || {})[fieldName];
+    if (v !== undefined && v !== null && v !== '' && v !== '[]' && v !== 'null') return v;
+  }
+  return null;
+}
+
 // GET /api/reports/contract-card/:id — full card for any contract type
 router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => {
   const contractId = parseInt(req.params.id);
@@ -817,6 +826,40 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     }
   }
 
+  // ── Effective values: latest supplement overrides contract ─────────────────
+  // Scalar fields: pick from most recent supplement that has a non-empty value
+  const effAmount      = latestSuppValue(supplements, 'contract_amount')    || cProps.contract_amount    || '';
+  const effSubject     = latestSuppValue(supplements, 'subject')             || latestSuppValue(supplements, 'service_subject') || cProps.subject || cProps.service_subject || '';
+  const effDurType     = latestSuppValue(supplements, 'duration_type')       || cProps.duration_type      || '';
+  const effDurDate     = latestSuppValue(supplements, 'duration_date')       || latestSuppValue(supplements, 'contract_end_date') || cProps.duration_date || cProps.contract_end_date || '';
+  const effDurText     = latestSuppValue(supplements, 'duration_text')       || cProps.duration_text      || '';
+  const effPayFreq     = latestSuppValue(supplements, 'payment_frequency')   || cProps.payment_frequency  || '';
+  const effVat         = latestSuppValue(supplements, 'vat_rate')            || cProps.vat_rate           || '';
+  const effDeadline    = latestSuppValue(supplements, 'completion_deadline') || cProps.completion_deadline || '';
+  const effComment     = latestSuppValue(supplements, 'service_comment')     || cProps.service_comment    || '';
+
+  // contract_items: pick from latest supplement that has non-empty array
+  let effContractItems = contractItems;
+  const suppCiRaw = latestSuppValue(supplements, 'contract_items');
+  if (suppCiRaw) {
+    try {
+      const parsed = JSON.parse(suppCiRaw);
+      if (Array.isArray(parsed) && parsed.length > 0) effContractItems = parsed;
+    } catch(e) {}
+  }
+
+  // subject_buildings / subject_rooms / subject_land_plots: pick from latest supplement
+  let effSubjectBuildings = subjectBuildings;
+  let effSubjectRooms     = subjectRooms;
+  let effSubjectLandPlots = subjectLandPlots;
+  const _parseSubjArr = raw => { try { const a = JSON.parse(raw); return Array.isArray(a) && a.length ? a : null; } catch(e) { return null; } };
+  const suppSbRaw = latestSuppValue(supplements, 'subject_buildings');
+  if (suppSbRaw) { const a = _parseSubjArr(suppSbRaw); if (a) effSubjectBuildings = a; }
+  const suppSrRaw = latestSuppValue(supplements, 'subject_rooms');
+  if (suppSrRaw) { const a = _parseSubjArr(suppSrRaw); if (a) effSubjectRooms = a; }
+  const suppSlRaw = latestSuppValue(supplements, 'subject_land_plots');
+  if (suppSlRaw) { const a = _parseSubjArr(suppSlRaw); if (a) effSubjectLandPlots = a; }
+
   res.json({
     id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
     doc_status: cProps.doc_status || '',
@@ -826,28 +869,29 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     contractor_name: cProps.contractor_name || '',
     contractor_role_label: cProps.contractor_role_label || '',
     subtenant_name: cProps.subtenant_name || '',
-    contract_end_date: cProps.contract_end_date || cProps.duration_date || '',
-    duration_type: cProps.duration_type || '',
-    duration_text: cProps.duration_text || '',
-    contract_amount: cProps.contract_amount || '',
-    subject: cProps.subject || cProps.service_subject || '',
+    contract_end_date: effDurDate,
+    duration_type: effDurType,
+    duration_text: effDurText,
+    contract_amount: effAmount,
+    subject: effSubject,
     building: cProps.building || '',
     tenant: cProps.tenant || '',
-    vat_rate: cProps.vat_rate || '',
+    vat_rate: effVat,
     advances: cProps.advances || '',
-    completion_deadline: cProps.completion_deadline || '',
-    service_comment: cProps.service_comment || '',
+    completion_deadline: effDeadline,
+    service_comment: effComment,
+    payment_frequency: effPayFreq,
     has_power_allocation: cProps.has_power_allocation || '',
     power_allocation_kw: cProps.power_allocation_kw || '',
-    contract_items: contractItems,
+    contract_items: effContractItems,
     rent_source_name: rentSourceName,
     transfer_source_name: transferSourceName,
     rent_rows: rentRows, total_monthly: totalMonthly,
     equipment_list: eqList, history,
     direction, is_vgo: isVgo,
-    subject_rooms: subjectRooms,
-    subject_buildings: subjectBuildings,
-    subject_land_plots: subjectLandPlots,
+    subject_rooms: effSubjectRooms,
+    subject_buildings: effSubjectBuildings,
+    subject_land_plots: effSubjectLandPlots,
     equipment_rent_items: enrichedRentItems,
     equipment_rent_source_name: equipmentRentSourceName,
     equipment_rent_monthly: rentItemsMonthly,

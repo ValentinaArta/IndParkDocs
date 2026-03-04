@@ -2,6 +2,7 @@ module.exports = `
 async function showEntity(id, _forceDetail) {
   currentView = 'detail';
   currentEntityId = id;
+  _setNavHash(_forceDetail ? 'detail/' + id : 'entity/' + id);
   const e = await api('/entities/' + id);
   if (currentView !== 'detail' || currentEntityId !== id) return; // user navigated away
   // Load all non-contract entities for parent selector
@@ -42,7 +43,8 @@ async function showEntity(id, _forceDetail) {
     contentEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)">Загрузка...</div>';
     try {
       var cardData = await api('/reports/contract-card/' + id);
-      contentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderContractCard(cardData) + '</div>';
+      contentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderContractCard(cardData) + renderFilesSection(id) + '</div>';
+      loadEntityFiles(id);
     } catch(cardErr) {
       contentEl.innerHTML = '<div style="color:#dc2626;padding:20px">Ошибка загрузки карточки: ' + escapeHtml(cardErr.message || String(cardErr)) + '</div>';
     }
@@ -56,7 +58,8 @@ async function showEntity(id, _forceDetail) {
     if (e.parent_id && !e.parent) {
       try { e.parent = await api('/entities/' + e.parent_id); } catch(ex) {}
     }
-    suppContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderSupplementCard(e) + '</div>';
+    suppContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderSupplementCard(e) + renderFilesSection(id) + '</div>';
+    loadEntityFiles(id);
     return;
   }
 
@@ -424,8 +427,10 @@ async function showEntity(id, _forceDetail) {
     html += '</div></div>';
   }
 
+  if (_isContract || _isSupp) html += renderFilesSection(id);
   document.getElementById('content').innerHTML = html;
   renderIcons();
+  if (_isContract || _isSupp) loadEntityFiles(id);
 }
 
 // ============ REPORTS ============

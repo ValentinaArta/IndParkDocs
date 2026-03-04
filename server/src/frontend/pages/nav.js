@@ -76,21 +76,40 @@ async function startApp() {
     });
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
-  // URL routing: #entity/ID opens entity card
-  var hash = window.location.hash;
-  var _entityHashRe = new RegExp('^#entity/(\\d+)');
-  var _hm = hash ? hash.match(_entityHashRe) : null;
-  if (_hm) { showEntity(parseInt(_hm[1])); return; }
-  showDashboard();
+  // URL routing — restore last page on reload
+  _routeFromHash(window.location.hash);
   // menuBtn visibility now handled by CSS media query
 }
 
-// Listen for hash changes (e.g. from Metabase links)
+// Write current page to URL hash (replaceState — no browser history entry, no hashchange event)
+function _setNavHash(h) {
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState(null, '', h ? '#' + h : window.location.pathname);
+  }
+}
+
+// Parse hash and navigate to the corresponding page
+function _routeFromHash(hash) {
+  if (!hash || hash === '#' || hash === '#dashboard') { showDashboard(); return; }
+  var m;
+  var _reEntity = new RegExp('^#entity/(\\d+)$');
+  var _reDetail = new RegExp('^#detail/(\\d+)$');
+  var _reList   = new RegExp('^#list/(.+)$');
+  if ((m = hash.match(_reEntity)))  { showEntity(parseInt(m[1])); return; }
+  if ((m = hash.match(_reDetail)))  { showEntity(parseInt(m[1]), true); return; }
+  if ((m = hash.match(_reList)))    { showEntityList(decodeURIComponent(m[1])); return; }
+  if (hash === '#map')      { showMapPage();      return; }
+  if (hash === '#bi')       { showBIPage();       return; }
+  if (hash === '#budget')   { showBudgetPage();   return; }
+  if (hash === '#finance')  { showFinancePage();  return; }
+  if (hash === '#settings') { showSettings();     return; }
+  if (hash === '#zachety')  { showLegalZachety(); return; }
+  showDashboard();
+}
+
+// Listen for hash changes (back/forward browser buttons)
 window.addEventListener('hashchange', function() {
-  var hash = window.location.hash;
-  var _entityHashRe2 = new RegExp('^#entity/(\\d+)');
-  var _hm2 = hash ? hash.match(_entityHashRe2) : null;
-  if (_hm2) showEntity(parseInt(_hm2[1]));
+  _routeFromHash(window.location.hash);
 });
 
 // Listen for messages from iframes (e.g. budget-dashboard openEntityCard)
@@ -178,7 +197,7 @@ async function _navLoadGroupChildren(name, container) {
     });
   }
   if (name === 'contract') {
-    var contractTypes = ['Аренды', 'Субаренды', 'Аренда оборудования', 'Подряда', 'Услуг', 'Купли-продажи', 'Обслуживания'];
+    var contractTypes = ['Аренды', 'Субаренды', 'Аренда оборудования', 'Подряда', 'Услуг', 'Купли-продажи', 'Обслуживания', 'Эксплуатации'];
     h += '<div class="nav-sub-item" data-etype="contract" onclick="navSubClick(this)" style="color:rgba(255,255,255,0.45);font-style:italic">' +
       '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> все договоры</div>';
     contractTypes.forEach(function(ct) {

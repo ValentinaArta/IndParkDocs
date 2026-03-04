@@ -40,7 +40,7 @@ const FIELDS = {
     { name: 'email', name_ru: 'Email', field_type: 'text' },
   ],
   contract: [
-    { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Аренды','Субаренды','Услуг','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
+    { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Аренды','Субаренды','Услуг','ТО и ППР','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
     { name: 'our_role_label', name_ru: 'Роль нашей стороны', field_type: 'text' },
     { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify([]) },
     { name: 'contractor_role_label', name_ru: 'Роль контрагента', field_type: 'text' },
@@ -50,7 +50,7 @@ const FIELDS = {
     { name: 'contract_date', name_ru: 'Дата договора', field_type: 'date' },
   ],
   supplement: [
-    { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Аренды','Субаренды','Услуг','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
+    { name: 'contract_type', name_ru: 'Тип договора', field_type: 'select_or_custom', options: JSON.stringify(['Подряда','Аренды','Субаренды','Услуг','ТО и ППР','Поставки','Эксплуатации','Купли-продажи','Цессии']) },
     { name: 'our_role_label', name_ru: 'Роль нашей стороны', field_type: 'text' },
     { name: 'our_legal_entity', name_ru: 'Наше юр. лицо', field_type: 'select_or_custom', options: JSON.stringify([]) },
     { name: 'contractor_role_label', name_ru: 'Роль контрагента', field_type: 'text' },
@@ -69,6 +69,7 @@ const FIELDS = {
     { name: 'manufacturer', name_ru: 'Производитель', field_type: 'text' },
     { name: 'status', name_ru: 'Статус', field_type: 'select', options: JSON.stringify(['В работе','На ремонте','Законсервировано','Списано']) },
     { name: 'balance_owner', name_ru: 'Балансодержатель', field_type: 'text' },
+    { name: 'purchase_price', name_ru: 'Стоимость (руб)', field_type: 'number' },
     { name: 'note', name_ru: 'Примечание', field_type: 'text' },
   ],
   land_plot: [

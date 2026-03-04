@@ -3,6 +3,8 @@ module.exports = `
 // === LEGAL ZACHETY ===
 
 function showLegalZachety() {
+  currentView = 'zachety';
+  _setNavHash('zachety');
   setActiveNav('legal-zachety');
   var content = document.getElementById('content');
   content.innerHTML = '<div style="padding:24px;max-width:1200px">' +
