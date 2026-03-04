@@ -332,6 +332,44 @@ async function showEntity(id, _forceDetail) {
     html += '</div>';
   }
 
+  // Equipment composition hierarchy
+  if (e.type_name === 'equipment') {
+    var eqProps = e.properties || {};
+    var parentEqId = parseInt(eqProps.parent_equipment_id) || 0;
+    if (parentEqId) {
+      var parentEq = (_equipment || []).find(function(eq) { return eq.id === parentEqId; });
+      html += '<div class="detail-section"><h3>🔗 Входит в</h3>';
+      if (parentEq) {
+        html += '<a href="#" onclick="showEntity(' + parentEqId + ');return false" style="color:var(--accent);font-weight:500">' + escapeHtml(parentEq.name) + '</a>';
+      } else {
+        html += '<span style="color:var(--text-muted)">ID: ' + parentEqId + '</span>';
+      }
+      html += '</div>';
+    }
+    // Children — equipment that has parent_equipment_id = this.id
+    var childEqs = (_equipment || []).filter(function(eq) {
+      return parseInt((eq.properties || {}).parent_equipment_id) === e.id;
+    });
+    if (childEqs.length > 0) {
+      html += '<div class="detail-section"><h3>⚙ Состав (' + childEqs.length + ')</h3><div class="children-grid">';
+      childEqs.forEach(function(c) {
+        var cProps = c.properties || {};
+        var cIsBroken = _brokenEqIds && _brokenEqIds.has(c.id);
+        var cBadge = cIsBroken ? ' <span class="eq-broken-badge">⚠</span>' : '';
+        html += '<div class="child-card" onclick="showEntity(' + c.id + ')">' +
+          entityIcon('equipment', 18) +
+          '<div><div style="font-weight:500;font-size:13px">' + escapeHtml(c.name) + cBadge + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted)">' + escapeHtml(cProps.equipment_category || '') + '</div></div></div>';
+      });
+      html += '</div></div>';
+    }
+    // Tree view button
+    html += '<div class="detail-section" style="padding:8px 0">';
+    html += '<button class="btn btn-sm" onclick="showEquipmentTree(' + e.id + ')" style="font-size:12px;display:inline-flex;align-items:center;gap:6px">';
+    html += '<svg viewBox="0 0 18 18" width="14" height="14" fill="none"><circle cx="9" cy="2.5" r="2" stroke="currentColor" stroke-width="1.4"/><line x1="9" y1="4.5" x2="9" y2="7.5" stroke="currentColor" stroke-width="1.4"/><line x1="9" y1="7.5" x2="4" y2="10" stroke="currentColor" stroke-width="1.4"/><line x1="9" y1="7.5" x2="14" y2="10" stroke="currentColor" stroke-width="1.4"/><circle cx="4" cy="12" r="2" stroke="currentColor" stroke-width="1.4"/><circle cx="14" cy="12" r="2" stroke="currentColor" stroke-width="1.4"/></svg>';
+    html += '🌳 Дерево вложенности</button></div>';
+  }
+
   // Work history section for equipment
   if (e.type_name === 'equipment') {
     const actRels = (e.relations || []).filter(function(r) { return r.relation_type === 'subject_of' && r.from_entity_id === e.id && r.to_type_name === 'act'; });
@@ -471,5 +509,68 @@ function onLpPartParentChange(sel) {
 }
 
 // ── Room parent field: buildings only + inline quick-create ──
+
+// ============ EQUIPMENT HIERARCHY TREE ============
+function showEquipmentTree(entityId) {
+  var allEq = _equipment || [];
+
+  // Find root: walk up parent chain
+  function findRoot(id) {
+    var eq = allEq.find(function(e) { return e.id === id; });
+    if (!eq) return id;
+    var pid = parseInt((eq.properties || {}).parent_equipment_id) || 0;
+    return pid ? findRoot(pid) : id;
+  }
+
+  // Build recursive tree HTML
+  function buildTreeHtml(id, depth, currentId) {
+    var eq = allEq.find(function(e) { return e.id === id; });
+    if (!eq) return '';
+    var isCurrent = (id === currentId);
+    var children = allEq.filter(function(e) {
+      return parseInt((e.properties || {}).parent_equipment_id) === id;
+    });
+    var p = eq.properties || {};
+    var info = [p.equipment_category, p.equipment_kind].filter(Boolean).join(' / ');
+    var indent = depth * 20;
+
+    var h = '<div style="padding:6px 10px 6px ' + (10 + indent) + 'px;border-bottom:1px solid var(--border);cursor:pointer;' +
+      (isCurrent ? 'background:#eff6ff;border-left:3px solid #3b82f6;font-weight:600' : 'border-left:3px solid transparent') +
+      '" onclick="showEntity(' + id + ')">';
+    // Tree connector
+    if (depth > 0) {
+      h += '<span style="color:var(--text-muted);margin-right:6px">' + (children.length ? '▾' : '·') + '</span>';
+    }
+    h += '<span style="color:' + (isCurrent ? '#1d4ed8' : 'var(--accent)') + '">' + escapeHtml(eq.name) + '</span>';
+    if (info) h += ' <span style="font-size:11px;color:var(--text-muted)">— ' + escapeHtml(info) + '</span>';
+    h += '</div>';
+
+    children.forEach(function(c) {
+      h += buildTreeHtml(c.id, depth + 1, currentId);
+    });
+    return h;
+  }
+
+  var rootId = findRoot(entityId);
+  var treeHtml = buildTreeHtml(rootId, 0, entityId);
+
+  var overlay = document.createElement('div');
+  overlay.id = 'eqTreeOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px';
+
+  var modal = '<div style="background:var(--bg-card);border-radius:12px;width:100%;max-width:560px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.2)">';
+  modal += '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">';
+  modal += '<h3 style="margin:0;font-size:16px">🌳 Дерево вложенности</h3>';
+  modal += '<button onclick="document.getElementById(\\'eqTreeOverlay\\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>';
+  modal += '</div>';
+  modal += '<div style="overflow-y:auto;flex:1">' + treeHtml + '</div>';
+  modal += '<div style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">';
+  modal += '<span style="background:#eff6ff;padding:2px 8px;border-radius:4px;border-left:3px solid #3b82f6">Текущий объект</span> &nbsp; Нажмите на строку для открытия</div>';
+  modal += '</div>';
+
+  overlay.innerHTML = modal;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(ev) { if (ev.target === overlay) overlay.remove(); });
+}
 
 `;

@@ -60,6 +60,7 @@ async function openEditModal(id) {
       var eqBldId = eqParentIsLP ? null : e.parent_id;
       var eqLpId  = eqParentIsLP ? e.parent_id : null;
       html += renderEquipmentLocationFields(eqBldId, existingRoomId, eqLpId);
+      html += renderEqParentField((e.properties || {}).parent_equipment_id || null);
     } else if (e.type_name === 'land_plot_part') {
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
       allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
@@ -181,6 +182,10 @@ async function _doSubmitEdit(id) {
   }
   if (e.type_name === 'equipment') {
     collectEquipmentIds(properties);
+    var eqParentEditEl = document.getElementById('f_eq_parent');
+    if (eqParentEditEl) {
+      properties.parent_equipment_id = eqParentEditEl.value || null;
+    }
   }
   // Collect owner entity for land_plot / building-like
   var ownerEditEl = document.getElementById('f_owner');
