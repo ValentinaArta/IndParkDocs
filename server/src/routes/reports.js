@@ -546,8 +546,13 @@ router.get('/broken-equipment', authenticate, asyncHandler(async (req, res) => {
 
 // Helper: get value from the most recent supplement where the field is non-empty
 function latestSuppValue(supplements, fieldName) {
+  const today = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
   for (let i = supplements.length - 1; i >= 0; i--) {
-    const v = (supplements[i].properties || {})[fieldName];
+    const s = supplements[i];
+    const sDate = (s.properties || {}).contract_date || '';
+    // Skip future supplements (date > today)
+    if (sDate && sDate > today) continue;
+    const v = (s.properties || {})[fieldName];
     if (v !== undefined && v !== null && v !== '' && v !== '[]' && v !== 'null') return v;
   }
   return null;
