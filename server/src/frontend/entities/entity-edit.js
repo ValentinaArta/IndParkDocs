@@ -109,6 +109,19 @@ async function openEditModal(id) {
     } else if (f.name === 'owner') {
       html += '<div class="form-group"><label>Собственник</label>' +
         renderSearchableSelect('f_owner', _allCompanies, props.owner_id || '', props.owner_name || '', 'начните вводить...', 'owner') + '</div>';
+    } else if (f.name === 'connected_to_id') {
+      var ctSelId = parseInt(props.connected_to_id) || 0;
+      var ctSelEq = ctSelId ? (_equipment || []).find(function(eq) { return eq.id === ctSelId; }) : null;
+      var ctSelName = ctSelEq ? ctSelEq.name : '';
+      var ctList = (_equipment || []).map(function(eq) {
+        var p = eq.properties || {};
+        var suffix = [p.equipment_category, p.inv_number ? 'инв. ' + p.inv_number : ''].filter(Boolean).join(', ');
+        return { id: eq.id, name: eq.name + (suffix ? ' (' + suffix + ')' : '') };
+      });
+      html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
+      html += renderSearchableSelect('f_connected_to_id', ctList, ctSelId, ctSelName, 'начните вводить название оборудования...', 'meter_equipment');
+      if (ctSelEq) html += '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Текущее: <a href="#" onclick="showEntity(' + ctSelId + ');return false" style="color:var(--accent)">' + escapeHtml(ctSelName) + '</a></div>';
+      html += '</div>';
     } else {
       html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
     }
