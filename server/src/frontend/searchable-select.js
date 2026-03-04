@@ -1,4 +1,6 @@
-module.exports = `function renderSearchableSelect(id, entities, selectedId, selectedName, placeholder, fieldName) {
+module.exports = `var _srch1cStore = {};
+
+function renderSearchableSelect(id, entities, selectedId, selectedName, placeholder, fieldName) {
   var selId = parseInt(selectedId) || 0;
   var fn = fieldName || id.replace(/^f_/, '');
   var selName = '';
@@ -108,13 +110,17 @@ function _srchFilter(id) {
   if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'rent_lp_part' && fn !== 'rent_lp_combined' && fn !== 'act_equipment') {
     h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
   }
+  var ONEC_COMPANY_FIELDS = ['contractor_name', 'subtenant_name'];
+  if (ONEC_COMPANY_FIELDS.indexOf(fn) >= 0 && filtered.length === 0 && q.length >= 2) {
+    h += '<div class="srch-item" data-srch-1c-search="1" data-srch-1c-q="' + escapeHtml(q) + '" style="color:var(--accent);font-style:italic">🔍 Искать в 1С...</div>';
+  }
   dropEl.innerHTML = h;
   dropEl.style.display = '';
   // Prevent text input blur when touching dropdown (desktop)
   dropEl.onmousedown = function(ev) { ev.preventDefault(); };
   // Single delegated click handler (works on iOS Safari, Android, desktop)
   dropEl.onclick = function(ev) {
-    var item = ev.target.closest ? ev.target.closest('[data-srch-pick], [data-srch-new]') : ev.target;
+    var item = ev.target.closest ? ev.target.closest('[data-srch-pick],[data-srch-new],[data-srch-1c-search],[data-srch-1c-pick]') : ev.target;
     if (!item) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -123,6 +129,10 @@ function _srchFilter(id) {
       _srchPick(id, /^d+$/.test(pv) ? parseInt(pv) : pv);
     } else if (item.hasAttribute('data-srch-new')) {
       _srchPickNew(id);
+    } else if (item.hasAttribute('data-srch-1c-search')) {
+      _srch1cSearch(id, item.getAttribute('data-srch-1c-q') || '');
+    } else if (item.hasAttribute('data-srch-1c-pick')) {
+      _srch1cImport(id, item.getAttribute('data-srch-1c-pick'));
     }
   };
 }
@@ -252,5 +262,50 @@ function _srchNewCompanyCancel(btn) {
   if (hiddenEl) hiddenEl.value = '';
   var textEl = document.getElementById(id + '_text');
   if (textEl) { textEl.value = ''; textEl.focus(); }
+}
+
+function _srch1cSearch(id, q) {
+  var dropEl = document.getElementById(id + '_drop');
+  if (!dropEl) return;
+  dropEl.innerHTML = '<div class="srch-item" style="color:var(--text-muted)">Поиск в 1С...</div>';
+  dropEl.style.display = '';
+  api('/companies/search?q=' + encodeURIComponent(q)).then(function(data) {
+    var h = '';
+    if (data.onec && data.onec.length > 0) {
+      h += '<div class="srch-item" style="color:var(--text-muted);font-size:11px;padding:4px 10px;background:var(--bg-secondary)">Результаты из 1С:</div>';
+      data.onec.forEach(function(c) {
+        var key = 'onec_' + Math.random().toString(36).slice(2);
+        _srch1cStore[key] = c;
+        h += '<div class="srch-item" data-srch-1c-pick="' + key + '" style="color:var(--accent)">' +
+          escapeHtml(c.name) + (c.inn ? ' <span style="color:var(--text-muted);font-size:11px">ИНН ' + escapeHtml(c.inn) + '</span>' : '') + '</div>';
+      });
+    } else {
+      h += '<div class="srch-item" style="color:var(--text-muted)">В 1С не найдено</div>';
+    }
+    h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';
+    dropEl.innerHTML = h;
+    dropEl.style.display = '';
+  }).catch(function() {
+    dropEl.innerHTML = '<div class="srch-item" style="color:var(--red)">Ошибка подключения к 1С</div>';
+  });
+}
+
+function _srch1cImport(id, key) {
+  var c = _srch1cStore[key];
+  if (!c) return;
+  var dropEl = document.getElementById(id + '_drop');
+  if (dropEl) dropEl.innerHTML = '<div class="srch-item" style="color:var(--text-muted)">Добавляем компанию...</div>';
+  api('/companies/import-from-1c', { method: 'POST', body: JSON.stringify(c) }).then(function(res) {
+    var newComp = { id: res.id, name: res.name };
+    if (_allCompanies && !_allCompanies.find(function(x) { return x.id === res.id; })) {
+      _allCompanies.push(newComp);
+    }
+    document.getElementById(id).value = String(res.id);
+    var textEl = document.getElementById(id + '_text');
+    if (textEl) textEl.value = res.name;
+    if (dropEl) dropEl.style.display = 'none';
+  }).catch(function() {
+    alert('Ошибка при добавлении компании из 1С');
+  });
 }
 `;
