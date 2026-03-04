@@ -71,6 +71,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'contract_items', name_ru: 'Перечень услуг', field_type: 'contract_items' },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
+    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'] },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
   ],
   'ТО и ППР': [
@@ -81,6 +82,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'contract_items', name_ru: 'Перечень работ', field_type: 'contract_items' },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
+    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'] },
     { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
   ],
   'Купли-продажи': [
@@ -100,6 +102,7 @@ const CONTRACT_TYPE_FIELDS = {
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
     { name: 'contract_items', name_ru: 'Перечень работ/услуг', field_type: 'contract_items' },
     { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
+    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'] },
   ],
   'Субаренды': [
     { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },

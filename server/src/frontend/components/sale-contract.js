@@ -100,6 +100,14 @@ function renderSaleContractFields(container, extraFields, props, contractType) {
   // Сумма договора (авто)
   html += '<div class="form-group"><label>Сумма договора (итого)</label><input type="number" id="f_contract_amount" value="' + escapeHtml(String(props.contract_amount || '')) + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
 
+  // Extra fields (payment_frequency, vat_rate, etc.) — not handled above
+  var _knownSaleFields = ['subject','subject_buildings','subject_rooms','subject_land_plots','equipment_list','contract_items','contract_items_sale','contract_amount','advances'];
+  (extraFields || []).forEach(function(f) {
+    if (_knownSaleFields.indexOf(f.name) >= 0) return;
+    var val = props[f.name] || '';
+    html += '<div class="form-group"><label>' + escapeHtml(f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
+  });
+
   container.innerHTML = html;
 }
 `;
