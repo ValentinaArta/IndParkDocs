@@ -280,8 +280,10 @@ router.post('/query', authenticate, asyncHandler(async (req, res) => {
 router.get('/filter-values', authenticate, asyncHandler(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
-      ARRAY_AGG(DISTINCT p->>'contract_type' ORDER BY p->>'contract_type') FILTER (WHERE p->>'contract_type' IS NOT NULL AND p->>'contract_type' <> '') AS contract_types,
-      ARRAY_AGG(DISTINCT p->>'doc_status'    ORDER BY p->>'doc_status')    FILTER (WHERE p->>'doc_status'    IS NOT NULL AND p->>'doc_status'    <> '') AS doc_statuses
+      ARRAY_AGG(DISTINCT e.properties->>'contract_type' ORDER BY e.properties->>'contract_type')
+        FILTER (WHERE e.properties->>'contract_type' IS NOT NULL AND e.properties->>'contract_type' <> '') AS contract_types,
+      ARRAY_AGG(DISTINCT e.properties->>'doc_status' ORDER BY e.properties->>'doc_status')
+        FILTER (WHERE e.properties->>'doc_status' IS NOT NULL AND e.properties->>'doc_status' <> '') AS doc_statuses
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
     WHERE e.deleted_at IS NULL
