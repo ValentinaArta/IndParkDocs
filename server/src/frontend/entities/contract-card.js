@@ -78,6 +78,10 @@ function renderContractCard(data) {
   if (data.completion_deadline) {
     h += '<div><span style="color:var(--text-secondary)">Срок выполнения:</span> ' + escapeHtml(data.completion_deadline) + '</div>';
   }
+  // Периодичность оплаты
+  if (data.payment_frequency) {
+    h += '<div><span style="color:var(--text-secondary)">Периодичность оплаты:</span> ' + escapeHtml(data.payment_frequency) + '</div>';
+  }
   // Комментарий
   if (data.service_comment) {
     h += '<div><span style="color:var(--text-secondary)">Комментарий:</span> ' + escapeHtml(data.service_comment) + '</div>';
