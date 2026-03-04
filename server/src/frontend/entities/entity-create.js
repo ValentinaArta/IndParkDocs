@@ -350,6 +350,8 @@ async function _doSubmitCreate(typeName) {
   closeModal();
   if (isContractLike && createdEntity && createdEntity.id) {
     showEntity(createdEntity.id);
+  } else if (currentView === 'meters') {
+    reloadMeters();
   } else {
     showEntityList(typeName);
   }
