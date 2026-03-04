@@ -170,15 +170,36 @@
   - По умолчанию для аренды открывается карточка; кнопка "📋 Детали" — raw view
 - **Красная подсветка аварийного оборудования** — теперь работает везде: карточка сущности + реестр (ранее только отчёты)
 
-## Задеплоенный коммит
-`48aebf7` (main, dev) — finance page state preservation (_expOpenGids) (2026-03-03)
+## Текущий HEAD (04.03.2026)
+- **`origin/main`** = `1736d9d` — fix: contractor name в ДС + inv_number деdup
+- **`origin/dev`** ≈ main
 
-**Промежуточные коммиты (dev→main сегодня):**
-- `e7b105d`, `438b7d7` — emergency/broken badges в agg report + entity registry
-- `980c31b` / `719e7ae` — duplicate equipment level fix (eqAlreadyGrouped)
-- `6ec6438` / `cb07486` — contract card view endpoint + frontend
-- `124b130` / `2502808` — contract card как default view для аренды
-- `8c9e3e3` / `db09f74` — emergency/broken везде включая бекенд
+### Рефакторинг frontend (ЗАВЕРШЁН, задеплоен в main!)
+- `entity-crud.js` — теперь 3-строчный STUB
+- **57 модулей** в `server/src/frontend/entities/`, `forms/`, `components/`, `pages/`, `reports/`
+- Все функции на своих местах (см. FRONTEND_STRUCTURE.md)
+- **⚠️ dev и main расходятся** — рефакторинг только в dev; нужно merge dev→main через PR
+
+### _enrichFromRegistry (341648d, ЗАДЕПЛОЕН)
+- `_enrichFromRegistry(items, registryArr, idKey, nameKey, extraKeys)` в `entities/entity-helpers.js`
+- Единое место обогащения из реестров (_equipment, _rooms и т.д.): inv_number, serial_number, year и пр.
+- Заменяет 5 дублирующихся копий логики (act-items, equipment-form, rent-objects, supplement-card, contract-card)
+- PR #4 (feature/ipd-supp-card-inv-number) — **закрыт, superseded** этим рефактором
+
+### Supplement card (41c15a3, ЗАДЕПЛОЕН, Closes #3)
+- Карточка ДС теперь показывает все изменённые поля для всех типов:
+  - Подряд/Услуги/Обслуживание: предмет + корпус + таблица работ/товаров с суммами
+  - Аренда/Субаренда: доп. услуги + таблица аренды оборудования с inv_number
+
+### inv_number в БД (нужно заполнить вручную!)
+- id 580: `inv_number = '341000'` ✅
+- id 581 (ЖД путь инв. №593000): `inv_number = ''` ⚠️
+- id 582 (ЖД путь инв. №593100): `inv_number = ''` ⚠️
+
+## ⚠️ Важные баги (исправлены 04.03.2026)
+- **`_doSubmitCreateSupplement`** не вызывал `collectEntityIds` → contractor_name сохранялся как entity ID (напр. "311"). ИСПРАВЛЕНО: добавлен вызов сразу после `fields.forEach`.
+- **inv_number деdup**: `eq.name` уже содержит номер (напр. "ЖД путь инв. №341000"), код добавлял "инв. 341000" сверху. ИСПРАВЛЕНО: проверка `eq.name.indexOf(eq.inv_number) < 0`.
+- **DB**: ДС №2 (id=583) и №4 (id=585) вручную обновлены "311" → "ВРС ЦЕНТР ООО".
 
 ## ⚠️ КРИТИЧЕСКИЙ УРОК: `\'` внутри JS template literal
 - `\'` внутри template literal → производит `'` (слеш СЪЕДАЕТСЯ!) в HTML output
@@ -368,16 +389,16 @@
 - **Тест-сьют 94 теста** + `scripts/pre-deploy.sh` (`df1ca68`)
 - **Nav rename ЗАДЕПЛОЕН**: "Расходы" + "Должники", DEMO badge убран
 
-### Текущий HEAD (оба dev + main)
-- nav rename задеплоен; HEAD содержит все задачи выше
-- **🔄 В процессе**: после создания договора → `showEntity(newId)` вместо `showEntityList(type)` в `entity-crud.js`
+### Текущий HEAD (оба dev + main): `a92c940`
+- Последние коммиты (хронол.): `48aebf7` → `fcb93b4` → `9791bc8` → `e9c740b` → `a92c940`
+- **9791bc8**: Supplement card DRY refactor — `renderSupplementCard(supp)` EXISTS; `openSupplementCard` → вызывает `renderSupplementCard`; `showEntity` для supplement фетчит `supp.parent` перед рендером; кнопки: "✏ Редактировать", "⚙ Полные детали", "← К договору"
+- **e9c740b + a92c940**: Equipment location on ЗУ (⚠️ e9c740b случайно удалил живые функции rent-objects.js → восстановлены в a92c940)
 
-## 🚧 В очереди (не реализовано, первоочерёдное)
-- **Supplement card (ДС)** — стилизованная карточка (ТЕКУЩАЯ ЗАДАЧА, в процессе)
-  - Паттерн: как `renderContractCard`; перехват в `showEntity`; данные из `/entities/:id`
-  - Свойства ДС: `contract_type`, `changes_description`, `rent_objects`, `contract_date`, `number`
-  - Стороны + parent contract link + блок "Что изменилось" + таблица объектов аренды
-- **После создания договора → showEntity(newId)** — entity-crud.js (post-save handler)
+## 🚧 В очереди (не реализовано)
+- **Полнотекстовый поиск** по всем полям (сейчас только name)
+- **Анализ аренды**: JS функции не дописаны
+- **Stale data fallback** для финансов при недоступном VPN
+- **Краны: нестинг в дереве** — баг в frontend tree-rendering (данные в БД верные)
 
 ## 🚧 В очереди (не реализовано)
 - **🐛 Краны: нестинг в дереве** — все краны (id:30-41, `parent_id=29`) отображаются вложенными под первый кран в каком-то tree-widget во frontend; данные в БД ВЕРНЫЕ; баг в frontend tree-rendering; нужно найти и исправить
@@ -403,18 +424,27 @@
 cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/frontend.js'); const scripts = html.match(/<script>([\s\S]*?)<\/script>/g) || []; let ok=true; scripts.forEach((s,i)=>{const body=s.replace(/<\/?script>/g,''); try{new Function(body);}catch(e){console.error('Script block '+i+' ERROR:',e.message);ok=false;}}); if(ok) console.log('All scripts OK');"
 ```
 
-## Планы / Next Steps
-- ▶️ **ТЕКУЩАЯ ЗАДАЧА**: Supplement card (ДС) — стилизованная карточка как у договора
-  - `showEntity()` перехват supplement type → `renderSupplementCard(supp)`
-  - Файл: `server/src/frontend/entity-crud.js`; образец: `renderContractCard` (~line 4438)
-- ▶️ **Завершить**: после создания договора → `showEntity(newId)` вместо `showEntityList` в `entity-crud.js`
-- **Контакты**: дописать frontend рендеринг field_type='contacts' в `entity-form.js`
-- **Контакты**: миграция старых contact_person/phone/email → новый JSON формат
-- **Финансы**: date range filter UI для `/finance` (сейчас hardcoded 2025-01-01)
-- **Финансы**: stale data fallback при недоступности VPN (показывать кеш с timestamp)
-- **Бюджет 1С live data**: запросить у 1С admin права на `Document_бит_ФормаВводаБюджета`, `Document_бит_БюджетнаяОперация`, `AccumulationRegister_бит_ОборотыПоБюджетам`
-- **Аренда drill-down**: добавить больше договоров аренды в IndParkDocs → contract deviation заработает для большинства контрагентов
-- **DNS**: добавить A-record `docs → 89.167.75.91` для `docs.zvezda-park.com` (Валентина делает в DNS)
+## Текущий HEAD (04.03.2026)
+- **`origin/main`** = `1736d9d` — fix: contractor name в ДС + inv_number деdup
+- **`origin/dev`** ≈ main (расхождение минимальное)
+
+## ✅ Выполнено (03-04.03.2026, всё задеплоено)
+- Авто-открытие договора — уже было в entity-create.js
+- Contacts field rendering — уже было реализовано
+- ДС: нет дочернего ДС, предзаполнение из последнего, имя контрагента в истории
+- Migration 025: contacts JSON
+- Finance date range filter (С/По в topActions)
+- `_doSubmitCreateSupplement` → `collectEntityIds` — contractor_name теперь имя не ID
+- `contract-card.js` inv_number деdup — нет дублей если уже в названии
+- DB fix: ДС №2/№4 — исправлено с "311" на "ВРС ЦЕНТР ООО"
+
+## Планы / Next Steps (backlog)
+- Заполнить `inv_number` для eq id=581 (ЖД путь инв. №593000) — поле пустое
+- Добавить больше договоров аренды (38 из 42 арендаторов не в системе)
+- Date range filter для Должники (overdue hardcoded 2025-01-01)
+- Финансы: stale data fallback при недоступности VPN
+- Бюджет 1С live: нужен доступ к бюджетным регистрам
+- Полнотекстовый поиск по всем полям
 - Дописать JS функции для "Анализ аренды"
 
 ## ⚠️ Новые правила (03.03.2026)
