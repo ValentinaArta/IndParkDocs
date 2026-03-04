@@ -73,14 +73,12 @@ function _srchGetList(id) {
     return { id: r.id, name: r.name + (bld ? ' (' + bld + ')' : '') };
   });
   if (fn === 'rent_land_plot') return (_landPlots || []).map(function(lp) {
-    var cad = (lp.properties || {}).cadastral_number;
-    return { id: lp.id, name: lp.name + (cad ? ' [' + cad + ']' : '') };
+    return { id: lp.id, name: _lpLabel(lp) };
   });
   if (fn === 'rent_lp_combined') {
     var items = [];
     (_landPlots || []).forEach(function(lp) {
-      var cad = (lp.properties||{}).cadastral_number;
-      items.push({ id: 'lp_' + lp.id, name: lp.name + (cad ? ' ['+cad+']' : '') + ' (целиком)' });
+      items.push({ id: 'lp_' + lp.id, name: _lpLabel(lp) + ' (целиком)' });
       (_landPlotParts || []).filter(function(p) { return p.parent_id === lp.id; }).forEach(function(p) {
         var pArea = (p.properties||{}).area;
         items.push({ id: 'lpp_' + p.id, name: p.name + (pArea ? ' ('+pArea+' м²)' : '') + ' — ' + lp.name });
@@ -94,8 +92,7 @@ function _srchGetList(id) {
   });
   if (fn === 'building') return (_buildings || []).map(function(b) { return { id: b.id, name: b.name }; });
   if (fn === 'land_plot') return (_landPlots || []).map(function(lp) {
-    var cad = (lp.properties || {}).cadastral_number;
-    return { id: lp.id, name: lp.name + (cad ? ' [' + cad + ']' : '') };
+    return { id: lp.id, name: _lpLabel(lp) };
   });
   return _allCompanies || [];
 }

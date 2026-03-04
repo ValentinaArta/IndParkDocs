@@ -5,8 +5,7 @@ module.exports = `
 function renderLandPlotSelectorField(selectedId) {
   var lpOptions = '<option value="">— не указано —</option>';
   (_landPlots || []).forEach(function(lp) {
-    var cn = (lp.properties || {}).cadastral_number;
-    var label = cn ? cn + ' — ' + escapeHtml(lp.name) : escapeHtml(lp.name);
+    var label = escapeHtml(_lpLabel(lp));
     var sel = (lp.id === selectedId) ? ' selected' : '';
     lpOptions += '<option value="' + lp.id + '"' + sel + '>' + label + '</option>';
   });

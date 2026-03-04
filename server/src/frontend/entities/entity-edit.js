@@ -64,7 +64,7 @@ async function openEditModal(id) {
     } else if (e.type_name === 'land_plot_part') {
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
       allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
-        html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + escapeHtml(x.name) + '</option>';
+        html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + escapeHtml(_lpLabel(x)) + '</option>';
       });
       html += '</select></div>';
     } else if (e.type_name !== 'land_plot' && e.type_name !== 'company') {
