@@ -147,7 +147,20 @@ async function openCreateSupplementModal(parentContractId) {
 async function submitCreateSupplement(parentContractId) {
   if (_submitting) return;
   _submitting = true;
-  try { await _doSubmitCreateSupplement(parentContractId); } finally { _submitting = false; }
+  try {
+    await _doSubmitCreateSupplement(parentContractId);
+  } catch(err) {
+    if (err.status === 409 && err.data && err.data.existing) {
+      if (confirm('ДС с таким именем уже существует. Открыть существующее?')) {
+        closeModal();
+        showEntity(err.data.existing.id);
+      }
+    } else {
+      alert('Ошибка при сохранении: ' + (err.message || err));
+    }
+  } finally {
+    _submitting = false;
+  }
 }
 
 async function _doSubmitCreateSupplement(parentContractId) {
