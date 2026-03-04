@@ -155,6 +155,7 @@ async function _doSubmitCreateSupplement(parentContractId) {
   const fields = await api('/entity-types/' + suppType.id + '/fields');
   const properties = {};
   fields.forEach(f => { const v = getFieldValue(f); if (v) properties[f.name] = v; });
+  collectEntityIds(properties); // резолвит contractor_name ID → имя компании
 
   if (properties.contract_type) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
