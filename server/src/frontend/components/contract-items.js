@@ -54,27 +54,38 @@ function contractItemRemove(btn) {
 }
 
 function recalcContractAmount() {
-  var wrapper = document.getElementById('f_contract_items_wrapper');
-  if (!wrapper) return;
-  var isSale = wrapper.getAttribute('data-sale') === '1';
-  var total = 0;
-  var list = document.getElementById('f_contract_items_list');
-  if (!list) return;
-  list.querySelectorAll('.contract-item').forEach(function(item) {
-    if (isSale) {
-      var qty = parseFloat(item.querySelector('.ci-qty').value) || 0;
-      var up = parseFloat(item.querySelector('.ci-uprice').value) || 0;
-      var rowAmt = qty * up;
-      var totalEl = item.querySelector('.ci-total');
-      if (totalEl) totalEl.textContent = rowAmt ? rowAmt.toLocaleString('ru-RU') + ' ₽' : '';
-      total += rowAmt;
-    } else {
-      var amt = parseFloat(item.querySelector('.ci-amount').value) || 0;
-      total += amt;
-    }
-  });
   var amtEl = document.getElementById('f_contract_amount');
-  if (amtEl) amtEl.value = total || '';
+  if (!amtEl) return;
+  var total = 0;
+
+  // Sum equipment prices
+  document.querySelectorAll('#f_equipment_list .eq-list-price').forEach(function(inp) {
+    total += parseFloat(inp.value) || 0;
+  });
+
+  // Sum contract items
+  var wrapper = document.getElementById('f_contract_items_wrapper');
+  if (wrapper) {
+    var isSale = wrapper.getAttribute('data-sale') === '1';
+    var list = document.getElementById('f_contract_items_list');
+    if (list) {
+      list.querySelectorAll('.contract-item').forEach(function(item) {
+        if (isSale) {
+          var qty = parseFloat(item.querySelector('.ci-qty').value) || 0;
+          var up = parseFloat(item.querySelector('.ci-uprice').value) || 0;
+          var rowAmt = qty * up;
+          var totalEl = item.querySelector('.ci-total');
+          if (totalEl) totalEl.textContent = rowAmt ? rowAmt.toLocaleString('ru-RU') + ' ₽' : '';
+          total += rowAmt;
+        } else {
+          var amt = parseFloat(item.querySelector('.ci-amount').value) || 0;
+          total += amt;
+        }
+      });
+    }
+  }
+
+  amtEl.value = total || '';
 }
 
 function getContractItemsValue() {

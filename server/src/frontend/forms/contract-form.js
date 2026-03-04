@@ -59,27 +59,17 @@ function onPowerAllocationToggle() {
 }
 
 function onRentFieldChange() {
-  // Collect current state and re-render
   var container = document.getElementById('dynamicFieldsContainer');
   if (!container) return;
   var contractType = getSelectedContractType();
   var allFields = CONTRACT_TYPE_FIELDS[contractType] || CONTRACT_TYPE_FIELDS['Аренды'] || [];
   var currentProps = {};
 
-  // Collect rent objects and comments
   currentProps.rent_objects = collectAllRentObjects();
-  currentProps.rent_comments = collectComments();
-  // Collect power allocation
-  var _paCb = document.getElementById('f_has_power_allocation');
-  currentProps.has_power_allocation = _paCb ? String(_paCb.checked) : 'false';
-  var _paKw = document.getElementById('f_power_allocation_kw');
-  currentProps.power_allocation_kw = _paKw ? _paKw.value : '';
 
-  // Collect other fields
   allFields.forEach(function(f) {
-    if (f.name === 'rent_objects' || f.name === 'rent_comments') return;
+    if (f.name === 'rent_objects') return;
     if (f.field_type === 'equipment_list') {
-      // Preserve current equipment list before re-render
       var eqItems = getEqListValue();
       currentProps[f.name] = eqItems.length > 0 ? JSON.stringify(eqItems) : '';
       return;
@@ -92,7 +82,18 @@ function onRentFieldChange() {
       currentProps[f.name] = el ? el.value || '' : '';
     }
   });
-  renderRentFields(container, allFields, currentProps);
+
+  var hasFinancial = !!document.getElementById('financialContainer');
+  if (hasFinancial) {
+    renderRentSubjectOnly(container, allFields, currentProps);
+  } else {
+    currentProps.rent_comments = collectComments();
+    var _paCb = document.getElementById('f_has_power_allocation');
+    currentProps.has_power_allocation = _paCb ? String(_paCb.checked) : 'false';
+    var _paKw = document.getElementById('f_power_allocation_kw');
+    currentProps.power_allocation_kw = _paKw ? _paKw.value : '';
+    renderRentFields(container, allFields, currentProps);
+  }
   _srchInitAll();
 }
 
@@ -107,14 +108,19 @@ function disableEquipmentTransfer() {
 }
 
 function updateVatDisplay() {
-  var rentEl = document.getElementById('f_rent_monthly');
+  var amountEl = document.getElementById('f_rent_monthly') || document.getElementById('f_contract_amount');
   var vatEl = document.getElementById('f_vat_rate');
   var display = document.getElementById('vat_display');
   if (!display) return;
-  var rent = parseFloat(rentEl ? rentEl.value : 0) || 0;
-  var vat = parseFloat(vatEl ? vatEl.value : 22) || 0;
-  if (rent > 0 && vat > 0) {
-    var vatAmount = rent * vat / (100 + vat);
+  var amount = parseFloat(amountEl ? amountEl.value : 0) || 0;
+  var vatVal = vatEl ? vatEl.value : '22';
+  if (vatVal === 'exempt') {
+    display.textContent = amount > 0 ? 'НДС не облагается' : '';
+    return;
+  }
+  var vat = parseFloat(vatVal) || 0;
+  if (amount > 0 && vat > 0) {
+    var vatAmount = amount * vat / (100 + vat);
     display.textContent = 'в т.ч. НДС (' + vat + '%) = ' + _fmtNum(vatAmount) + ' руб.';
   } else {
     display.textContent = '';
@@ -150,111 +156,98 @@ function renderContractFormFields(fields, props, headerHtml, options) {
   _contractFormProps = props || {};
   var contractType = props.contract_type || '';
   var roles = CONTRACT_ROLES[contractType] || { our: 'Наше юр. лицо', contractor: 'Контрагент' };
+  var isSupp = _contractFormTypeName === 'supplement';
 
   var html = headerHtml || '';
 
+  // ========== СЕКЦИЯ 1: РЕКВИЗИТЫ ==========
+  html += '<div class="form-section"><div class="form-section-title">Реквизиты договора</div><div class="form-section-body">';
+
+  var fContractType = fields.find(function(f) { return f.name === 'contract_type'; });
+  var fNumber = fields.find(function(f) { return f.name === 'number'; });
+  var fContractDate = fields.find(function(f) { return f.name === 'contract_date'; });
+  var fDocStatus = fields.find(function(f) { return f.name === 'doc_status'; });
+
+  if (fContractType) {
+    var ctVal = props.contract_type || '';
+    if (isEdit && isSupp) {
+      html += '<div class="form-group"><label>' + (fContractType.name_ru || 'Тип') + '</label>';
+      html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(ctVal) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется)</span></div>';
+      html += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(ctVal) + '"></div>';
+    } else {
+      html += '<div class="form-group"><label>' + (fContractType.name_ru || 'Тип') + '</label>' + renderFieldInput(fContractType, ctVal) + '</div>';
+    }
+  }
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  if (fNumber) html += '<div class="form-group"><label>' + (fNumber.name_ru || 'Номер') + '</label>' + renderFieldInput(fNumber, props.number || '') + '</div>';
+  if (fContractDate) html += '<div class="form-group"><label>' + (fContractDate.name_ru || 'Дата') + '</label>' + renderFieldInput(fContractDate, props.contract_date || '') + '</div>';
+  html += '</div>';
+
+  if (fDocStatus) html += '<div class="form-group"><label>' + (fDocStatus.name_ru || 'Статус') + '</label>' + renderFieldInput(fDocStatus, props.doc_status || '') + '</div>';
+
+  var ourDefaultRole = roles.our;
+  var ourRoleVal = props.our_role_label || ourDefaultRole;
+  html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
+  html += '<div id="wrap_our_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль нашей стороны</label>' +
+    '<input id="f_our_role_label" value="' + escapeHtml(ourRoleVal) + '" placeholder="' + escapeHtml(ourDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
+  html += '<div id="wrap_our_legal_entity"><label id="label_our_legal_entity" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(props.our_role_label || roles.our) + '</label>' +
+    renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, props.our_legal_entity || '', 'начните вводить...', 'our_legal_entity') + '</div>';
+  html += '</div>';
+  html += '<div style="text-align:center;margin:-6px 0 8px"><button type="button" onclick="swapContractRoles()" title="Поменять роли сторон" class="btn-swap-roles">\\ud83d\\udd04 поменять роли</button></div>';
+
+  var contrDefaultRole = roles.contractor;
+  var contrRoleVal = props.contractor_role_label || contrDefaultRole;
+  html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
+  html += '<div id="wrap_contractor_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль контрагента</label>' +
+    '<input id="f_contractor_role_label" value="' + escapeHtml(contrRoleVal) + '" placeholder="' + escapeHtml(contrDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
+  html += '<div id="wrap_contractor_name"><label id="label_contractor_name" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(props.contractor_role_label || roles.contractor) + '</label>' +
+    renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, props.contractor_name || '', 'начните вводить...', 'contractor_name') + '</div>';
+  html += '</div>';
+
+  var showSub = (contractType === 'Субаренды') || (roles.hasSubtenant);
+  html += '<div class="form-group" id="wrap_subtenant_name" style="' + (showSub ? '' : 'display:none') + '"><label>Субарендатор</label>' +
+    renderSearchableSelect('f_subtenant_name', _allCompanies, props.subtenant_id, props.subtenant_name || '', 'начните вводить...', 'subtenant_name') + '</div>';
+
+  var isVgo = props.external_rental === 'false' || props.is_vgo === 'true';
+  html += '<div style="margin:4px 0 8px"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">' +
+    '<input type="checkbox" id="f_is_vgo"' + (isVgo ? ' checked' : '') + '> \\ud83d\\udd35 ВГО (внутригрупповая операция)</label></div>';
+
+  var _sec1Handled = ['contract_type','number','contract_date','doc_status','our_role_label','our_legal_entity','contractor_role_label','contractor_name','subtenant_name','vat_rate','contract_end_date','duration_type','duration_date','duration_text','payment_frequency','sale_item_type'];
   fields.forEach(function(f) {
-    var val = props[f.name] || '';
-    var ef = f;
-
-    // contract_type — first, with onchange (read-only for supplement edit)
-    if (f.name === 'contract_type') {
-      if (isEdit && _contractFormTypeName === 'supplement') {
-        html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>';
-        html += '<div style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:14px">' + escapeHtml(val) + ' <span style="font-size:11px;color:var(--text-muted)">(наследуется от договора)</span></div>';
-        html += '<input type="hidden" id="f_contract_type" value="' + escapeHtml(val) + '"></div>';
-      } else {
-        html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
-      }
-      return;
-    }
-
-    // Role label + entity selector — on one row
-    if (f.name === 'our_role_label') {
-      // Defer: rendered together with our_legal_entity
-      return;
-    }
-    if (f.name === 'our_legal_entity') {
-      var ourDefaultRole = roles.our;
-      var ourRoleVal = props.our_role_label || ourDefaultRole;
-      var ourLabel = (props.our_role_label || roles.our);
-      html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
-      html += '<div id="wrap_our_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль нашей стороны</label>' +
-        '<input id="f_our_role_label" value="' + escapeHtml(ourRoleVal) + '" placeholder="' + escapeHtml(ourDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
-      html += '<div id="wrap_our_legal_entity"><label id="label_our_legal_entity" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(ourLabel) + '</label>' +
-        renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, props.our_legal_entity || '', 'начните вводить...', 'our_legal_entity') + '</div>';
-      html += '</div>';
-      html += '<div style="text-align:center;margin:-6px 0 8px"><button type="button" onclick="swapContractRoles()" title="Поменять роли сторон" class="btn-swap-roles">🔄 поменять роли</button></div>';
-      return;
-    }
-    if (f.name === 'contractor_role_label') {
-      // Defer: rendered together with contractor_name
-      return;
-    }
-    if (f.name === 'contractor_name') {
-      var contrDefaultRole = roles.contractor;
-      var contrRoleVal = props.contractor_role_label || contrDefaultRole;
-      var contrLabel = (props.contractor_role_label || roles.contractor);
-      html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
-      html += '<div id="wrap_contractor_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль контрагента</label>' +
-        '<input id="f_contractor_role_label" value="' + escapeHtml(contrRoleVal) + '" placeholder="' + escapeHtml(contrDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
-      html += '<div id="wrap_contractor_name"><label id="label_contractor_name" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(contrLabel) + '</label>' +
-        renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, props.contractor_name || '', 'начните вводить...', 'contractor_name') + '</div>';
-      html += '</div>';
-      return;
-    }
-
-    // subtenant — searchable selector, only for Субаренды
-    if (f.name === 'subtenant_name') {
-      var show = (contractType === 'Субаренды') || (roles.hasSubtenant);
-      html += '<div class="form-group" id="wrap_subtenant_name" style="' + (show ? '' : 'display:none') + '"><label>Субарендатор</label>' +
-        renderSearchableSelect('f_subtenant_name', _allCompanies, props.subtenant_id, '', 'начните вводить...', 'subtenant_name') + '</div>';
-      return;
-    }
-
-    // Skip fields already covered by CONTRACT_TYPE_FIELDS for this type (e.g. vat_rate for Аренды)
+    if (_sec1Handled.indexOf(f.name) >= 0) return;
     var ctTypeFields = CONTRACT_TYPE_FIELDS[contractType] || [];
     if (ctTypeFields.find(function(cf) { return cf.name === f.name; })) return;
-
-    // Duration fields — handled by renderDurationSection for contracts, shown as regular fields for supplements
-    if (_contractFormTypeName !== 'supplement') {
-      if (f.name === 'contract_end_date' || f.name === 'duration_type' || f.name === 'duration_date' || f.name === 'duration_text') return;
-    }
-
-    // Hide payment_frequency and sale_item_type for Аренды/Субаренды
-    var _isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды' || contractType === 'Аренда оборудования');
-    if (_isRentalType && (f.name === 'payment_frequency' || f.name === 'sale_item_type')) return;
-
-    // Default vat_rate to 22; hide for rent types (rendered in renderRentFields instead)
-    if (f.name === 'vat_rate' && _isRentalType) return;
-    if (f.name === 'vat_rate' && !val) val = '22';
-    if (f.name === 'vat_rate') {
-      html += '<div class="form-group" id="wrap_f_vat_rate"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
-      return;
-    }
-
-    // Regular fields
-    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(ef, val) + '</div>';
+    var val = props[f.name] || '';
+    html += '<div class="form-group"><label>' + (f.name_ru || f.name) + '</label>' + renderFieldInput(f, val) + '</div>';
   });
 
-  html += '<div id="dynamicFieldsContainer"></div>';
+  html += '</div></div>';
 
-  // Submit button: Сохранить for edit, Создать for create
+  // ========== СЕКЦИЯ 2: ПРЕДМЕТ ДОГОВОРА ==========
+  html += '<div class="form-section"><div class="form-section-title">Предмет договора</div><div class="form-section-body">';
+  html += '<div id="dynamicFieldsContainer"></div>';
+  html += '</div></div>';
+
+  // ========== СЕКЦИЯ 3: УСЛОВИЯ ОПЛАТЫ ==========
+  html += '<div class="form-section"><div class="form-section-title">Условия оплаты</div><div class="form-section-body">';
+  html += '<div id="financialContainer"></div>';
+  html += '</div></div>';
+
   var submitBtn;
   if (isEdit && entityId) {
     submitBtn = '<button class="btn btn-primary" onclick="submitEdit(' + entityId + ')">Сохранить</button>';
   } else {
-    var isSupp = fields.some(function(f) { return f.name === 'changes_description'; });
-    var typeName = isSupp ? 'supplement' : 'contract';
+    var isSuppBtn = fields.some(function(f) { return f.name === 'changes_description'; });
+    var typeName = isSuppBtn ? 'supplement' : 'contract';
     if (_contractFormTypeName) typeName = _contractFormTypeName;
     submitBtn = '<button class="btn btn-primary" onclick="submitCreate(\\''+typeName+'\\')">Создать</button>';
   }
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>' + submitBtn + '</div>';
 
   setModalContent(html);
-  _srchInitAll(); // init searchable selects
+  _srchInitAll();
 
-  // Attach contract_type change handler
   var ctEl = document.getElementById('f_contract_type');
   if (ctEl) {
     ctEl.addEventListener('change', function() { onContractTypeChange(); });
@@ -262,16 +255,94 @@ function renderContractFormFields(fields, props, headerHtml, options) {
     if (ctCustom) ctCustom.addEventListener('input', function() { onContractTypeChange(); });
   }
 
-  // Attach manual edit handlers on role labels
   var ourRoleEl = document.getElementById('f_our_role_label');
   if (ourRoleEl) ourRoleEl.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
   var contrRoleEl = document.getElementById('f_contractor_role_label');
   if (contrRoleEl) contrRoleEl.addEventListener('input', function() { this.setAttribute('data-auto-set','false'); updatePartyLabels(); });
 
-  // Render dynamic fields if contract_type already set
   if (contractType) {
     renderDynamicFields(contractType, props);
+    renderFinancialSection(contractType, props);
   }
+}
+
+// ============ FINANCIAL SECTION ============
+function renderFinancialSection(contractType, props) {
+  var container = document.getElementById('financialContainer');
+  if (!container) return;
+  props = props || {};
+  var isRental = (contractType === 'Аренды' || contractType === 'Субаренды');
+  var isEqRent = (contractType === 'Аренда оборудования');
+  var html = '';
+
+  if (isRental || isEqRent) {
+    html += '<div class="form-group"><label>' + (isEqRent ? 'Стоимость аренды в месяц' : 'Арендная плата в месяц') + '</label>' +
+      '<input type="number" id="f_rent_monthly" value="' + escapeHtml(String(props.rent_monthly || '')) + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
+  } else {
+    html += '<div class="form-group"><label>Сумма договора (итого)</label>' +
+      '<input type="number" id="f_contract_amount" value="' + escapeHtml(String(props.contract_amount || '')) + '" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--accent)"></div>';
+  }
+
+  var vatVal = props.vat_rate || '22';
+  html += '<div class="form-group"><label>НДС</label><div style="display:flex;gap:8px;align-items:center">' +
+    renderVatSelect(vatVal) +
+    '<span id="vat_display" style="font-size:12px;color:var(--text-secondary)"></span></div></div>';
+
+  if (isRental) {
+    var hasExtra = props.extra_services === 'true' || props.extra_services === true;
+    html += '<div style="margin:8px 0"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">' +
+      '<input type="checkbox" id="f_extra_services"' + (hasExtra ? ' checked' : '') +
+      ' onchange="onExtraServicesToggle()"> Доп. услуги</label></div>';
+    html += '<div id="extra_services_fields" style="' + (hasExtra ? '' : 'display:none') + '">';
+    html += '<div class="form-group"><label>Описание доп. услуг</label><input id="f_extra_services_desc" value="' + escapeHtml(props.extra_services_desc || '') + '"></div>';
+    html += '<div class="form-group"><label>Стоимость в месяц</label><input type="number" id="f_extra_services_cost" value="' + (props.extra_services_cost || '') + '" oninput="recalcRentMonthly()"></div>';
+    html += '</div>';
+    html += '<div class="form-group"><label>Комментарии</label>' + renderCommentsBlock(props.rent_comments) + '</div>';
+    var hasPower = props.has_power_allocation === 'true' || props.has_power_allocation === true;
+    html += '<div style="margin:8px 0"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">' +
+      '<input type="checkbox" id="f_has_power_allocation"' + (hasPower ? ' checked' : '') +
+      ' onchange="onPowerAllocationToggle()"> Выделена эл. мощность</label></div>';
+    html += '<div id="power_allocation_fields" style="' + (hasPower ? '' : 'display:none') + '">';
+    html += '<div class="form-group"><label>Эл. мощность (кВт)</label><input type="number" id="f_power_allocation_kw" value="' + escapeHtml(props.power_allocation_kw || '') + '" step="0.1"></div>';
+    html += '</div>';
+  }
+
+  var _freqTypes = ['Услуг', 'ТО и ППР', 'Эксплуатации', 'Обслуживания'];
+  if (_freqTypes.indexOf(contractType) >= 0) {
+    var freqOpts = ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'];
+    var freqVal = props.payment_frequency || '';
+    var freqCustom = freqVal && freqOpts.indexOf(freqVal) < 0;
+    html += '<div class="form-group"><label>Периодичность оплаты</label>';
+    html += '<div style="display:flex;gap:6px;align-items:center"><select id="f_payment_frequency" onchange="toggleCustomInput(this)" style="flex:1"><option value="">\\u2014</option>';
+    freqOpts.forEach(function(o) { html += '<option value="' + escapeHtml(o) + '"' + (o === freqVal ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
+    html += '<option value="__custom__"' + (freqCustom ? ' selected' : '') + '>Другое...</option></select>';
+    html += '<input id="f_payment_frequency_custom" placeholder="Введите значение" value="' + (freqCustom ? escapeHtml(freqVal) : '') + '" style="flex:1;' + (freqCustom ? '' : 'display:none') + '"></div></div>';
+  }
+
+  var _advTypes = ['Подряда', 'Услуг', 'ТО и ППР'];
+  if (_advTypes.indexOf(contractType) >= 0) {
+    var advances = [];
+    try { if (typeof props.advances === 'string' && props.advances) advances = JSON.parse(props.advances); } catch(ex) {}
+    html += '<div class="form-group"><label>Авансы</label>' + renderAdvancesBlock(advances) + '</div>';
+  }
+
+  if (contractType === 'Подряда') {
+    html += '<div class="form-group"><label>Срок выполнения</label><input id="f_completion_deadline" value="' + escapeHtml(props.completion_deadline || '') + '"></div>';
+  }
+
+  if (_contractFormTypeName !== 'supplement') html += renderDurationSection(props);
+
+  html += '<input type="hidden" id="f_external_rental" value="auto">';
+  container.innerHTML = html;
+  updateVatDisplay();
+  if (isRental || isEqRent) recalcRentMonthly();
+}
+
+function onExtraServicesToggle() {
+  var cb = document.getElementById('f_extra_services');
+  var fields = document.getElementById('extra_services_fields');
+  if (fields) fields.style.display = (cb && cb.checked) ? '' : 'none';
+  recalcRentMonthly();
 }
 
 function getSelectedContractType() {
@@ -312,13 +383,9 @@ function onContractTypeChange() {
     subWrap.style.display = (contractType === 'Субаренды') ? '' : 'none';
   }
 
-  // Show/hide common vat_rate field (hidden for rental types — they render it in their own section)
-  var isRentalType = (contractType === 'Аренды' || contractType === 'Субаренды' || contractType === 'Аренда оборудования');
-  var vatWrap = document.getElementById('wrap_f_vat_rate');
-  if (vatWrap) vatWrap.style.display = isRentalType ? 'none' : '';
-
-  // Render dynamic fields
+  // Render subject + financial fields
   renderDynamicFields(contractType, {});
+  renderFinancialSection(contractType, {});
 }
 
 function updatePartyLabels() {
@@ -373,18 +440,27 @@ function collectDynamicFieldValues(contractType) {
     result.duration_date = durDate.value;
   }
   if (durText) result.duration_text = durText.value;
-  // Auto-calculate external_rental: true if contractor is not one of our companies
-  var _extEl = document.getElementById('f_external_rental');
-  if (_extEl) {
-    var contrId = document.getElementById('f_contractor_name');
-    var contrVal = contrId ? contrId.value : '';
-    var isExternal = true;
-    if (contrVal) {
-      var contrComp = (_ownCompanies || []).find(function(c) { return c.id === parseInt(contrVal); });
-      if (contrComp) isExternal = false;
+  // ВГО checkbox → external_rental (inverse)
+  var _vgoEl = document.getElementById('f_is_vgo');
+  if (_vgoEl) {
+    result.is_vgo = String(_vgoEl.checked);
+    result.external_rental = String(!_vgoEl.checked);
+  } else {
+    var _extEl = document.getElementById('f_external_rental');
+    if (_extEl) {
+      var contrId = document.getElementById('f_contractor_name');
+      var contrVal = contrId ? contrId.value : '';
+      var isExternal = true;
+      if (contrVal) {
+        var contrComp = (_ownCompanies || []).find(function(c) { return c.id === parseInt(contrVal); });
+        if (contrComp) isExternal = false;
+      }
+      result.external_rental = String(isExternal);
     }
-    result.external_rental = String(isExternal);
   }
+  // Collect vat_rate from financial section
+  var _vatEl = document.getElementById('f_vat_rate');
+  if (_vatEl) result.vat_rate = _vatEl.value;
   // Power allocation (Аренды/Субаренды)
   var _paCb2 = document.getElementById('f_has_power_allocation');
   if (_paCb2) {
