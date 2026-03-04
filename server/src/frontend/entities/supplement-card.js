@@ -193,7 +193,7 @@ function renderSupplementCard(supp) {
         _enrichFromRegistry(ri);
         var eqName = ri.equipment_name || ri.name || '—';
         var qty = parseFloat(ri.qty) || 1;
-        var rate = parseFloat(ri.rate || ri.rent_rate) || 0;
+        var rate = parseFloat(ri.rent_cost || ri.rate || ri.rent_rate) || 0;
         rentTotal += rate * qty;
         var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
         h += '<tr style="' + bg + '">';
