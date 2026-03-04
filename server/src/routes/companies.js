@@ -110,7 +110,7 @@ router.post('/import-from-1c', authenticate, asyncHandler(async (req, res) => {
     // Проверить дубликат по ИНН
     if (inn) {
       const dup = await pool.query(
-        `SELECT id, name FROM entities e
+        `SELECT e.id, e.name FROM entities e
          JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'company'
          WHERE e.deleted_at IS NULL AND e.properties->>'inn' = $1 LIMIT 1`,
         [inn]
@@ -122,7 +122,7 @@ router.post('/import-from-1c', authenticate, asyncHandler(async (req, res) => {
 
     // Проверить дубликат по имени
     const dupName = await pool.query(
-      `SELECT id, name FROM entities e
+      `SELECT e.id, e.name FROM entities e
        JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'company'
        WHERE e.deleted_at IS NULL AND LOWER(e.name) = LOWER($1) LIMIT 1`,
       [name]
