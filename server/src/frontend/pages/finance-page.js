@@ -2,19 +2,35 @@
 module.exports = `
 // === FINANCE PAGE ===
 
-async function showFinancePage() {
+var _finDateFrom = '2026-01-01';
+var _finDateTo   = '';
+
+async function showFinancePage(dateFrom, dateTo) {
+  if (dateFrom) _finDateFrom = dateFrom;
+  if (dateTo   !== undefined) _finDateTo = dateTo || '';
   currentView = 'finance';
   setActive('[onclick*="showFinancePage"]');
   document.getElementById('pageTitle').textContent = 'Расходы';
   document.getElementById('breadcrumb').textContent = '';
-  document.getElementById('topActions').innerHTML =
-    '<button class="btn btn-sm" onclick="showFinancePage()"><i data-lucide="refresh-cw" class="lucide" style="width:14px;height:14px"></i> Обновить</button>';
+
+  // Панель с фильтром дат
+  var acts = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+  acts += '<span style="font-size:12px;color:var(--text-secondary)">С:</span>';
+  acts += '<input type="date" id="finDateFrom" value="' + _finDateFrom + '" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text)">';
+  acts += '<span style="font-size:12px;color:var(--text-secondary)">По:</span>';
+  acts += '<input type="date" id="finDateTo" value="' + _finDateTo + '" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text)">';
+  acts += '<button class="btn btn-primary btn-sm" onclick="applyFinDateFilter()">Применить</button>';
+  acts += '<button class="btn btn-sm" onclick="showFinancePage()"><i data-lucide="refresh-cw" class="lucide" style="width:14px;height:14px"></i></button>';
+  acts += '</div>';
+  document.getElementById('topActions').innerHTML = acts;
+  renderIcons();
+
   var content = document.getElementById('content');
   content.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)"><div class="spinner-ring" style="margin:40px auto"></div><div style="margin-top:12px">Загружаю данные из 1С...</div></div>';
-  renderIcons();
   try {
+    var qs = '?from=' + encodeURIComponent(_finDateFrom) + (_finDateTo ? '&to=' + encodeURIComponent(_finDateTo) : '');
     var [d, exp] = await Promise.all([
-      api('/finance/summary').catch(function() { return null; }),
+      api('/finance/summary' + qs).catch(function() { return null; }),
       api('/finance/expenses').catch(function() { return null; }),
     ]);
     if (currentView !== 'finance') return;
@@ -22,6 +38,12 @@ async function showFinancePage() {
   } catch(e) {
     content.innerHTML = '<div style="padding:24px"><div style="color:var(--red);font-size:14px;padding:20px;background:var(--bg-secondary);border-radius:8px">⚠️ Ошибка: ' + escapeHtml(e.message || String(e)) + '</div></div>';
   }
+}
+
+function applyFinDateFilter() {
+  var fromEl = document.getElementById('finDateFrom');
+  var toEl   = document.getElementById('finDateTo');
+  showFinancePage(fromEl ? fromEl.value : '', toEl ? toEl.value : '');
 }
 
 function _finFmt(n) {
@@ -57,10 +79,12 @@ function _renderFinancePage(d, exp) {
   }
   var t = d.totals;
   var period = d.period || '2026-01-01';
+  var periodTo = d.period_to || '';
   var asOf = d.data_as_of ? new Date(d.data_as_of).toLocaleString('ru-RU') : '';
+  var periodLabel = 'С ' + period.slice(0,10) + (periodTo ? ' по ' + periodTo.slice(0,10) : '');
 
   var h = '<div style="padding:24px">';
-  h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Данные из 1С · С ' + period.slice(0,10) + ' · Обновлено ' + asOf + '</div>';
+  h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Данные из 1С · ' + periodLabel + ' · Обновлено ' + asOf + '</div>';
 
   // ── KPI cards ──
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">';
