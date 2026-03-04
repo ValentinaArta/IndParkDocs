@@ -22,6 +22,7 @@ const duration     = require('./components/duration');
 const contractItems = require('./components/contract-items');
 const actItems     = require('./components/act-items');
 const subjectObjects = require('./components/subject-objects');
+const saleContract   = require('./components/sale-contract');
 // forms/*
 const fieldInput   = require('./forms/field-input');
 const equipmentForm = require('./forms/equipment-form');
@@ -99,6 +100,8 @@ const FRONTEND_HTML =
   '\n' +
   actItems +
   subjectObjects +
+  '\n' +
+  saleContract +
   '\n' +
   fieldInput +
   '\n' +

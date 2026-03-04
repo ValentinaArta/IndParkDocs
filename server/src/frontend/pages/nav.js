@@ -178,7 +178,7 @@ async function _navLoadGroupChildren(name, container) {
     });
   }
   if (name === 'contract') {
-    var contractTypes = ['Аренды', 'Субаренды', 'Аренда оборудования', 'Подряда', 'Услуг', 'Купли-продажи', 'Обслуживания'];
+    var contractTypes = ['Аренды', 'Субаренды', 'Аренда оборудования', 'Подряда', 'Услуг', 'Купли-продажи', 'Обслуживания', 'Эксплуатации'];
     h += '<div class="nav-sub-item" data-etype="contract" onclick="navSubClick(this)" style="color:rgba(255,255,255,0.45);font-style:italic">' +
       '<span style="font-size:9px;color:rgba(255,255,255,0.2)">▸</span> все договоры</div>';
     contractTypes.forEach(function(ct) {
