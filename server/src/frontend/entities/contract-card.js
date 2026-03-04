@@ -25,6 +25,7 @@ function renderContractCard(data) {
   if (data.is_vgo) {
     h += '<span style="background:#eff6ff;color:#1d4ed8;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">🔵 ВГО</span>';
   }
+  if (data.doc_status) h += _docStatusBadge(data.doc_status);
   h += '</div>';
   h += '</div>';
 

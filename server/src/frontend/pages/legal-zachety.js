@@ -33,9 +33,10 @@ async function loadZachety() {
       var ipOwes = z.before_ip_owes ? Number(z.before_ip_owes).toLocaleString('ru', {minimumFractionDigits:2}) + ' ₽' : '—';
       var paoOwes = z.before_pao_owes ? Number(z.before_pao_owes).toLocaleString('ru', {minimumFractionDigits:2}) + ' ₽' : '—';
       var zachet = z.zachet_amount ? Number(z.zachet_amount).toLocaleString('ru', {minimumFractionDigits:2}) + ' ₽' : '—';
+      var statusBadge = z.status ? _docStatusBadge(z.status) : '';
       html += '<div onclick="showZachetDetail(' + z.id + ')" style="background:var(--bg-card);border-radius:10px;padding:16px;margin-bottom:12px;cursor:pointer;box-shadow:var(--shadow);position:relative">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
-        '<span style="font-size:13px;color:var(--text-muted)">' + dateStr + '</span>' +
+        '<span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted)">' + dateStr + (statusBadge ? ' ' + statusBadge : '') + '</span>' +
         '<button class="btn" style="padding:2px 8px;font-size:11px;position:absolute;top:12px;right:12px" onclick="event.stopPropagation();deleteZachet(' + z.id + ')">✕</button></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px">' +
         '<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted);font-size:13px">ИП → ПАО</span><span style="font-weight:600">' + ipOwes + '</span></div>' +
@@ -118,6 +119,13 @@ function addZachet(editData) {
     '<div style="' + sectionStyle + ';border:2px solid var(--text-muted);text-align:center;padding:12px">' +
     '<div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text-muted)">🔍 Проверка: (до зачёта) − (после зачёта) = сумма зачёта (по каждой стороне)</div>' +
     '<div id="zCheckResult" style="font-size:15px"></div></div>' +
+    '<div class="form-group" style="max-width:200px"><label>Статус</label>' +
+    '<select id="zStatus">' +
+    ['Создан', 'Подписан', 'Архив'].map(function(s) {
+      var sel = (editData && editData.status === s) ? ' selected' : (!editData && s === 'Создан' ? ' selected' : '');
+      return '<option value="' + s + '"' + sel + '>' + s + '</option>';
+    }).join('') +
+    '</select></div>' +
     '<div class="form-group"><label>Комментарий</label><textarea id="zComment" rows="2" placeholder="Примечания">' + (editData ? (editData.comment || '') : '') + '</textarea></div>' +
     '<div id="zMsg" style="color:var(--red);font-size:13px;margin-bottom:8px"></div>' +
     '<div style="display:flex;gap:8px">' +
@@ -272,7 +280,7 @@ async function saveZachet(editId) {
     number: (document.getElementById('zNum') || {}).value || '',
     date: document.getElementById('zDate').value || null,
     zachet_amount: parseAmount(document.getElementById('zZachetAmount').value) || null,
-    status: (document.getElementById('zStatus') || {}).value || 'черновик',
+    status: (document.getElementById('zStatus') || {}).value || 'Создан',
     comment: (document.getElementById('zComment') || {}).value || '',
     lines: collectLines()
   };

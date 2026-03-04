@@ -123,6 +123,7 @@ const migration022 = require('./migrations/022_auto');
 const migration023 = require('./migrations/023_auto');
 const migration024 = require('./migrations/024_auto');
 const migration025 = require('./migrations/025_contacts_migrate');
+const migration026 = require('./migrations/026_doc_status');
 const mergeORRVesta = require('./migrations/merge_orr_vesta');
 
 // Migration tracker — run each migration only once
@@ -214,6 +215,7 @@ initMigrationTracker()
       .then(() => runOnce('023', () => migration023(pool)))
       .then(() => runOnce('024', () => migration024(pool)))
       .then(() => runOnce('025', () => migration025(pool)))
+      .then(() => runOnce('026', () => migration026(pool)))
       .then(() => runOnce('mergeORRVesta', () => mergeORRVesta(pool)));
   })
   .then(() => createBIViews())
