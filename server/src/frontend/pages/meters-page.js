@@ -265,7 +265,8 @@ function renderMetersTable() {
     var clickAttr = col.sortKey ? ' onclick="metersSortBy(\\'' + col.sortKey + '\\')" style="cursor:pointer;' : ' style="';
     var underline = (sortActive && col.sortKey) ? 'text-decoration:underline;' : '';
     var stickyStyle = (col.id === 'name') ? 'position:sticky;left:0;z-index:3;' : '';
-    var base = 'padding:8px 10px;background:#4F6BCC;color:#fff;text-align:left;white-space:nowrap;user-select:none;' + underline + stickyStyle;
+    var actionsStyle = (col.id === 'actions') ? 'width:36px;' : '';
+    var base = 'padding:8px 10px;background:#4F6BCC;color:#fff;text-align:left;white-space:nowrap;user-select:none;' + underline + stickyStyle + actionsStyle;
     // resize handle (not on first/last col)
     var resize = (col.id !== 'name' && col.id !== 'actions')
       ? '<div class="mc-resize" style="position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;z-index:1"></div>'
@@ -373,9 +374,16 @@ function renderMetersTable() {
 
       } else if (col.id === 'actions') {
         var replBtn = !isDismantled
-          ? '<button onclick="event.stopPropagation();showMeterReplaceForm(' + e.id + ')" title="Заменить на новый" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:#475569;white-space:nowrap">🔄 Заменить</button>'
+          ? '<button onclick="event.stopPropagation();showMeterReplaceForm(' + e.id + ')" title="Заменить на новый счётчик" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:4px 5px;cursor:pointer;color:#475569;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px">' +
+            '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+              '<path d="M2 6.5h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+              '<path d="M10 4l3.5 2.5L10 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>' +
+              '<path d="M18 13.5H7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+              '<path d="M10 11l-3.5 2.5L10 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>' +
+            '</button>'
           : '';
-        h += '<td class="mc-col-actions" style="' + borderBot + 'padding:7px 10px;text-align:center">' + replBtn + '</td>';
+        h += '<td class="mc-col-actions" style="' + borderBot + 'padding:4px 8px;text-align:center;width:36px">' + replBtn + '</td>';
       }
     });
 
