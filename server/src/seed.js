@@ -69,6 +69,7 @@ const FIELDS = {
     { name: 'manufacturer', name_ru: 'Производитель', field_type: 'text' },
     { name: 'status', name_ru: 'Статус', field_type: 'select', options: JSON.stringify(['В работе','На ремонте','Законсервировано','Списано']) },
     { name: 'balance_owner', name_ru: 'Балансодержатель', field_type: 'text' },
+    { name: 'purchase_price', name_ru: 'Стоимость (руб)', field_type: 'number' },
     { name: 'note', name_ru: 'Примечание', field_type: 'text' },
   ],
   land_plot: [

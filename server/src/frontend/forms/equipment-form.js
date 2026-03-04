@@ -19,6 +19,10 @@ function _renderEqListItem(item, rowId) {
   h += '<button type="button" class="btn btn-sm" style="font-size:11px;white-space:nowrap" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateShow(this)">+ Создать</button>';
   h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
   h += '</div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+  h += '<span style="font-size:12px;color:var(--text-secondary);min-width:90px">Стоимость, ₽</span>';
+  h += '<input class="eq-list-price" type="number" min="0" placeholder="Введите или подтянется из карточки" value="' + escapeHtml(String(item.price || '')) + '" oninput="recalcContractAmount()" style="flex:1;font-size:13px">';
+  h += '</div>';
   // Inline create panel (hidden)
   h += '<div class="eq-list-create-panel" id="eq_create_' + rowId + '" style="display:none;border:1px dashed var(--accent);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--bg-secondary)">';
   h += '<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--accent)">Новая единица оборудования — полная форма</div>';
@@ -266,6 +270,22 @@ async function eqListCreateSubmit(btn) {
   }
 }
 
+function onEqListSelChange(sel) {
+  var item = sel.closest('.eq-list-item');
+  if (!item) return;
+  var priceInput = item.querySelector('.eq-list-price');
+  if (priceInput && !priceInput.value) {
+    var eqId = parseInt(sel.value);
+    if (eqId) {
+      var eqEntity = _equipment.find(function(e) { return e.id === eqId; });
+      if (eqEntity && eqEntity.properties && eqEntity.properties.purchase_price) {
+        priceInput.value = eqEntity.properties.purchase_price;
+      }
+    }
+  }
+  recalcContractAmount();
+}
+
 function getEqListValue() {
   var container = document.getElementById('f_equipment_list');
   if (!container) return [];
@@ -274,8 +294,9 @@ function getEqListValue() {
     var sel = item.querySelector('select');
     if (sel && sel.value) {
       var eqId = parseInt(sel.value);
-      var eqEntity = _equipment.find(function(e) { return e.id === eqId; });
       var eqItem = { equipment_id: eqId };
+      var priceInput = item.querySelector('.eq-list-price');
+      if (priceInput && priceInput.value) eqItem.price = parseFloat(priceInput.value) || 0;
       _enrichFromRegistry(eqItem);
       result.push(eqItem);
     }
