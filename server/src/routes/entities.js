@@ -226,12 +226,22 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
     let eqItems = [];
     try { eqItems = typeof properties.equipment_list === 'string' ? JSON.parse(properties.equipment_list) : properties.equipment_list; } catch(e) {}
     if (Array.isArray(eqItems)) {
+      const isSaleContract = (properties.contract_type === 'Купли-продажи');
       for (const item of eqItems) {
         if (item.equipment_id) {
+          const eqId = parseInt(item.equipment_id);
           await pool.query(
             'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-            [parseInt(item.equipment_id), entityId, 'subject_of']
+            [eqId, entityId, 'subject_of']
           ).catch(() => {});
+          // Write back purchase_price to equipment card from sale contract
+          if (isSaleContract && item.price != null && item.price !== '') {
+            await pool.query(
+              `UPDATE entities SET properties = properties || jsonb_build_object('purchase_price', $1::text)
+               WHERE id = $2 AND deleted_at IS NULL`,
+              [String(item.price), eqId]
+            ).catch(() => {});
+          }
         }
       }
     }
