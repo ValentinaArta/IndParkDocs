@@ -93,13 +93,23 @@ eq_contracts AS (
   SELECT equipment_id, contract_id FROM eq_via_transfer WHERE equipment_id IS NOT NULL
 ),
 eq_bld AS (
-  SELECT DISTINCT ON (r.from_entity_id)
-    r.from_entity_id AS equipment_id, b.name AS building_name
-  FROM relations r
-  JOIN entities b ON b.id = r.to_entity_id AND b.deleted_at IS NULL
-  JOIN entity_types et ON et.id = b.entity_type_id AND et.name IN ('building','workshop')
-  WHERE r.relation_type = 'located_in'
-  ORDER BY r.from_entity_id
+  SELECT DISTINCT ON (equipment_id) equipment_id, building_name FROM (
+    -- основной источник: корпус через parent_id
+    SELECT eq.id AS equipment_id, b.name AS building_name, 1 AS prio
+    FROM entities eq
+    JOIN entity_types eqt ON eqt.id = eq.entity_type_id AND eqt.name = 'equipment'
+    JOIN entities b ON b.id = eq.parent_id AND b.deleted_at IS NULL
+    JOIN entity_types bet ON bet.id = b.entity_type_id AND bet.name IN ('building','workshop')
+    WHERE eq.deleted_at IS NULL
+    UNION ALL
+    -- резервный источник: корпус через relation located_in
+    SELECT r.from_entity_id AS equipment_id, b.name AS building_name, 2 AS prio
+    FROM relations r
+    JOIN entities b ON b.id = r.to_entity_id AND b.deleted_at IS NULL
+    JOIN entity_types et ON et.id = b.entity_type_id AND et.name IN ('building','workshop')
+    WHERE r.relation_type = 'located_in'
+  ) _src
+  ORDER BY equipment_id, prio
 ),
 cmeta AS (
   SELECT

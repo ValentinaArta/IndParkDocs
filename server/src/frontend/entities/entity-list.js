@@ -82,12 +82,12 @@ function _getEntityTableCols(typeName) {
         render: function(e) { return escapeHtml((e.properties || {}).contract_type || '—'); }
       },
       { id: 'our_legal_entity', label: 'Наше юр. лицо', sortable: true,
-        getValue: function(e) { return (e.properties || {}).our_legal_entity || ''; },
-        render: function(e) { return escapeHtml((e.properties || {}).our_legal_entity || '—'); }
+        getValue: function(e) { return e.effective_our_legal_entity || (e.properties || {}).our_legal_entity || ''; },
+        render: function(e) { return escapeHtml(e.effective_our_legal_entity || (e.properties || {}).our_legal_entity || '—'); }
       },
       { id: 'contractor_name', label: 'Контрагент', sortable: true,
-        getValue: function(e) { return (e.properties || {}).contractor_name || ''; },
-        render: function(e) { return escapeHtml((e.properties || {}).contractor_name || '—'); }
+        getValue: function(e) { return e.effective_contractor_name || (e.properties || {}).contractor_name || ''; },
+        render: function(e) { return escapeHtml(e.effective_contractor_name || (e.properties || {}).contractor_name || '—'); }
       },
       { id: 'contract_date', label: 'Дата', sortable: true,
         getValue: function(e) { return (e.properties || {}).contract_date || ''; },
@@ -350,6 +350,10 @@ async function showEntityList(typeName, opts) {
     });
     document.getElementById('pageTitle').textContent = 'Договоры: ' + opts.contractType;
   }
+  // На странице "Договоры" никогда не показываем доп.соглашения
+  if (typeName === 'contract') {
+    entities = Array.isArray(entities) ? entities.filter(function(e) { return e.type_name !== 'supplement'; }) : [];
+  }
   _listCurrentEntities = Array.isArray(entities) ? entities : [];
   _renderListCurrent();
 }
@@ -444,8 +448,13 @@ async function searchEntities(q) {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(async () => {
     const url = '/entities?' + (currentTypeFilter ? 'type=' + currentTypeFilter + '&' : '') + 'search=' + encodeURIComponent(q);
-    const entities = await api(url);
-    _listCurrentEntities = Array.isArray(entities) ? entities : [];
+    var entities = await api(url);
+    entities = Array.isArray(entities) ? entities : [];
+    // На странице "Договоры" никогда не показываем доп.соглашения
+    if (currentTypeFilter === 'contract') {
+      entities = entities.filter(function(e) { return e.type_name !== 'supplement'; });
+    }
+    _listCurrentEntities = entities;
     _renderListCurrent();
   }, 300);
 }
