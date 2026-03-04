@@ -102,6 +102,15 @@ function renderFieldInput(f, value) {
     var eqItems = [];
     try { if (typeof val === 'string' && val) eqItems = JSON.parse(val); else if (Array.isArray(val)) eqItems = val; } catch(e) {}
     return renderEquipmentListField(eqItems);
+  } else if (f.field_type === 'subject_rooms') {
+    var srIds = []; try { if (typeof val === 'string' && val) srIds = JSON.parse(val); else if (Array.isArray(val)) srIds = val; } catch(e) {}
+    return renderSubjectRoomsField(srIds);
+  } else if (f.field_type === 'subject_buildings') {
+    var sbIds = []; try { if (typeof val === 'string' && val) sbIds = JSON.parse(val); else if (Array.isArray(val)) sbIds = val; } catch(e) {}
+    return renderSubjectBuildingsField(sbIds);
+  } else if (f.field_type === 'subject_land_plots') {
+    var slIds = []; try { if (typeof val === 'string' && val) slIds = JSON.parse(val); else if (Array.isArray(val)) slIds = val; } catch(e) {}
+    return renderSubjectLandPlotsField(slIds);
   } else if (f.field_type === 'rent_objects') {
     return '';
   } else if (f.field_type === 'multi_comments') {
@@ -166,6 +175,18 @@ function getFieldValue(f) {
   if (f.field_type === 'advances') {
     const adv = collectAdvances();
     return adv.length > 0 ? JSON.stringify(adv) : null;
+  }
+  if (f.field_type === 'subject_rooms') {
+    var srIds = collectSubjectIds('f_subject_rooms');
+    return srIds.length > 0 ? JSON.stringify(srIds) : null;
+  }
+  if (f.field_type === 'subject_buildings') {
+    var sbIds = collectSubjectIds('f_subject_buildings');
+    return sbIds.length > 0 ? JSON.stringify(sbIds) : null;
+  }
+  if (f.field_type === 'subject_land_plots') {
+    var slIds = collectSubjectIds('f_subject_land_plots');
+    return slIds.length > 0 ? JSON.stringify(slIds) : null;
   }
   if (f.field_type === 'rent_objects') {
     var objs = collectAllRentObjects();

@@ -557,7 +557,20 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const contract = cRes.rows[0];
   const cProps = contract.properties || {};
 
-  // 1b. Own company IDs for ВГО detection
+  // 1b. Subject objects: rooms / buildings / land_plots via located_in relations
+  const subjectObjRes = await pool.query(
+    `SELECT e.id, e.name, et.name as type_name
+     FROM relations r
+     JOIN entities e ON e.id = r.to_entity_id AND e.deleted_at IS NULL
+     JOIN entity_types et ON et.id = e.entity_type_id
+     WHERE r.from_entity_id = $1 AND r.relation_type = 'located_in'
+       AND et.name IN ('room', 'building', 'land_plot')
+     ORDER BY et.name, e.name`, [contractId]);
+  const subjectRooms    = subjectObjRes.rows.filter(r => r.type_name === 'room');
+  const subjectBuildings = subjectObjRes.rows.filter(r => r.type_name === 'building');
+  const subjectLandPlots = subjectObjRes.rows.filter(r => r.type_name === 'land_plot');
+
+  // 1c. Own company IDs for ВГО detection
   const ownRes = await pool.query(
     `SELECT e.id FROM entities e JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'company'
      WHERE e.deleted_at IS NULL AND e.properties->>'is_own' = 'true'`);
@@ -832,6 +845,9 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     rent_rows: rentRows, total_monthly: totalMonthly,
     equipment_list: eqList, history,
     direction, is_vgo: isVgo,
+    subject_rooms: subjectRooms,
+    subject_buildings: subjectBuildings,
+    subject_land_plots: subjectLandPlots,
     equipment_rent_items: enrichedRentItems,
     equipment_rent_source_name: equipmentRentSourceName,
     equipment_rent_monthly: rentItemsMonthly,
