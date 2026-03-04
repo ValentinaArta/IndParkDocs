@@ -29,7 +29,7 @@ async function searchOnecCounterparties(q) {
   const filter = isInn
     ? `ИНН eq '${q.trim()}'`
     : `contains(tolower(Description),tolower('${q.replace(/'/g, '')}'))`;
-  const url = `${ONEC_URL}/Catalog_Контрагенты?$format=json&$select=Ref_Key,Description,ИНН,КПП,НаименованиеПолное&$filter=${encodeURIComponent(filter)}&$top=20`;
+  const url = `${ONEC_URL}/Catalog_Контрагенты?$format=json&$select=Ref_Key,Description,ИНН,КПП,НаименованиеПолное&$filter=${encodeURIComponent(filter)}`;
   const res = await fetch(url, { headers: { Authorization: ONEC_AUTH }, signal: AbortSignal.timeout(10000) });
   if (!res.ok) return [];
   const data = await res.json();

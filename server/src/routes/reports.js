@@ -657,7 +657,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
       inv_number: p.inv_number || item.inv_number || '',
       category: p.equipment_category || '',
       qty: parseFloat(item.qty) || 1,
-      rate: parseFloat(item.rate || item.rent_rate) || 0,
+      rate: parseFloat(item.rent_cost || item.rate || item.rent_rate) || 0,
     };
   });
   const rentItemsMonthly = enrichedRentItems.reduce((s, i) => s + i.qty * i.rate, 0);
