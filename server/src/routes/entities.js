@@ -281,6 +281,42 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
   }
 }
 
+// GET /api/entities/:id/work-history — акты с работами по данной единице оборудования
+router.get('/:id/work-history', authenticate, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id || id < 1) return res.status(400).json({ error: 'Неверный ID' });
+
+  const { rows } = await pool.query(`
+    SELECT
+      e.id,
+      e.name,
+      e.properties->>'act_date'   AS act_date,
+      e.properties->>'act_number' AS act_number,
+      e.properties->>'doc_status' AS doc_status,
+      e.parent_id                 AS contract_id,
+      p.name                      AS contract_name,
+      item->>'description'        AS item_description,
+      item->>'amount'             AS item_amount,
+      (item->>'broken')::boolean  AS item_broken
+    FROM entities e
+    JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'act'
+    LEFT JOIN entities p ON p.id = e.parent_id AND p.deleted_at IS NULL
+    JOIN LATERAL jsonb_array_elements(
+      CASE
+        WHEN e.properties->>'act_items' IS NOT NULL
+         AND e.properties->>'act_items' NOT IN ('', 'null')
+         AND e.properties->>'act_items' ~ '^\\s*\\['
+        THEN (e.properties->>'act_items')::jsonb
+        ELSE '[]'::jsonb
+      END
+    ) AS item ON (item->>'equipment_id')::int = $1
+    WHERE e.deleted_at IS NULL
+    ORDER BY COALESCE(NULLIF(e.properties->>'act_date',''), '0001-01-01') DESC, e.id DESC
+  `, [id]);
+
+  res.json(rows);
+}));
+
 // POST /api/entities
 router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.entity), asyncHandler(async (req, res) => {
   const { entity_type_id, name, properties, parent_id } = req.body;
