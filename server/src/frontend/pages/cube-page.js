@@ -5,7 +5,9 @@ module.exports = `
 var CUBE_SEP = '|||';
 
 var CUBE_DIM_GROUPS = [
-  { id: 'contract', label: 'Договор', icon: '📄', dims: [
+  { id: 'contract', label: 'Договор', icon: '📄',
+    color: { accent: '#3b82f6', bg: 'rgba(59,130,246,0.13)' },
+    dims: [
     { id: 'contract_type',  label: 'Тип договора' },
     { id: 'our_company',    label: 'Наша организация' },
     { id: 'doc_status',     label: 'Статус документа' },
@@ -13,19 +15,27 @@ var CUBE_DIM_GROUPS = [
     { id: 'period_quarter', label: 'Период (квартал)' },
     { id: 'period_year',    label: 'Период (год)' },
   ]},
-  { id: 'contractor', label: 'Контрагент', icon: '🏛', dims: [
+  { id: 'contractor', label: 'Контрагент', icon: '🏛',
+    color: { accent: '#8b5cf6', bg: 'rgba(139,92,246,0.13)' },
+    dims: [
     { id: 'contractor_name', label: 'Название' },
   ]},
-  { id: 'building', label: 'Корпус', icon: '🏢', dims: [
+  { id: 'building', label: 'Корпус', icon: '🏢',
+    color: { accent: '#f97316', bg: 'rgba(249,115,22,0.13)' },
+    dims: [
     { id: 'building_name', label: 'Название' },
   ]},
-  { id: 'equipment', label: 'Оборудование', icon: '🔧', dims: [
+  { id: 'equipment', label: 'Оборудование', icon: '🔧',
+    color: { accent: '#10b981', bg: 'rgba(16,185,129,0.13)' },
+    dims: [
     { id: 'equipment_status',   label: 'Статус' },
     { id: 'equipment_category', label: 'Категория' },
     { id: 'equipment_kind',     label: 'Вид' },
     { id: 'equipment_name',     label: 'Название' },
   ]},
-  { id: 'act', label: 'Работы (акты)', icon: '🔨', dims: [
+  { id: 'act', label: 'Работы (акты)', icon: '🔨',
+    color: { accent: '#ef4444', bg: 'rgba(239,68,68,0.13)' },
+    dims: [
     { id: 'act_period_month',  label: 'Период (месяц)' },
     { id: 'act_period_year',   label: 'Период (год)' },
     { id: 'act_building',      label: 'Корпус' },
@@ -95,14 +105,19 @@ function _cubeRenderPool() {
   if (!el) return;
   var h = '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">';
   CUBE_DIM_GROUPS.forEach(function(g) {
-    h += '<div><div style="font-size:10px;font-weight:700;color:var(--text-secondary);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px">' + escapeHtml(g.icon + ' ' + g.label) + '</div><div style="display:flex;flex-wrap:wrap;gap:4px">';
+    var gc = g.color || { accent: 'var(--accent)', bg: 'var(--bg-secondary)' };
+    h += '<div><div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px;color:' + gc.accent + '">' + escapeHtml(g.icon + ' ' + g.label) + '</div><div style="display:flex;flex-wrap:wrap;gap:4px">';
     g.dims.forEach(function(d) {
       var rIdx = _cubeRowDims.indexOf(d.id);
       var cIdx = _cubeColDims.indexOf(d.id);
       var used = rIdx >= 0 || cIdx >= 0;
       var badge = rIdx >= 0 ? '\u2195' + (rIdx + 1) : (cIdx >= 0 ? '\u2194' + (cIdx + 1) : '');
+      var pillStyle = used
+        ? 'background:' + gc.accent + ';color:#fff;border-color:' + gc.accent
+        : 'background:' + gc.bg + ';color:' + gc.accent + ';border-color:' + gc.accent + '55';
       h += '<button type="button" draggable="true" data-cube-dim="' + d.id + '" ' +
            'class="cube-pill-pool' + (used ? ' used' : '') + '" ' +
+           'style="' + pillStyle + '" ' +
            'onclick="_cubeDimClick(this.dataset.cubeDim)" ' +
            'ondragstart="_cubeDragStart(event,this.dataset.cubeDim)">' +
            escapeHtml(d.label) + (badge ? ' <span style="font-size:10px;opacity:.8">' + badge + '</span>' : '') + '</button>';
@@ -111,6 +126,17 @@ function _cubeRenderPool() {
   });
   h += '<div style="margin-left:auto;align-self:center;font-size:11px;color:var(--text-muted)">\u2190 Перетащи в зону или кликни</div></div>';
   el.innerHTML = h;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function _cubeGroupOf(dimId) {
+  for (var gi = 0; gi < CUBE_DIM_GROUPS.length; gi++) {
+    var g = CUBE_DIM_GROUPS[gi];
+    for (var di = 0; di < g.dims.length; di++) {
+      if (g.dims[di].id === dimId) return g;
+    }
+  }
+  return null;
 }
 
 // ── Drop zones ─────────────────────────────────────────────────────────────
@@ -126,14 +152,17 @@ function _cubeRenderDzBar() {
 
     var pillsHtml = '';
     dims.forEach(function(dimId, i) {
+      var grp = _cubeGroupOf(dimId);
+      var gc  = grp ? grp.color : { accent: 'var(--accent)', bg: 'rgba(99,143,255,0.15)' };
       pillsHtml += '<span class="cube-pill-dz" draggable="true" ' +
         'data-dz-dim="' + dimId + '" data-dz-axis="' + axis + '" data-dz-idx="' + i + '" ' +
-        'ondragstart="_cubeDzDragStart(event,this.dataset.dzAxis,+this.dataset.dzIdx)">' +
+        'ondragstart="_cubeDzDragStart(event,this.dataset.dzAxis,+this.dataset.dzIdx)" ' +
+        'style="background:' + gc.bg + ';color:' + gc.accent + ';border:1.5px solid ' + gc.accent + '">' +
         '<span style="opacity:.7;font-size:9px">' + (i + 1) + '</span> ' +
         escapeHtml(_cubeDimShortLabel(dimId)) +
         '<button type="button" data-rm-axis="' + axis + '" data-rm-dim="' + dimId + '" ' +
         'onclick="event.stopPropagation();_cubeRemoveDim(this.dataset.rmAxis,this.dataset.rmDim)" ' +
-        'style="background:none;border:none;color:#fff;opacity:.7;cursor:pointer;font-size:14px;padding:0 0 0 3px;line-height:1">\xd7</button></span>';
+        'style="background:none;border:none;color:' + gc.accent + ';opacity:.8;cursor:pointer;font-size:14px;padding:0 0 0 3px;line-height:1">\xd7</button></span>';
     });
 
     var inner = dims.length
