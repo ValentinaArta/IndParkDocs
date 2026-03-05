@@ -53,13 +53,23 @@ async function openCreateSupplementModal(parentContractId) {
     'our_legal_entity', 'our_legal_entity_id', 'contractor_name', 'contractor_id',
     'subtenant_name', 'subtenant_id', 'our_role_label', 'contractor_role_label', 'contract_type']);
   var lastSuppProps = {};
+  var sortedSupps = [];
   if (existingSupps.length > 0) {
-    var sortedSupps = existingSupps.slice().sort(function(a, b) {
+    sortedSupps = existingSupps.slice().sort(function(a, b) {
       var da = ((a.properties||{}).contract_date)||'';
       var db = ((b.properties||{}).contract_date)||'';
       return db.localeCompare(da) || b.id - a.id;
     });
     lastSuppProps = sortedSupps[0].properties || {};
+  }
+
+  // Найти последнее ненулевое значение поля по всем ДС (от новейшего к старейшему)
+  function _effSuppProp(propName) {
+    for (var _i = 0; _i < sortedSupps.length; _i++) {
+      var v = (sortedSupps[_i].properties || {})[propName];
+      if (v && v !== '[]' && v !== 'null') return v;
+    }
+    return null;
   }
 
   // Вспомогательная функция: берём из последнего ДС, если поле заполнено и не "родительское"
@@ -77,6 +87,26 @@ async function openCreateSupplementModal(parentContractId) {
   Object.keys(lastSuppProps).forEach(function(k) {
     if (!SUPP_PARENT_FIELDS.has(k) && lastSuppProps[k]) prefillProps[k] = lastSuppProps[k];
   });
+
+  // Эффективные "кумулятивные" поля: ищем в КАЖДОМ ДС от новейшего, не только в lastSuppProps
+  // rent_objects: актуальные помещения / ставки
+  var effRentObjects = _effSuppProp('rent_objects') || parentProps.rent_objects || '';
+  if (effRentObjects) prefillProps.rent_objects = effRentObjects;
+
+  // power_allocation_kw: выделенная мощность
+  var effPowerKw = _effSuppProp('power_allocation_kw') || parentProps.power_allocation_kw || '';
+  if (effPowerKw) { prefillProps.power_allocation_kw = effPowerKw; prefillProps.has_power_allocation = 'true'; }
+
+  // equipment_list + transfer_equipment: переданное оборудование
+  // Ищем последнее ДС с transfer_equipment=true и непустым списком
+  for (var _ei = 0; _ei < sortedSupps.length; _ei++) {
+    var _sp = sortedSupps[_ei].properties || {};
+    if ((_sp.transfer_equipment === 'true' || _sp.transfer_equipment === true) && _sp.equipment_list && _sp.equipment_list !== '[]') {
+      prefillProps.equipment_list      = _sp.equipment_list;
+      prefillProps.transfer_equipment  = 'true';
+      break;
+    }
+  }
 
   // Find specific fields
   var fNumber    = fields.find(function(f) { return f.name === 'number'; });
