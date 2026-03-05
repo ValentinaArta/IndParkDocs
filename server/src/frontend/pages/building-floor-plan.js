@@ -174,12 +174,13 @@ function _fpRender() {
         var lbl = escapeHtml(_fpRoomLabel(poly.room_id));
         h += '<text x="' + centX + '" y="' + centY + '" text-anchor="middle" dominant-baseline="middle"' +
           ' style="font-size:2.5px;fill:' + c.text + ';pointer-events:none;user-select:none;font-weight:600">' + lbl + '</text>';
-        // Кнопка удаления (только в режиме редактирования)
+        // Кнопка удаления (только в режиме редактирования) — позиционируем в centX, minY
         if (_fpEditMode && poly.pts && poly.pts.length > 0) {
-          var dx = poly.pts[0][0], dy = poly.pts[0][1];
+          var minY = poly.pts.reduce(function(m, p) { return Math.min(m, p[1]); }, Infinity);
+          var dx = centX, dy = minY;
           h += '<g onclick="event.stopPropagation();_fpDeletePolygon(' + _fpCurrentFloor + ',' + pi + ')" style="cursor:pointer;pointer-events:all">';
-          h += '<circle cx="' + dx + '" cy="' + dy + '" r="2.8" fill="#ef4444" stroke="#fff" stroke-width="0.4"></circle>';
-          h += '<text x="' + dx + '" y="' + dy + '" text-anchor="middle" dominant-baseline="middle" style="font-size:3.2px;fill:#fff;pointer-events:none;font-weight:700">x</text>';
+          h += '<circle cx="' + dx + '" cy="' + dy + '" r="2" fill="rgba(220,38,38,0.85)" stroke="#fff" stroke-width="0.35"></circle>';
+          h += '<text x="' + dx + '" y="' + dy + '" text-anchor="middle" dominant-baseline="middle" style="font-size:2.4px;fill:#fff;pointer-events:none;font-weight:700">×</text>';
           h += '</g>';
         }
         h += '</g>';
@@ -584,7 +585,10 @@ function _fpGetRoomStatus(roomId) {
 function _fpRoomLabel(roomId) {
   var rs = _fpGetRoomStatus(roomId);
   if (!rs) return '?';
-  // Короткий лейбл: только название помещения
-  return rs.room_name;
+  // Для арендованных — имя арендатора (короче и информативнее)
+  var name = (rs.status === 'rented' && rs.contractor_name) ? rs.contractor_name : rs.room_name;
+  if (!name) return '?';
+  // Обрезаем до 22 символов
+  return name.length > 22 ? name.slice(0, 21) + '…' : name;
 }
 `;
