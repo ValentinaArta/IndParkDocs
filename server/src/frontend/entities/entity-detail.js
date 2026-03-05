@@ -503,9 +503,18 @@ async function showEntity(id, _forceDetail) {
   }
 
   if (_isContract || _isSupp) html += renderFilesSection(id);
+
+  // Секция поэтажных планов (только для корпусов/мастерских)
+  var _isBuildingForFp = (e.type_name === 'building' || e.type_name === 'workshop');
+  if (_isBuildingForFp) {
+    html += '<div class="detail-section"><h3>🗺 Поэтажные планы</h3>' +
+      '<div id="fpContainer"><div style="padding:8px;color:var(--text-muted);font-size:13px">Загрузка...</div></div></div>';
+  }
+
   document.getElementById('content').innerHTML = html;
   renderIcons();
   if (_isContract || _isSupp) loadEntityFiles(id);
+  if (_isBuildingForFp) _fpInit(e.id);
 }
 
 // ============ REPORTS ============
