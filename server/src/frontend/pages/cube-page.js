@@ -432,11 +432,26 @@ async function _cubeCellClick(rk, ck) {
     '<button onclick="_cubeCloseDrill()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">&times;</button></div>' +
     '<div id="cubeDrillBody" style="overflow-y:auto;height:calc(100% - 43px)"><div style="padding:24px;text-align:center"><div class="spinner-ring" style="margin:0 auto"></div></div></div>';
   try {
-    var cIds = (cell.contractIds || []).join(',');
-    var eIds = (cell.equipmentIds || []).join(',');
-    var qs = []; if (cIds) qs.push('contractIds='+encodeURIComponent(cIds)); if (eIds) qs.push('equipmentIds='+encodeURIComponent(eIds));
-    var entities = await api('/cube/drilldown?' + qs.join('&'));
-    _cubeDrillRender(entities);
+    var isActMode = _cubeLastData && (_cubeLastData.rowDims || []).concat(_cubeLastData.colDims || []).some(function(d) {
+      for (var gi = 0; gi < CUBE_DIM_GROUPS.length; gi++) {
+        var g = CUBE_DIM_GROUPS[gi]; if (g.id !== 'act') continue;
+        for (var di = 0; di < g.dims.length; di++) { if (g.dims[di].id === d) return true; }
+      }
+      return false;
+    });
+    if (isActMode) {
+      var actIds = (cell.contractIds || []).join(',');
+      var eqIds  = (cell.equipmentIds || []).join(',');
+      var qs = []; if (actIds) qs.push('actIds='+encodeURIComponent(actIds)); if (eqIds) qs.push('equipmentIds='+encodeURIComponent(eqIds));
+      var items = await api('/cube/act-drilldown?' + qs.join('&'));
+      _cubeDrillRenderActs(items);
+    } else {
+      var cIds = (cell.contractIds || []).join(',');
+      var eIds = (cell.equipmentIds || []).join(',');
+      var qs2 = []; if (cIds) qs2.push('contractIds='+encodeURIComponent(cIds)); if (eIds) qs2.push('equipmentIds='+encodeURIComponent(eIds));
+      var entities = await api('/cube/drilldown?' + qs2.join('&'));
+      _cubeDrillRender(entities);
+    }
   } catch(e) { var b = document.getElementById('cubeDrillBody'); if (b) b.innerHTML = '<div style="padding:12px;color:var(--red)">Ошибка</div>'; }
 }
 
@@ -447,6 +462,40 @@ function _cubeDrillRender(entities) {
   entities.forEach(function(e) {
     var sub = e.type_name === 'contract' ? [e.contract_type, e.contractor_name, e.contract_amount ? _fmtNum(parseFloat(e.contract_amount))+'\u00a0\u20bd' : null].filter(Boolean).join('\u00a0\xb7\u00a0') : [e.equipment_status, e.equipment_category].filter(Boolean).join('\u00a0\xb7\u00a0');
     h += '<div class="cube-di" data-eid="' + e.id + '" onclick="showEntity(+this.dataset.eid)"><div style="font-size:13px;font-weight:500">' + escapeHtml(e.name || '\u2014') + '</div>' + (sub ? '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">'+escapeHtml(sub)+'</div>' : '') + '</div>';
+  });
+  body.innerHTML = h;
+}
+
+function _cubeDrillRenderActs(items) {
+  var body = document.getElementById('cubeDrillBody'); if (!body) return;
+  if (!items || !items.length) { body.innerHTML = '<div style="padding:16px;color:var(--text-muted)">Нет данных</div>'; return; }
+  var h = '<div style="font-size:11px;color:var(--text-secondary);padding:8px 14px;border-bottom:1px solid var(--border)">' + items.length + '\u00a0работ</div>';
+  // Group by act
+  var byAct = {};
+  var actOrder = [];
+  items.forEach(function(it) {
+    if (!byAct[it.act_id]) { byAct[it.act_id] = { act_id: it.act_id, act_name: it.act_name, act_date: it.act_date, act_number: it.act_number, doc_status: it.doc_status, contract_name: it.contract_name, contract_id: it.contract_id, items: [] }; actOrder.push(it.act_id); }
+    byAct[it.act_id].items.push(it);
+  });
+  actOrder.forEach(function(aid) {
+    var a = byAct[aid];
+    var dateStr = a.act_date || '';
+    if (dateStr && dateStr.length === 10) { var pts = dateStr.split('-'); dateStr = pts[2] + '.' + pts[1] + '.' + pts[0]; }
+    h += '<div style="border-bottom:2px solid var(--border);padding:8px 14px">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
+    h += '<a href="#" onclick="showEntity(' + a.act_id + ');_cubeCloseDrill();return false" style="font-size:13px;font-weight:600;color:var(--accent)">Акт №' + escapeHtml(a.act_number || String(a.act_id)) + '</a>';
+    h += '<span style="font-size:11px;color:var(--text-muted)">' + escapeHtml(dateStr) + '</span></div>';
+    if (a.contract_name) h += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">\u2192 ' + escapeHtml(a.contract_name) + '</div>';
+    a.items.forEach(function(it) {
+      var brokenBadge = it.broken ? ' <span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:600;padding:1px 4px;border-radius:3px">\u26a0 Нерабочий</span>' : '';
+      var amt = parseFloat(it.item_amount) || 0;
+      h += '<div style="background:var(--bg-secondary);border-radius:6px;padding:7px 9px;margin-bottom:5px">';
+      h += '<div style="font-size:12px;font-weight:500;margin-bottom:3px">' + escapeHtml(it.equipment_name || '\u2014') + brokenBadge + '</div>';
+      if (it.description) h += '<div style="font-size:11px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.5">' + escapeHtml(it.description) + '</div>';
+      if (amt > 0) h += '<div style="font-size:11px;font-weight:600;color:var(--accent);margin-top:3px">' + _fmtNum(amt) + '\u00a0\u20bd</div>';
+      h += '</div>';
+    });
+    h += '</div>';
   });
   body.innerHTML = h;
 }

@@ -46,9 +46,10 @@ const legalZachety = require('./pages/legal-zachety');
 const dashboard    = require('./pages/dashboard');
 const financePage  = require('./pages/finance-page');
 const budgetPage   = require('./pages/budget-page');
-const mapPage      = require('./pages/map-page');
-const metersPage   = require('./pages/meters-page');
-const cubePage     = require('./pages/cube-page');
+const mapPage           = require('./pages/map-page');
+const metersPage        = require('./pages/meters-page');
+const cubePage          = require('./pages/cube-page');
+const buildingFloorPlan = require('./pages/building-floor-plan');
 const rentObjects = require('./rent-objects');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
@@ -133,6 +134,8 @@ const FRONTEND_HTML =
   metersPage +
   '\n' +
   cubePage +
+  '\n' +
+  buildingFloorPlan +
   '\n' +
   contractForm +
   '\n' +
