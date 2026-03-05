@@ -94,7 +94,7 @@ function _setNavHash(h) {
 
 // Parse hash and navigate to the corresponding page
 function _routeFromHash(hash) {
-  if (!hash || hash === '#' || hash === '#dashboard') { showDashboard(); return; }
+  if (!hash || hash === '#' || hash === '#dashboard') { showMapPage(); return; }
   var m;
   var _reEntity = new RegExp('^#entity/(\\d+)$');
   var _reDetail = new RegExp('^#detail/(\\d+)$');
@@ -111,7 +111,7 @@ function _routeFromHash(hash) {
   if (hash === '#meters')   { showMetersPage();   return; }
   if (hash === '#reports')  { showReports();      return; }
   if (hash === '#cube')     { showCubePage();     return; }
-  showDashboard();
+  showMapPage();
 }
 
 // Listen for hash changes (back/forward browser buttons)

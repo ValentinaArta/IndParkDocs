@@ -20,10 +20,7 @@ module.exports = `</head>
       <p>Документы и связи</p>
     </div>
     <div class="sidebar-nav" id="sidebarNav">
-      <div class="nav-item active" onclick="showDashboard()">
-        <i data-lucide="layout-dashboard" class="lucide"></i> Обзор
-      </div>
-      <div class="nav-item" onclick="showMapPage()">
+      <div class="nav-item active" onclick="showMapPage()">
         <i data-lucide="map" class="lucide"></i> Карта
       </div>
       <div id="typeNav"></div>
@@ -67,7 +64,7 @@ module.exports = `</head>
   <div class="main">
     <div class="topbar" id="topbar">
       <button class="btn btn-sm" onclick="toggleSidebar()" id="menuBtn">☰</button>
-      <h2 id="pageTitle">Обзор</h2>
+      <h2 id="pageTitle">Карта</h2>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="actions" id="topActions"></div>
     </div>
