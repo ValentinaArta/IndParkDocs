@@ -300,7 +300,9 @@ function buildPivot(rows, rowCols, colCols, mode, hideEmpty) {
     if (isActPrimary) {
       c.actItemCount++;
       c.actItemSum += parseFloat(row.item_amount) || 0;
-      if (row.act_eq_name) c.names.add(row.act_eq_name);
+      // names = short descriptions for "Список" mode
+      const desc = row.item_description || row.act_eq_name;
+      if (desc) c.names.add(desc.length > 60 ? desc.substring(0, 58) + '\u2026' : desc);
       if (row.equipment_id) c.equipmentIds.add(row.equipment_id);
       if (row.act_id) c.contractIds.add(row.act_id); // reuse slot for drill-down
     } else {
@@ -446,6 +448,53 @@ router.get('/drilldown', authenticate, asyncHandler(async (req, res) => {
     WHERE e.id = ANY($1) AND e.deleted_at IS NULL
     ORDER BY et.name, e.name
   `, [all]);
+
+  res.json(rows);
+}));
+
+// ── GET /api/cube/act-drilldown ─────────────────────────────────────────────
+// Returns work items from acts, optionally filtered by equipment IDs
+router.get('/act-drilldown', authenticate, asyncHandler(async (req, res) => {
+  const actIds = (req.query.actIds       || '').split(',').map(Number).filter(Boolean);
+  const eqIds  = (req.query.equipmentIds || '').split(',').map(Number).filter(Boolean);
+  if (!actIds.length) return res.json([]);
+
+  const params = [actIds];
+  let eqFilter = '';
+  if (eqIds.length) {
+    params.push(eqIds);
+    eqFilter = `AND (item->>'equipment_id')::int = ANY($2)`;
+  }
+
+  const { rows } = await pool.query(`
+    SELECT
+      e.id                                  AS act_id,
+      e.name                                AS act_name,
+      e.properties->>'act_date'             AS act_date,
+      e.properties->>'act_number'           AS act_number,
+      e.properties->>'doc_status'           AS doc_status,
+      p.id                                  AS contract_id,
+      p.name                                AS contract_name,
+      (item->>'equipment_id')::int          AS equipment_id,
+      item->>'equipment_name'               AS equipment_name,
+      item->>'description'                  AS description,
+      COALESCE(NULLIF(item->>'amount',''),'0')::numeric AS item_amount,
+      (item->>'broken')::boolean            AS broken
+    FROM entities e
+    JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'act'
+    LEFT JOIN entities p ON p.id = e.parent_id AND p.deleted_at IS NULL
+    JOIN LATERAL jsonb_array_elements(
+      CASE
+        WHEN e.properties->>'act_items' IS NOT NULL
+         AND e.properties->>'act_items' NOT IN ('', 'null')
+         AND e.properties->>'act_items' ~ '^\\s*\\['
+        THEN (e.properties->>'act_items')::jsonb
+        ELSE '[]'::jsonb
+      END
+    ) AS item ON true
+    WHERE e.id = ANY($1) ${eqFilter}
+    ORDER BY COALESCE(NULLIF(e.properties->>'act_date',''),'0001-01-01') DESC, e.id DESC
+  `, params);
 
   res.json(rows);
 }));
