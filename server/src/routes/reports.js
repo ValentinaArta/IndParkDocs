@@ -1000,9 +1000,23 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
       }
       const path = odataDoc + '?$format=json&$filter=' +
         encodeURIComponent(filterParts.join(' and ')) +
-        '&$select=Date,Number,СуммаДокумента,Контрагент,Posted&$top=5';
+        '&$select=Date,Number,СуммаДокумента,Контрагент,НазначениеПлатежа,Posted&$top=20';
       const data = await _odataGetRpt(path);
-      const found = (data.value || []).filter(d => d.Posted !== false);
+      // JS-side: filter by contract number in НазначениеПлатежа (if number available)
+      const contractNumber = (cProps.number || '').trim();
+      const candidates = (data.value || []).filter(d => d.Posted !== false);
+      let found;
+      if (contractNumber && candidates.length > 0) {
+        const numLower = contractNumber.toLowerCase();
+        found = candidates.filter(d => {
+          const purpose = (d.НазначениеПлатежа || '').toLowerCase();
+          return purpose.includes(numLower);
+        });
+        // Fallback: if none match by number, use all candidates (number may not be in purpose)
+        if (!found.length) found = candidates;
+      } else {
+        found = candidates;
+      }
       if (found.length > 0) { paid = true; matchDoc = found[0]; }
     }
     results.push({
