@@ -13,7 +13,8 @@ var _fpEditMode     = false;
 var _fpDrawing      = false;
 var _fpCurrentPts   = [];      // [[x%, y%], ...] рисуемый полигон
 var _fpDirty        = false;
-var _fpBlobUrls     = {};      // file_id -> blob URL (кэш)
+var _fpBlobUrls     = {};      // "fileId" (image) or "fileId_pN" (pdf page) -> blob URL
+var _fpFileInfo     = {};      // file_id -> {mimetype, name, page_count?}
 var _fpLoadGen      = 0;       // поколение загрузки (чтобы отменять устаревшие)
 
 var FP_COLORS = {
@@ -31,6 +32,7 @@ async function _fpInit(buildingId) {
   _fpDrawing      = false;
   _fpCurrentPts   = [];
   _fpDirty        = false;
+  _fpFileInfo     = {};
   _fpLoadGen++;
 
   var el = document.getElementById('fpContainer');
@@ -50,8 +52,10 @@ async function _fpInit(buildingId) {
     _fpRoomStatuses = Array.isArray(statuses) ? statuses : [];
 
     var imgFiles = Array.isArray(filesResp)
-      ? filesResp.filter(function(f) { return f.mimetype && f.mimetype.startsWith('image/'); })
+      ? filesResp.filter(function(f) { return f.mimetype && (f.mimetype.startsWith('image/') || f.mimetype === 'application/pdf'); })
       : [];
+    // Кэшируем info о файлах (нужно для PDF-рендера)
+    imgFiles.forEach(function(f) { _fpFileInfo[f.id] = { mimetype: f.mimetype, name: f.original_name || '' }; });
 
     var savedPlans = null;
     var rawPlans = (entityResp.properties || {}).floor_plans;
@@ -64,10 +68,11 @@ async function _fpInit(buildingId) {
     if (Array.isArray(savedPlans) && savedPlans.length > 0) {
       _fpFloorPlans = savedPlans;
     } else {
-      // Авто-создаём вкладки из загруженных изображений
+      // Авто-создаём вкладки из загруженных файлов (изображения + PDF)
       _fpFloorPlans = imgFiles.map(function(f) {
         var nm = f.original_name || '';
-        return { file_id: f.id, floor_name: nm.replace(/[.][^.]+$/, ''), polygons: [] };
+        var isPdf = f.mimetype === 'application/pdf';
+        return { file_id: f.id, floor_name: nm.replace(/[.][^.]+$/, ''), polygons: [], page_number: isPdf ? 1 : undefined };
       });
     }
     _fpRender();
@@ -95,7 +100,7 @@ function _fpRender() {
   });
 
   h += '<label style="padding:4px 10px;border-radius:6px;border:1px dashed var(--border);background:transparent;cursor:pointer;font-size:12px;color:var(--text-muted)">';
-  h += '+ Добавить план<input type="file" accept="image/*" style="display:none" onchange="_fpHandleUpload(this)"></label>';
+  h += '+ Добавить план<input type="file" accept="image/*,application/pdf" style="display:none" onchange="_fpHandleUpload(this)"></label>';
 
   h += '<span style="flex:1"></span>';
 
@@ -186,9 +191,10 @@ function _fpRender() {
 
   el.innerHTML = h;
 
-  // Загружаем изображение (через fetch с auth, создаём blob URL)
+  // Загружаем изображение/PDF (через fetch с auth, создаём blob URL)
   if (_fpFloorPlans.length > 0 && _fpFloorPlans[_fpCurrentFloor]) {
-    _fpLoadFloorImg(_fpFloorPlans[_fpCurrentFloor].file_id, _fpLoadGen);
+    var curPlan = _fpFloorPlans[_fpCurrentFloor];
+    _fpLoadFloorImg(curPlan.file_id, _fpLoadGen, curPlan.page_number);
   }
 
   // Навешиваем обработчики на враппер (в режиме редактирования)
@@ -202,8 +208,16 @@ function _fpRender() {
   }
 }
 
-// ── Загрузка картинки через fetch (auth) ──────────────────────────────────
-async function _fpLoadFloorImg(fileId, gen) {
+// ── Загрузка картинки/PDF через fetch (auth) ─────────────────────────────
+async function _fpLoadFloorImg(fileId, gen, pageNum) {
+  pageNum = pageNum || 1;
+  var info = _fpFileInfo[fileId] || {};
+  // Для PDF — отдельный рендер через pdf.js
+  if (info.mimetype === 'application/pdf') {
+    await _fpRenderPdfPage(fileId, pageNum, gen);
+    return;
+  }
+
   var img = document.getElementById('fpImg');
   if (!img) return;
 
@@ -224,6 +238,57 @@ async function _fpLoadFloorImg(fileId, gen) {
     var img2 = document.getElementById('fpImg');
     if (img2) img2.src = url;
   } catch(e) {}
+}
+
+// ── Загрузка pdf.js из CDN (лениво, один раз) ────────────────────────────
+async function _fpLoadPdfJs() {
+  if (typeof pdfjsLib !== 'undefined') return;
+  await new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = resolve;
+    s.onerror = function() { reject(new Error('Не удалось загрузить pdf.js')); };
+    document.head.appendChild(s);
+  });
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+// ── Рендер страницы PDF в blob URL (кэшируется) ───────────────────────────
+async function _fpRenderPdfPage(fileId, pageNum, gen) {
+  var cacheKey = fileId + '_p' + pageNum;
+  var img = document.getElementById('fpImg');
+  if (!img) return;
+
+  if (_fpBlobUrls[cacheKey]) {
+    if (gen === _fpLoadGen) { img.src = _fpBlobUrls[cacheKey]; }
+    return;
+  }
+
+  var token = TOKEN || localStorage.getItem('accessToken') || '';
+  try {
+    await _fpLoadPdfJs();
+    var resp = await fetch('/api/entities/' + _fpBuildingId + '/files/' + fileId, {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    if (!resp.ok) return;
+    var arrayBuf = await resp.arrayBuffer();
+    var pdfDoc   = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+    var page     = await pdfDoc.getPage(pageNum);
+    var viewport = page.getViewport({ scale: 2.0 }); // 2x — резкость для разметки
+    var canvas   = document.createElement('canvas');
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+    var blob = await new Promise(function(res) { canvas.toBlob(res, 'image/png'); });
+    var url  = URL.createObjectURL(blob);
+    _fpBlobUrls[cacheKey] = url;
+    if (gen !== _fpLoadGen) return;
+    var img2 = document.getElementById('fpImg');
+    if (img2) img2.src = url;
+  } catch(e) {
+    console.error('PDF render error:', e);
+  }
 }
 
 // ── Переключение вкладок ──────────────────────────────────────────────────
@@ -416,10 +481,12 @@ async function _fpSave() {
   }
 }
 
-// ── Загрузка изображения (новый план) ────────────────────────────────────
+// ── Загрузка файла плана (изображение или PDF) ───────────────────────────
 async function _fpHandleUpload(input) {
   var file = input.files && input.files[0];
   if (!file) return;
+  var isPdf    = file.type === 'application/pdf';
+  var baseName = (file.name || '').replace(/[.][^.]+$/, '') || 'Этаж ' + (_fpFloorPlans.length + 1);
 
   var form  = new FormData();
   form.append('file', file);
@@ -434,9 +501,33 @@ async function _fpHandleUpload(input) {
     if (!resp.ok) { var t = await resp.text(); throw new Error(t); }
     var data      = await resp.json();
     var newFileId = data.id;
-    var floorName = (file.name || '').replace(/[.][^.]+$/, '') || 'Этаж ' + (_fpFloorPlans.length + 1);
-    _fpFloorPlans.push({ file_id: newFileId, floor_name: floorName, polygons: [] });
-    _fpCurrentFloor = _fpFloorPlans.length - 1;
+
+    // Кэшируем info о новом файле
+    _fpFileInfo[newFileId] = { mimetype: file.type, name: file.name };
+
+    var insertIdx = _fpFloorPlans.length;
+
+    if (isPdf) {
+      // Определяем кол-во страниц через pdf.js и создаём вкладку на каждую
+      try {
+        await _fpLoadPdfJs();
+        var arrayBuf = await file.arrayBuffer();
+        var pdfDoc   = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+        var numPages = pdfDoc.numPages;
+        _fpFileInfo[newFileId].page_count = numPages;
+        for (var p = 1; p <= numPages; p++) {
+          var pgName = numPages > 1 ? baseName + ' — стр. ' + p : baseName;
+          _fpFloorPlans.push({ file_id: newFileId, floor_name: pgName, polygons: [], page_number: p });
+        }
+      } catch(pdfErr) {
+        // Fallback: создаём одну вкладку
+        _fpFloorPlans.push({ file_id: newFileId, floor_name: baseName, polygons: [], page_number: 1 });
+      }
+    } else {
+      _fpFloorPlans.push({ file_id: newFileId, floor_name: baseName, polygons: [] });
+    }
+
+    _fpCurrentFloor = insertIdx; // переключиться на первую новую вкладку
     _fpDirty  = true;
     _fpLoadGen++;
     _fpRender();
