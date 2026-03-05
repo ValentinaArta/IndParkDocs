@@ -95,8 +95,14 @@ function _fpRender() {
 
   _fpFloorPlans.forEach(function(fp, i) {
     var active = i === _fpCurrentFloor;
-    var tabStyle = 'padding:4px 12px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:' + (active ? '600' : '400') + ';background:' + (active ? 'var(--accent)' : 'var(--surface)') + ';color:' + (active ? '#fff' : 'var(--text)') + ';';
-    h += '<button onclick="_fpSwitchFloor(' + i + ')" style="' + tabStyle + '">' + escapeHtml(fp.floor_name) + '</button>';
+    var tabBg  = active ? 'var(--accent)' : 'var(--surface)';
+    var tabClr = active ? '#fff' : 'var(--text)';
+    var delBg  = active ? 'rgba(255,255,255,0.18)' : 'var(--surface)';
+    var delClr = active ? '#fff' : 'var(--text-muted)';
+    h += '<div style="display:inline-flex;align-items:center">';
+    h += '<button onclick="_fpSwitchFloor(' + i + ')" style="padding:4px 10px;border-radius:6px 0 0 6px;border:1px solid var(--border);border-right:none;cursor:pointer;font-size:12px;font-weight:' + (active ? '600' : '400') + ';background:' + tabBg + ';color:' + tabClr + '">' + escapeHtml(fp.floor_name) + '</button>';
+    h += '<button onclick="event.stopPropagation();_fpDeleteFloor(' + i + ')" title="Удалить план" style="padding:4px 7px;border-radius:0 6px 6px 0;border:1px solid var(--border);cursor:pointer;font-size:12px;background:' + delBg + ';color:' + delClr + ';line-height:1">×</button>';
+    h += '</div>';
   });
 
   h += '<label style="padding:4px 10px;border-radius:6px;border:1px dashed var(--border);background:transparent;cursor:pointer;font-size:12px;color:var(--text-muted)">';
@@ -446,6 +452,22 @@ function _fpDeletePolygon(floorIdx, polyIdx) {
       wrap.addEventListener('dblclick', _fpHandleDblClick);
     }
   }
+}
+
+// ── Удаление плана (вкладки) ──────────────────────────────────────────────
+function _fpDeleteFloor(idx) {
+  var plan = _fpFloorPlans[idx];
+  if (!plan) return;
+  if (!confirm('Удалить план «' + (plan.floor_name || 'этаж') + '»? Вся разметка этого плана будет потеряна.')) return;
+  _fpFloorPlans.splice(idx, 1);
+  _fpCurrentFloor = Math.min(_fpCurrentFloor, Math.max(0, _fpFloorPlans.length - 1));
+  _fpDirty     = true;
+  _fpDrawing   = false;
+  _fpCurrentPts = [];
+  _fpEditMode  = false;
+  _fpLoadGen++;
+  document.removeEventListener('keydown', _fpHandleKey);
+  _fpRender();
 }
 
 // ── Клик по полигону (режим просмотра) ───────────────────────────────────
