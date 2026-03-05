@@ -7,6 +7,8 @@ async function openEditModal(id) {
   if (e.type_name === 'act') { await openEditActModal(id, e); return; }
   const fields = e.fields || [];
   const allEntities = await api('/entities');
+  // Для Частей ЗУ: ЗУ могут не войти в дефолтный лимит 50 — подгружаем отдельно
+  const _lpForEdit = (e.type_name === 'land_plot_part') ? await api('/entities?type=land_plot&limit=200') : [];
   await loadContractEntities();
   await loadEntityLists();
 
@@ -63,7 +65,7 @@ async function openEditModal(id) {
       html += renderEqParentField((e.properties || {}).parent_equipment_id || null);
     } else if (e.type_name === 'land_plot_part') {
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
-      allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
+      (_lpForEdit.length ? _lpForEdit : allEntities.filter(function(x) { return x.type_name === 'land_plot'; })).forEach(function(x) {
         html += '<option value="' + x.id + '"' + (x.id === e.parent_id ? ' selected' : '') + '>' + escapeHtml(_lpLabel(x)) + '</option>';
       });
       html += '</select></div>';

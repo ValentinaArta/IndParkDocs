@@ -133,6 +133,8 @@ async function openCreateModal(typeName, preParentId) {
   const type = entityTypes.find(t => t.name === typeName);
   const fields = await api('/entity-types/' + type.id + '/fields');
   const allEntities = await api('/entities');
+  // Для Частей ЗУ: ЗУ могут не войти в дефолтный лимит 50 — подгружаем отдельно
+  const _lpForCreate = (typeName === 'land_plot_part') ? await api('/entities?type=land_plot&limit=200') : [];
   await loadEntityLists();
   await loadContractEntities();
 
@@ -160,7 +162,7 @@ async function openCreateModal(typeName, preParentId) {
     } else if (typeName === 'land_plot_part') {
       // Только ЗУ как варианты родителя
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
-      allEntities.filter(function(x) { return x.type_name === 'land_plot'; }).forEach(function(x) {
+      (_lpForCreate.length ? _lpForCreate : allEntities.filter(function(x) { return x.type_name === 'land_plot'; })).forEach(function(x) {
         var sel = (preParentId && parseInt(preParentId) === x.id) ? ' selected' : '';
         html += '<option value="' + x.id + '"' + sel + '>' + escapeHtml(_lpLabel(x)) + '</option>';
       });
