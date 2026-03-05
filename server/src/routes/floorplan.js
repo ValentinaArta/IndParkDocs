@@ -56,6 +56,8 @@ router.get('/:id/room-status', authenticate, asyncH(async (req, res) => {
       c.name          AS contract_name,
       c.properties->>'contractor_name' AS contractor_name,
       c.properties->>'contractor_id'   AS contractor_id,
+      c.properties->>'subtenant_name'  AS subtenant_name,
+      c.properties->>'subtenant_id'    AS subtenant_id,
       c.properties->>'contract_type'   AS contract_type
     FROM relations r
     JOIN entities c ON c.id = r.from_entity_id
@@ -68,8 +70,8 @@ router.get('/:id/room-status', authenticate, asyncH(async (req, res) => {
     ORDER BY r.to_entity_id, c.id DESC
   `, [roomIds]);
 
-  // Для каждого помещения: предпочитаем ВНЕШНЕГО арендатора (не наше юрлицо)
-  // Если есть субаренда с внешним контрагентом — показываем её, иначе — любую аренду
+  // Для каждого помещения: ищем "финального" (внешнего) арендатора.
+  // Приоритет: 1) субарендатор (subtenant_name) 2) внешний контрагент 3) любой контрагент
   const allByRoom = {};
   contractsRes.rows.forEach(row => {
     if (!allByRoom[row.room_id]) allByRoom[row.room_id] = [];
@@ -77,9 +79,15 @@ router.get('/:id/room-status', authenticate, asyncH(async (req, res) => {
   });
   const rentedMap = {};
   Object.entries(allByRoom).forEach(([roomId, rows]) => {
-    // Сначала ищем внешнего контрагента (не наше юрлицо)
-    const external = rows.find(r => !ownIds.has(String(r.contractor_id)));
-    rentedMap[roomId] = external || rows[0];
+    // 1. Ищем договор с субарендатором (финальный внешний арендатор)
+    const withSubtenant = rows.find(r => r.subtenant_name);
+    if (withSubtenant) { rentedMap[roomId] = { ...withSubtenant, display_name: withSubtenant.subtenant_name }; return; }
+    // 2. Ищем договор с внешним контрагентом (не наше юрлицо)
+    const external = rows.find(r => r.contractor_id && !ownIds.has(String(r.contractor_id)));
+    if (external) { rentedMap[roomId] = { ...external, display_name: external.contractor_name }; return; }
+    // 3. Любой (ВГО / внутренний)
+    const row = rows[0];
+    rentedMap[roomId] = { ...row, display_name: row.contractor_name };
   });
 
   const result = roomsRes.rows.map(room => {
@@ -99,7 +107,7 @@ router.get('/:id/room-status', authenticate, asyncH(async (req, res) => {
       status,
       contract_id:      rentedMap[room.id] ? rentedMap[room.id].contract_id      : null,
       contract_name:    rentedMap[room.id] ? rentedMap[room.id].contract_name     : null,
-      contractor_name:  rentedMap[room.id] ? rentedMap[room.id].contractor_name   : null,
+      contractor_name:  rentedMap[room.id] ? (rentedMap[room.id].display_name || rentedMap[room.id].contractor_name) : null,
     };
   });
 
