@@ -57,7 +57,7 @@ async function showMapPage() {
   html += '<button id="mapPolyCancelBtn" class="btn btn-sm" style="display:none" onclick="_mapPolyCancelDraw()">Отмена</button>';
   html += '</span>';
   html += '</div>';
-  html += '<div id="mapViewport" style="position:relative;overflow:hidden;width:100%;cursor:default;background:#e8e8e8;border-radius:6px">';
+  html += '<div id="mapViewport" style="position:relative;overflow:hidden;width:100%;max-height:calc(100vh - 130px);cursor:default;background:#e8e8e8;border-radius:6px">';
   html += '<div id="mapInner" style="transform-origin:0 0;transform:translate(0,0) scale(1);position:relative;line-height:0">';
   html += '<img src="/maps/territory.jpg" id="mapImg" style="display:block;width:100%;height:auto;user-select:none" draggable="false">';
   html += '<svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"';
@@ -71,8 +71,8 @@ async function showMapPage() {
   document.getElementById('content').innerHTML = html;
   renderIcons();
   var img = document.getElementById('mapImg');
-  img.addEventListener('load', _mapRenderShapes);
-  if (img.complete) _mapRenderShapes();
+  img.addEventListener('load', _mapFitToView);
+  if (img.complete) _mapFitToView();
   _mapBindEvents();
 }
 
@@ -215,7 +215,21 @@ function _mapApplyTransform() {
 }
 function _mapZoomIn()    { _mapZoomTo(_mapZoom * 1.4); }
 function _mapZoomOut()   { _mapZoomTo(_mapZoom / 1.4); }
-function _mapZoomReset() { _mapZoom=1; _mapPanX=0; _mapPanY=0; _mapApplyTransform(); }
+function _mapZoomReset() { _mapFitToView(); }
+// Подгоняет масштаб так чтобы карта целиком помещалась в viewport
+function _mapFitToView() {
+  requestAnimationFrame(function() {
+    var img = document.getElementById('mapImg');
+    var vp  = document.getElementById('mapViewport');
+    if (!img || !vp || !img.naturalWidth) return;
+    var renderedH = vp.offsetWidth * img.naturalHeight / img.naturalWidth;
+    var vpH = vp.offsetHeight;
+    if (!vpH || !renderedH) return;
+    _mapZoom = Math.min(1, vpH / renderedH);
+    _mapPanX = 0; _mapPanY = 0;
+    _mapApplyTransform();
+  });
+}
 function _mapZoomTo(newZoom, cx, cy) {
   var vp = document.getElementById('mapViewport');
   if (!vp) return;
