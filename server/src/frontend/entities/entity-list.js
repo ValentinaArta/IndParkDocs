@@ -32,7 +32,7 @@ function _svgTable() {
 }
 
 function _toggleListView(typeName) {
-  _listViewMode[typeName] = (_listViewMode[typeName] === 'table') ? 'cards' : 'table';
+  _listViewMode[typeName] = (_listViewMode[typeName] !== 'cards') ? 'cards' : 'table';
   var isTable = _listViewMode[typeName] === 'table';
   var btn = document.getElementById('listViewToggleBtn');
   if (btn) {
@@ -43,7 +43,7 @@ function _toggleListView(typeName) {
 }
 
 function _renderListCurrent() {
-  if (_listViewMode[currentTypeFilter] === 'table') {
+  if (_listViewMode[currentTypeFilter] !== 'cards') {
     renderEntityTable(_listCurrentEntities, currentTypeFilter);
   } else {
     renderEntityGrid(_listCurrentEntities);
@@ -323,7 +323,7 @@ async function showEntityList(typeName, opts) {
 
   var viewToggleBtn = '';
   if (_TABLE_VIEW_TYPES.indexOf(typeName) >= 0) {
-    var isTable = _listViewMode[typeName] === 'table';
+    var isTable = _listViewMode[typeName] !== 'cards';
     viewToggleBtn = '<button id="listViewToggleBtn" class="btn btn-sm" onclick="_toggleListView(\\'' + typeName + '\\')" title="' + (isTable ? 'Показать карточками' : 'Показать таблицей') + '" style="display:inline-flex;align-items:center;gap:5px">' +
       (isTable ? _svgCards() + ' Карточки' : _svgTable() + ' Таблица') + '</button>';
   }
