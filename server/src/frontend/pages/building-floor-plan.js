@@ -118,7 +118,6 @@ function _fpRender() {
   if (_fpFloorPlans.length > 0) {
     if (!_fpEditMode) {
       h += '<button onclick="_fpToggleEdit()" class="btn btn-sm">✏ Разметить</button>';
-      h += '<button onclick="_fpDeleteFloor(' + _fpCurrentFloor + ')" class="btn btn-sm" style="margin-left:4px;color:#dc2626;border-color:#dc2626" title="Удалить этот план">🗑 Удалить план</button>';
     } else {
       var hint = _fpDrawing
         ? 'Двойной клик — закрыть полигон &nbsp;·&nbsp; ESC — отмена'
@@ -174,14 +173,13 @@ function _fpRender() {
         // Лейбл
         var lbl = escapeHtml(_fpRoomLabel(poly.room_id));
         h += '<text x="' + centX + '" y="' + centY + '" text-anchor="middle" dominant-baseline="middle"' +
-          ' style="font-size:4px;fill:' + c.text + ';pointer-events:none;user-select:none;font-weight:600">' + lbl + '</text>';
-        // Кнопка удаления (только в режиме редактирования) — позиционируем в centX, minY
+          ' style="font-size:2.5px;fill:' + c.text + ';pointer-events:none;user-select:none;font-weight:600">' + lbl + '</text>';
+        // Кнопка удаления (только в режиме редактирования)
         if (_fpEditMode && poly.pts && poly.pts.length > 0) {
-          var minY = poly.pts.reduce(function(m, p) { return Math.min(m, p[1]); }, Infinity);
-          var dx = centX, dy = minY;
+          var dx = poly.pts[0][0], dy = poly.pts[0][1];
           h += '<g onclick="event.stopPropagation();_fpDeletePolygon(' + _fpCurrentFloor + ',' + pi + ')" style="cursor:pointer;pointer-events:all">';
-          h += '<circle cx="' + dx + '" cy="' + dy + '" r="2" fill="rgba(220,38,38,0.85)" stroke="#fff" stroke-width="0.35"></circle>';
-          h += '<text x="' + dx + '" y="' + dy + '" text-anchor="middle" dominant-baseline="middle" style="font-size:2.4px;fill:#fff;pointer-events:none;font-weight:700">×</text>';
+          h += '<circle cx="' + dx + '" cy="' + dy + '" r="2.8" fill="#ef4444" stroke="#fff" stroke-width="0.4"></circle>';
+          h += '<text x="' + dx + '" y="' + dy + '" text-anchor="middle" dominant-baseline="middle" style="font-size:3.2px;fill:#fff;pointer-events:none;font-weight:700">x</text>';
           h += '</g>';
         }
         h += '</g>';
@@ -460,13 +458,11 @@ function _fpDeletePolygon(floorIdx, polyIdx) {
   }
 }
 
-// ── Удаление плана (вкладки + файл с сервера) ─────────────────────────────
-async function _fpDeleteFloor(idx) {
+// ── Удаление плана (вкладки) ──────────────────────────────────────────────
+function _fpDeleteFloor(idx) {
   var plan = _fpFloorPlans[idx];
   if (!plan) return;
-  if (!confirm('Удалить план «' + (plan.floor_name || 'этаж') + '»? Файл и вся разметка будут удалены без возможности восстановления.')) return;
-
-  var fileId   = plan.file_id;
+  if (!confirm('Удалить план «' + (plan.floor_name || 'этаж') + '»? Вся разметка этого плана будет потеряна.')) return;
   _fpFloorPlans.splice(idx, 1);
   _fpCurrentFloor = Math.min(_fpCurrentFloor, Math.max(0, _fpFloorPlans.length - 1));
   _fpDirty     = true;
@@ -475,30 +471,7 @@ async function _fpDeleteFloor(idx) {
   _fpEditMode  = false;
   _fpLoadGen++;
   document.removeEventListener('keydown', _fpHandleKey);
-
-  // Удаляем файл с сервера если он больше не используется другими вкладками
-  var stillUsed = _fpFloorPlans.some(function(p) { return p.file_id === fileId; });
-  if (!stillUsed && fileId) {
-    var token = TOKEN || localStorage.getItem('accessToken') || '';
-    try {
-      await fetch('/api/entities/' + _fpBuildingId + '/files/' + fileId, {
-        method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + token },
-      });
-    } catch(e) { /* не критично — запись всё равно удалена из floor_plans */ }
-    // Очищаем кэш blob URL для этого файла
-    Object.keys(_fpBlobUrls).forEach(function(k) {
-      if (k === fileId || k.indexOf(fileId + '_p') === 0) {
-        URL.revokeObjectURL(_fpBlobUrls[k]);
-        delete _fpBlobUrls[k];
-      }
-    });
-    delete _fpFileInfo[fileId];
-  }
-
-  // Авто-сохраняем разметку чтобы не нужно было нажимать 💾 отдельно
   _fpRender();
-  await _fpSave();
 }
 
 // ── Переименование плана (inline input в активной вкладке) ─────────────────
@@ -611,10 +584,7 @@ function _fpGetRoomStatus(roomId) {
 function _fpRoomLabel(roomId) {
   var rs = _fpGetRoomStatus(roomId);
   if (!rs) return '?';
-  // Для арендованных — имя арендатора (короче и информативнее)
-  var name = (rs.status === 'rented' && rs.contractor_name) ? rs.contractor_name : rs.room_name;
-  if (!name) return '?';
-  // Обрезаем до 22 символов
-  return name.length > 22 ? name.slice(0, 21) + '…' : name;
+  // Короткий лейбл: только название помещения
+  return rs.room_name;
 }
 `;
