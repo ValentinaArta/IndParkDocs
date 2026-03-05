@@ -748,6 +748,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const isEmerg = p.status === 'Аварийное';
     const isBroken = brokenEqIds.has(id);
     return {
+      id,
       name: d.name || eq.equipment_name || '',
       inv_number: p.inv_number || eq.inv_number || '',
       category: p.equipment_category || '', kind: p.equipment_kind || '',
@@ -821,6 +822,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
         const d = deMap[id] || {};
         const p = d.props || {};
         eqList.push({
+          id,
           name: d.name || eq.equipment_name || '',
           inv_number: p.inv_number || eq.inv_number || '',
           category: p.equipment_category || '',
