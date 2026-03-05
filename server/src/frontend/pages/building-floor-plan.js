@@ -118,6 +118,7 @@ function _fpRender() {
   if (_fpFloorPlans.length > 0) {
     if (!_fpEditMode) {
       h += '<button onclick="_fpToggleEdit()" class="btn btn-sm">✏ Разметить</button>';
+      h += '<button onclick="_fpDeleteFloor(' + _fpCurrentFloor + ')" class="btn btn-sm" style="margin-left:4px;color:#dc2626;border-color:#dc2626" title="Удалить этот план">🗑 Удалить план</button>';
     } else {
       var hint = _fpDrawing
         ? 'Двойной клик — закрыть полигон &nbsp;·&nbsp; ESC — отмена'
@@ -459,11 +460,13 @@ function _fpDeletePolygon(floorIdx, polyIdx) {
   }
 }
 
-// ── Удаление плана (вкладки) ──────────────────────────────────────────────
-function _fpDeleteFloor(idx) {
+// ── Удаление плана (вкладки + файл с сервера) ─────────────────────────────
+async function _fpDeleteFloor(idx) {
   var plan = _fpFloorPlans[idx];
   if (!plan) return;
-  if (!confirm('Удалить план «' + (plan.floor_name || 'этаж') + '»? Вся разметка этого плана будет потеряна.')) return;
+  if (!confirm('Удалить план «' + (plan.floor_name || 'этаж') + '»? Файл и вся разметка будут удалены без возможности восстановления.')) return;
+
+  var fileId   = plan.file_id;
   _fpFloorPlans.splice(idx, 1);
   _fpCurrentFloor = Math.min(_fpCurrentFloor, Math.max(0, _fpFloorPlans.length - 1));
   _fpDirty     = true;
@@ -472,7 +475,30 @@ function _fpDeleteFloor(idx) {
   _fpEditMode  = false;
   _fpLoadGen++;
   document.removeEventListener('keydown', _fpHandleKey);
+
+  // Удаляем файл с сервера если он больше не используется другими вкладками
+  var stillUsed = _fpFloorPlans.some(function(p) { return p.file_id === fileId; });
+  if (!stillUsed && fileId) {
+    var token = TOKEN || localStorage.getItem('accessToken') || '';
+    try {
+      await fetch('/api/entities/' + _fpBuildingId + '/files/' + fileId, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+    } catch(e) { /* не критично — запись всё равно удалена из floor_plans */ }
+    // Очищаем кэш blob URL для этого файла
+    Object.keys(_fpBlobUrls).forEach(function(k) {
+      if (k === fileId || k.indexOf(fileId + '_p') === 0) {
+        URL.revokeObjectURL(_fpBlobUrls[k]);
+        delete _fpBlobUrls[k];
+      }
+    });
+    delete _fpFileInfo[fileId];
+  }
+
+  // Авто-сохраняем разметку чтобы не нужно было нажимать 💾 отдельно
   _fpRender();
+  await _fpSave();
 }
 
 // ── Переименование плана (inline input в активной вкладке) ─────────────────
