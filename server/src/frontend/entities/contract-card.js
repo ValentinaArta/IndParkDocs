@@ -255,29 +255,59 @@ function renderContractCard(data) {
     h += '</div></div>';
   }
 
+  // ── Акты (отдельная таблица для не-арендных договоров) ───────────────────
+  var _histActs  = (data.history || []).filter(function(s) { return s.is_act; });
+  var _histSuppl = (data.history || []).filter(function(s) { return !s.is_contract && !s.is_act; });
+  var _histContr = (data.history || []).filter(function(s) { return s.is_contract; });
+
+  if (!isRental) {
+    h += '<div style="margin-bottom:14px">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">АКТЫ ВЫПОЛНЕННЫХ РАБОТ</div>';
+    if (_histActs.length) {
+      h += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:6px">';
+      h += '<thead><tr style="background:#4F6BCC;color:#fff">';
+      h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 0">Акт</th>';
+      h += '<th style="padding:7px 10px;text-align:left">Дата</th>';
+      h += '<th style="padding:7px 10px;text-align:right;border-radius:0 4px 0 0">Сумма, ₽</th>';
+      h += '</tr></thead><tbody>';
+      _histActs.forEach(function(s, i) {
+        var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+        h += '<tr style="' + bg + ';cursor:pointer" onclick="showEntity(' + s.id + ')">';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--accent)">' + escapeHtml(s.name) + '</td>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text-muted)">' + (s.date ? _ccFmtDate(s.date) : '—') + '</td>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:#16a34a">' + (s.total ? Math.round(s.total).toLocaleString('ru-RU') + ' ₽' : '—') + '</td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+    } else {
+      h += '<div style="color:var(--text-muted);font-size:13px;margin-bottom:6px">Актов нет</div>';
+    }
+    h += '</div>';
+  }
+
   // ── История ДС (collapsible) ───────────────────────────────────────────────
-  if (data.history && data.history.length) {
+  var _histForSection = isRental
+    ? (data.history || [])
+    : [].concat(_histContr, _histSuppl);
+
+  if (_histForSection.length) {
     h += '<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
     h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
-    var histSupplCount = data.history.filter(function(s) { return !s.is_contract && !s.is_act; }).length;
-    var histActCount   = data.history.filter(function(s) { return s.is_act; }).length;
     var histLabel = 'История ДС';
-    if (histSupplCount > 0) histLabel += ' · ' + histSupplCount + ' ДС';
-    if (histActCount   > 0) histLabel += ' · ' + histActCount + ' актов';
+    if (_histSuppl.length > 0) histLabel += ' · ' + _histSuppl.length + ' ДС';
+    if (isRental && _histActs.length > 0) histLabel += ' · ' + _histActs.length + ' актов';
     h += '<span>' + histLabel + '</span><span>▼</span>';
     h += '</button>';
     h += '<div style="display:none;padding:12px 14px">';
-    data.history.forEach(function(s) {
+    _histForSection.forEach(function(s) {
       h += '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">';
       if (s.is_contract) {
-        // Основной договор
         h += '<a href="#" onclick="openContractCard(' + s.id + ');return false" style="color:var(--accent);font-weight:600">';
         h += escapeHtml(s.name);
         h += '</a>';
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         h += ' <span style="background:var(--bg-hover);color:var(--text-secondary);font-size:11px;padding:1px 6px;border-radius:3px;margin-left:4px">Основной договор</span>';
       } else if (s.is_act) {
-        // Акт выполненных работ
         h += '<span style="background:#0f2a1a;color:#4ade80;font-size:10px;padding:1px 6px;border-radius:3px;margin-right:6px;font-weight:600">АКТ</span>';
         h += '<a href="#" onclick="showEntity(' + s.id + ');return false" style="color:var(--accent)">';
         h += escapeHtml(s.name);
@@ -285,9 +315,7 @@ function renderContractCard(data) {
         if (s.date) h += ' <span style="color:var(--text-secondary)">от ' + _ccFmtDate(s.date) + '</span>';
         if (s.total) h += ' — <span style="color:#4ade80;font-weight:600">' + Math.round(s.total).toLocaleString('ru-RU') + ' ₽</span>';
       } else {
-        // Доп. соглашение
         h += '<a href="#" onclick="openSupplementCard(' + s.id + ');return false" style="color:var(--accent)">';
-        // Если в имени нет контрагента — добавляем из properties
         var suppTitle = s.name;
         if (s.contractor_name && suppTitle.indexOf(s.contractor_name) < 0) {
           suppTitle += ' — ' + s.contractor_name;
@@ -303,9 +331,12 @@ function renderContractCard(data) {
     h += '</div></div>';
   }
 
-  // Кнопка добавить ДС
-  h += '<div style="margin-top:12px">';
+  // Кнопки
+  h += '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">';
   h += '<button class="btn btn-sm btn-primary" onclick="openCreateSupplementModal(' + data.id + ')">+ Доп. соглашение</button>';
+  if (!isRental) {
+    h += '<button class="btn btn-sm btn-primary" onclick="openCreateActModal(' + data.id + ')">+ Акт</button>';
+  }
   h += '</div>';
 
   return h;
