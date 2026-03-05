@@ -95,12 +95,17 @@ function _fpRender() {
 
   _fpFloorPlans.forEach(function(fp, i) {
     var active = i === _fpCurrentFloor;
-    var tabBg  = active ? 'var(--accent)' : 'var(--surface)';
-    var tabClr = active ? '#fff' : 'var(--text)';
     var delBg  = active ? 'rgba(255,255,255,0.18)' : 'var(--surface)';
     var delClr = active ? '#fff' : 'var(--text-muted)';
     h += '<div style="display:inline-flex;align-items:center">';
-    h += '<button onclick="_fpSwitchFloor(' + i + ')" style="padding:4px 10px;border-radius:6px 0 0 6px;border:1px solid var(--border);border-right:none;cursor:pointer;font-size:12px;font-weight:' + (active ? '600' : '400') + ';background:' + tabBg + ';color:' + tabClr + '">' + escapeHtml(fp.floor_name) + '</button>';
+    if (active) {
+      // Активная вкладка — редактируемое имя
+      h += '<input id="fpTabName_' + i + '" value="' + escapeHtml(fp.floor_name) + '"';
+      h += ' oninput="_fpRenameFloor(' + i + ',this.value)"';
+      h += ' style="padding:4px 10px;border-radius:6px 0 0 6px;border:1px solid rgba(255,255,255,0.4);border-right:none;font-size:12px;font-weight:600;background:var(--accent);color:#fff;width:auto;min-width:60px;max-width:180px;outline:none">';
+    } else {
+      h += '<button onclick="_fpSwitchFloor(' + i + ')" style="padding:4px 10px;border-radius:6px 0 0 6px;border:1px solid var(--border);border-right:none;cursor:pointer;font-size:12px;font-weight:400;background:var(--surface);color:var(--text)">' + escapeHtml(fp.floor_name) + '</button>';
+    }
     h += '<button onclick="event.stopPropagation();_fpDeleteFloor(' + i + ')" title="Удалить план" style="padding:4px 7px;border-radius:0 6px 6px 0;border:1px solid var(--border);cursor:pointer;font-size:12px;background:' + delBg + ';color:' + delClr + ';line-height:1">×</button>';
     h += '</div>';
   });
@@ -119,10 +124,9 @@ function _fpRender() {
         : 'Кликай по плану чтобы нанести помещение';
       h += '<span style="font-size:11px;color:var(--text-muted)">' + hint + '</span>';
       h += '<button onclick="_fpToggleEdit()" class="btn btn-sm" style="margin-left:6px">✕ Выйти</button>';
-      if (_fpDirty) {
-        h += '<button onclick="_fpSave()" class="btn btn-sm btn-primary" style="margin-left:4px">💾 Сохранить</button>';
-      }
     }
+    // 💾 показываем всегда когда есть несохранённые изменения
+    h += '<button id="fpSaveBtn" onclick="_fpSave()" class="btn btn-sm btn-primary" style="margin-left:4px' + (_fpDirty ? '' : ';display:none') + '">💾 Сохранить</button>';
   }
   h += '</div>';
 
@@ -469,6 +473,17 @@ function _fpDeleteFloor(idx) {
   document.removeEventListener('keydown', _fpHandleKey);
   _fpRender();
 }
+
+// ── Переименование плана (inline input в активной вкладке) ─────────────────
+function _fpRenameFloor(idx, val) {
+  if (!_fpFloorPlans[idx]) return;
+  _fpFloorPlans[idx].floor_name = val;
+  _fpDirty = true;
+  // Показываем кнопку 💾 без полного ре-рендера
+  var btn = document.getElementById('fpSaveBtn');
+  if (btn) btn.style.display = '';
+}
+
 
 // ── Клик по полигону (режим просмотра) ───────────────────────────────────
 function _fpPolyClick(polyIdx) {
