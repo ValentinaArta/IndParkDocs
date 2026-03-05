@@ -20,7 +20,7 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
-      imgSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'"],
       frameSrc: ["'self'", "https://benthic-hull.metabaseapp.com"],
     },
@@ -91,7 +91,8 @@ app.use('/api/auth/totp', require('./routes/totp'));
 app.use('/api/legal', require('./routes/legal'));
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/entities/:id/files', require('./routes/files'));
-app.use('/api/cube', require('./routes/cube'));
+app.use('/api/cube',      require('./routes/cube'));
+app.use('/api/buildings', require('./routes/floorplan'));
 
 // SPA fallback
 app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });
