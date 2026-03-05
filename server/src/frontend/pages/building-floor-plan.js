@@ -173,7 +173,7 @@ function _fpRender() {
         // Лейбл
         var lbl = escapeHtml(_fpRoomLabel(poly.room_id));
         h += '<text x="' + centX + '" y="' + centY + '" text-anchor="middle" dominant-baseline="middle"' +
-          ' style="font-size:2.5px;fill:' + c.text + ';pointer-events:none;user-select:none;font-weight:600">' + lbl + '</text>';
+          ' style="font-size:4px;fill:' + c.text + ';pointer-events:none;user-select:none;font-weight:600">' + lbl + '</text>';
         // Кнопка удаления (только в режиме редактирования) — позиционируем в centX, minY
         if (_fpEditMode && poly.pts && poly.pts.length > 0) {
           var minY = poly.pts.reduce(function(m, p) { return Math.min(m, p[1]); }, Infinity);
