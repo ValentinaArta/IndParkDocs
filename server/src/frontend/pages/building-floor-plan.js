@@ -484,6 +484,7 @@ function _fpRenameFloor(idx, val) {
   if (btn) btn.style.display = '';
 }
 
+
 // ── Клик по полигону (режим просмотра) ───────────────────────────────────
 function _fpPolyClick(polyIdx) {
   if (_fpEditMode) return;
