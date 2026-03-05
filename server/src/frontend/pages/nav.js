@@ -81,11 +81,15 @@ async function startApp() {
   // menuBtn visibility now handled by CSS media query
 }
 
-// Write current page to URL hash (replaceState — no browser history entry, no hashchange event)
+// Write current page to URL hash so reload restores the same page.
+// Use location.hash directly (works reliably across all browsers incl. iOS Safari).
+// We temporarily remove the hashchange listener to avoid re-triggering navigation.
+var _hashChangePaused = false;
 function _setNavHash(h) {
-  if (window.history && window.history.replaceState) {
-    window.history.replaceState(null, '', h ? '#' + h : window.location.pathname);
-  }
+  _hashChangePaused = true;
+  window.location.hash = h ? h : '';
+  // Re-enable after current event loop tick
+  setTimeout(function() { _hashChangePaused = false; }, 0);
 }
 
 // Parse hash and navigate to the corresponding page
@@ -112,6 +116,7 @@ function _routeFromHash(hash) {
 
 // Listen for hash changes (back/forward browser buttons)
 window.addEventListener('hashchange', function() {
+  if (_hashChangePaused) return;
   _routeFromHash(window.location.hash);
 });
 
