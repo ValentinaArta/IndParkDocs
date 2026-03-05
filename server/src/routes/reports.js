@@ -1,8 +1,27 @@
 const express = require('express');
+const http = require('http');
 const pool = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { getContractDirection, isInternalContract } = require('../utils/contractDirection');
+
+const ODATA_BASE_RPT = process.env.ODATA_BASE_URL || 'http://192.168.2.3/BF/odata/standard.odata';
+const ODATA_AUTH_RPT = 'Basic ' + Buffer.from(
+  (process.env.ODATA_USER || '') + ':' + (process.env.ODATA_PASS || '')
+).toString('base64');
+
+function _odataGetRpt(path) {
+  return new Promise((resolve) => {
+    const url = ODATA_BASE_RPT + '/' + path;
+    const req = http.get(url, { headers: { Authorization: ODATA_AUTH_RPT } }, (r) => {
+      let data = '';
+      r.on('data', c => { data += c; });
+      r.on('end', () => { try { resolve(JSON.parse(data)); } catch (_) { resolve({ value: [] }); } });
+    });
+    req.setTimeout(15000, () => { req.destroy(); resolve({ value: [] }); });
+    req.on('error', () => resolve({ value: [] }));
+  });
+}
 
 const router = express.Router();
 
@@ -903,6 +922,76 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     equipment_rent_source_name: equipmentRentSourceName,
     equipment_rent_monthly: rentItemsMonthly,
   });
+}));
+
+// GET /api/reports/contract-card/:id/advance-status — check advances against 1С payments
+router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async (req, res) => {
+  const contractId = parseInt(req.params.id);
+
+  // Fetch contract
+  const cRes = await pool.query(
+    `SELECT e.properties FROM entities e WHERE e.id = $1 AND e.deleted_at IS NULL`,
+    [contractId]);
+  if (!cRes.rows.length) return res.status(404).json({ error: 'Not found' });
+  const cProps = cRes.rows[0].properties || {};
+
+  // Fetch supplements (to find latest advances, same as contract-card)
+  const sRes = await pool.query(
+    `SELECT e.properties FROM entities e
+     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'supplement'
+     WHERE e.parent_id = $1 AND e.deleted_at IS NULL
+     ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`,
+    [contractId]);
+  const supplements = sRes.rows.map(r => r);
+
+  // Reuse same latestSuppValue logic
+  let advancesRaw = '';
+  for (let i = supplements.length - 1; i >= 0; i--) {
+    const v = (supplements[i].properties || {}).advances;
+    if (v && v !== '' && v !== '[]') { advancesRaw = v; break; }
+  }
+  if (!advancesRaw) advancesRaw = cProps.advances || '';
+
+  let advances = [];
+  try { if (advancesRaw) advances = JSON.parse(advancesRaw); } catch (_) {}
+
+  const checkedAt = new Date().toISOString();
+  if (!advances.length) return res.json({ advances: [], checkedAt });
+
+  const direction = getContractDirection(cProps.our_role_label || '');
+  const odataDoc = direction === 'income'
+    ? 'Document_ПоступлениеНаРасчетныйСчет'
+    : 'Document_СписаниеСРасчетногоСчета';
+
+  const results = [];
+  for (let idx = 0; idx < advances.length; idx++) {
+    const adv = advances[idx];
+    const amount = parseFloat(adv.amount) || 0;
+    const advDate = adv.date ? new Date(adv.date) : null;
+
+    let paid = false;
+    let matchDoc = null;
+
+    if (amount > 0 && advDate) {
+      const dtFrom = new Date(advDate); dtFrom.setDate(dtFrom.getDate() - 7);
+      const dtTo   = new Date(advDate); dtTo.setDate(dtTo.getDate() + 30);
+      const fmt = d => d.toISOString().slice(0, 10) + 'T00:00:00';
+      const filter = [
+        'Posted eq true',
+        'СуммаДокумента eq ' + amount,
+        "Date ge datetime'" + fmt(dtFrom) + "'",
+        "Date le datetime'" + fmt(dtTo) + "'"
+      ].join(' and ');
+      const path = odataDoc + '?$format=json&$filter=' +
+        encodeURIComponent(filter) + '&$select=Date,Number,СуммаДокумента,Posted&$top=5';
+      const data = await _odataGetRpt(path);
+      const found = (data.value || []).filter(d => d.Posted !== false);
+      if (found.length > 0) { paid = true; matchDoc = found[0]; }
+    }
+    results.push({ idx, amount: adv.amount, date: adv.date, paid, matchDoc, checkedAt });
+  }
+
+  res.json({ advances: results, checkedAt });
 }));
 
 // GET /api/reports/area-stats — total vs rented area per building

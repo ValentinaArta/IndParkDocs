@@ -99,11 +99,14 @@ function renderContractCard(data) {
   if (_advances.length) {
     h += '<div><span style="color:var(--text-secondary)">Авансы:</span>';
     h += '<ul style="margin:4px 0 0 18px;padding:0;font-size:13px">';
-    _advances.forEach(function(adv) {
+    _advances.forEach(function(adv, idx) {
       var parts = [];
       if (adv.amount) parts.push(_ccFmtNum(adv.amount) + '\u00a0₽');
       if (adv.date) parts.push(_ccFmtDate(adv.date));
-      h += '<li>' + escapeHtml(parts.join(' — ')) + '</li>';
+      h += '<li id="adv-item-' + data.id + '-' + idx + '" style="display:flex;align-items:center;gap:6px;margin-bottom:2px">';
+      h += '<span>' + escapeHtml(parts.join(' — ')) + '</span>';
+      h += '<span id="adv-status-' + data.id + '-' + idx + '" style="font-size:11px;color:#9ca3af">проверяется…</span>';
+      h += '</li>';
     });
     h += '</ul></div>';
   }
@@ -313,8 +316,38 @@ async function openContractCard(id) {
   try {
     var data = await api('/reports/contract-card/' + id);
     setModalContent(renderContractCard(data));
+    _loadAdvanceStatus(id, data);
   } catch(e) {
     setModalContent('<div style="color:#dc2626;padding:20px">Ошибка: ' + escapeHtml(e.message || String(e)) + '</div>');
+  }
+}
+
+async function _loadAdvanceStatus(id, data) {
+  var advances = [];
+  try { if (data.advances) advances = JSON.parse(data.advances); } catch(_) {}
+  if (!advances.length) return;
+
+  try {
+    var result = await api('/reports/contract-card/' + id + '/advance-status');
+    var checkedFmt = result.checkedAt
+      ? new Date(result.checkedAt).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+      : '';
+    (result.advances || []).forEach(function(adv) {
+      var el = document.getElementById('adv-status-' + id + '-' + adv.idx);
+      if (!el) return;
+      if (adv.paid) {
+        el.title = 'Платёж найден в 1С';
+        el.innerHTML = '<span style="color:#16a34a;font-size:14px">✅</span>';
+      } else {
+        el.style.color = '#dc2626';
+        el.innerHTML = '❌ не оплачено по состоянию на ' + checkedFmt;
+      }
+    });
+  } catch(e) {
+    advances.forEach(function(_, idx) {
+      var el = document.getElementById('adv-status-' + id + '-' + idx);
+      if (el) { el.style.color = '#9ca3af'; el.textContent = '—'; el.title = e.message || 'Ошибка проверки'; }
+    });
   }
 }
 
