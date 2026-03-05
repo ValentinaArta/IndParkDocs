@@ -233,10 +233,15 @@ function renderContractCard(data) {
     data.equipment_list.forEach(function(eq) {
       var isEmerg = eq.is_emergency;
       var isBroken = eq.is_broken;
-      var isRed = isEmerg || isBroken;
       var txtStyle = isBroken ? 'color:#dc2626;font-weight:600' : (isEmerg ? 'color:#b85c5c;font-weight:600' : '');
       h += '<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;' + txtStyle + '">';
-      h += escapeHtml(eq.name || '—');
+      // Кликабельное имя — открывает карточку оборудования
+      var eqName = escapeHtml(eq.name || '—');
+      if (eq.id) {
+        h += '<a href="#" onclick="showEntity(' + eq.id + ');return false" style="color:var(--accent);text-decoration:none;font-weight:600">' + eqName + '</a>';
+      } else {
+        h += eqName;
+      }
       if (eq.inv_number && (eq.name || '').indexOf(eq.inv_number) < 0) h += ' <span style="color:var(--text-secondary);font-size:12px">инв. ' + escapeHtml(eq.inv_number) + '</span>';
       if (eq.kind || eq.category) h += ' <span style="color:var(--text-secondary);font-size:12px">(' + escapeHtml((eq.kind || eq.category || '')) + ')</span>';
       if (eq.location) h += ' — ' + escapeHtml(eq.location);
