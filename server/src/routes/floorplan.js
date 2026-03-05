@@ -41,14 +41,21 @@ router.get('/:id/room-status', authenticate, asyncH(async (req, res) => {
 
   const roomIds = roomsRes.rows.map(r => r.id);
 
-  // Активные договоры аренды/субаренды для этих помещений
-  // Помещение считается сданным, если к нему есть located_in из договора (не Архив)
+  // ID наших юрлиц — для определения ВГО (внутренних арендаторов)
+  const ownRes = await pool.query(
+    `SELECT e.id FROM entities e
+     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'company'
+     WHERE e.deleted_at IS NULL AND e.properties->>'is_own' = 'true'`);
+  const ownIds = new Set(ownRes.rows.map(r => String(r.id)));
+
+  // Все активные договоры аренды/субаренды для этих помещений
   const contractsRes = await pool.query(`
     SELECT DISTINCT
       r.to_entity_id  AS room_id,
       c.id            AS contract_id,
       c.name          AS contract_name,
       c.properties->>'contractor_name' AS contractor_name,
+      c.properties->>'contractor_id'   AS contractor_id,
       c.properties->>'contract_type'   AS contract_type
     FROM relations r
     JOIN entities c ON c.id = r.from_entity_id
@@ -61,10 +68,18 @@ router.get('/:id/room-status', authenticate, asyncH(async (req, res) => {
     ORDER BY r.to_entity_id, c.id DESC
   `, [roomIds]);
 
-  // Берём первый договор для каждого помещения
-  const rentedMap = {};
+  // Для каждого помещения: предпочитаем ВНЕШНЕГО арендатора (не наше юрлицо)
+  // Если есть субаренда с внешним контрагентом — показываем её, иначе — любую аренду
+  const allByRoom = {};
   contractsRes.rows.forEach(row => {
-    if (!rentedMap[row.room_id]) rentedMap[row.room_id] = row;
+    if (!allByRoom[row.room_id]) allByRoom[row.room_id] = [];
+    allByRoom[row.room_id].push(row);
+  });
+  const rentedMap = {};
+  Object.entries(allByRoom).forEach(([roomId, rows]) => {
+    // Сначала ищем внешнего контрагента (не наше юрлицо)
+    const external = rows.find(r => !ownIds.has(String(r.contractor_id)));
+    rentedMap[roomId] = external || rows[0];
   });
 
   const result = roomsRes.rows.map(room => {
