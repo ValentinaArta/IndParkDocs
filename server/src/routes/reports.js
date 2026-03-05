@@ -942,7 +942,7 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
      WHERE e.parent_id = $1 AND e.deleted_at IS NULL
      ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`,
     [contractId]);
-  const supplements = sRes.rows.map(r => r);
+  const supplements = sRes.rows;
 
   // Reuse same latestSuppValue logic
   let advancesRaw = '';
@@ -963,6 +963,19 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
     ? 'Document_ПоступлениеНаРасчетныйСчет'
     : 'Document_СписаниеСРасчетногоСчета';
 
+  // Resolve contractor odata_ref_key for precise matching
+  let contractorRefKey = null;
+  const contractorId = parseInt(cProps.contractor_id) || 0;
+  if (contractorId) {
+    const compRes = await pool.query(
+      `SELECT properties->>'odata_ref_key' AS ref_key
+       FROM entities WHERE id = $1 AND deleted_at IS NULL`,
+      [contractorId]);
+    if (compRes.rows.length && compRes.rows[0].ref_key) {
+      contractorRefKey = compRes.rows[0].ref_key;
+    }
+  }
+
   const results = [];
   for (let idx = 0; idx < advances.length; idx++) {
     const adv = advances[idx];
@@ -976,22 +989,30 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
       const dtFrom = new Date(advDate); dtFrom.setDate(dtFrom.getDate() - 7);
       const dtTo   = new Date(advDate); dtTo.setDate(dtTo.getDate() + 30);
       const fmt = d => d.toISOString().slice(0, 10) + 'T00:00:00';
-      const filter = [
+      const filterParts = [
         'Posted eq true',
         'СуммаДокумента eq ' + amount,
         "Date ge datetime'" + fmt(dtFrom) + "'",
         "Date le datetime'" + fmt(dtTo) + "'"
-      ].join(' and ');
+      ];
+      if (contractorRefKey) {
+        filterParts.push("Контрагент eq guid'" + contractorRefKey + "'");
+      }
       const path = odataDoc + '?$format=json&$filter=' +
-        encodeURIComponent(filter) + '&$select=Date,Number,СуммаДокумента,Posted&$top=5';
+        encodeURIComponent(filterParts.join(' and ')) +
+        '&$select=Date,Number,СуммаДокумента,Контрагент,Posted&$top=5';
       const data = await _odataGetRpt(path);
       const found = (data.value || []).filter(d => d.Posted !== false);
       if (found.length > 0) { paid = true; matchDoc = found[0]; }
     }
-    results.push({ idx, amount: adv.amount, date: adv.date, paid, matchDoc, checkedAt });
+    results.push({
+      idx, amount: adv.amount, date: adv.date,
+      paid, matchDoc, checkedAt,
+      contractor_matched: contractorRefKey !== null
+    });
   }
 
-  res.json({ advances: results, checkedAt });
+  res.json({ advances: results, checkedAt, contractor_matched: contractorRefKey !== null });
 }));
 
 // GET /api/reports/area-stats — total vs rented area per building
