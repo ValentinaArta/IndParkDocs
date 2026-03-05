@@ -181,6 +181,7 @@ act_flat AS (
     CASE WHEN a.act_date ~ '^[0-9]{4}'           THEN LEFT(a.act_date, 4) END AS act_period_year,
     (item->>'equipment_id')::int                  AS equipment_id,
     item->>'equipment_name'                       AS act_eq_name_raw,
+    item->>'description'                          AS item_description,
     COALESCE(NULLIF(item->>'amount',''), '0')::numeric AS item_amount
   FROM act_base a
   LEFT JOIN LATERAL jsonb_array_elements(
@@ -215,6 +216,7 @@ SELECT
   af.act_period_year,
   af.equipment_id,
   af.item_amount,
+  af.item_description,
   COALESCE(ei.eq_name,      af.act_eq_name_raw) AS act_eq_name,
   COALESCE(ei.eq_category,  '')                 AS act_eq_category,
   COALESCE(ei.building_name,'')                 AS act_building_name
