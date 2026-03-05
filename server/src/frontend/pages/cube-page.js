@@ -25,6 +25,14 @@ var CUBE_DIM_GROUPS = [
     { id: 'equipment_kind',     label: 'Вид' },
     { id: 'equipment_name',     label: 'Название' },
   ]},
+  { id: 'act', label: 'Работы (акты)', icon: '🔨', dims: [
+    { id: 'act_period_month',  label: 'Период (месяц)' },
+    { id: 'act_period_year',   label: 'Период (год)' },
+    { id: 'act_building',      label: 'Корпус' },
+    { id: 'act_eq_category',   label: 'Категория оборудования' },
+    { id: 'act_eq_name',       label: 'Оборудование' },
+    { id: 'act_doc_status',    label: 'Статус акта' },
+  ]},
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────

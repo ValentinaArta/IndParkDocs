@@ -19,6 +19,13 @@ const DIM_META = {
   equipment_status:   { group: 'equipment',  col: 'equipment_status' },
   equipment_category: { group: 'equipment',  col: 'equipment_category' },
   equipment_kind:     { group: 'equipment',  col: 'equipment_kind' },
+  // Act (работы) dimensions
+  act_period_month:   { group: 'act',        col: 'act_period_month' },
+  act_period_year:    { group: 'act',        col: 'act_period_year' },
+  act_building:       { group: 'act',        col: 'act_building_name' },
+  act_eq_category:    { group: 'act',        col: 'act_eq_category' },
+  act_eq_name:        { group: 'act',        col: 'act_eq_name' },
+  act_doc_status:     { group: 'act',        col: 'act_doc_status' },
 };
 
 // ── Contract-primary fact ───────────────────────────────────────────────────
@@ -153,31 +160,104 @@ LEFT JOIN eq_contracts ec  ON ec.equipment_id  = eq.equipment_id
 LEFT JOIN cmeta cm          ON cm.contract_id   = ec.contract_id
 LEFT JOIN eq_bld eqb        ON eqb.equipment_id = eq.equipment_id`;
 
+// ── Act-primary fact ────────────────────────────────────────────────────────
+const ACT_FACT_BASE = `
+WITH act_base AS (
+  SELECT
+    e.id        AS act_id,
+    e.name      AS act_name,
+    e.parent_id AS contract_id,
+    e.properties->>'act_date'    AS act_date,
+    e.properties->>'doc_status'  AS act_doc_status,
+    e.properties->>'act_items'   AS act_items_raw
+  FROM entities e
+  JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'act'
+  WHERE e.deleted_at IS NULL
+),
+act_flat AS (
+  SELECT
+    a.act_id, a.act_name, a.contract_id, a.act_doc_status,
+    CASE WHEN a.act_date ~ '^[0-9]{4}-[0-9]{2}' THEN LEFT(a.act_date, 7) END AS act_period_month,
+    CASE WHEN a.act_date ~ '^[0-9]{4}'           THEN LEFT(a.act_date, 4) END AS act_period_year,
+    (item->>'equipment_id')::int                  AS equipment_id,
+    item->>'equipment_name'                       AS act_eq_name_raw,
+    COALESCE(NULLIF(item->>'amount',''), '0')::numeric AS item_amount
+  FROM act_base a
+  LEFT JOIN LATERAL jsonb_array_elements(
+    CASE
+      WHEN a.act_items_raw IS NOT NULL
+       AND a.act_items_raw NOT IN ('', 'null')
+       AND a.act_items_raw ~ '^\\s*\\['
+      THEN a.act_items_raw::jsonb
+      ELSE '[]'::jsonb
+    END
+  ) AS item ON true
+  WHERE (item->>'equipment_id') IS NOT NULL AND (item->>'equipment_id') <> ''
+),
+eq_info AS (
+  SELECT
+    eq.id                                  AS equipment_id,
+    eq.name                                AS eq_name,
+    eq.properties->>'equipment_category'   AS eq_category,
+    b.name                                 AS building_name
+  FROM entities eq
+  JOIN entity_types eqt ON eqt.id = eq.entity_type_id AND eqt.name = 'equipment'
+  LEFT JOIN entities b ON b.id = eq.parent_id AND b.deleted_at IS NULL
+  LEFT JOIN entity_types bet ON bet.id = b.entity_type_id AND bet.name IN ('building','workshop')
+  WHERE eq.deleted_at IS NULL
+)
+SELECT
+  af.act_id,
+  af.act_name,
+  af.contract_id,
+  af.act_doc_status,
+  af.act_period_month,
+  af.act_period_year,
+  af.equipment_id,
+  af.item_amount,
+  COALESCE(ei.eq_name,      af.act_eq_name_raw) AS act_eq_name,
+  COALESCE(ei.eq_category,  '')                 AS act_eq_category,
+  COALESCE(ei.building_name,'')                 AS act_building_name
+FROM act_flat af
+LEFT JOIN eq_info ei ON ei.equipment_id = af.equipment_id`;
+
 // ── Build WHERE from filters ────────────────────────────────────────────────
+// mode: 'contract' | 'equipment' | 'act'
 // Returns { clause: ' WHERE ...', params: [] }
-function buildWhere(filters, isEq) {
+function buildWhere(filters, mode) {
   if (!filters || typeof filters !== 'object') return { clause: '', params: [] };
+  const isEq  = mode === 'equipment';
+  const isAct = mode === 'act';
 
   const conds  = [];
   const params = [];
   let   p      = 1;
 
-  // contract_type filter
-  const ct = filters.contract_type;
-  if (Array.isArray(ct) && ct.length) {
-    const col = isEq ? 'cm.contract_type' : "cb.p->>'contract_type'";
-    conds.push(`${col} = ANY($${p})`);
-    params.push(ct);
-    p++;
-  }
-
-  // doc_status filter
-  const ds = filters.doc_status;
-  if (Array.isArray(ds) && ds.length) {
-    const col = isEq ? 'cm.doc_status' : "cb.p->>'doc_status'";
-    conds.push(`${col} = ANY($${p})`);
-    params.push(ds);
-    p++;
+  if (!isAct) {
+    // contract_type filter (contract & equipment facts)
+    const ct = filters.contract_type;
+    if (Array.isArray(ct) && ct.length) {
+      const col = isEq ? 'cm.contract_type' : "cb.p->>'contract_type'";
+      conds.push(`${col} = ANY($${p})`);
+      params.push(ct);
+      p++;
+    }
+    // doc_status filter
+    const ds = filters.doc_status;
+    if (Array.isArray(ds) && ds.length) {
+      const col = isEq ? 'cm.doc_status' : "cb.p->>'doc_status'";
+      conds.push(`${col} = ANY($${p})`);
+      params.push(ds);
+      p++;
+    }
+  } else {
+    // act doc_status filter
+    const ds = filters.doc_status;
+    if (Array.isArray(ds) && ds.length) {
+      conds.push(`af.act_doc_status = ANY($${p})`);
+      params.push(ds);
+      p++;
+    }
   }
 
   return {
@@ -187,38 +267,57 @@ function buildWhere(filters, isEq) {
 }
 
 // ── Pivot builder ───────────────────────────────────────────────────────────
-function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
-  const EM    = '\u2014'; // em-dash for null values
-  const rowKeys = new Map();
-  const colKeys = new Map();
+// rowCols / colCols — arrays of DB column names (support multi-dim hierarchy)
+// mode: 'contract' | 'equipment' | 'act'
+function buildPivot(rows, rowCols, colCols, mode, hideEmpty) {
+  const isEqPrimary  = mode === 'equipment';
+  const isActPrimary = mode === 'act';
+  const EM      = '\u2014'; // em-dash for null values
+  const SEP     = '\u2192'; // separator for composite keys
+  const rowKeys = new Map(); // key -> parts[]
+  const colKeys = new Map(); // key -> parts[]
   const cells   = {};
 
   for (const row of rows) {
-    const rKey = (row[rowCol] != null) ? String(row[rowCol]) : EM;
-    const cKey = (row[colCol] != null) ? String(row[colCol]) : EM;
+    const rParts = rowCols.map(c => (row[c] != null && row[c] !== '') ? String(row[c]) : EM);
+    const cParts = colCols.map(c => (row[c] != null && row[c] !== '') ? String(row[c]) : EM);
+    const rKey   = rParts.join(SEP);
+    const cKey   = cParts.join(SEP);
 
-    if (!rowKeys.has(rKey)) rowKeys.set(rKey, true);
-    if (!colKeys.has(cKey)) colKeys.set(cKey, true);
+    if (!rowKeys.has(rKey)) rowKeys.set(rKey, rParts);
+    if (!colKeys.has(cKey)) colKeys.set(cKey, cParts);
 
     if (!cells[rKey])       cells[rKey] = {};
     if (!cells[rKey][cKey]) cells[rKey][cKey] = {
       contractIds:  new Set(),
       equipmentIds: new Set(),
       names:        new Set(),
+      actItemCount: 0,
+      actItemSum:   0,
     };
 
     const c = cells[rKey][cKey];
-    if (row.contract_id)  c.contractIds.add(row.contract_id);
-    if (row.equipment_id) c.equipmentIds.add(row.equipment_id);
-    if (isEqPrimary && row.equipment_name)   c.names.add(row.equipment_name);
-    else if (!isEqPrimary && row.contractor_name) c.names.add(row.contractor_name);
+    if (isActPrimary) {
+      c.actItemCount++;
+      c.actItemSum += parseFloat(row.item_amount) || 0;
+      if (row.act_eq_name) c.names.add(row.act_eq_name);
+      if (row.equipment_id) c.equipmentIds.add(row.equipment_id);
+      if (row.act_id) c.contractIds.add(row.act_id); // reuse slot for drill-down
+    } else {
+      if (row.contract_id)  c.contractIds.add(row.contract_id);
+      if (row.equipment_id) c.equipmentIds.add(row.equipment_id);
+      if (isEqPrimary && row.equipment_name)   c.names.add(row.equipment_name);
+      else if (!isEqPrimary && row.contractor_name) c.names.add(row.contractor_name);
+    }
   }
 
-  // Unique contract amounts to avoid double-counting
+  // Unique contract amounts to avoid double-counting (contracts & equipment facts)
   const amounts = {};
-  for (const row of rows) {
-    if (row.contract_id && row.contract_amount > 0)
-      amounts[row.contract_id] = parseFloat(row.contract_amount) || 0;
+  if (!isActPrimary) {
+    for (const row of rows) {
+      if (row.contract_id && row.contract_amount > 0)
+        amounts[row.contract_id] = parseFloat(row.contract_amount) || 0;
+    }
   }
 
   const serial = {};
@@ -228,9 +327,15 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
       const contractIds  = [...c.contractIds];
       const equipmentIds = [...c.equipmentIds];
       let sum = 0;
-      for (const cid of contractIds) sum += amounts[cid] || 0;
+      if (isActPrimary) {
+        sum = c.actItemSum;
+      } else {
+        for (const cid of contractIds) sum += amounts[cid] || 0;
+      }
       serial[rKey][cKey] = {
-        count: isEqPrimary ? (equipmentIds.length || contractIds.length) : contractIds.length,
+        count: isActPrimary ? c.actItemCount
+             : isEqPrimary  ? (equipmentIds.length || contractIds.length)
+             : contractIds.length,
         sum:   Math.round(sum),
         names: [...c.names].slice(0, 8),
         contractIds,
@@ -239,15 +344,21 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
     }
   }
 
-  const sort = (a, b) => {
-    if (a === EM) return 1;
-    if (b === EM) return -1;
-    if (/^\d{4}/.test(a) && /^\d{4}/.test(b)) return a < b ? -1 : a > b ? 1 : 0;
-    return String(a).localeCompare(String(b), 'ru');
+  // Sort by composite parts lexicographically
+  const sortByParts = (partsA, partsB) => {
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const a = partsA[i] ?? '', b = partsB[i] ?? '';
+      if (a === EM && b !== EM) return 1;
+      if (b === EM && a !== EM) return -1;
+      if (/^\d{4}/.test(a) && /^\d{4}/.test(b)) { if (a < b) return -1; if (a > b) return 1; }
+      else { const cmp = String(a).localeCompare(String(b), 'ru'); if (cmp !== 0) return cmp; }
+    }
+    return 0;
   };
+  const sortKeys = (keysMap) => [...keysMap.entries()].sort((x, y) => sortByParts(x[1], y[1])).map(e => e[0]);
 
-  let rKeys = [...rowKeys.keys()].sort(sort);
-  let cKeys = [...colKeys.keys()].sort(sort);
+  let rKeys = sortKeys(rowKeys);
+  let cKeys = sortKeys(colKeys);
 
   // Hide empty rows / cols if requested
   if (hideEmpty) {
@@ -256,33 +367,42 @@ function buildPivot(rows, rowCol, colCol, isEqPrimary, hideEmpty) {
   }
 
   return {
-    rows:  rKeys.map(k => ({ key: k })),
-    cols:  cKeys.map(k => ({ key: k })),
+    rows:  rKeys.map(k => ({ key: k, parts: rowKeys.get(k) })),
+    cols:  cKeys.map(k => ({ key: k, parts: colKeys.get(k) })),
     cells: serial,
   };
 }
 
 // ── POST /api/cube/query ────────────────────────────────────────────────────
 router.post('/query', authenticate, asyncHandler(async (req, res) => {
-  const { rowDim, colDim, filters = {}, hideEmpty = false } = req.body;
+  // Accept both new multi-dim arrays (rowDims/colDims) and legacy singles (rowDim/colDim)
+  const body = req.body;
+  const rowDims = Array.isArray(body.rowDims) ? body.rowDims : (body.rowDim ? [body.rowDim] : []);
+  const colDims = Array.isArray(body.colDims) ? body.colDims : (body.colDim ? [body.colDim] : []);
+  const { filters = {}, hideEmpty = false } = body;
 
-  if (!rowDim || !colDim)
-    return res.status(400).json({ error: 'rowDim and colDim required' });
-  if (!DIM_META[rowDim] || !DIM_META[colDim])
-    return res.status(400).json({ error: 'Unknown dimension' });
+  if (!rowDims.length || !colDims.length)
+    return res.status(400).json({ error: 'rowDims and colDims required' });
 
-  const rMeta = DIM_META[rowDim];
-  const cMeta = DIM_META[colDim];
-  const isEq  = rMeta.group === 'equipment' || cMeta.group === 'equipment';
-  const base  = isEq ? EQUIPMENT_FACT_BASE : CONTRACT_FACT_BASE;
+  for (const d of [...rowDims, ...colDims]) {
+    if (!DIM_META[d]) return res.status(400).json({ error: 'Unknown dimension: ' + d });
+  }
 
-  const { clause, params } = buildWhere(filters, isEq);
+  const allMeta = [...rowDims, ...colDims].map(d => DIM_META[d]);
+  const isAct = allMeta.some(m => m.group === 'act');
+  const isEq  = !isAct && allMeta.some(m => m.group === 'equipment');
+  const mode  = isAct ? 'act' : isEq ? 'equipment' : 'contract';
+  const base  = isAct ? ACT_FACT_BASE : isEq ? EQUIPMENT_FACT_BASE : CONTRACT_FACT_BASE;
+
+  const { clause, params } = buildWhere(filters, mode);
   const sql = base + clause;
 
   const { rows } = await pool.query(sql, params);
-  const pivot = buildPivot(rows, rMeta.col, cMeta.col, isEq, hideEmpty);
+  const rowCols = rowDims.map(d => DIM_META[d].col);
+  const colCols = colDims.map(d => DIM_META[d].col);
+  const pivot   = buildPivot(rows, rowCols, colCols, mode, hideEmpty);
 
-  res.json({ ...pivot, rowDim, colDim, factRows: rows.length });
+  res.json({ ...pivot, rowDims, colDims, factRows: rows.length });
 }));
 
 // ── GET /api/cube/filter-values ─────────────────────────────────────────────
