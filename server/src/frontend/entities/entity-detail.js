@@ -391,29 +391,44 @@ async function showEntity(id, _forceDetail) {
     html += '🌳 Дерево вложенности</button></div>';
   }
 
-  // Work history section for equipment
+  // Work history section for equipment — acts containing this equipment in act_items
   if (e.type_name === 'equipment') {
-    const actRels = (e.relations || []).filter(function(r) { return r.relation_type === 'subject_of' && r.from_entity_id === e.id && r.to_type_name === 'act'; });
-    if (actRels.length > 0) {
-      html += '<div class="detail-section"><h3>История работ</h3>';
+    var workHistory = [];
+    try { workHistory = await api('/entities/' + e.id + '/work-history'); } catch(ex) {}
+    html += '<div class="detail-section"><h3>🔨 История работ</h3>';
+    if (workHistory && workHistory.length > 0) {
       html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-      html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Акт</th><th style="text-align:left;padding:6px">Дата</th><th style="text-align:right;padding:6px">Сумма</th><th style="text-align:left;padding:6px">Описание</th></tr></thead><tbody>';
-      for (var ai = 0; ai < actRels.length; ai++) {
-        var actData = await api('/entities/' + actRels[ai].to_entity_id);
-        var ap = actData.properties || {};
-        var items = [];
-        try { items = JSON.parse(ap.act_items || '[]'); } catch(ex) {}
-        var myItem = items.find(function(it) { return parseInt(it.equipment_id) === e.id; });
-        var contractRel = (actData.relations || []).find(function(r) { return r.relation_type === 'supplement_to' && r.from_entity_id === actData.id; });
-        html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="showEntity(' + actData.id + ')">';
-        html += '<td style="padding:6px">' + escapeHtml(actData.name) + (contractRel ? '<br><span style="font-size:11px;color:var(--text-muted)">→ ' + escapeHtml(contractRel.to_entity_name || '') + '</span>' : '') + '</td>';
-        html += '<td style="padding:6px;color:var(--text-muted)">' + (ap.act_date || '—') + '</td>';
-        html += '<td style="text-align:right;padding:6px;font-weight:500">' + (myItem && myItem.amount ? _fmtNum(myItem.amount) + ' ₽' : '—') + '</td>';
-        html += '<td style="padding:6px;color:var(--text-secondary);font-size:12px">' + escapeHtml(myItem ? (myItem.description || '') : '') + '</td>';
+      html += '<thead><tr style="border-bottom:2px solid var(--border)">' +
+        '<th style="text-align:left;padding:6px">Дата</th>' +
+        '<th style="text-align:left;padding:6px">Акт / Договор</th>' +
+        '<th style="text-align:right;padding:6px">Сумма</th>' +
+        '<th style="text-align:left;padding:6px;min-width:160px">Выполненные работы</th>' +
+        '</tr></thead><tbody>';
+      workHistory.forEach(function(w) {
+        var dateStr = w.act_date || '—';
+        if (dateStr && dateStr.length === 10) {
+          var pts = dateStr.split('-'); dateStr = pts[2] + '.' + pts[1] + '.' + pts[0];
+        }
+        var statusBadge = w.doc_status ? ' ' + _docStatusBadge(w.doc_status) : '';
+        var amt = parseFloat(w.item_amount) || 0;
+        var brokenBadge = w.item_broken ? ' <span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px">Нерабочий</span>' : '';
+        html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer;vertical-align:top" onclick="showEntity(' + w.id + ')">';
+        html += '<td style="padding:6px;white-space:nowrap;color:var(--text-muted)">' + dateStr + '</td>';
+        html += '<td style="padding:6px"><span style="font-weight:500">' + escapeHtml('Акт №' + (w.act_number || w.id)) + '</span>' + statusBadge + brokenBadge;
+        if (w.contract_name) html += '<br><span style="font-size:11px;color:var(--text-muted)">→ ' + escapeHtml(w.contract_name) + '</span>';
+        html += '</td>';
+        html += '<td style="text-align:right;padding:6px;font-weight:500;white-space:nowrap">' + (amt > 0 ? _fmtNum(amt) + '\u00a0₽' : '—') + '</td>';
+        html += '<td style="padding:6px;font-size:12px;color:var(--text-secondary);max-width:300px;word-break:break-word">' + escapeHtml(w.item_description || '—') + '</td>';
         html += '</tr>';
-      }
-      html += '</tbody></table></div>';
+      });
+      html += '</tbody></table>';
+      var totalAmt = workHistory.reduce(function(s, w) { return s + (parseFloat(w.item_amount) || 0); }, 0);
+      if (totalAmt > 0) html += '<div style="text-align:right;font-size:12px;color:var(--text-muted);margin-top:4px">Всего работ: ' + workHistory.length + ' · Сумма: ' + _fmtNum(totalAmt) + '\u00a0₽</div>';
+      else html += '<div style="text-align:right;font-size:12px;color:var(--text-muted);margin-top:4px">Всего работ: ' + workHistory.length + '</div>';
+    } else {
+      html += '<div style="color:var(--text-muted);font-size:13px">Работы не зафиксированы</div>';
     }
+    html += '</div>';
   }
 
   // Location block (for non-contract entities)
