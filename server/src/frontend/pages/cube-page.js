@@ -5,7 +5,9 @@ module.exports = `
 var CUBE_SEP = '|||';
 
 var CUBE_DIM_GROUPS = [
-  { id: 'contract', label: 'Договор', icon: '📄', dims: [
+  { id: 'contract', label: 'Договор', icon: '📄',
+    color: { accent: '#3b82f6', bg: 'rgba(59,130,246,0.13)' },
+    dims: [
     { id: 'contract_type',  label: 'Тип договора' },
     { id: 'our_company',    label: 'Наша организация' },
     { id: 'doc_status',     label: 'Статус документа' },
@@ -13,19 +15,27 @@ var CUBE_DIM_GROUPS = [
     { id: 'period_quarter', label: 'Период (квартал)' },
     { id: 'period_year',    label: 'Период (год)' },
   ]},
-  { id: 'contractor', label: 'Контрагент', icon: '🏛', dims: [
+  { id: 'contractor', label: 'Контрагент', icon: '🏛',
+    color: { accent: '#8b5cf6', bg: 'rgba(139,92,246,0.13)' },
+    dims: [
     { id: 'contractor_name', label: 'Название' },
   ]},
-  { id: 'building', label: 'Корпус', icon: '🏢', dims: [
+  { id: 'building', label: 'Корпус', icon: '🏢',
+    color: { accent: '#f97316', bg: 'rgba(249,115,22,0.13)' },
+    dims: [
     { id: 'building_name', label: 'Название' },
   ]},
-  { id: 'equipment', label: 'Оборудование', icon: '🔧', dims: [
+  { id: 'equipment', label: 'Оборудование', icon: '🔧',
+    color: { accent: '#10b981', bg: 'rgba(16,185,129,0.13)' },
+    dims: [
     { id: 'equipment_status',   label: 'Статус' },
     { id: 'equipment_category', label: 'Категория' },
     { id: 'equipment_kind',     label: 'Вид' },
     { id: 'equipment_name',     label: 'Название' },
   ]},
-  { id: 'act', label: 'Работы (акты)', icon: '🔨', dims: [
+  { id: 'act', label: 'Работы (акты)', icon: '🔨',
+    color: { accent: '#ef4444', bg: 'rgba(239,68,68,0.13)' },
+    dims: [
     { id: 'act_period_month',  label: 'Период (месяц)' },
     { id: 'act_period_year',   label: 'Период (год)' },
     { id: 'act_building',      label: 'Корпус' },
@@ -74,6 +84,9 @@ function _cubeLayout() {
     '.cube-dz-pills{display:flex;flex-wrap:wrap;gap:4px;align-items:center}' +
     '.cube-dz-empty{font-size:12px;color:var(--text-muted);font-style:italic}' +
     '.cube-grp-row td{background:var(--bg-sidebar)!important;color:var(--sidebar-text,#fff)!important;font-weight:700;font-size:12px;letter-spacing:.03em}' +
+    '.cube-th{position:relative!important}' +
+    '.cube-resize-h{position:absolute;right:-3px;top:0;bottom:0;width:6px;cursor:col-resize;z-index:10;user-select:none}' +
+    '.cube-resize-h:hover,.cube-resize-h.active{background:rgba(255,255,255,.35)}' +
     '</style>' +
     '<div id="cubeWrap" style="display:flex;flex-direction:column;height:100%;overflow:hidden">' +
     '<div id="cubeDimPool"    style="padding:12px 16px 10px;background:var(--bg-card);border-bottom:1px solid var(--border);flex-shrink:0"></div>' +
@@ -92,14 +105,19 @@ function _cubeRenderPool() {
   if (!el) return;
   var h = '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">';
   CUBE_DIM_GROUPS.forEach(function(g) {
-    h += '<div><div style="font-size:10px;font-weight:700;color:var(--text-secondary);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px">' + escapeHtml(g.icon + ' ' + g.label) + '</div><div style="display:flex;flex-wrap:wrap;gap:4px">';
+    var gc = g.color || { accent: 'var(--accent)', bg: 'var(--bg-secondary)' };
+    h += '<div><div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px;color:' + gc.accent + '">' + escapeHtml(g.icon + ' ' + g.label) + '</div><div style="display:flex;flex-wrap:wrap;gap:4px">';
     g.dims.forEach(function(d) {
       var rIdx = _cubeRowDims.indexOf(d.id);
       var cIdx = _cubeColDims.indexOf(d.id);
       var used = rIdx >= 0 || cIdx >= 0;
       var badge = rIdx >= 0 ? '\u2195' + (rIdx + 1) : (cIdx >= 0 ? '\u2194' + (cIdx + 1) : '');
+      var pillStyle = used
+        ? 'background:' + gc.accent + ';color:#fff;border-color:' + gc.accent
+        : 'background:' + gc.bg + ';color:' + gc.accent + ';border-color:' + gc.accent + '55';
       h += '<button type="button" draggable="true" data-cube-dim="' + d.id + '" ' +
            'class="cube-pill-pool' + (used ? ' used' : '') + '" ' +
+           'style="' + pillStyle + '" ' +
            'onclick="_cubeDimClick(this.dataset.cubeDim)" ' +
            'ondragstart="_cubeDragStart(event,this.dataset.cubeDim)">' +
            escapeHtml(d.label) + (badge ? ' <span style="font-size:10px;opacity:.8">' + badge + '</span>' : '') + '</button>';
@@ -108,6 +126,17 @@ function _cubeRenderPool() {
   });
   h += '<div style="margin-left:auto;align-self:center;font-size:11px;color:var(--text-muted)">\u2190 Перетащи в зону или кликни</div></div>';
   el.innerHTML = h;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function _cubeGroupOf(dimId) {
+  for (var gi = 0; gi < CUBE_DIM_GROUPS.length; gi++) {
+    var g = CUBE_DIM_GROUPS[gi];
+    for (var di = 0; di < g.dims.length; di++) {
+      if (g.dims[di].id === dimId) return g;
+    }
+  }
+  return null;
 }
 
 // ── Drop zones ─────────────────────────────────────────────────────────────
@@ -123,14 +152,17 @@ function _cubeRenderDzBar() {
 
     var pillsHtml = '';
     dims.forEach(function(dimId, i) {
+      var grp = _cubeGroupOf(dimId);
+      var gc  = grp ? grp.color : { accent: 'var(--accent)', bg: 'rgba(99,143,255,0.15)' };
       pillsHtml += '<span class="cube-pill-dz" draggable="true" ' +
         'data-dz-dim="' + dimId + '" data-dz-axis="' + axis + '" data-dz-idx="' + i + '" ' +
-        'ondragstart="_cubeDzDragStart(event,this.dataset.dzAxis,+this.dataset.dzIdx)">' +
+        'ondragstart="_cubeDzDragStart(event,this.dataset.dzAxis,+this.dataset.dzIdx)" ' +
+        'style="background:' + gc.bg + ';color:' + gc.accent + ';border:1.5px solid ' + gc.accent + '">' +
         '<span style="opacity:.7;font-size:9px">' + (i + 1) + '</span> ' +
         escapeHtml(_cubeDimShortLabel(dimId)) +
         '<button type="button" data-rm-axis="' + axis + '" data-rm-dim="' + dimId + '" ' +
         'onclick="event.stopPropagation();_cubeRemoveDim(this.dataset.rmAxis,this.dataset.rmDim)" ' +
-        'style="background:none;border:none;color:#fff;opacity:.7;cursor:pointer;font-size:14px;padding:0 0 0 3px;line-height:1">\xd7</button></span>';
+        'style="background:none;border:none;color:' + gc.accent + ';opacity:.8;cursor:pointer;font-size:14px;padding:0 0 0 3px;line-height:1">\xd7</button></span>';
     });
 
     var inner = dims.length
@@ -328,7 +360,11 @@ function _cubeRenderTable(data) {
   });
 
   var h = '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Строки: <b>' + escapeHtml(rLabel) + '</b> &nbsp;&middot;&nbsp; Колонки: <b>' + escapeHtml(cLabel) + '</b> &nbsp;&middot;&nbsp;' + rows.length + ' стр., ' + cols.length + ' кол.' + fHint + '</div>';
-  h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;background:var(--bg-card)">';
+  var _cW = 120;
+  h += '<div style="overflow-x:auto"><table id="cubeTable" style="border-collapse:collapse;font-size:12px;background:var(--bg-card);table-layout:fixed">';
+  h += '<colgroup><col id="cube-col-0" style="width:200px;min-width:80px">';
+  for (var _gi=0;_gi<cols.length;_gi++) h += '<col id="cube-col-'+(_gi+1)+'" style="width:'+_cW+'px;min-width:50px">';
+  h += '<col style="width:80px;min-width:50px"></colgroup>';
 
   // ── Header (1 or 2 levels for cols)
   var multiCol = colDims.length > 1;
@@ -343,23 +379,23 @@ function _cubeRenderTable(data) {
     // Header row 1 — group cells
     h += '<thead><tr style="background:var(--bg-sidebar)">';
     var rHdrDepth = rowDims.length > 1 ? rowDims.length : 1;
-    h += '<th colspan="' + rHdrDepth + '" rowspan="2" style="padding:8px 12px;text-align:left;position:sticky;left:0;background:var(--bg-sidebar);z-index:3;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff)">'+escapeHtml(_cubeShort(rLabel,20))+' / '+escapeHtml(_cubeShort(cLabel,16))+'</th>';
+    h += '<th colspan="' + rHdrDepth + '" rowspan="2" class="cube-th" style="padding:8px 12px;text-align:left;position:sticky;left:0;background:var(--bg-sidebar);z-index:3;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff)">'+escapeHtml(_cubeShort(rLabel,20))+' / '+escapeHtml(_cubeShort(cLabel,16))+'<div class="cube-resize-h" data-col="0"></div></th>';
     colGrps.forEach(function(g) {
       h += '<th colspan="' + g.count + '" style="padding:6px 10px;text-align:center;font-weight:700;border-right:1px solid rgba(255,255,255,.15);border-left:1px solid rgba(255,255,255,.15);color:var(--sidebar-text,#fff)">'+escapeHtml(_cubeShort(g.key,20))+'</th>';
     });
     h += '<th rowspan="2" style="padding:8px 10px;text-align:right;font-weight:700;background:rgba(0,0,0,.2);color:var(--sidebar-text,#fff)">Итого</th></tr>';
     // Header row 2 — sub-items
     h += '<tr style="background:var(--bg-sidebar)">';
-    cols.forEach(function(c) {
-      h += '<th style="padding:6px 8px;text-align:right;font-weight:500;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff);white-space:nowrap" title="'+escapeHtml(c.key)+'">'+escapeHtml(_cubeShort(c.parts[1]||c.parts[0],14))+'</th>';
+    cols.forEach(function(c, _ci) {
+      h += '<th class="cube-th" style="padding:6px 8px;text-align:right;font-weight:500;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff);word-break:break-word" title="'+escapeHtml(c.key)+'">'+escapeHtml(_cubeShort(c.parts[1]||c.parts[0],14))+'<div class="cube-resize-h" data-col="'+(_ci+1)+'"></div></th>';
     });
     h += '</tr></thead>';
   } else {
     h += '<thead><tr style="background:var(--bg-sidebar)">';
     var rHdrDepth2 = rowDims.length > 1 ? rowDims.length : 1;
-    h += '<th colspan="' + rHdrDepth2 + '" style="padding:8px 12px;text-align:left;position:sticky;left:0;background:var(--bg-sidebar);z-index:2;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff)">'+escapeHtml(_cubeShort(rLabel,18))+' / '+escapeHtml(_cubeShort(cLabel,14))+'</th>';
-    cols.forEach(function(c) {
-      h += '<th style="padding:8px 10px;text-align:right;font-weight:500;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff);max-width:110px" title="'+escapeHtml(c.key)+'">'+escapeHtml(_cubeShort(c.parts[0],16))+'</th>';
+    h += '<th colspan="' + rHdrDepth2 + '" class="cube-th" style="padding:8px 12px;text-align:left;position:sticky;left:0;background:var(--bg-sidebar);z-index:2;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff)">'+escapeHtml(_cubeShort(rLabel,18))+' / '+escapeHtml(_cubeShort(cLabel,14))+'<div class="cube-resize-h" data-col="0"></div></th>';
+    cols.forEach(function(c, _ci) {
+      h += '<th class="cube-th" style="padding:8px 10px;text-align:right;font-weight:500;border-right:1px solid rgba(255,255,255,.1);color:var(--sidebar-text,#fff);word-break:break-word" title="'+escapeHtml(c.key)+'">'+escapeHtml(_cubeShort(c.parts[0],16))+'<div class="cube-resize-h" data-col="'+(_ci+1)+'"></div></th>';
     });
     h += '<th style="padding:8px 10px;text-align:right;font-weight:700;background:rgba(0,0,0,.2);color:var(--sidebar-text,#fff)">Итого</th></tr></thead>';
   }
@@ -372,16 +408,20 @@ function _cubeRenderTable(data) {
   function dataRow(r, label, indent, bg) {
     var t = rowTotals[r.key] || 0;
     var cells_h = '';
+    var _isL = _cubeMeasure === 'list';
     cols.forEach(function(c) {
       var cell = (cells[r.key] || {})[c.key];
       var val  = cell ? _cubeVal(cell) : 0;
       var has  = val > 0;
-      cells_h += '<td style="padding:6px 10px;text-align:right;border-right:1px solid var(--border);background:' + bg + ';' + (has ? 'cursor:pointer' : 'color:var(--text-muted)') + '"' +
+      var cSt = 'padding:6px 10px;border-right:1px solid var(--border);background:' + bg + ';' +
+        (_isL ? 'text-align:left;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.4;' : 'text-align:right;') +
+        (has ? 'cursor:pointer' : 'color:var(--text-muted)');
+      cells_h += '<td style="' + cSt + '"' +
         (has ? ' data-rk="'+escapeHtml(r.key)+'" data-ck="'+escapeHtml(c.key)+'" onclick="_cubeCellClick(this.dataset.rk,this.dataset.ck)"' : '') + '>' +
         (has ? '<span style="color:var(--accent)">' + escapeHtml(_cubeCellDisp(cell)) + '</span>' : '\u2014') + '</td>';
     });
-    var style = 'padding:7px 12px;font-weight:' + (indent ? '400' : '500') + ';position:sticky;left:0;background:' + bg + ';z-index:1;border-right:1px solid var(--border);max-width:200px;' + (indent ? 'padding-left:24px;' : '');
-    return '<tr style="border-top:1px solid var(--border)"><td style="' + style + '" title="' + escapeHtml(label) + '">' + escapeHtml(_cubeShort(label,28)) + '</td>' + cells_h + '<td style="padding:7px 10px;text-align:right;font-weight:600;background:var(--bg-secondary)">' + _cubeFmtV(t) + '</td></tr>';
+    var style = 'padding:7px 12px;font-weight:' + (indent ? '400' : '500') + ';position:sticky;left:0;background:' + bg + ';z-index:1;border-right:1px solid var(--border);word-break:break-word;overflow-wrap:anywhere;' + (indent ? 'padding-left:24px;' : '');
+    return '<tr style="border-top:1px solid var(--border)"><td style="' + style + '" title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</td>' + cells_h + '<td style="padding:7px 10px;text-align:right;font-weight:600;background:var(--bg-secondary);white-space:nowrap">' + _cubeFmtV(t) + '</td></tr>';
   }
 
   if (multiRow) {
@@ -419,6 +459,28 @@ function _cubeRenderTable(data) {
   h += '<td style="padding:8px 10px;text-align:right;font-size:14px;color:var(--accent)">' + _cubeFmtV(grand) + '</td></tr>';
   h += '</tbody></table></div>';
   wrap.innerHTML = h;
+  _cubeInitResize();
+}
+
+// ── Resizable columns ──────────────────────────────────────────────────────
+function _cubeInitResize() {
+  var tbl = document.getElementById('cubeTable');
+  if (!tbl) return;
+  tbl.querySelectorAll('.cube-resize-h').forEach(function(h) {
+    var ci = h.dataset.col;
+    var col = document.getElementById('cube-col-' + ci);
+    if (!col) return;
+    h.addEventListener('mousedown', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      var startX = e.pageX;
+      var startW = h.parentElement ? h.parentElement.getBoundingClientRect().width : 120;
+      h.classList.add('active');
+      function mv(ev) { col.style.width = Math.max(50, startW + ev.pageX - startX) + 'px'; }
+      function up() { h.classList.remove('active'); document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); }
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    });
+  });
 }
 
 // ── Drill-down ──────────────────────────────────────────────────────────────
@@ -515,7 +577,7 @@ function _cubeDimShortLabel(id) {
 }
 function _cubeVal(cell)      { return _cubeMeasure === 'sum' ? (cell.sum || 0) : (cell.count || 0); }
 function _cubeCellDisp(cell) {
-  if (_cubeMeasure === 'list') { var names = cell.names || [], extra = (cell.count||0) - names.length; var t = names.slice(0,3).join(', '); if (extra > 0) t += ' +' + extra; return t || String(cell.count||0); }
+  if (_cubeMeasure === 'list') { var names = cell.names || [], extra = (cell.count||0) - names.length; var t = names.slice(0,5).join('\\n'); if (extra > 0) t += '\\n+' + extra + ' ещё'; return t || String(cell.count||0); }
   return _cubeMeasure === 'sum' ? _fmtNum(cell.sum||0) + '\u00a0\u20bd' : String(cell.count||0);
 }
 function _cubeFmtV(v) { if (!v) return '<span style="color:var(--text-muted)">\u2014</span>'; return _cubeMeasure === 'sum' ? _fmtNum(v)+'\u00a0\u20bd' : String(v); }
