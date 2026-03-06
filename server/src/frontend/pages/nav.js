@@ -4,6 +4,10 @@ module.exports = `
 
 function setActiveNav(name) {
   document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+  if (name) {
+    var el = document.querySelector('.nav-item[data-type="' + name + '"]');
+    if (el) el.classList.add('active');
+  }
 }
 
 function logout() {
@@ -107,8 +111,10 @@ function _routeFromHash(hash) {
   if (hash === '#budget')   { showBudgetPage();   return; }
   if (hash === '#finance')  { showFinancePage();  return; }
   if (hash === '#settings') { showSettings();     return; }
-  if (hash === '#zachety')  { showLegalZachety(); return; }
-  if (hash === '#meters')   { showMetersPage();   return; }
+  if (hash === '#zachety')      { showLegalZachety(); return; }
+  if (hash === '#letters')      { showLetters();       return; }
+  if (hash === '#fire-safety')  { showFireSafety();    return; }
+  if (hash === '#meters')       { showMetersPage();    return; }
   if (hash === '#reports')  { showReports();      return; }
   if (hash === '#cube')     { showCubePage();     return; }
   showMapPage();

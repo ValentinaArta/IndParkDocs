@@ -94,6 +94,7 @@ app.use('/api/companies', require('./routes/companies'));
 app.use('/api/entities/:id/files', require('./routes/files'));
 app.use('/api/cube',      require('./routes/cube'));
 app.use('/api/buildings', require('./routes/floorplan'));
+app.use('/api', require('./routes/letters'));
 
 // SPA fallback
 app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });

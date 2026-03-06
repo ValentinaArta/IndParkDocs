@@ -50,6 +50,8 @@ const mapPage           = require('./pages/map-page');
 const metersPage        = require('./pages/meters-page');
 const cubePage          = require('./pages/cube-page');
 const buildingFloorPlan = require('./pages/building-floor-plan');
+const lettersPage       = require('./pages/letters-page');
+const fireSafetyPage    = require('./pages/fire-safety-page');
 const rentObjects = require('./rent-objects');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
@@ -136,6 +138,10 @@ const FRONTEND_HTML =
   cubePage +
   '\n' +
   buildingFloorPlan +
+  '\n' +
+  lettersPage +
+  '\n' +
+  fireSafetyPage +
   '\n' +
   contractForm +
   '\n' +

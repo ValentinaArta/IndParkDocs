@@ -24,6 +24,9 @@ module.exports = `</head>
         <i data-lucide="map" class="lucide"></i> Карта
       </div>
       <div id="typeNav"></div>
+      <div class="nav-item" data-type="letters" onclick="showLetters()">
+        <i data-lucide="mail" class="lucide"></i> Письма
+      </div>
       <div class="nav-section" style="margin-top:12px">Аналитика</div>
       <div class="nav-item" onclick="showReports()">
         <i data-lucide="bar-chart-2" class="lucide"></i> Отчёты
@@ -46,6 +49,9 @@ module.exports = `</head>
       <div class="nav-section" style="margin-top:12px">Суды и пр.</div>
       <div class="nav-item" onclick="showLegalZachety()">
         <i data-lucide="scale" class="lucide"></i> Зачёты с ПАО
+      </div>
+      <div class="nav-item" data-type="fire-safety" onclick="showFireSafety()">
+        <i data-lucide="flame" class="lucide"></i> Пожарка
       </div>
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
