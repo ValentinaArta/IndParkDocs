@@ -180,11 +180,11 @@ function renderServiceSubjectOnly(container, allFields, props) {
   function _parseArr(v) { if (!v) return []; if (Array.isArray(v)) return v; try { return JSON.parse(v) || []; } catch(e) { return []; } }
   function _hasReal(arr) { return Array.isArray(arr) && arr.some(function(i) { return i && (i.name || i.id || i.equipment_id); }); }
 
-  var bldVal  = props.building || '';
+  var sbIds   = _parseArr(props.subject_buildings);
   var srIds   = _parseArr(props.subject_rooms);
   var slIds   = _parseArr(props.subject_land_plots);
   var eqList  = _parseArr(props.equipment_list);
-  var hasBld  = !!bldVal;
+  var hasBld  = sbIds.length > 0;
   var hasRoom = _hasReal(srIds);
   var hasLp   = _hasReal(slIds);
   var hasEq   = _hasReal(eqList);
@@ -204,10 +204,10 @@ function renderServiceSubjectOnly(container, allFields, props) {
   html += _saleSectionBtn('eq',   'Оборудование', hasEq);
   html += '</div>';
 
-  // Корпус (один — searchable select)
+  // Корпуса (множественный выбор)
   html += '<div id="sale_sec_bld" style="margin-bottom:12px;' + (hasBld ? '' : 'display:none') + '">';
-  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Корпус</div>';
-  html += renderRegistrySelectField('f_building', _buildings, bldVal, 'Введите название корпуса');
+  html += '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Корпуса</div>';
+  html += renderSubjectBuildingsField(sbIds);
   html += '</div>';
 
   // Помещения
