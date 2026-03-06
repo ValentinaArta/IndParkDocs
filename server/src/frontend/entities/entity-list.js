@@ -81,6 +81,16 @@ function _getEntityTableCols(typeName) {
         getValue: function(e) { return (e.properties || {}).contract_type || ''; },
         render: function(e) { return escapeHtml((e.properties || {}).contract_type || '—'); }
       },
+      { id: 'subject', label: 'Предмет договора', sortable: true,
+        getValue: function(e) { var p = e.properties || {}; return p.service_subject || p.subject || ''; },
+        render: function(e) {
+          var p = e.properties || {};
+          var txt = p.service_subject || p.subject || '';
+          if (!txt) return '<span style="color:var(--text-secondary)">—</span>';
+          var short = txt.length > 55 ? txt.slice(0, 55) + '\\u2026' : txt;
+          return '<span title="' + escapeHtml(txt) + '" style="font-size:12px;color:var(--text-secondary)">' + escapeHtml(short) + '</span>';
+        }
+      },
       { id: 'our_legal_entity', label: 'Наше юр. лицо', sortable: true,
         getValue: function(e) { return e.effective_our_legal_entity || (e.properties || {}).our_legal_entity || ''; },
         render: function(e) { return escapeHtml(e.effective_our_legal_entity || (e.properties || {}).our_legal_entity || '—'); }
