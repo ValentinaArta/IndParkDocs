@@ -325,4 +325,43 @@ function renderDynamicFields(contractType, props) {
   if (!hasFinancial && _contractFormTypeName !== 'supplement') html += renderDurationSection(props || {});
   container.innerHTML = html;
 }
+
+// ─── "5 кнопок" — универсальный блок объектов ────────────────────────────────
+var SUBJECT_FIELDS = [
+  { name: 'subject_buildings',       name_ru: 'Корпуса',             field_type: 'subject_buildings' },
+  { name: 'subject_rooms',           name_ru: 'Помещения',           field_type: 'subject_rooms' },
+  { name: 'subject_land_plots',      name_ru: 'Земельные участки',   field_type: 'subject_land_plots' },
+  { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ',            field_type: 'subject_land_plot_parts' },
+  { name: 'equipment_list',          name_ru: 'Оборудование',        field_type: 'equipment_list' },
+];
+
+/**
+ * Рендерит блок "5 кнопок" для вставки в любую форму.
+ * @param {Object} props — текущие свойства сущности (для предзаполнения)
+ * @returns {string} HTML
+ */
+function renderSubjectFieldsBlock(props) {
+  props = props || {};
+  var h = '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">';
+  h += '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Связанные объекты</div>';
+  SUBJECT_FIELDS.forEach(function(f) {
+    var val = props[f.name] || '';
+    h += '<div class="form-group"><label>' + escapeHtml(f.name_ru) + '</label>' + renderFieldInput(f, val) + '</div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+/**
+ * Собирает значения блока "5 кнопок" из DOM в объект.
+ * @returns {Object} — только непустые поля
+ */
+function collectSubjectFieldValues() {
+  var result = {};
+  SUBJECT_FIELDS.forEach(function(f) {
+    var val = getFieldValue(f);
+    if (val !== null && val !== undefined) result[f.name] = val;
+  });
+  return result;
+}
 `;
