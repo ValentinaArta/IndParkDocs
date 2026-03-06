@@ -125,10 +125,10 @@ function _renderLetterForm(editData) {
   h += '<div class="form-group"><label>Связанные объекты</label>';
   h += '<div id="letterLinkedEntities" style="margin-bottom:8px"></div>';
   h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(\\x27building\\x27)">+ Корпус</button>';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(\\x27room\\x27)">+ Помещение</button>';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(\\x27land_plot\\x27)">+ ЗУ</button>';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(\\x27equipment\\x27)">+ Оборудование</button>';
+  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;building&quot;)">+ Корпус</button>';
+  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;room&quot;)">+ Помещение</button>';
+  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;land_plot&quot;)">+ ЗУ</button>';
+  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;equipment&quot;)">+ Оборудование</button>';
   h += '</div></div>';
 
   // File attachment note
@@ -177,14 +177,19 @@ function _linkLetterEntity(typeName) {
   var typeObj = entityTypes.find(function(t) { return t.name === typeName; });
   if (!typeObj) return;
   var items = allEntities.filter(function(e) { return e.type_name === typeName; });
-  var list = items.map(function(e) { return escapeHtml(e.name); }).join('\\n');
-  var chosen = prompt(typeObj.name_ru + ':\\n' + list + '\\n\\nВведите название:');
-  if (!chosen) return;
-  var found = items.find(function(e) { return e.name.toLowerCase().indexOf(chosen.toLowerCase()) >= 0; });
+  if (!items.length) { alert('Нет объектов типа "' + typeObj.name_ru + '"'); return; }
+  // Build a simple select dialog
+  var opts = items.map(function(e) { return e.name; });
+  var chosen = prompt(typeObj.name_ru + ' — введите часть названия:\\n\\n' + opts.slice(0, 20).join('\\n') + (opts.length > 20 ? '\\n... и ещё ' + (opts.length - 20) : ''));
+  if (!chosen || !chosen.trim()) return;
+  var q = chosen.trim().toLowerCase();
+  var found = items.find(function(e) { return e.name.toLowerCase().indexOf(q) >= 0; });
   if (found) {
+    if (_letterLinkedItems.some(function(x) { return x.id === found.id; })) { return; }
     _letterLinkedItems.push({ id: found.id, type: typeName, name: found.name });
   } else {
-    _letterLinkedItems.push({ type: typeName, name: chosen });
+    alert('Не найдено: ' + chosen);
+    return;
   }
   _renderLetterLinked();
 }
