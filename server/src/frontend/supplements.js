@@ -155,6 +155,29 @@ async function openCreateSupplementModal(parentContractId) {
 
 async function submitCreateSupplement(parentContractId) {
   if (_submitting) return;
+
+  // Валидация: номер ДС больше максимального → дата не должна быть раньше последнего ДС
+  var newNumEl = document.getElementById('f_number');
+  var newDateEl = document.getElementById('f_contract_date');
+  var newNum  = newNumEl  ? parseInt(newNumEl.value)  || 0 : 0;
+  var newDate = newDateEl ? newDateEl.value || ''          : '';
+  if (newNum && newDate && _currentSuppExisting.length > 0) {
+    var maxExistNum = _currentSuppExisting.reduce(function(mx, s) {
+      return Math.max(mx, parseInt(((s.properties||{}).number)||'0')||0);
+    }, 0);
+    var latestByNum = _currentSuppExisting.reduce(function(found, s) {
+      var n = parseInt(((s.properties||{}).number)||'0')||0;
+      return n > (found ? parseInt(((found.properties||{}).number)||'0')||0 : -1) ? s : found;
+    }, null);
+    var latestDate = latestByNum ? ((latestByNum.properties||{}).contract_date||'') : '';
+    if (newNum > maxExistNum && latestDate && newDate < latestDate) {
+      alert('Ошибка даты или номера ДС.\\nДС №' + newNum + ' датировано ' + newDate +
+        ', но предыдущее ДС №' + maxExistNum + ' от ' + latestDate +
+        '.\\nПроверьте дату или номер ДС.');
+      return;
+    }
+  }
+
   _submitting = true;
   try {
     await _doSubmitCreateSupplement(parentContractId);
