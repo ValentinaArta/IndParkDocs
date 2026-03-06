@@ -5,8 +5,15 @@ module.exports = `
 var _actItemCounter = 0;
 var _actEquipmentList = null;  // filtered to contract's equipment when creating act
 
+function _isEquipmentActive(eq) {
+  var status = (eq.properties || {}).status || '';
+  if (status === 'Списано' || status === 'Законсервировано') return false;
+  if ((eq.name || '').toUpperCase().indexOf('АРХИВ') !== -1) return false;
+  return true;
+}
+
 function _renderActItem(item, rowId, bgIdx) {
-  var eqList = _actEquipmentList || _equipment;
+  var eqList = (_actEquipmentList || _equipment).filter(_isEquipmentActive);
   var rowBg = item.broken ? 'rgba(239,68,68,.08)' : 'var(--bg-primary)';
   var rowBorder = item.broken ? '#dc2626' : 'var(--border)';
   var h = '<div class="act-item-row" data-row="' + rowId + '" style="margin-bottom:8px;padding:10px;border:1px solid ' + rowBorder + ';border-radius:8px;background:' + rowBg + ';box-shadow:0 1px 3px rgba(0,0,0,.06)">';
