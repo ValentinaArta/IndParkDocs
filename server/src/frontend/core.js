@@ -131,7 +131,7 @@ const CONTRACT_TYPE_FIELDS = {
   ],
   'Обслуживания': [
     { name: 'service_subject', name_ru: 'Описание работ / предмет', field_type: 'text' },
-    { name: 'building', name_ru: 'Корпус', field_type: 'select_or_custom', options: [] },
+    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
     { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
     { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
     { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
