@@ -249,13 +249,14 @@ function renderTypeNav() {
 
   var html = '<div class="nav-section" style="padding-top:12px">Документы</div>';
 
-  // Документы: договоры (с аккордеоном по типам), ДС, акты, приказы
+  // Документы: договоры (с аккордеоном по типам), ДС, акты, приказы, письма
   html += _navGroupHtml('contract', 'file-text', 'Договоры');
   ['supplement', 'act', 'order'].forEach(function(tn) {
     var t = T(tn);
     html += '<div class="nav-item" data-type="' + tn + '" data-etype="' + tn + '" onclick="showEntityList(this.dataset.etype)">' +
       entityIcon(tn) + ' ' + escapeHtml(t.name_ru || tn) + '</div>';
   });
+  html += '<div class="nav-item" data-type="letters" onclick="showLetters()"><i data-lucide="mail" class="lucide" style="width:16px;height:16px"></i> Письма</div>';
 
   // Реестры: корпуса (дерево), компании, ЗУ (дерево), оборудование
   html += '<div class="nav-section" style="margin-top:8px">Реестры</div>';
