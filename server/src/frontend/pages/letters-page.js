@@ -321,15 +321,12 @@ async function _addLetterTopic() {
 }
 
 async function _submitLetter(editId) {
-  var fromEl = document.getElementById('f_letter_from');
-  var toEl = document.getElementById('f_letter_to');
+  var fromId = (document.getElementById('f_letter_from') || {}).value || '';
+  var fromName = (document.getElementById('f_letter_from_text') || {}).value || '';
+  var toId = (document.getElementById('f_letter_to') || {}).value || '';
+  var toName = (document.getElementById('f_letter_to_text') || {}).value || '';
   var topicSel = document.getElementById('f_topic');
   var topicOpt = topicSel.options[topicSel.selectedIndex];
-
-  var fromId = fromEl ? fromEl.value : '';
-  var fromName = fromEl ? (fromEl.dataset.label || '') : '';
-  var toId = toEl ? toEl.value : '';
-  var toName = toEl ? (toEl.dataset.label || '') : '';
 
   var properties = {
     from_company_id: fromId,
