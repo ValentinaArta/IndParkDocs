@@ -37,6 +37,7 @@ const migrations = {
   '034':         require('./migrations/034_letter_entity_type'),
   'mergeORRVesta': require('./migrations/merge_orr_vesta'),
   '035':         require('./migrations/035_recompute_vgo'),
+  '036':         require('./migrations/036_recompute_vgo2'),
 };
 
 async function initMigrationTracker(pool) {

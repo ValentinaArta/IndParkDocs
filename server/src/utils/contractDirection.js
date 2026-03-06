@@ -23,8 +23,12 @@ function getContractDirection(ourRoleLabel) {
 
 /**
  * Проверяет, является ли договор внутригрупповым (ВГО).
- * Договор ВГО, если ВСЕ стороны (contractor_id, subtenant_id и т.д.)
- * являются нашими компаниями. Пустые/отсутствующие поля игнорируются.
+ *
+ * Логика:
+ *   - Обычный договор (2 стороны): our_legal_entity_id + contractor_id — обе наши
+ *   - Субаренда (3 стороны): our_legal_entity_id + contractor_id + subtenant_id — все три наши
+ *
+ * Если our_legal_entity_id или contractor_id не заданы — договор НЕ ВГО.
  *
  * @param {Object} props - свойства договора (properties из БД)
  * @param {Set<number>} ownCompanyIds - множество id наших компаний
@@ -32,12 +36,15 @@ function getContractDirection(ourRoleLabel) {
  */
 function isAllPartiesInternal(props, ownCompanyIds) {
   if (!props || !ownCompanyIds) return false;
-  // Собираем все ID сторон договора (кроме нашего юрлица — оно всегда наше)
-  const partyIds = ['contractor_id', 'subtenant_id']
-    .map(f => parseInt(props[f]))
-    .filter(n => n && !isNaN(n));
-  if (!partyIds.length) return false;
-  return partyIds.every(id => ownCompanyIds.has(id));
+  // Обязательные стороны: наш юрлицо + контрагент
+  const ourId = parseInt(props['our_legal_entity_id']);
+  const contractorId = parseInt(props['contractor_id']);
+  if (!ourId || isNaN(ourId) || !contractorId || isNaN(contractorId)) return false;
+  if (!ownCompanyIds.has(ourId) || !ownCompanyIds.has(contractorId)) return false;
+  // Субаренда: третья сторона тоже обязана быть нашей
+  const subtenantId = parseInt(props['subtenant_id']);
+  if (subtenantId && !isNaN(subtenantId) && !ownCompanyIds.has(subtenantId)) return false;
+  return true;
 }
 
 /**
