@@ -902,15 +902,25 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const suppSlRaw = latestSuppValue(supplements, 'subject_land_plots');
   if (suppSlRaw) { const a = _parseSubjArr(suppSlRaw); if (a) effSubjectLandPlots = a; }
 
+  // Resolve company names from DB by IDs (never trust JSON copies)
+  const _companyIds = [parseInt(cProps.contractor_id), parseInt(cProps.subtenant_id), parseInt(cProps.our_legal_entity_id)].filter(Boolean);
+  const _companyMap = {};
+  if (_companyIds.length) {
+    const _cRes = await db.query('SELECT id, name FROM entities WHERE id = ANY($1)', [_companyIds]);
+    _cRes.rows.forEach(r => { _companyMap[r.id] = r.name; });
+  }
+
   res.json({
     id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
     doc_status: cProps.doc_status || '',
     number: cProps.number || '', date: cProps.contract_date || '',
-    our_legal_entity: cProps.our_legal_entity || '',
+    our_legal_entity: _companyMap[parseInt(cProps.our_legal_entity_id)] || cProps.our_legal_entity || '',
     our_role_label: cProps.our_role_label || '',
-    contractor_name: cProps.contractor_name || '',
+    contractor_name: _companyMap[parseInt(cProps.contractor_id)] || cProps.contractor_name || '',
+    contractor_id: parseInt(cProps.contractor_id) || null,
     contractor_role_label: cProps.contractor_role_label || '',
-    subtenant_name: cProps.subtenant_name || '',
+    subtenant_name: _companyMap[parseInt(cProps.subtenant_id)] || cProps.subtenant_name || '',
+    subtenant_id: parseInt(cProps.subtenant_id) || null,
     contract_end_date: effDurDate,
     duration_type: effDurType,
     duration_text: effDurText,
