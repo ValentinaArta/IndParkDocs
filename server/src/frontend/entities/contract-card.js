@@ -261,10 +261,14 @@ function renderContractCard(data) {
   var _histContr = (data.history || []).filter(function(s) { return s.is_contract; });
 
   if (!isRental) {
-    h += '<div style="margin-bottom:14px">';
-    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">АКТЫ ВЫПОЛНЕННЫХ РАБОТ</div>';
+    var actsLabel = 'Акты выполненных работ' + (_histActs.length ? ' · ' + _histActs.length : '');
+    h += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+    h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
+    h += '<span>' + actsLabel + '</span><span>▼</span>';
+    h += '</button>';
+    h += '<div style="display:none;padding:12px 14px">';
     if (_histActs.length) {
-      h += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:6px">';
+      h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
       h += '<thead><tr style="background:#4F6BCC;color:#fff">';
       h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 0">Акт</th>';
       h += '<th style="padding:7px 10px;text-align:left">Дата</th>';
@@ -280,9 +284,9 @@ function renderContractCard(data) {
       });
       h += '</tbody></table>';
     } else {
-      h += '<div style="color:var(--text-muted);font-size:13px;margin-bottom:6px">Актов нет</div>';
+      h += '<div style="color:var(--text-muted);font-size:13px">Актов нет</div>';
     }
-    h += '</div>';
+    h += '</div></div>';
   }
 
   // ── История ДС (collapsible) ───────────────────────────────────────────────
