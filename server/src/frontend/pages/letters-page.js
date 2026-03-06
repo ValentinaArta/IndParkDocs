@@ -35,7 +35,7 @@ async function _loadLettersList() {
         '<div style="text-align:center;padding:40px;color:var(--text-muted)">Тип "Письмо" не найден. Перезагрузите страницу.</div>';
       return;
     }
-    var all = await api('/entities?entity_type_id=' + letterType.id);
+    var all = await api('/entities?types=letter&limit=500');
     var letters = (all || []).filter(function(e) { return !e.deleted_at; });
     var el = document.getElementById('lettersContent');
     if (!letters.length) {
