@@ -63,6 +63,12 @@ function _renderEqListItem(item, rowId) {
   (_landPlots || []).forEach(function(lp) { h += '<option value="' + lp.id + '">' + escapeHtml(_lpLabel(lp)) + '</option>'; });
   h += '</select></div>';
   h += '</div>';
+  // "Входит в" — родительское оборудование (составная часть)
+  h += '<div class="form-group" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">';
+  h += '<label style="font-size:13px">Входит в <span style="font-size:11px;color:var(--text-muted);font-weight:400">(составная часть)</span></label>';
+  h += '<select class="eq-create-parent" data-row="' + rowId + '" style="width:100%"><option value="">— самостоятельный объект —</option>';
+  (_equipment || []).forEach(function(e) { h += '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>'; });
+  h += '</select></div>';
   h += '<div style="display:flex;gap:8px;margin-top:8px">';
   h += '<button type="button" class="btn btn-primary btn-sm" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateSubmit(this)">Создать и выбрать</button>';
   h += '<button type="button" class="btn btn-sm" data-row="' + rowId + '" onclick="eqListCreateShow(this)">Отмена</button>';
@@ -214,6 +220,8 @@ async function eqListCreateSubmit(btn) {
   if (yearEl && yearEl.value) props.year = yearEl.value;
   if (mfrEl && mfrEl.value.trim()) props.manufacturer = mfrEl.value.trim();
   if (statusEl && statusEl.value) props.status = statusEl.value;
+  var parentEqEl = document.querySelector('.eq-create-parent[data-row="' + rowId + '"]');
+  if (parentEqEl && parentEqEl.value) props.parent_equipment_id = parentEqEl.value;
 
   // Location: building or land plot
   var locTypeSel = document.querySelector('.eq-create-loc-type[data-row="' + rowId + '"]');
