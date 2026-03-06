@@ -794,7 +794,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   });
   const actEqMap = {};
   if (actEqIds.size > 0) {
-    const eqRes = await db.query('SELECT id, name FROM entities WHERE id = ANY($1)', [[...actEqIds]]);
+    const eqRes = await pool.query('SELECT id, name FROM entities WHERE id = ANY($1)', [[...actEqIds]]);
     eqRes.rows.forEach(eq => { actEqMap[eq.id] = eq.name; });
   }
   const acts = aRes.rows.map(a => {
@@ -906,7 +906,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const _companyIds = [parseInt(cProps.contractor_id), parseInt(cProps.subtenant_id), parseInt(cProps.our_legal_entity_id)].filter(Boolean);
   const _companyMap = {};
   if (_companyIds.length) {
-    const _cRes = await db.query('SELECT id, name FROM entities WHERE id = ANY($1)', [_companyIds]);
+    const _cRes = await pool.query('SELECT id, name FROM entities WHERE id = ANY($1)', [_companyIds]);
     _cRes.rows.forEach(r => { _companyMap[r.id] = r.name; });
   }
 
