@@ -97,14 +97,15 @@ async function openCreateSupplementModal(parentContractId) {
   var effPowerKw = _effSuppProp('power_allocation_kw') || parentProps.power_allocation_kw || '';
   if (effPowerKw) { prefillProps.power_allocation_kw = effPowerKw; prefillProps.has_power_allocation = 'true'; }
 
-  // equipment_list + transfer_equipment: переданное оборудование
-  // Ищем последнее ДС с transfer_equipment=true и непустым списком
-  for (var _ei = 0; _ei < sortedSupps.length; _ei++) {
-    var _sp = sortedSupps[_ei].properties || {};
-    if ((_sp.transfer_equipment === 'true' || _sp.transfer_equipment === true) && _sp.equipment_list && _sp.equipment_list !== '[]') {
-      prefillProps.equipment_list      = _sp.equipment_list;
-      prefillProps.transfer_equipment  = 'true';
-      break;
+  // equipment_list + transfer_equipment: переданное/обслуживаемое оборудование
+  // Берём последнее непустое значение из любого ДС (не обязательно с transfer_equipment=true)
+  // — так оборудование наследуется через промежуточные ДС, которые его не трогали
+  var effEqList     = _effSuppProp('equipment_list')     || parentProps.equipment_list     || '';
+  var effTransferEq = _effSuppProp('transfer_equipment') || parentProps.transfer_equipment || '';
+  if (effEqList && effEqList !== '[]') {
+    prefillProps.equipment_list = effEqList;
+    if (effTransferEq === 'true' || effTransferEq === true) {
+      prefillProps.transfer_equipment = 'true';
     }
   }
 
