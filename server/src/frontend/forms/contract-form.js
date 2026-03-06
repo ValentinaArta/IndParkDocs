@@ -424,7 +424,7 @@ function collectDynamicFieldValues(contractType) {
         // Auto-calculate total
         var total = 0;
         items.forEach(function(item) { total += parseFloat(item.amount) || 0; });
-        result.contract_amount = total > 0 ? String(total) : (result.contract_amount || '');
+        result.contract_amount = total > 0 ? String(Math.round(total * 100) / 100) : (result.contract_amount || '');
       }
     } else {
       result[f.name] = getFieldValue(f);

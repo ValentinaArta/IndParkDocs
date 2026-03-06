@@ -85,7 +85,7 @@ function recalcContractAmount() {
     }
   }
 
-  amtEl.value = total || '';
+  amtEl.value = total ? Math.round(total * 100) / 100 : '';
 }
 
 function getContractItemsValue() {
