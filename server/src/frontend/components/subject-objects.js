@@ -151,9 +151,11 @@ function addSubjectRow(btn) {
   else                      rowId = Date.now();
   var div = document.createElement('div');
   div.innerHTML = _renderSubjRow(type, null, rowId);
-  var addBtn = container.querySelector('[data-subj-type="' + type + '"]');
+  // lastElementChild = the "+ Добавить" button (always last in container);
+  // do NOT use querySelector('[data-subj-type]') — remove (✕) buttons inside rows share the same attribute
+  var addBtn = container.lastElementChild;
   var child = div.firstElementChild || div.firstChild;
-  if (addBtn) container.insertBefore(child, addBtn);
+  if (addBtn && addBtn.tagName === 'BUTTON') container.insertBefore(child, addBtn);
   else container.appendChild(child);
   _srchInitAll();
 }
