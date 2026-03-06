@@ -3,6 +3,7 @@ const pool = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validate');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { computeAndSaveVgo } = require('../utils/contractDirection');
 const { logAction } = require('../middleware/audit');
 const router = express.Router();
 
@@ -341,7 +342,10 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
 
   // Auto-link: get entity type name
   const { rows: [typeInfo] } = await pool.query('SELECT name FROM entity_types WHERE id=$1', [entity_type_id]);
-  if (typeInfo) await autoLinkEntities(rows[0].id, typeInfo.name, cleanProps);
+  if (typeInfo) {
+    await autoLinkEntities(rows[0].id, typeInfo.name, cleanProps);
+    if (typeInfo.name === 'contract') await computeAndSaveVgo(rows[0].id, cleanProps, pool);
+  }
 
   res.status(201).json(rows[0]);
 }));
@@ -383,6 +387,7 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
         await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type='supplement_to'", [id]);
       }
       await autoLinkEntities(id, typeInfo.name, cleanProps);
+      if (typeInfo.name === 'contract') await computeAndSaveVgo(id, cleanProps, pool);
     }
   }
 
@@ -419,6 +424,7 @@ router.patch('/:id', authenticate, authorize('admin', 'editor'), validate(schema
         await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type='supplement_to'", [id]);
       }
       await autoLinkEntities(id, typeInfo.name, cleanProps);
+      if (typeInfo.name === 'contract') await computeAndSaveVgo(id, cleanProps, pool);
     }
   }
 
