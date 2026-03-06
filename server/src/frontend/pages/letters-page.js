@@ -51,27 +51,32 @@ async function _loadLettersList() {
       var db = (b.properties||{}).letter_date || '';
       return db.localeCompare(da);
     });
-    var h = '<table class="data-table" style="width:100%"><thead><tr>' +
-      '<th>Дата</th><th>Исх. №</th><th>От</th><th>Кому</th><th>Тема</th><th>Суть</th><th>Срок</th>' +
-      '</tr></thead><tbody>';
-    letters.forEach(function(e) {
-      var p = e.properties || {};
-      var deadlineStyle = '';
-      if (p.deadline) {
-        var dl = new Date(p.deadline);
-        if (dl < new Date()) deadlineStyle = 'color:var(--danger);font-weight:600';
-      }
-      h += '<tr style="cursor:pointer" onclick="showEntity(' + e.id + ')">' +
-        '<td>' + _fmtDate(p.letter_date) + '</td>' +
-        '<td>' + escapeHtml(p.outgoing_number || '') + '</td>' +
-        '<td>' + escapeHtml(p.from_company_name || '') + '</td>' +
-        '<td>' + escapeHtml(p.to_company_name || '') + '</td>' +
-        '<td>' + escapeHtml(p.topic_name || '') + '</td>' +
-        '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml((p.description || '').substring(0, 100)) + '</td>' +
-        '<td style="' + deadlineStyle + '">' + _fmtDate(p.deadline) + '</td>' +
-        '</tr>';
+    var cols = [
+      { label: 'Дата', render: function(e) { return _fmtDate((e.properties||{}).letter_date); } },
+      { label: 'Исх. №', render: function(e) { return escapeHtml((e.properties||{}).outgoing_number || ''); } },
+      { label: 'От', render: function(e) { return escapeHtml((e.properties||{}).from_company_name || ''); } },
+      { label: 'Кому', render: function(e) { return escapeHtml((e.properties||{}).to_company_name || ''); } },
+      { label: 'Тема', render: function(e) { return escapeHtml((e.properties||{}).topic_name || ''); } },
+      { label: 'Суть', render: function(e) { var d = (e.properties||{}).description || ''; return '<span style="white-space:normal;max-width:300px;display:inline-block;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(d.length > 80 ? d.substring(0,80) + '...' : d) + '</span>'; } },
+      { label: 'Срок', render: function(e) { var p = e.properties||{}; var s = ''; if (p.deadline) { var dl = new Date(p.deadline); if (dl < new Date()) s = 'color:var(--danger);font-weight:600'; } return '<span style="' + s + '">' + _fmtDate(p.deadline) + '</span>'; } }
+    ];
+    var h = '<div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border)">';
+    h += '<table style="border-collapse:collapse;font-size:13px;white-space:nowrap;width:100%">';
+    h += '<thead><tr>';
+    cols.forEach(function(c) {
+      h += '<th style="padding:9px 12px;background:#4F6BCC;color:#fff;text-align:left">' + c.label + '</th>';
     });
-    h += '</tbody></table>';
+    h += '</tr></thead><tbody>';
+    letters.forEach(function(e, i) {
+      var rowBg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+      h += '<tr style="cursor:pointer;' + rowBg + '" onclick="showEntity(' + e.id + ')">';
+      cols.forEach(function(c) {
+        h += '<td style="padding:7px 12px;border-bottom:1px solid var(--border)">' + c.render(e) + '</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+    h += '<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Всего: ' + letters.length + '</div>';
     el.innerHTML = h;
   } catch(e) {
     document.getElementById('lettersContent').innerHTML =
