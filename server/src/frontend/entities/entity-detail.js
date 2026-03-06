@@ -37,6 +37,14 @@ async function showEntity(id, _forceDetail) {
   }
   document.getElementById('topActions').innerHTML = _topAct;
 
+  // For letters — show custom card
+  if (e.type_name === 'letter' && !_forceDetail) {
+    var lContentEl = document.getElementById('content');
+    lContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + _renderLetterCard(e) + renderFilesSection(id) + '</div>';
+    loadEntityFiles(id);
+    return;
+  }
+
   // For contracts — show card inline, not the standard detail view
   if (_isContract && !_forceDetail) {
     var contentEl = document.getElementById('content');

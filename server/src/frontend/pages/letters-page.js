@@ -161,6 +161,66 @@ function _renderLetterForm(editData) {
   if (window.lucide) lucide.createIcons();
 }
 
+function _renderLetterCard(entity) {
+  var p = entity.properties || {};
+  var h = '';
+
+  // Header
+  var fromName = p.from_company_name || '—';
+  var toName = p.to_company_name || '—';
+  h += '<div style="margin-bottom:20px">';
+  h += '<h2 style="font-size:22px;font-weight:700;margin-bottom:4px">Письмо' + (p.outgoing_number ? ' №' + escapeHtml(p.outgoing_number) : '') + '</h2>';
+  h += '<div style="color:var(--text-secondary);font-size:14px">' + escapeHtml(p.topic_name || '') + '</div>';
+  h += '</div>';
+
+  // From / To
+  h += '<div style="margin-bottom:16px">';
+  h += '<div style="margin-bottom:6px">От: <strong>' + escapeHtml(fromName) + '</strong></div>';
+  h += '<div>Кому: <strong>' + escapeHtml(toName) + '</strong></div>';
+  h += '</div>';
+
+  // Date + Deadline row
+  h += '<div style="display:flex;gap:32px;margin-bottom:20px">';
+  if (p.letter_date) {
+    h += '<div>Дата: <strong>' + _fmtDate(p.letter_date) + '</strong></div>';
+  }
+  if (p.deadline) {
+    var dlStyle = '';
+    var dl = new Date(p.deadline);
+    if (dl < new Date()) dlStyle = 'color:var(--danger);font-weight:700';
+    h += '<div>Срок: <strong style="' + dlStyle + '">' + _fmtDate(p.deadline) + '</strong></div>';
+  }
+  if (p.outgoing_number) {
+    h += '<div>Исх. №: <strong>' + escapeHtml(p.outgoing_number) + '</strong></div>';
+  }
+  h += '</div>';
+
+  // Description
+  if (p.description) {
+    h += '<div style="margin-bottom:20px;padding:16px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid #4F6BCC">';
+    h += '<div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--text-secondary);margin-bottom:8px;letter-spacing:.5px">Суть письма</div>';
+    h += '<div style="white-space:pre-wrap;font-size:14px;line-height:1.6">' + escapeHtml(p.description) + '</div>';
+    h += '</div>';
+  }
+
+  // Linked entities
+  var linked = [];
+  try { linked = p.linked_entities ? JSON.parse(p.linked_entities) : []; } catch(e) {}
+  if (linked.length) {
+    h += '<div style="margin-bottom:20px">';
+    h += '<div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--text-secondary);margin-bottom:8px;letter-spacing:.5px">Связанные объекты</div>';
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    linked.forEach(function(item) {
+      var onclick = item.id ? ' onclick="showEntity(' + item.id + ')" style="cursor:pointer;text-decoration:underline;color:var(--primary)"' : '';
+      h += '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-secondary);padding:4px 12px;border-radius:16px;font-size:13px"' + onclick + '>' +
+        escapeHtml(item.name) + '</span>';
+    });
+    h += '</div></div>';
+  }
+
+  return h;
+}
+
 var _letterLinkedItems = [];
 var _letterPendingFiles = [];
 
