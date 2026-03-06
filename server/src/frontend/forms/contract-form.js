@@ -479,6 +479,9 @@ function collectDynamicFieldValues(contractType) {
     var _paKw2 = document.getElementById('f_power_allocation_kw');
     if (_paCb2.checked && _paKw2 && _paKw2.value) result.power_allocation_kw = _paKw2.value;
   }
+  // Всегда собираем "5 кнопок" (renderSubjectFieldsBlock) — работает для всех типов,
+  // включая нестандартные (Работы/Подряда, Цессии, Электроснабжения и т.д.)
+  Object.assign(result, collectSubjectFieldValues());
   return result;
 }
 
