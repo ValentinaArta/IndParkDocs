@@ -785,12 +785,14 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const acts = aRes.rows.map(a => {
     const p = a.properties || {};
     let total = 0;
+    let equipment = [];
     try {
       const items = JSON.parse(p.act_items || '[]');
       total = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+      equipment = items.map(i => i.equipment_name || '').filter(Boolean);
     } catch(e) {}
     return { id: a.id, name: a.name, number: p.act_number || p.number || '',
-      date: p.act_date || p.contract_date || '', total, is_act: true };
+      date: p.act_date || p.contract_date || '', total, equipment, is_act: true };
   });
 
   // 10. Supplements history (contract first, then supplements + acts sorted by date)
