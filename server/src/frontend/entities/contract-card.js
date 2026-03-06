@@ -271,15 +271,21 @@ function renderContractCard(data) {
       h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
       h += '<thead><tr style="background:#4F6BCC;color:#fff">';
       h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 0">Акт</th>';
+      h += '<th style="padding:7px 10px;text-align:left">Оборудование</th>';
       h += '<th style="padding:7px 10px;text-align:left">Дата</th>';
       h += '<th style="padding:7px 10px;text-align:right;border-radius:0 4px 0 0">Сумма, ₽</th>';
       h += '</tr></thead><tbody>';
       _histActs.forEach(function(s, i) {
         var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+        var eqList = Array.isArray(s.equipment) ? s.equipment : [];
+        var eqCell = eqList.length
+          ? '<span style="font-size:12px;color:var(--text-secondary)">' + escapeHtml(eqList.join(', ')) + '</span>'
+          : '<span style="color:var(--text-muted)">—</span>';
         h += '<tr style="' + bg + ';cursor:pointer" onclick="showEntity(' + s.id + ')">';
         h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--accent)">' + escapeHtml(s.name) + '</td>';
-        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text-muted)">' + (s.date ? _ccFmtDate(s.date) : '—') + '</td>';
-        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:#16a34a">' + (s.total ? Math.round(s.total).toLocaleString('ru-RU') + ' ₽' : '—') + '</td>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + eqCell + '</td>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap">' + (s.date ? _ccFmtDate(s.date) : '—') + '</td>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:#16a34a;white-space:nowrap">' + (s.total ? Math.round(s.total).toLocaleString('ru-RU') + ' ₽' : '—') + '</td>';
         h += '</tr>';
       });
       h += '</tbody></table>';
