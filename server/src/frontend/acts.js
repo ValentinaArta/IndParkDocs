@@ -34,6 +34,7 @@ async function openEditActModal(actId, actEntity) {
     html += '<div class="form-group"><label>Заключение</label><textarea id="f_conclusion" style="width:100%;resize:both;min-height:72px;box-sizing:border-box">' + escapeHtml(props.conclusion || '') + '</textarea></div>';
     html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="' + escapeHtml(String(props.total_amount || 0)) + '" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
     html += '<div class="form-group"><label>Оборудование и работы</label>' + renderActItemsField(savedItems) + '</div>';
+    html += renderSubjectFieldsBlock(props);
     html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>';
     html += '<button class="btn btn-primary" onclick="if(!_submitting){_submitting=true;_doSubmitEditAct(' + actId + ',' + (parentContractId||'null') + ').finally(function(){_submitting=false;})}">Сохранить</button></div>';
     setModalContent(html);
@@ -69,6 +70,7 @@ async function _doSubmitEditAct(actId, parentContractId) {
       act_items: JSON.stringify(actItems),
       total_amount: String(total),
     };
+    Object.assign(properties, collectSubjectFieldValues());
 
     var actName = 'Акт №' + actNumber.trim() + (actDate ? ' от ' + actDate : '') + (parentName ? ' — ' + parentName : '');
     await api('/entities/' + actId, { method: 'PUT', body: JSON.stringify({ name: actName, properties }) });
@@ -129,6 +131,7 @@ async function openCreateActModal(parentContractId) {
   html += '<div class="form-group"><label>Заключение</label><textarea id="f_conclusion" placeholder="итоговое заключение по акту..." style="width:100%;resize:both;min-height:72px;box-sizing:border-box"></textarea></div>';
   html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="0" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
   html += '<div class="form-group"><label>Оборудование и работы *</label>' + renderActItemsField([]) + '</div>';
+  html += renderSubjectFieldsBlock({});
 
   html += '<div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button>';
   html += '<button class="btn btn-primary" onclick="if(!_submitting){_submitting=true;_doSubmitCreateAct(' + parentContractId + ').finally(function(){_submitting=false;})}">Создать акт</button></div>';
@@ -160,6 +163,7 @@ async function _doSubmitCreateAct(parentContractId) {
       act_items: JSON.stringify(actItems),
       total_amount: String(total),
     };
+    Object.assign(properties, collectSubjectFieldValues());
 
     // Refresh entityTypes if act type missing
     if (!entityTypes.find(function(t) { return t.name === 'act'; })) {
