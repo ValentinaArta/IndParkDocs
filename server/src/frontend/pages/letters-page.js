@@ -54,8 +54,8 @@ async function _loadLettersList() {
     var cols = [
       { label: 'Дата', render: function(e) { return _fmtDate((e.properties||{}).letter_date); } },
       { label: 'Исх. №', render: function(e) { return escapeHtml((e.properties||{}).outgoing_number || ''); } },
-      { label: 'От', render: function(e) { return escapeHtml((e.properties||{}).from_company_name || ''); } },
-      { label: 'Кому', render: function(e) { return escapeHtml((e.properties||{}).to_company_name || ''); } },
+      { label: 'От', render: function(e) { var p=e.properties||{}; var c=p.from_company_id?(_allCompanies||[]).find(function(x){return x.id===parseInt(p.from_company_id)}):null; return escapeHtml((c?c.name:null)||p.from_company_name||''); } },
+      { label: 'Кому', render: function(e) { var p=e.properties||{}; var c=p.to_company_id?(_allCompanies||[]).find(function(x){return x.id===parseInt(p.to_company_id)}):null; return escapeHtml((c?c.name:null)||p.to_company_name||''); } },
       { label: 'Тема', render: function(e) { return escapeHtml((e.properties||{}).topic_name || ''); } },
       { label: 'Суть', render: function(e) { var d = (e.properties||{}).description || ''; return '<span style="white-space:normal;max-width:300px;display:inline-block;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(d.length > 80 ? d.substring(0,80) + '...' : d) + '</span>'; } },
       { label: 'Срок', render: function(e) { var p = e.properties||{}; var s = ''; if (p.deadline) { var dl = new Date(p.deadline); if (dl < new Date()) s = 'color:var(--danger);font-weight:600'; } return '<span style="' + s + '">' + _fmtDate(p.deadline) + '</span>'; } }
