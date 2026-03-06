@@ -782,15 +782,29 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
      FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'act'
      WHERE e.parent_id = $1 AND e.deleted_at IS NULL
      ORDER BY e.properties->>'act_date' ASC NULLS LAST, e.id ASC`, [contractId]);
+  // Resolve equipment names from DB for acts
+  const actEqIds = new Set();
+  const actItemsMap = {};
+  aRes.rows.forEach(a => {
+    try {
+      const items = JSON.parse((a.properties || {}).act_items || '[]');
+      actItemsMap[a.id] = items;
+      items.forEach(i => { if (i.equipment_id) actEqIds.add(parseInt(i.equipment_id)); });
+    } catch(e) { actItemsMap[a.id] = []; }
+  });
+  const actEqMap = {};
+  if (actEqIds.size > 0) {
+    const eqRes = await db.query('SELECT id, name FROM entities WHERE id = ANY($1)', [[...actEqIds]]);
+    eqRes.rows.forEach(eq => { actEqMap[eq.id] = eq.name; });
+  }
   const acts = aRes.rows.map(a => {
     const p = a.properties || {};
-    let total = 0;
-    let equipment = [];
-    try {
-      const items = JSON.parse(p.act_items || '[]');
-      total = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
-      equipment = items.map(i => i.equipment_name || '').filter(Boolean);
-    } catch(e) {}
+    const items = actItemsMap[a.id] || [];
+    const total = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    const equipment = items.map(i => {
+      const eqId = parseInt(i.equipment_id);
+      return actEqMap[eqId] || i.equipment_name || '';
+    }).filter(Boolean);
     return { id: a.id, name: a.name, number: p.act_number || p.number || '',
       date: p.act_date || p.contract_date || '', total, equipment, is_act: true };
   });
