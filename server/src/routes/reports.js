@@ -3,7 +3,7 @@ const http = require('http');
 const pool = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
-const { getContractDirection, isInternalContract } = require('../utils/contractDirection');
+const { getContractDirection, isAllPartiesInternal } = require('../utils/contractDirection');
 
 const ODATA_BASE_RPT = process.env.ODATA_BASE_URL || 'http://192.168.2.3/BF/odata/standard.odata';
 const ODATA_AUTH_RPT = 'Basic ' + Buffer.from(
@@ -608,8 +608,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     `SELECT e.id FROM entities e JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'company'
      WHERE e.deleted_at IS NULL AND e.properties->>'is_own' = 'true'`);
   const ownIds = new Set(ownRes.rows.map(r => r.id));
-  const contractorId = parseInt(cProps.contractor_id) || 0;
-  const isVgo = isInternalContract(contractorId, ownIds);
+  const isVgo = isAllPartiesInternal(cProps, ownIds);
   const direction = getContractDirection(cProps.our_role_label || '');
 
   // 2. All supplements sorted by date asc
