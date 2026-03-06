@@ -131,11 +131,13 @@ function _renderLetterForm(editData) {
   h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;equipment&quot;)">+ Оборудование</button>';
   h += '</div></div>';
 
-  // File attachment note
+  // File attachment
   h += '<div class="form-group"><label>Файлы</label>' +
-    '<div style="color:var(--text-muted);font-size:13px">' +
-    (isEdit ? 'Файлы можно добавить в карточке письма после сохранения' : 'Файлы можно добавить после создания письма') +
-    '</div></div>';
+    '<div id="letterFilesList" style="margin-bottom:8px"></div>' +
+    '<label class="btn btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">' +
+    '<i data-lucide="paperclip" class="lucide" style="width:14px;height:14px"></i> Добавить файл' +
+    '<input type="file" multiple style="display:none" onchange="_onLetterFilesSelected(this)">' +
+    '</label></div>';
 
   // Submit
   if (isEdit) {
@@ -149,10 +151,53 @@ function _renderLetterForm(editData) {
   setModalContent(h);
   _srchInitAll();
   _letterLinkedItems = (p.linked_entities ? JSON.parse(p.linked_entities) : []) || [];
+  _letterPendingFiles = [];
   _renderLetterLinked();
+  if (window.lucide) lucide.createIcons();
 }
 
 var _letterLinkedItems = [];
+var _letterPendingFiles = [];
+
+function _onLetterFilesSelected(input) {
+  for (var i = 0; i < input.files.length; i++) {
+    _letterPendingFiles.push(input.files[i]);
+  }
+  input.value = '';
+  _renderLetterFiles();
+}
+
+function _renderLetterFiles() {
+  var el = document.getElementById('letterFilesList');
+  if (!el) return;
+  if (!_letterPendingFiles.length) { el.innerHTML = ''; return; }
+  var h = '';
+  _letterPendingFiles.forEach(function(f, i) {
+    h += '<div style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-secondary);padding:4px 10px;border-radius:12px;margin:2px 4px 2px 0;font-size:13px">' +
+      '\\ud83d\\udcce ' + escapeHtml(f.name) +
+      '<button type="button" onclick="_removeLetterFile(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;padding:0 2px">&times;</button>' +
+      '</div>';
+  });
+  el.innerHTML = h;
+}
+
+function _removeLetterFile(idx) {
+  _letterPendingFiles.splice(idx, 1);
+  _renderLetterFiles();
+}
+
+async function _uploadLetterFiles(entityId) {
+  for (var i = 0; i < _letterPendingFiles.length; i++) {
+    var fd = new FormData();
+    fd.append('file', _letterPendingFiles[i]);
+    await fetch(API + '/entities/' + entityId + '/files', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN },
+      body: fd
+    });
+  }
+  _letterPendingFiles = [];
+}
 
 function _renderLetterLinked() {
   var el = document.getElementById('letterLinkedEntities');
@@ -244,10 +289,13 @@ async function _submitLetter(editId) {
   if (!letterType) { alert('Тип "Письмо" не найден'); return; }
 
   try {
+    var result;
     if (editId) {
-      await api('/entities/' + editId, { method: 'PUT', body: JSON.stringify({ name: name, properties: properties }) });
+      result = await api('/entities/' + editId, { method: 'PUT', body: JSON.stringify({ name: name, properties: properties }) });
+      if (_letterPendingFiles.length) await _uploadLetterFiles(editId);
     } else {
-      await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: letterType.id, name: name, properties: properties }) });
+      result = await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: letterType.id, name: name, properties: properties }) });
+      if (result && result.id && _letterPendingFiles.length) await _uploadLetterFiles(result.id);
     }
     closeModal();
     clearEntityCache();
