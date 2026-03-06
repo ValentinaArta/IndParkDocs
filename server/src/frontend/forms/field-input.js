@@ -342,17 +342,44 @@ var SUBJECT_FIELDS = [
 
 /**
  * Рендерит блок "5 кнопок" для вставки в любую форму.
+ * Использует тот же toggle-паттерн что renderContractSubjectOnly (_saleSectionBtn).
  * @param {Object} props — текущие свойства сущности (для предзаполнения)
  * @returns {string} HTML
  */
 function renderSubjectFieldsBlock(props) {
   props = props || {};
+  function _pArr(v) { if (!v) return []; if (Array.isArray(v)) return v; try { return JSON.parse(v) || []; } catch(e) { return []; } }
+  function _has(arr) { return Array.isArray(arr) && arr.some(function(i) { return i && (i.name || i.id || i.equipment_id); }); }
+
+  var sbIds  = _pArr(props.subject_buildings);
+  var srIds  = _pArr(props.subject_rooms);
+  var slIds  = _pArr(props.subject_land_plots);
+  var slpIds = _pArr(props.subject_land_plot_parts);
+  var eqList = _pArr(props.equipment_list);
+
+  var hasBld = _has(sbIds), hasRoom = _has(srIds);
+  var hasLp  = _has(slIds), hasLpp  = _has(slpIds);
+  var hasEq  = _has(eqList);
+
   var h = '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">';
   h += '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Связанные объекты</div>';
-  SUBJECT_FIELDS.forEach(function(f) {
-    var val = props[f.name] || '';
-    h += '<div class="form-group"><label>' + escapeHtml(f.name_ru) + '</label>' + renderFieldInput(f, val) + '</div>';
-  });
+
+  // Ряд кнопок-переключателей
+  h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
+  h += _saleSectionBtn('bld',  'Корпус',       hasBld);
+  h += _saleSectionBtn('room', 'Помещение',    hasRoom);
+  h += _saleSectionBtn('lp',   'ЗУ',           hasLp);
+  h += _saleSectionBtn('lpp',  'Часть ЗУ',     hasLpp);
+  h += _saleSectionBtn('eq',   'Оборудование', hasEq);
+  h += '</div>';
+
+  // Раскрывающиеся секции (скрыты по умолчанию если пустые)
+  h += '<div id="sale_sec_bld"  style="margin-bottom:12px;' + (hasBld  ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Корпуса</div>'          + renderSubjectBuildingsField(sbIds)     + '</div>';
+  h += '<div id="sale_sec_room" style="margin-bottom:12px;' + (hasRoom ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Помещения</div>'         + renderSubjectRoomsField(srIds)         + '</div>';
+  h += '<div id="sale_sec_lp"   style="margin-bottom:12px;' + (hasLp   ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Земельные участки</div>' + renderSubjectLandPlotsField(slIds)     + '</div>';
+  h += '<div id="sale_sec_lpp"  style="margin-bottom:12px;' + (hasLpp  ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Части ЗУ</div>'         + renderSubjectLandPlotPartsField(slpIds)+ '</div>';
+  h += '<div id="sale_sec_eq"   style="margin-bottom:12px;' + (hasEq   ? '' : 'display:none') + '"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Оборудование</div>'     + renderEquipmentListField(eqList)       + '</div>';
+
   h += '</div>';
   return h;
 }
