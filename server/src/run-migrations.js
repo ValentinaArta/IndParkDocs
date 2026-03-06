@@ -38,6 +38,7 @@ const migrations = {
   'mergeORRVesta': require('./migrations/merge_orr_vesta'),
   '035':         require('./migrations/035_recompute_vgo'),
   '036':         require('./migrations/036_recompute_vgo2'),
+  '037':         require('./migrations/037_subject_fields_for_acts_letters_orders'),
 };
 
 async function initMigrationTracker(pool) {
