@@ -68,6 +68,7 @@ module.exports = `</head>
     <div class="topbar" id="topbar">
       <button class="btn btn-sm" onclick="toggleSidebar()" id="menuBtn">☰</button>
       <h2 id="pageTitle">Карта</h2>
+      <button id="navBackBtn" onclick="navBack()" style="display:none;align-items:center;gap:4px;padding:4px 10px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:13px;cursor:pointer;flex-shrink:0;white-space:nowrap" onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background='none'"><i data-lucide="arrow-left" class="lucide" style="width:14px;height:14px"></i> Назад</button>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="actions" id="topActions"></div>
     </div>

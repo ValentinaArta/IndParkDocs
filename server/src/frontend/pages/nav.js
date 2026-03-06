@@ -89,11 +89,25 @@ async function startApp() {
 // Use location.hash directly (works reliably across all browsers incl. iOS Safari).
 // We temporarily remove the hashchange listener to avoid re-triggering navigation.
 var _hashChangePaused = false;
+var _navDepth = 0; // counts how many hash pushes happened; drives "← Назад" visibility
+
+function _updateNavBackBtn() {
+  var btn = document.getElementById('navBackBtn');
+  if (!btn) return;
+  btn.style.display = _navDepth > 0 ? 'inline-flex' : 'none';
+}
+
+function navBack() {
+  history.back(); // browser handles the hash pop; hashchange listener will decrement _navDepth
+}
+
 function _setNavHash(h) {
+  _navDepth++;
   _hashChangePaused = true;
   window.location.hash = h ? h : '';
   // Re-enable after current event loop tick
   setTimeout(function() { _hashChangePaused = false; }, 0);
+  _updateNavBackBtn();
 }
 
 // Parse hash and navigate to the corresponding page
@@ -123,6 +137,9 @@ function _routeFromHash(hash) {
 // Listen for hash changes (back/forward browser buttons)
 window.addEventListener('hashchange', function() {
   if (_hashChangePaused) return;
+  // User pressed browser Back/Forward — adjust our depth counter
+  if (_navDepth > 0) _navDepth--;
+  _updateNavBackBtn();
   _routeFromHash(window.location.hash);
 });
 
