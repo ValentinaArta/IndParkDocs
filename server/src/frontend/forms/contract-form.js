@@ -504,6 +504,19 @@ function collectDynamicFieldValues(contractType) {
   // Всегда собираем "5 кнопок" (renderSubjectFieldsBlock) — работает для всех типов,
   // включая нестандартные (Работы/Подряда, Цессии, Электроснабжения и т.д.)
   Object.assign(result, collectSubjectFieldValues());
+  // Для нестандартных типов (Работы/Подряда, Цессии и т.д.) fallback-форма рендерит
+  // обычный текстовый инпут f_subject и таблицу позиций — собираем их явно
+  var _fSubjEl = document.getElementById('f_subject');
+  if (_fSubjEl && !result.subject) result.subject = _fSubjEl.value;
+  if (extraFields.length === 0) {
+    var _ciItems2 = getContractItemsValue();
+    if (_ciItems2 !== null) {
+      result.contract_items = JSON.stringify(_ciItems2);
+      var _totalAuto = 0;
+      _ciItems2.forEach(function(item) { _totalAuto += parseFloat(item.amount) || 0; });
+      if (_totalAuto > 0 && !result.contract_amount) result.contract_amount = String(Math.round(_totalAuto * 100) / 100);
+    }
+  }
   return result;
 }
 
