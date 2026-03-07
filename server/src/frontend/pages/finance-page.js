@@ -72,10 +72,23 @@ function _finCard(title, ipz, ekz, icon, color) {
   '</div>';
 }
 
+function _fmtCacheTs(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  } catch(e) { return iso; }
+}
+
 function _renderFinancePage(d, exp) {
   var content = document.getElementById('content');
   if (!d || !d.totals) {
-    content.innerHTML = '<div style="padding:24px;color:var(--red)">Нет данных</div>';
+    var cachedAt = (exp && exp.cached_at) ? _fmtCacheTs(exp.cached_at) : '';
+    var banner = '<div style="margin:0 0 16px;padding:14px 18px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;display:flex;align-items:center;gap:10px">' +
+      '<span style="color:#ef4444;font-size:15px">⚠</span>' +
+      '<span style="font-size:13px;color:var(--text)">1С недоступна — VPN не отвечает.' +
+      (cachedAt ? ' Часть данных из кэша на ' + cachedAt + '.' : '') +
+      '</span></div>';
+    content.innerHTML = '<div style="padding:24px">' + banner + '</div>';
     return;
   }
   var t = d.totals;
@@ -207,7 +220,7 @@ function _renderExpensesSection(exp) {
   h += '<div style="margin:0 16px 16px">';
   h += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">';
   h += '<div style="font-size:14px;font-weight:700;color:var(--text)">📊 Аналитика расходов (факт 1С vs план бюджет)</div>';
-  if (exp.cached) h += '<span style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 7px;border-radius:8px">кеш 5 мин</span>';
+  if (exp.cached) h += '<span style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 7px;border-radius:8px" title="Данные из кэша">' + (exp.cached_at ? 'кэш ' + _fmtCacheTs(exp.cached_at) : 'кэш') + '</span>';
   h += '</div>';
 
   // Вкладки орг (используем _expOrg для начального состояния)
