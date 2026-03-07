@@ -48,7 +48,12 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
        AND c.properties->>'contract_type' IN ('Аренды','Субаренды')
        AND c.deleted_at IS NULL LIMIT 1) as equipment_tenant,
     COALESCE(NULLIF(e.properties->>'our_legal_entity',''), p.properties->>'our_legal_entity') as effective_our_legal_entity,
-    COALESCE(NULLIF(e.properties->>'contractor_name',''), p.properties->>'contractor_name') as effective_contractor_name
+    COALESCE(NULLIF(e.properties->>'contractor_name',''), p.properties->>'contractor_name') as effective_contractor_name,
+    (SELECT string_agg(loc.name, ', ' ORDER BY loc.name)
+     FROM relations r
+     JOIN entities loc ON r.to_entity_id = loc.id
+     WHERE r.from_entity_id = e.id AND r.relation_type = 'located_in'
+       AND loc.deleted_at IS NULL) as located_in_names
     FROM entities e
     JOIN entity_types et ON e.entity_type_id = et.id
     LEFT JOIN entities p ON e.parent_id = p.id

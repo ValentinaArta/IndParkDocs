@@ -84,53 +84,19 @@ function _getEntityTableCols(typeName) {
       { id: 'subject', label: 'Предмет договора', sortable: true,
         getValue: function(e) {
           var p = e.properties || {};
-          if (p.service_subject || p.subject) return p.service_subject || p.subject;
-          if (!p.rent_objects) return '';
-          try {
-            var ros = JSON.parse(p.rent_objects);
-            var parts = ros.map(function(it) {
-              // Земельный участок / часть ЗУ
-              if (it.land_plot_id || it.land_plot_part_id || it.object_type === 'ЗУ') {
-                var lnm = it.land_plot_part_name || it.land_plot_name || '';
-                return lnm ? (lnm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
-              }
-              // Помещение — имя встроено
-              var nm = it.room || it.room_name || '';
-              if (nm) return nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
-              // Помещение — только room_id → ищем в кэше _rooms
-              if (it.room_id) {
-                var rm = (_rooms || []).find(function(r) { return r.id === parseInt(it.room_id); });
-                if (rm) return rm.name + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
-              }
-              return it.building_name || '';
-            }).filter(Boolean);
-            return parts.length ? parts.join(', ') : (ros.length ? ros.length + ' объект(ов)' : '');
-          } catch(ex) { return ''; }
+          // Для аренды/субаренды — из DB-связей (located_in), не из JSON
+          var rentTypes = ['Аренды', 'Субаренды', 'Аренда оборудования'];
+          if (rentTypes.indexOf(p.contract_type) >= 0) {
+            return e.located_in_names || '';
+          }
+          return p.service_subject || p.subject || '';
         },
         render: function(e) {
           var p = e.properties || {};
-          var txt = '';
-          if (p.service_subject || p.subject) {
-            txt = p.service_subject || p.subject;
-          } else if (p.rent_objects) {
-            try {
-              var ros = JSON.parse(p.rent_objects);
-              var parts = ros.map(function(it) {
-                if (it.land_plot_id || it.land_plot_part_id || it.object_type === 'ЗУ') {
-                  var lnm = it.land_plot_part_name || it.land_plot_name || '';
-                  return lnm ? (lnm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
-                }
-                var nm = it.room || it.room_name || '';
-                if (nm) return nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
-                if (it.room_id) {
-                  var rm = (_rooms || []).find(function(r) { return r.id === parseInt(it.room_id); });
-                  if (rm) return rm.name + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
-                }
-                return it.building_name || '';
-              }).filter(Boolean);
-              txt = parts.length ? parts.join(', ') : (ros.length ? ros.length + ' объект(ов)' : '');
-            } catch(ex) {}
-          }
+          var rentTypes = ['Аренды', 'Субаренды', 'Аренда оборудования'];
+          var txt = rentTypes.indexOf(p.contract_type) >= 0
+            ? (e.located_in_names || '')
+            : (p.service_subject || p.subject || '');
           if (!txt) return '<span style="color:var(--text-secondary)">—</span>';
           var short = txt.length > 55 ? txt.slice(0, 55) + '\\u2026' : txt;
           return '<span title="' + escapeHtml(txt) + '" style="font-size:12px;color:var(--text-secondary)">' + escapeHtml(short) + '</span>';
@@ -358,11 +324,6 @@ async function showEntityList(typeName, opts) {
   opts = opts || {};
   currentView = 'list';
   currentTypeFilter = typeName;
-  // Предзагрузка кэша помещений для раскрытия rent_objects в договорах
-  if (typeName === 'contract' && (!_rooms || !_rooms.length)) {
-    _rooms = await loadEntitiesByType('room');
-  }
-  _setNavHash('list/' + encodeURIComponent(typeName));
   const type = entityTypes.find(t => t.name === typeName);
 
   // Highlight parent group in nav when showing filtered sub-list
