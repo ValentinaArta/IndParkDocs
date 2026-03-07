@@ -285,7 +285,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       CASE WHEN par_type.name = 'room' THEN COALESCE(grandpar.name, par.name)
            ELSE COALESCE(par.name, '—') END AS building_name,
       c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
-      NULL::int AS act_id, NULL::text AS act_name, NULL::text AS act_date
+      NULL::int AS act_id, NULL::text AS act_name, NULL::text AS act_date,
+      c_contractor.name AS contract_contractor_name
     FROM entities e
     JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
     JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
@@ -294,6 +295,7 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
+    LEFT JOIN entities c_contractor ON c_contractor.id = (c.properties->>'contractor_id')::int
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
       AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p1, 'c')} ORDER BY e.name, c.id`;
@@ -309,7 +311,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
       act.id AS act_id, act.name AS act_name,
       act.properties->>'act_date' AS act_date,
-      act.properties AS act_props
+      act.properties AS act_props,
+      c_contractor.name AS contract_contractor_name
     FROM entities e
     JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
     JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
@@ -321,6 +324,7 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
+    LEFT JOIN entities c_contractor ON c_contractor.id = (c.properties->>'contractor_id')::int
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
       AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p2, 'c')} ORDER BY e.name, act.id`;
@@ -378,8 +382,8 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
       e.properties->>'contract_date'     AS contract_date,
       COALESCE(ls.supp_end_date, e.properties->>'contract_end_date') AS contract_end_date,
       e.properties->>'our_legal_entity'  AS our_legal_entity,
-      e.properties->>'contractor_name'   AS contractor_name,
-      e.properties->>'subtenant_name'    AS subtenant_name,
+      contractor.name                    AS contractor_name,
+      subtenant.name                     AS subtenant_name,
       e.properties->>'vat_rate'          AS vat_rate,
       e.properties->>'external_rental'   AS external_rental,
       COALESCE(ls.rent_objects, e.properties->>'rent_objects') AS rent_objects,
@@ -389,6 +393,8 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
     FROM entities e
     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'contract'
     LEFT JOIN latest_supps ls ON ls.contract_id = e.id
+    LEFT JOIN entities AS contractor ON contractor.id = (e.properties->>'contractor_id')::int
+    LEFT JOIN entities AS subtenant ON subtenant.id = (e.properties->>'subtenant_id')::int
     WHERE e.deleted_at IS NULL
       AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
       AND (e.properties->>'doc_status' = 'Подписан' OR (e.properties->>'doc_status') IS NULL OR e.properties->>'doc_status' = '')
