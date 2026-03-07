@@ -5,16 +5,6 @@ async function showEntity(id, _forceDetail) {
   _setNavHash(_forceDetail ? 'detail/' + id : 'entity/' + id);
   const e = await api('/entities/' + id);
   if (currentView !== 'detail' || currentEntityId !== id) return; // user navigated away
-  // Load all non-contract entities for parent selector
-  if (e.type_name !== 'contract' && e.type_name !== 'supplement') {
-    try {
-      var allForParent = await api('/entities?limit=200');
-      _allEntitiesForParent = allForParent.filter(function(x) {
-        return x.type_name !== 'contract' && x.type_name !== 'supplement' && x.id !== id;
-      });
-    } catch(ex) { _allEntitiesForParent = []; }
-  }
-
   setActive('[data-type="' + e.type_name + '"]');
   document.getElementById('pageTitle').textContent = '';
   var bcParts = (e.ancestry || []).map(function(a) {

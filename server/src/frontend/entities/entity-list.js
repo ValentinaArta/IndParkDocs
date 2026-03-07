@@ -520,8 +520,6 @@ async function searchEntities(q) {
 
 // ============ ENTITY DETAIL ============
 
-var _allEntitiesForParent = [];
-
 function showEntityDetail(id) { return showEntity(id, true); }
 
 
