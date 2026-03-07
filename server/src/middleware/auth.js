@@ -4,8 +4,11 @@ const jwt = require('jsonwebtoken');
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
   throw new Error('FATAL: JWT_SECRET must be set in production! Refusing to start with insecure default.');
 }
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_REFRESH_SECRET) {
+  throw new Error('FATAL: JWT_REFRESH_SECRET must be set in production and differ from JWT_SECRET!');
+}
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-only-refresh-secret';
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization;

@@ -3,7 +3,8 @@ const router = express.Router();
 const https = require('https');
 const http = require('http');
 const { authenticate } = require('../middleware/auth');
-const db = require('../db');
+const pool = require('../db');
+const logger = require('../logger');
 
 const ODATA_BASE = process.env.ODATA_BASE_URL || 'http://192.168.2.3/BF/odata/standard.odata';
 const ODATA_AUTH = 'Basic ' + Buffer.from((process.env.ODATA_USER || '') + ':' + (process.env.ODATA_PASS || '')).toString('base64');
@@ -159,7 +160,7 @@ router.get('/summary', authenticate, async (req, res) => {
       data_as_of: new Date().toISOString(),
     });
   } catch (e) {
-    console.error('Finance summary error:', e.message);
+    logger.error('Finance summary error:', e.message);
     res.status(503).json({ error: '1С недоступна: ' + e.message });
   }
 });
@@ -319,7 +320,7 @@ router.get('/overdue', authenticate, async (req, res) => {
     cacheSet(cacheKey, result);
     res.json(result);
   } catch (e) {
-    console.error('Finance overdue error:', e.message);
+    logger.error('Finance overdue error:', e.message);
     res.status(503).json({ error: '1С недоступна: ' + e.message });
   }
 });
@@ -340,7 +341,7 @@ router.get('/budget', authenticate, async (req, res) => {
   if (!cfo) return res.status(400).json({ error: 'cfo required' });
 
   try {
-    const rows = await db.query(
+    const rows = await pool.query(
       'SELECT article, level, fact, plan, total_fact, total_plan FROM budget_data WHERE budget_type=$1 AND cfo=$2 AND level<=$3 ORDER BY id',
       [type, cfo, maxLevel]
     );
@@ -393,12 +394,12 @@ router.get('/budget', authenticate, async (req, res) => {
       current_month: currentMonth,
       months,
       data,
-      cfos_available: (await db.query(
+      cfos_available: (await pool.query(
         'SELECT DISTINCT cfo FROM budget_data WHERE budget_type=$1 ORDER BY cfo', [type]
       )).rows.map(r => r.cfo),
     });
   } catch (e) {
-    console.error('Budget error:', e.message);
+    logger.error('Budget error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -464,7 +465,7 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     for (const c of cats) nameMap[c.Ref_Key] = c.Description;
 
     // Читаем договоры аренды из IndParkDocs (ИПЗ) + компании с odata_ref_key
-    const contractsRes = await db.query(`
+    const contractsRes = await pool.query(`
       SELECT e.id, e.name,
              e.properties->>'contractor_name' AS tenant,
              e.properties->>'contractor_id'   AS contractor_entity_id,
@@ -480,7 +481,7 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     const contracts = contractsRes.rows;
 
     // Загружаем company-сущности с odata_ref_key для точного матчинга
-    const companiesRes = await db.query(`
+    const companiesRes = await pool.query(`
       SELECT e.id, e.name, e.properties->>'odata_ref_key' AS ref_key
       FROM entities e
       JOIN entity_types et ON et.id = e.entity_type_id
@@ -581,7 +582,7 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     cacheSet(cacheKey, response);
     res.json(response);
   } catch(e) {
-    console.error('Rent drilldown error:', e.message);
+    logger.error('Rent drilldown error:', e.message);
     res.status(503).json({ error: e.message });
   }
 });
@@ -589,7 +590,7 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
 // GET /api/finance/budget/meta — список доступных ЦФО по типу бюджета
 router.get('/budget/meta', authenticate, async (req, res) => {
   try {
-    const r = await db.query(
+    const r = await pool.query(
       `SELECT budget_type, array_agg(DISTINCT cfo ORDER BY cfo) as cfos
        FROM budget_data GROUP BY budget_type`
     );
@@ -624,7 +625,7 @@ router.get('/expenses', authenticate, async (req, res) => {
     contractsRaw.forEach(c => { contractNumMap[c.Ref_Key] = c.Номер || c.Description || ''; });
 
     // Бюджет расходов (БДР) из БД
-    const budgetRes = await db.query(`
+    const budgetRes = await pool.query(`
       SELECT cfo, article, level, plan
       FROM budget_data
       WHERE budget_type = 'БДР'
@@ -763,7 +764,7 @@ router.get('/expenses', authenticate, async (req, res) => {
     cacheSet(cacheKey, result);
     res.json(result);
   } catch (e) {
-    console.error('Finance expenses error:', e.message);
+    logger.error('Finance expenses error:', e.message);
     res.status(503).json({ error: e.message });
   }
 });
