@@ -358,6 +358,10 @@ async function showEntityList(typeName, opts) {
   opts = opts || {};
   currentView = 'list';
   currentTypeFilter = typeName;
+  // Предзагрузка кэша помещений для раскрытия rent_objects в договорах
+  if (typeName === 'contract' && (!_rooms || !_rooms.length)) {
+    _rooms = await loadEntitiesByType('room');
+  }
   _setNavHash('list/' + encodeURIComponent(typeName));
   const type = entityTypes.find(t => t.name === typeName);
 
