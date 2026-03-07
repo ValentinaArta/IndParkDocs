@@ -252,7 +252,9 @@ function renderDynamicFields(contractType, props) {
     if (hasFinancial) {
       // Неизвестный/нестандартный тип договора — показываем базовые поля + 5 кнопок
       var _ciItems = [];
-      try { if ((props || {}).contract_items) _ciItems = JSON.parse(props.contract_items); } catch(e) {}
+      var _ciRaw = (props || {}).contract_items;
+      if (Array.isArray(_ciRaw)) _ciItems = _ciRaw;
+      else { try { if (_ciRaw) _ciItems = JSON.parse(_ciRaw); } catch(e) {} }
       container.innerHTML =
         '<div class="form-group"><label>Предмет договора</label><input type="text" id="f_subject" value="' + escapeHtml((props || {}).subject || '') + '" placeholder="Описание"></div>' +
         '<div class="form-group"><label>Позиции</label>' + renderContractItemsField(_ciItems, false) + '</div>' +

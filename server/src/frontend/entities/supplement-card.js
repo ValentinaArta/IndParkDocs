@@ -86,7 +86,8 @@ function renderSupplementCard(supp) {
   // ── Перечень работ / услуг / товаров (Подряда, Услуг, Купли-продажи) ───────
   if (sp.contract_items) {
     var contractItems = [];
-    try { contractItems = JSON.parse(sp.contract_items); } catch(ex) {}
+    if (Array.isArray(sp.contract_items)) contractItems = sp.contract_items;
+    else { try { contractItems = JSON.parse(sp.contract_items); } catch(ex) {} }
     if (contractItems.length > 0) {
       var isSale = (contractType === 'Купли-продажи');
       h += '<div style="margin-bottom:16px">';
@@ -124,7 +125,8 @@ function renderSupplementCard(supp) {
   // ── Условия аренды (Аренды / Субаренды) ────────────────────────────────────
   if (sp.rent_objects) {
     var rentObjs = [];
-    try { rentObjs = JSON.parse(sp.rent_objects); } catch(ex) {}
+    if (Array.isArray(sp.rent_objects)) rentObjs = sp.rent_objects;
+    else { try { rentObjs = JSON.parse(sp.rent_objects); } catch(ex) {} }
     var validObjs = rentObjs.filter(function(ro) { return ro.object_type; });
     if (validObjs.length > 0) {
       h += '<div style="margin-bottom:16px">';
@@ -215,7 +217,8 @@ function renderSupplementCard(supp) {
   var hasTransfer = (sp.transfer_equipment === 'true' || sp.transfer_equipment === true);
   var eqList = [];
   if (sp.equipment_list) {
-    try { eqList = JSON.parse(sp.equipment_list); } catch(ex) {}
+    if (Array.isArray(sp.equipment_list)) eqList = sp.equipment_list;
+    else { try { eqList = JSON.parse(sp.equipment_list); } catch(ex) {} }
   }
   if (eqList.length > 0) {
     var eqSectionLabel = hasTransfer ? 'Передаваемое оборудование' : 'Оборудование';

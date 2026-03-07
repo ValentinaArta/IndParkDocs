@@ -95,7 +95,8 @@ function renderContractCard(data) {
   }
   // Авансы
   var _advances = [];
-  try { if (data.advances) _advances = JSON.parse(data.advances); } catch(ex) {}
+  if (Array.isArray(data.advances)) _advances = data.advances;
+  else { try { if (data.advances) _advances = JSON.parse(data.advances); } catch(ex) {} }
   if (_advances.length) {
     h += '<div><span style="color:var(--text-secondary)">Авансы:</span>';
     h += '<ul style="margin:4px 0 0 18px;padding:0;font-size:13px">';
@@ -365,7 +366,8 @@ async function openContractCard(id) {
 
 async function _loadAdvanceStatus(id, data) {
   var advances = [];
-  try { if (data.advances) advances = JSON.parse(data.advances); } catch(_) {}
+  if (Array.isArray(data.advances)) advances = data.advances;
+  else { try { if (data.advances) advances = JSON.parse(data.advances); } catch(_) {} }
   if (!advances.length) return;
 
   try {
