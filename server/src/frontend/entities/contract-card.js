@@ -120,7 +120,9 @@ function renderContractCard(data) {
   // ── Перечень работ/услуг/товаров (contract_items) ──────────────────────────
   if (data.contract_items && data.contract_items.length) {
     h += '<div style="margin-bottom:16px">';
-    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">ПЕРЕЧЕНЬ ПОЗИЦИЙ</div>';
+    var _cliLabel = 'ПЕРЕЧЕНЬ ПОЗИЦИЙ';
+    if (data.cli_source_name) _cliLabel += ' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(из ' + escapeHtml(data.cli_source_name) + ')</span>';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">' + _cliLabel + '</div>';
     h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
     h += '<thead><tr style="background:#4F6BCC;color:#fff">';
     h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
@@ -150,6 +152,16 @@ function renderContractCard(data) {
     h += '<div style="font-size:15px;font-weight:600;margin-bottom:16px;color:var(--accent)">';
     h += 'Сумма договора: ' + _ccFmtNum(data.contract_amount) + ' ₽';
     h += '</div>';
+    // Предупреждение: сумма из ДС, но перечень позиций не обновлён
+    if (!data.cli_source_name && data.contract_items && data.contract_items.length > 0) {
+      var _itemsSum = data.contract_items.reduce(function(s, it) { return s + (parseFloat(it.amount) || 0); }, 0);
+      var _effAmt = parseFloat(data.contract_amount) || 0;
+      if (Math.abs(_itemsSum - _effAmt) > 0.01) {
+        h += '<div style="font-size:12px;color:#b45309;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:6px;padding:6px 10px;margin-bottom:12px">';
+        h += '⚠ Сумма по ДС (' + _ccFmtNum(_effAmt) + ' ₽) не совпадает с перечнем позиций (' + _ccFmtNum(_itemsSum) + ' ₽). Обновите позиции в последнем ДС.';
+        h += '</div>';
+      }
+    }
   }
 
   // ── Помещения (для аренды) ─────────────────────────────────────────────────

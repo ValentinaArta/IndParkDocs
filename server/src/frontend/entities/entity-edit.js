@@ -16,13 +16,21 @@ async function openEditModal(id) {
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
   _contractFormTypeName = e.type_name;
 
-  // For supplements: inherit missing party fields from parent contract
+  // For supplements: inherit missing party fields + line items from parent contract
   if (e.type_name === 'supplement' && e.parent_id) {
     try {
       var parentEntity = await api('/entities/' + e.parent_id);
       var pp = parentEntity.properties || {};
       var inheritFields = ['our_legal_entity', 'our_legal_entity_id', 'our_role_label', 'contractor_name', 'contractor_id', 'contractor_role_label', 'subtenant_name', 'subtenant_id'];
       inheritFields.forEach(function(fn) { if (!props[fn] && pp[fn]) props[fn] = pp[fn]; });
+      // Inherit line items from parent if supplement has none (pre-fill for editing)
+      if (!props.contract_items || (Array.isArray(props.contract_items) && props.contract_items.length === 0)) {
+        if (pp.contract_items) props.contract_items = pp.contract_items;
+      }
+      if (!props.equipment_list || (Array.isArray(props.equipment_list) && props.equipment_list.length === 0)) {
+        if (pp.equipment_list) props.equipment_list = pp.equipment_list;
+      }
+      if (!props.contract_type && pp.contract_type) props.contract_type = pp.contract_type;
     } catch(ex) { console.error('Failed to load parent contract:', ex); }
   }
 
