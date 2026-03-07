@@ -188,30 +188,52 @@ function renderContractFormFields(fields, props, headerHtml, options) {
 
   var ourDefaultRole = roles.our;
   var ourRoleVal = props.our_role_label || ourDefaultRole;
-  html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
-  html += '<div id="wrap_our_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль нашей стороны</label>' +
-    '<input id="f_our_role_label" value="' + escapeHtml(ourRoleVal) + '" placeholder="' + escapeHtml(ourDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
-  html += '<div id="wrap_our_legal_entity"><label id="label_our_legal_entity" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(props.our_role_label || roles.our) + '</label>' +
-    renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, props.our_legal_entity || '', 'начните вводить...', 'our_legal_entity') + '</div>';
-  html += '</div>';
-  html += '<div style="text-align:center;margin:-6px 0 8px"><button type="button" onclick="swapContractRoles()" title="Поменять роли сторон" class="btn-swap-roles">\\ud83d\\udd04 поменять роли</button></div>';
-
   var contrDefaultRole = roles.contractor;
   var contrRoleVal = props.contractor_role_label || contrDefaultRole;
-  html += '<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:end;margin-bottom:14px">';
-  html += '<div id="wrap_contractor_role_label"><label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Роль контрагента</label>' +
-    '<input id="f_contractor_role_label" value="' + escapeHtml(contrRoleVal) + '" placeholder="' + escapeHtml(contrDefaultRole) + '" data-auto-set="true" style="font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)"></div>';
-  html += '<div id="wrap_contractor_name"><label id="label_contractor_name" style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">' + escapeHtml(props.contractor_role_label || roles.contractor) + '</label>' +
+  var showSub = (contractType === 'Субаренды') || (roles.hasSubtenant);
+  var isVgo = props.external_rental === 'false' || props.is_vgo === 'true';
+  var _lbl = 'font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block';
+  var _inp = 'font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)';
+
+  // ── Блок сторон в рамке ───────────────────────────────────────────────────
+  html += '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">';
+
+  // Ряд 1: наша сторона + кнопка поменять (3 колонки)
+  html += '<div style="display:grid;grid-template-columns:150px 1fr 34px;gap:8px;align-items:end;margin-bottom:10px">';
+  html += '<div id="wrap_our_role_label"><label style="' + _lbl + '">Роль нашей стороны</label>' +
+    '<input id="f_our_role_label" value="' + escapeHtml(ourRoleVal) + '" placeholder="' + escapeHtml(ourDefaultRole) + '" data-auto-set="true" style="' + _inp + '"></div>';
+  html += '<div id="wrap_our_legal_entity"><label id="label_our_legal_entity" style="' + _lbl + '">' + escapeHtml(ourRoleVal || roles.our) + '</label>' +
+    renderSearchableSelect('f_our_legal_entity', _ownCompanies, props.our_legal_entity_id, props.our_legal_entity || '', 'начните вводить...', 'our_legal_entity') + '</div>';
+  html += '<div style="display:flex;align-items:flex-end;padding-bottom:1px">' +
+    '<button type="button" onclick="swapContractRoles()" title="Поменять роли сторон" ' +
+    'style="width:34px;height:34px;border-radius:6px;border:1px solid var(--border);background:var(--bg-hover);cursor:pointer;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-secondary)">' +
+    '\\u21c4</button></div>';
+  html += '</div>';
+
+  // Разделитель
+  html += '<div style="height:1px;background:var(--border);margin:0 0 10px;opacity:.4"></div>';
+
+  // Ряд 2: контрагент
+  html += '<div style="display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:end;margin-bottom:10px">';
+  html += '<div id="wrap_contractor_role_label"><label style="' + _lbl + '">Роль контрагента</label>' +
+    '<input id="f_contractor_role_label" value="' + escapeHtml(contrRoleVal) + '" placeholder="' + escapeHtml(contrDefaultRole) + '" data-auto-set="true" style="' + _inp + '"></div>';
+  html += '<div id="wrap_contractor_name"><label id="label_contractor_name" style="' + _lbl + '">' + escapeHtml(contrRoleVal || roles.contractor) + '</label>' +
     renderSearchableSelect('f_contractor_name', _allCompanies, props.contractor_id, props.contractor_name || '', 'начните вводить...', 'contractor_name') + '</div>';
   html += '</div>';
 
-  var showSub = (contractType === 'Субаренды') || (roles.hasSubtenant);
-  html += '<div class="form-group" id="wrap_subtenant_name" style="' + (showSub ? '' : 'display:none') + '"><label>Субарендатор</label>' +
+  // Субарендатор (только для Субаренды)
+  html += '<div id="wrap_subtenant_name" style="' + (showSub ? '' : 'display:none') + ';margin-bottom:10px"><label style="' + _lbl + '">Субарендатор</label>' +
     renderSearchableSelect('f_subtenant_name', _allCompanies, props.subtenant_id, props.subtenant_name || '', 'начните вводить...', 'subtenant_name') + '</div>';
 
-  var isVgo = props.external_rental === 'false' || props.is_vgo === 'true';
-  html += '<div style="margin:4px 0 8px"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">' +
-    '<input type="checkbox" id="f_is_vgo"' + (isVgo ? ' checked' : '') + '> \\ud83d\\udd35 ВГО (внутригрупповая операция)</label></div>';
+  // ВГО — одна строка
+  html += '<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px">' +
+    '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;user-select:none">' +
+    '<input type="checkbox" id="f_is_vgo"' + (isVgo ? ' checked' : '') + '>' +
+    '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>' +
+    '<span>ВГО <span style="color:var(--text-muted);font-size:12px;font-weight:400">— внутригрупповая операция</span></span>' +
+    '</label></div>';
+
+  html += '</div>'; // конец блока сторон
 
   var _sec1Handled = ['contract_type','number','contract_date','doc_status','our_role_label','our_legal_entity','contractor_role_label','contractor_name','subtenant_name','vat_rate','contract_end_date','duration_type','duration_date','duration_text','payment_frequency','sale_item_type'];
   fields.forEach(function(f) {
