@@ -52,6 +52,7 @@ const cubePage          = require('./pages/cube-page');
 const buildingFloorPlan = require('./pages/building-floor-plan');
 const lettersPage       = require('./pages/letters-page');
 const fireSafetyPage    = require('./pages/fire-safety-page');
+const aiSandboxPage     = require('./pages/ai-sandbox-page');
 const rentObjects = require('./rent-objects');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
@@ -142,6 +143,8 @@ const FRONTEND_HTML =
   lettersPage +
   '\n' +
   fireSafetyPage +
+  '\n' +
+  aiSandboxPage +
   '\n' +
   contractForm +
   '\n' +

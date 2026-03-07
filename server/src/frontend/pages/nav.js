@@ -128,6 +128,7 @@ function _routeFromHash(hash) {
   if (hash === '#zachety')      { showLegalZachety(); return; }
   if (hash === '#letters')      { showLetters();       return; }
   if (hash === '#fire-safety')  { showFireSafety();    return; }
+  if (hash === '#ai-sandbox')   { showAISandbox();     return; }
   if (hash === '#meters')       { showMetersPage();    return; }
   if (hash === '#reports')  { showReports();      return; }
   if (hash === '#cube')     { showCubePage();     return; }

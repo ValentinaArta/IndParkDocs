@@ -7,7 +7,8 @@ const { authenticate } = require('../middleware/auth');
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Слишком много запросов к AI. Подождите минуту.' } });
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = 'claude-haiku-4-5'; // быстрая модель для чата
+const MODEL = 'claude-sonnet-4-5'; // upgraded for AI Sandbox
+const DAILY_TOKEN_LIMIT = 300000;
 
 // ─── Системный промпт ─────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `Ты — AI-ассистент встроенный в систему IndParkDocs управляющей компании «АО Индустриальный Парк Звезда» (ИПЗ).
@@ -37,7 +38,24 @@ const SYSTEM_PROMPT = `Ты — AI-ассистент встроенный в с
 - Если вопрос требует данных — вызови run_sql ПЕРЕД ответом
 - Не придумывай данные; если не знаешь — так и скажи
 - Форматируй списки через • для читаемости
-- Используй эмодзи умеренно`;
+- Используй эмодзи умеренно
+
+ВИЗУАЛИЗАЦИИ И ДАШБОРДЫ (Canvas-режим):
+Когда пользователь просит визуализацию, дашборд, график, отчёт или таблицу:
+1. Сначала получи данные через run_sql
+2. Затем верни ПОЛНЫЙ HTML-документ внутри тега <canvas-html>...</canvas-html>
+3. HTML должен быть самодостаточным (inline CSS + JS, все данные встроены)
+4. Используй Chart.js (CDN: https://cdn.jsdelivr.net/npm/chart.js) для графиков
+5. Дизайн: градиенты, тени, плавные анимации, современный премиальный стиль
+6. Цветовая палитра: #6366F1 (индиго), #8B5CF6 (фиолетовый), #06B6D4 (циан), #10B981 (зелёный), #F59E0B (янтарь)
+7. Шрифт: Inter (подключи через Google Fonts)
+8. Карточки с метриками: большие числа, подписи, маленькие иконки, тень
+9. Адаптивность: используй CSS Grid и Flexbox
+10. Анимации: fade-in при загрузке, hover-эффекты на карточках
+11. Тёмный фон (#0F172A) с белым текстом — выглядит премиально
+12. Для таблиц: zebra-striping, hover на строках, закруглённые углы
+
+Для простых вопросов без визуализации — отвечай текстом как обычно.`;
 
 // ─── Вызов Anthropic API ─────────────────────────────────────────────────────
 async function callClaude(messages, tools = []) {
@@ -45,7 +63,7 @@ async function callClaude(messages, tools = []) {
 
   const body = {
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: 8192,
     system: SYSTEM_PROMPT,
     messages,
   };
@@ -118,8 +136,32 @@ const TOOLS = [
   }
 ];
 
+// ─── Проверка дневного лимита токенов ─────────────────────────────────────────
+async function checkTokenLimit(userId) {
+  const result = await pool.query(
+    `SELECT COALESCE(SUM(tokens_in + tokens_out), 0)::int AS total
+     FROM ai_token_usage WHERE user_id = $1 AND date = CURRENT_DATE`,
+    [userId]
+  );
+  return result.rows[0].total;
+}
+
+async function recordTokenUsage(userId, tokensIn, tokensOut) {
+  await pool.query(
+    `INSERT INTO ai_token_usage (user_id, date, tokens_in, tokens_out)
+     VALUES ($1, CURRENT_DATE, $2, $3)`,
+    [userId, tokensIn, tokensOut]
+  );
+}
+
 // ─── Основная логика ответа ───────────────────────────────────────────────────
-async function generateReply(userMessage, sessionId) {
+async function generateReply(userMessage, sessionId, userId) {
+  // Проверяем лимит
+  const usedToday = await checkTokenLimit(userId);
+  if (usedToday >= DAILY_TOKEN_LIMIT) {
+    throw new Error('Дневной лимит токенов исчерпан (300K). Попробуйте завтра.');
+  }
+
   // Загружаем последние 10 сообщений для контекста
   const history = await pool.query(
     `SELECT role, content FROM ai_messages
@@ -130,14 +172,17 @@ async function generateReply(userMessage, sessionId) {
     role: r.role,
     content: r.content,
   }));
-  // Добавляем текущее сообщение
   histMessages.push({ role: 'user', content: userMessage });
+
+  let totalIn = 0, totalOut = 0;
 
   // Первый вызов Claude
   let response = await callClaude(histMessages, TOOLS);
+  totalIn += response.usage?.input_tokens || 0;
+  totalOut += response.usage?.output_tokens || 0;
 
   // Обработка tool_use (может быть несколько шагов)
-  let maxSteps = 3;
+  let maxSteps = 5;
   while (response.stop_reason === 'tool_use' && maxSteps-- > 0) {
     const toolUses = response.content.filter(b => b.type === 'tool_use');
     const toolResults = [];
@@ -150,7 +195,7 @@ async function generateReply(userMessage, sessionId) {
           result = rows.length === 0
             ? 'Нет данных'
             : JSON.stringify(rows, null, 2);
-          if (result.length > 4000) result = result.slice(0, 4000) + '\n...(truncated)';
+          if (result.length > 8000) result = result.slice(0, 8000) + '\n...(truncated)';
         } catch (e) {
           result = `Ошибка: ${e.message}`;
         }
@@ -162,13 +207,16 @@ async function generateReply(userMessage, sessionId) {
       }
     }
 
-    // Продолжаем диалог с результатами инструментов
     histMessages.push({ role: 'assistant', content: response.content });
     histMessages.push({ role: 'user', content: toolResults });
     response = await callClaude(histMessages, TOOLS);
+    totalIn += response.usage?.input_tokens || 0;
+    totalOut += response.usage?.output_tokens || 0;
   }
 
-  // Извлекаем текст ответа
+  // Записываем использование токенов
+  await recordTokenUsage(userId, totalIn, totalOut);
+
   const textBlock = response.content.find(b => b.type === 'text');
   return textBlock ? textBlock.text : 'Не удалось получить ответ';
 }
@@ -181,25 +229,27 @@ router.post('/', authenticate, aiLimiter, async (req, res) => {
 
     const sid = session_id || 'default';
 
+    const userId = req.user?.id || 0;
+
     // Сохраняем сообщение пользователя
     const userRow = await pool.query(
-      'INSERT INTO ai_messages (session_id, role, content) VALUES ($1, $2, $3) RETURNING id, created_at',
-      [sid, 'user', message.trim()]
+      'INSERT INTO ai_messages (session_id, role, content, user_id) VALUES ($1, $2, $3, $4) RETURNING id, created_at',
+      [sid, 'user', message.trim(), userId]
     );
 
     // Генерируем ответ
     let replyText;
     try {
-      replyText = await generateReply(message.trim(), sid);
+      replyText = await generateReply(message.trim(), sid, userId);
     } catch (e) {
       console.error('AI generate error:', e.message);
-      replyText = `⚠️ Ошибка ИИ: ${e.message}`;
+      replyText = `⚠️ ${e.message}`;
     }
 
     // Сохраняем ответ ассистента
     const aiRow = await pool.query(
-      'INSERT INTO ai_messages (session_id, role, content) VALUES ($1, $2, $3) RETURNING id, created_at',
-      [sid, 'assistant', replyText]
+      'INSERT INTO ai_messages (session_id, role, content, user_id) VALUES ($1, $2, $3, $4) RETURNING id, created_at',
+      [sid, 'assistant', replyText, userId]
     );
 
     res.json({
@@ -250,6 +300,17 @@ router.get('/history', authenticate, async (req, res) => {
 router.get('/pending', authenticate, async (req, res) => {
   // Нет pending — ответы генерируются inline
   res.json({ pending: [] });
+});
+
+// ─── GET /api/ai/chat/usage — использование токенов за сегодня ────────────────
+router.get('/usage', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.id || 0;
+    const used = await checkTokenLimit(userId);
+    res.json({ used, limit: DAILY_TOKEN_LIMIT, remaining: Math.max(0, DAILY_TOKEN_LIMIT - used) });
+  } catch (e) {
+    res.status(500).json({ error: 'Internal error' });
+  }
 });
 
 // ─── POST /api/ai/chat/respond — для внешних агентов (совместимость) ─────────
