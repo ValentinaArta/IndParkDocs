@@ -314,7 +314,10 @@ async function showEntity(id, _forceDetail) {
       acts.forEach(function(a) {
         var ap = a.properties || {};
         var items = [];
-        try { items = JSON.parse(ap.act_items || '[]'); } catch(ex) {}
+        try {
+          if (Array.isArray(ap.act_items)) items = ap.act_items;
+          else if (ap.act_items) items = JSON.parse(ap.act_items);
+        } catch(ex) {}
         var total = items.reduce(function(s, i) { return s + (parseFloat(i.amount) || 0); }, 0);
         html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="showEntity(' + a.id + ')">';
         html += '<td style="padding:6px">' + escapeHtml(a.name) + '</td>';
