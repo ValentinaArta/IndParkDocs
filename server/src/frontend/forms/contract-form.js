@@ -191,7 +191,6 @@ function renderContractFormFields(fields, props, headerHtml, options) {
   var contrDefaultRole = roles.contractor;
   var contrRoleVal = props.contractor_role_label || contrDefaultRole;
   var showSub = (contractType === 'Субаренды') || (roles.hasSubtenant);
-  var isVgo = props.external_rental === 'false' || props.is_vgo === 'true';
   var _lbl = 'font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block';
   var _inp = 'font-size:12px;color:var(--text-secondary);width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius)';
 
@@ -224,14 +223,6 @@ function renderContractFormFields(fields, props, headerHtml, options) {
   // Субарендатор (только для Субаренды)
   html += '<div id="wrap_subtenant_name" style="' + (showSub ? '' : 'display:none') + ';margin-bottom:10px"><label style="' + _lbl + '">Субарендатор</label>' +
     renderSearchableSelect('f_subtenant_name', _allCompanies, props.subtenant_id, props.subtenant_name || '', 'начните вводить...', 'subtenant_name') + '</div>';
-
-  // ВГО — одна строка
-  html += '<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px">' +
-    '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;user-select:none">' +
-    '<input type="checkbox" id="f_is_vgo"' + (isVgo ? ' checked' : '') + '>' +
-    '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>' +
-    '<span>ВГО <span style="color:var(--text-muted);font-size:12px;font-weight:400">— внутригрупповая операция</span></span>' +
-    '</label></div>';
 
   html += '</div>'; // конец блока сторон
 
@@ -472,24 +463,6 @@ function collectDynamicFieldValues(contractType) {
     else if (dlType.value === 'Текст' && dlText) result.completion_deadline = dlText.value;
     if (dlDate) result.deadline_date = dlDate.value;
     if (dlText) result.deadline_text = dlText.value;
-  }
-  // ВГО checkbox → external_rental (inverse)
-  var _vgoEl = document.getElementById('f_is_vgo');
-  if (_vgoEl) {
-    result.is_vgo = String(_vgoEl.checked);
-    result.external_rental = String(!_vgoEl.checked);
-  } else {
-    var _extEl = document.getElementById('f_external_rental');
-    if (_extEl) {
-      var contrId = document.getElementById('f_contractor_name');
-      var contrVal = contrId ? contrId.value : '';
-      var isExternal = true;
-      if (contrVal) {
-        var contrComp = (_ownCompanies || []).find(function(c) { return c.id === parseInt(contrVal); });
-        if (contrComp) isExternal = false;
-      }
-      result.external_rental = String(isExternal);
-    }
   }
   // Collect vat_rate from financial section
   var _vatEl = document.getElementById('f_vat_rate');
