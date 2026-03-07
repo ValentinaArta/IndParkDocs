@@ -82,10 +82,37 @@ function _getEntityTableCols(typeName) {
         render: function(e) { return escapeHtml((e.properties || {}).contract_type || '—'); }
       },
       { id: 'subject', label: 'Предмет договора', sortable: true,
-        getValue: function(e) { var p = e.properties || {}; return p.service_subject || p.subject || ''; },
+        getValue: function(e) {
+          var p = e.properties || {};
+          if (p.service_subject || p.subject) return p.service_subject || p.subject;
+          // Аренды/Субаренды/Аренда оборудования — строим из rent_objects
+          if (p.rent_objects) {
+            try {
+              var ros = JSON.parse(p.rent_objects);
+              var parts = ros.map(function(it) {
+                var nm = it.room || it.room_name || it.building_name || '';
+                return nm ? (nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
+              }).filter(Boolean);
+              return parts.length ? parts.join(', ') : (ros.length ? ros.length + ' объект(ов)' : '');
+            } catch(ex) {}
+          }
+          return '';
+        },
         render: function(e) {
           var p = e.properties || {};
-          var txt = p.service_subject || p.subject || '';
+          var txt = '';
+          if (p.service_subject || p.subject) {
+            txt = p.service_subject || p.subject;
+          } else if (p.rent_objects) {
+            try {
+              var ros = JSON.parse(p.rent_objects);
+              var parts = ros.map(function(it) {
+                var nm = it.room || it.room_name || it.building_name || '';
+                return nm ? (nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
+              }).filter(Boolean);
+              txt = parts.length ? parts.join(', ') : (ros.length ? ros.length + ' объект(ов)' : '');
+            } catch(ex) {}
+          }
           if (!txt) return '<span style="color:var(--text-secondary)">—</span>';
           var short = txt.length > 55 ? txt.slice(0, 55) + '\\u2026' : txt;
           return '<span title="' + escapeHtml(txt) + '" style="font-size:12px;color:var(--text-secondary)">' + escapeHtml(short) + '</span>';
