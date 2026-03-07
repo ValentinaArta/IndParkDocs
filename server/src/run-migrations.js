@@ -44,6 +44,7 @@ const migrations = {
   '040':         require('./migrations/040_backfill_located_in'),
   '041':         require('./migrations/041_normalize_json_arrays'),
   '042':         require('./migrations/042_field_option_values'),
+  '043':         require('./migrations/043_supplement_inherit_type'),
 };
 
 async function initMigrationTracker(pool) {

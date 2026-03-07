@@ -213,6 +213,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
        AND c.deleted_at IS NULL LIMIT 1) as equipment_tenant,
     COALESCE(NULLIF(e.properties->>'our_legal_entity',''), p.properties->>'our_legal_entity') as effective_our_legal_entity,
     COALESCE(NULLIF(e.properties->>'contractor_name',''), p.properties->>'contractor_name') as effective_contractor_name,
+    COALESCE(NULLIF(e.properties->>'contract_type',''), p.properties->>'contract_type') as effective_contract_type,
     (SELECT string_agg(loc.name, ', ' ORDER BY loc.name)
      FROM relations r
      JOIN entities loc ON r.to_entity_id = loc.id
