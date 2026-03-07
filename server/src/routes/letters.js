@@ -7,11 +7,12 @@
  */
 const { Router } = require('express');
 const db = require('../db');
+const { authenticate } = require('../middleware/auth');
 
 const router = Router();
 
 // ── GET /api/letter-topics ──────────────────────────────────────────────────
-router.get('/letter-topics', async (req, res) => {
+router.get('/letter-topics', authenticate, async (req, res) => {
   try {
     const { rows } = await db.query(
       'SELECT id, name, sort_order FROM letter_topics ORDER BY sort_order, name'
@@ -23,7 +24,7 @@ router.get('/letter-topics', async (req, res) => {
 });
 
 // ── POST /api/letter-topics ─────────────────────────────────────────────────
-router.post('/letter-topics', async (req, res) => {
+router.post('/letter-topics', authenticate, async (req, res) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
@@ -40,7 +41,7 @@ router.post('/letter-topics', async (req, res) => {
 // ── GET /api/letters/by-topic/:topicName ────────────────────────────────────
 // Returns letters filtered by topic name, optionally filtered by company IDs
 // Query params: ?companies=11,12,63 (comma-separated company IDs)
-router.get('/letters/by-topic/:topicName', async (req, res) => {
+router.get('/letters/by-topic/:topicName', authenticate, async (req, res) => {
   try {
     const topicName = req.params.topicName;
     const companyIds = req.query.companies
@@ -80,7 +81,7 @@ router.get('/letters/by-topic/:topicName', async (req, res) => {
 
 // ── GET /api/letters/tenants/:companyId ─────────────────────────────────────
 // Returns tenants/subtenants for a given company (from contracts)
-router.get('/letters/tenants/:companyId', async (req, res) => {
+router.get('/letters/tenants/:companyId', authenticate, async (req, res) => {
   try {
     const companyId = req.params.companyId;
     const { rows } = await db.query(`
