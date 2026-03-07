@@ -43,6 +43,7 @@ const migrations = {
   '039':         require('./migrations/039_perf_indexes'),
   '040':         require('./migrations/040_backfill_located_in'),
   '041':         require('./migrations/041_normalize_json_arrays'),
+  '042':         require('./migrations/042_field_option_values'),
 };
 
 async function initMigrationTracker(pool) {
