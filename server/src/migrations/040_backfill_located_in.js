@@ -7,7 +7,7 @@
 module.exports = async function migration040(pool) {
   // Все договоры аренды/субаренды с rent_objects
   const { rows: contracts } = await pool.query(`
-    SELECT id, properties->>'rent_objects' as rent_objects_raw
+    SELECT e.id, e.properties->>'rent_objects' as rent_objects_raw
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
     WHERE e.deleted_at IS NULL
