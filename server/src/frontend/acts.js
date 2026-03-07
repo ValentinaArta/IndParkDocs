@@ -13,7 +13,9 @@ async function openEditActModal(actId, actEntity) {
       try {
         var parentEntity = await api('/entities/' + parentContractId);
         var contractEqItems = [];
-        try { contractEqItems = JSON.parse((parentEntity.properties || {}).equipment_list || '[]'); } catch(ex) {}
+        var _eqRaw = (parentEntity.properties || {}).equipment_list;
+        if (Array.isArray(_eqRaw)) contractEqItems = _eqRaw;
+        else { try { contractEqItems = JSON.parse(_eqRaw || '[]'); } catch(ex) {} }
         var contractEqIds = contractEqItems.map(function(i) { return parseInt(i.equipment_id); }).filter(Boolean);
         _actEquipmentList = contractEqIds.length > 0
           ? _equipment.filter(function(eq) { return contractEqIds.indexOf(eq.id) !== -1; })
@@ -21,9 +23,10 @@ async function openEditActModal(actId, actEntity) {
       } catch(ex) {}
     }
 
-    // Разбираем сохранённые позиции
+    // Разбираем сохранённые позиции (массив из БД или JSON-строка legacy)
     var savedItems = [];
-    try { savedItems = JSON.parse(props.act_items || '[]'); } catch(ex) {}
+    if (Array.isArray(props.act_items)) savedItems = props.act_items;
+    else { try { savedItems = JSON.parse(props.act_items || '[]'); } catch(ex) {} }
 
     var parentName = props.parent_contract_name || (parentContractId ? 'Договор #' + parentContractId : '—');
     var html = '<h3>Редактировать акт</h3>';
