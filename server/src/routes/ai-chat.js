@@ -77,7 +77,7 @@ async function callClaude(messages, tools = []) {
       'content-type': 'application/json',
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!res.ok) {
