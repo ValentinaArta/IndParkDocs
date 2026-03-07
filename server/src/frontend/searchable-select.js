@@ -61,19 +61,21 @@ function _srchGetList(id) {
   if (fn === 'our_legal_entity') return _ownCompanies || [];
   if (fn === 'balance_owner') return _ownCompanies || [];
   if (fn === 'equipment_rent') return (_equipment || []).map(function(e) {
-    var invNum = (e.properties || {}).inv_number;
-    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
+    var p = e.properties || {};
+    var invNum = p.inv_number;
+    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : ''), category: p.equipment_category || 'Прочее' };
   });
   if (fn === 'eq_parent') return (_equipment || []).map(function(e) {
-    var invNum = (e.properties || {}).inv_number;
-    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
+    var p = e.properties || {};
+    var invNum = p.inv_number;
+    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : ''), category: p.equipment_category || 'Прочее' };
   });
   if (fn === 'meter_equipment') return (_equipment || []).map(function(e) {
     var p = e.properties || {};
-    var cat = p.equipment_category || '';
+    var cat = p.equipment_category || 'Прочее';
     var inv = p.inv_number || '';
-    var suffix = [cat, inv ? 'инв. ' + inv : ''].filter(Boolean).join(', ');
-    return { id: e.id, name: e.name + (suffix ? ' (' + suffix + ')' : '') };
+    var suffix = inv ? 'инв. ' + inv : '';
+    return { id: e.id, name: e.name + (suffix ? ' (' + suffix + ')' : ''), category: cat };
   });
   if (fn === 'rent_room') return (_rooms || []).map(function(r) {
     var bld = _getRoomBuilding(r);
@@ -94,8 +96,9 @@ function _srchGetList(id) {
     return items;
   }
   if (fn === 'act_equipment') return (_equipment || []).map(function(e) {
-    var invNum = (e.properties || {}).inv_number;
-    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : '') };
+    var p = e.properties || {};
+    var invNum = p.inv_number;
+    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : ''), category: p.equipment_category || 'Прочее' };
   });
   if (fn === 'building') return (_buildings || []).map(function(b) { return { id: b.id, name: b.name }; });
   if (fn === 'land_plot') return (_landPlots || []).map(function(lp) {
@@ -114,11 +117,31 @@ function _srchFilter(id) {
   dropEl._lastQ = q;
   var list = _srchGetList(id);
   var filtered = q ? list.filter(function(e) { return e.name.toLowerCase().indexOf(q) >= 0; }) : list;
+  var GROUPED_FIELDS = ['equipment_rent', 'eq_parent', 'meter_equipment', 'act_equipment'];
+  var isGrouped = GROUPED_FIELDS.indexOf(fn) >= 0;
   var h = '';
-  filtered.slice(0, 50).forEach(function(e) {
-    h += '<div class="srch-item" data-srch-pick="' + e.id + '">' + escapeHtml(e.name) + '</div>';
-  });
-  if (filtered.length > 50) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...</div>';
+  if (isGrouped && !q) {
+    // Grouped by category — no limit, category headers as dividers
+    var groups = {};
+    var groupOrder = [];
+    filtered.forEach(function(e) {
+      var cat = e.category || 'Прочее';
+      if (!groups[cat]) { groups[cat] = []; groupOrder.push(cat); }
+      groups[cat].push(e);
+    });
+    groupOrder.sort();
+    groupOrder.forEach(function(cat) {
+      h += '<div class="srch-group-hdr">' + escapeHtml(cat) + ' <span style="font-weight:400;opacity:0.7">(' + groups[cat].length + ')</span></div>';
+      groups[cat].forEach(function(e) {
+        h += '<div class="srch-item" data-srch-pick="' + e.id + '">' + escapeHtml(e.name) + '</div>';
+      });
+    });
+  } else {
+    filtered.slice(0, 80).forEach(function(e) {
+      h += '<div class="srch-item" data-srch-pick="' + e.id + '">' + escapeHtml(e.name) + '</div>';
+    });
+    if (filtered.length > 80) h += '<div class="srch-item" style="color:var(--text-muted);font-size:12px">...ещё ' + (filtered.length - 80) + '</div>';
+  }
   var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
   if (fn !== 'equipment_rent' && fn !== 'rent_room' && fn !== 'rent_land_plot' && fn !== 'rent_lp_part' && fn !== 'rent_lp_combined' && fn !== 'act_equipment' && fn !== 'building' && fn !== 'land_plot' && fn !== 'eq_parent' && fn !== 'meter_equipment') {
     h += '<div class="srch-item srch-new" data-srch-new="1">+ Создать новую...</div>';

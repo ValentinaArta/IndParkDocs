@@ -101,6 +101,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .srch-item:hover,.srch-item.srch-active { background:var(--bg-hover); }
 .srch-new { color:var(--primary);font-style:italic;border-top:1px solid var(--border); }
 .srch-custom { width:100%;box-sizing:border-box;margin-top:6px; }
+.srch-group-hdr { padding:5px 12px 3px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;background:var(--bg-secondary);cursor:default;pointer-events:none;border-top:1px solid var(--border);position:sticky;top:0; }
 .modal h3 { font-size: 16px; margin-bottom: 16px; padding-right: 80px; }
 .modal .form-group { margin-bottom: 14px; }
 .modal label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
