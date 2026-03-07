@@ -53,7 +53,9 @@ const buildingFloorPlan = require('./pages/building-floor-plan');
 const lettersPage       = require('./pages/letters-page');
 const fireSafetyPage    = require('./pages/fire-safety-page');
 const aiSandboxPage     = require('./pages/ai-sandbox-page');
-const rentObjects = require('./rent-objects');
+const rentObjectsShared = require('./rent-objects/shared');
+const rentObjectsRoom = require('./rent-objects/room-block');
+const rentObjectsEquipment = require('./rent-objects/equipment-block');
 const entityCrud = require('./entity-crud');
 const supplements = require('./supplements');
 const landPlotParts = require('./land-plot-parts');
@@ -166,7 +168,11 @@ const FRONTEND_HTML =
   '\n' +
   supplementCard +
   '\n' +
-  rentObjects +
+  rentObjectsShared +
+  '\n' +
+  rentObjectsRoom +
+  '\n' +
+  rentObjectsEquipment +
   '\n' +
   entityCrud +
   '\n' +
