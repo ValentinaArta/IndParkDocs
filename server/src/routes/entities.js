@@ -241,6 +241,14 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     const pi = params.push('%' + search.replace(/[%_]/g, '\\$&') + '%');
     sql += ` AND (e.name ILIKE $${pi}
       OR e.properties->>'number' ILIKE $${pi}
+      OR e.properties->>'act_number' ILIKE $${pi}
+      OR e.properties->>'doc_number' ILIKE $${pi}
+      OR e.properties->>'order_number' ILIKE $${pi}
+      OR e.properties->>'inv_number' ILIKE $${pi}
+      OR e.properties->>'meter_number' ILIKE $${pi}
+      OR e.properties->>'outgoing_number' ILIKE $${pi}
+      OR e.properties->>'room_number' ILIKE $${pi}
+      OR e.properties->>'cadastral_number' ILIKE $${pi}
       OR e.properties->>'subtenant_name' ILIKE $${pi}
       OR e.properties->>'contractor_name' ILIKE $${pi}
       OR e.properties->>'our_legal_entity' ILIKE $${pi}
