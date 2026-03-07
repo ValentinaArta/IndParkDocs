@@ -187,9 +187,12 @@ async function showEntity(id, _forceDetail) {
         else { try { if (typeof val === 'string' && val) svIds = JSON.parse(val); } catch(ex) {} }
         html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div><div class="prop-value">';
         if (svIds.length > 0) {
+          var _svPool = (_buildings || []).concat(_rooms || []).concat(_landPlots || []).concat(_landPlotParts || []);
           html += svIds.map(function(id) {
-            var sv = id ? ((_entities || []).find(function(x) { return x.id === parseInt(id); }) || null) : null;
-            return sv ? '<a href="#" onclick="showEntity(' + sv.id + ');return false" style="color:var(--accent)">' + escapeHtml(sv.name) + '</a>' : String(id);
+            var eid = parseInt(id);
+            var sv = eid ? (_svPool.find(function(x) { return x.id === eid; }) || null) : null;
+            return sv ? '<a href="#" onclick="showEntity(' + eid + ');return false" style="color:var(--accent)">' + escapeHtml(sv.name) + '</a>'
+                      : '<a href="#" onclick="showEntity(' + eid + ');return false" style="color:var(--accent)">#' + eid + '</a>';
           }).join(', ');
         } else { html += '—'; }
         html += '</div></div>';
