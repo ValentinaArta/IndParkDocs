@@ -85,18 +85,27 @@ function _getEntityTableCols(typeName) {
         getValue: function(e) {
           var p = e.properties || {};
           if (p.service_subject || p.subject) return p.service_subject || p.subject;
-          // Аренды/Субаренды/Аренда оборудования — строим из rent_objects
-          if (p.rent_objects) {
-            try {
-              var ros = JSON.parse(p.rent_objects);
-              var parts = ros.map(function(it) {
-                var nm = it.room || it.room_name || it.building_name || '';
-                return nm ? (nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
-              }).filter(Boolean);
-              return parts.length ? parts.join(', ') : (ros.length ? ros.length + ' объект(ов)' : '');
-            } catch(ex) {}
-          }
-          return '';
+          if (!p.rent_objects) return '';
+          try {
+            var ros = JSON.parse(p.rent_objects);
+            var parts = ros.map(function(it) {
+              // Земельный участок / часть ЗУ
+              if (it.land_plot_id || it.land_plot_part_id || it.object_type === 'ЗУ') {
+                var lnm = it.land_plot_part_name || it.land_plot_name || '';
+                return lnm ? (lnm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
+              }
+              // Помещение — имя встроено
+              var nm = it.room || it.room_name || '';
+              if (nm) return nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
+              // Помещение — только room_id → ищем в кэше _rooms
+              if (it.room_id) {
+                var rm = (_rooms || []).find(function(r) { return r.id === parseInt(it.room_id); });
+                if (rm) return rm.name + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
+              }
+              return it.building_name || '';
+            }).filter(Boolean);
+            return parts.length ? parts.join(', ') : (ros.length ? ros.length + ' объект(ов)' : '');
+          } catch(ex) { return ''; }
         },
         render: function(e) {
           var p = e.properties || {};
@@ -107,8 +116,17 @@ function _getEntityTableCols(typeName) {
             try {
               var ros = JSON.parse(p.rent_objects);
               var parts = ros.map(function(it) {
-                var nm = it.room || it.room_name || it.building_name || '';
-                return nm ? (nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
+                if (it.land_plot_id || it.land_plot_part_id || it.object_type === 'ЗУ') {
+                  var lnm = it.land_plot_part_name || it.land_plot_name || '';
+                  return lnm ? (lnm + (it.area ? ' (' + it.area + ' м\u00b2)' : '')) : '';
+                }
+                var nm = it.room || it.room_name || '';
+                if (nm) return nm + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
+                if (it.room_id) {
+                  var rm = (_rooms || []).find(function(r) { return r.id === parseInt(it.room_id); });
+                  if (rm) return rm.name + (it.area ? ' (' + it.area + ' м\u00b2)' : '');
+                }
+                return it.building_name || '';
               }).filter(Boolean);
               txt = parts.length ? parts.join(', ') : (ros.length ? ros.length + ' объект(ов)' : '');
             } catch(ex) {}
