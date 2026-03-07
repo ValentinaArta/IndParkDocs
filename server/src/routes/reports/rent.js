@@ -3,123 +3,128 @@ const express = require('express');
 const pool = require('../../db');
 const { authenticate } = require('../../middleware/auth');
 const { asyncHandler } = require('../../middleware/errorHandler');
-const { resolveRoArea } = require('./helpers');
 
 const router = express.Router();
 
-// GET /api/reports/rent-analysis — flat rows from Аренды/Субаренды contracts, expanded from rent_objects
+// GET /api/reports/rent-analysis — flat rows from Аренды/Субаренды contracts, from rent_items table
 router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
+  // For each signed Аренды/Субаренды contract:
+  //   Find the latest supplement with rent_items (effective source).
+  //   Fall back to the contract itself if no such supplement exists.
+  //   Expand each rent_item row into a report row.
   const sql = `
-    WITH latest_supps AS (
+    WITH contracts AS (
+      SELECT
+        e.id, e.name,
+        e.properties->>'contract_type'      AS contract_type,
+        e.properties->>'number'             AS contract_number,
+        e.properties->>'contract_date'      AS contract_date,
+        e.properties->>'contract_end_date'  AS contract_end_date,
+        e.properties->>'our_legal_entity'   AS our_legal_entity,
+        e.properties->>'vat_rate'           AS vat_rate,
+        e.properties->>'external_rental'    AS external_rental,
+        (e.properties->>'contractor_id')::int AS contractor_id,
+        (e.properties->>'subtenant_id')::int  AS subtenant_id
+      FROM entities e
+      JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
+      WHERE e.deleted_at IS NULL
+        AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
+        AND (e.properties->>'doc_status' IN ('Подписан','')
+             OR e.properties->>'doc_status' IS NULL)
+    ),
+    eff_supp AS (
+      -- Latest supplement that has rent_items rows
       SELECT DISTINCT ON (s.parent_id)
-        s.parent_id              AS contract_id,
-        s.id                     AS supp_id,
-        s.name                   AS supp_name,
-        s.properties->>'contract_date'     AS supp_date,
-        s.properties->>'rent_objects'      AS rent_objects,
-        s.properties->>'contract_end_date' AS supp_end_date
+        s.parent_id                          AS contract_id,
+        s.id                                 AS supp_id,
+        s.name                               AS supp_name,
+        s.properties->>'contract_date'       AS supp_date,
+        s.properties->>'contract_end_date'   AS supp_end_date
       FROM entities s
-      JOIN entity_types st ON s.entity_type_id = st.id AND st.name = 'supplement'
+      JOIN entity_types st ON st.id = s.entity_type_id AND st.name = 'supplement'
       WHERE s.deleted_at IS NULL
-        AND s.properties->>'rent_objects' IS NOT NULL
-        AND s.properties->>'rent_objects' NOT IN ('', '[]', 'null')
-        AND EXISTS (
-          SELECT 1
-          FROM jsonb_array_elements((s.properties->>'rent_objects')::jsonb) AS obj
-          WHERE (obj->>'rent_rate' IS NOT NULL AND obj->>'rent_rate' NOT IN ('', '0', '0.0', '0.00'))
-             OR (obj->>'area'      IS NOT NULL AND obj->>'area'      NOT IN ('', '0', '0.0', '0.00'))
-        )
+        AND s.parent_id IN (SELECT id FROM contracts)
+        AND EXISTS (SELECT 1 FROM rent_items ri WHERE ri.contract_id = s.id)
       ORDER BY s.parent_id,
                s.properties->>'contract_date' DESC NULLS LAST,
                s.id DESC
     )
     SELECT
-      e.id, e.name,
-      e.properties->>'contract_type'     AS contract_type,
-      e.properties->>'number'            AS contract_number,
-      e.properties->>'contract_date'     AS contract_date,
-      COALESCE(ls.supp_end_date, e.properties->>'contract_end_date') AS contract_end_date,
-      e.properties->>'our_legal_entity'  AS our_legal_entity,
-      contractor.name                    AS contractor_name,
-      subtenant.name                     AS subtenant_name,
-      e.properties->>'vat_rate'          AS vat_rate,
-      e.properties->>'external_rental'   AS external_rental,
-      COALESCE(ls.rent_objects, e.properties->>'rent_objects') AS rent_objects,
-      ls.supp_id   IS NOT NULL  AS from_supplement,
-      ls.supp_name              AS supp_name,
-      ls.supp_date              AS supp_date
-    FROM entities e
-    JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'contract'
-    LEFT JOIN latest_supps ls ON ls.contract_id = e.id
-    LEFT JOIN entities AS contractor ON contractor.id = (e.properties->>'contractor_id')::int
-    LEFT JOIN entities AS subtenant ON subtenant.id = (e.properties->>'subtenant_id')::int
-    WHERE e.deleted_at IS NULL
-      AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
-      AND (e.properties->>'doc_status' = 'Подписан' OR (e.properties->>'doc_status') IS NULL OR e.properties->>'doc_status' = '')
-    ORDER BY e.properties->>'contract_date', e.name`;
+      c.id, c.name,
+      c.contract_type, c.contract_number, c.contract_date,
+      COALESCE(es.supp_end_date, c.contract_end_date) AS contract_end_date,
+      c.our_legal_entity, c.vat_rate, c.external_rental,
+      contr.name  AS contractor_name,
+      subt.name   AS subtenant_name,
+      -- effective source
+      COALESCE(es.supp_id, c.id)   AS src_id,
+      (es.supp_id IS NOT NULL)      AS from_supplement,
+      es.supp_name,
+      es.supp_date,
+      -- rent_items columns (NULL when contract has no rent_items)
+      ri.id           AS ri_id,
+      ri.object_type,
+      ri.comment,
+      ri.utility_rate,
+      ri.calc_mode,
+      COALESCE(ri.rent_rate, 0)     AS rent_rate,
+      COALESCE(ri.net_rate, 0)      AS net_rate,
+      COALESCE(ri.area,
+        CAST(ent.properties->>'area' AS numeric),
+        0)                           AS area,
+      ent.name                       AS entity_name,
+      ent.properties->>'object_type' AS room_object_type,
+      -- building name: parent of room entity
+      CASE WHEN ri.object_type = 'room' THEN bld.name ELSE NULL END AS building_name
+    FROM contracts c
+    LEFT JOIN eff_supp es      ON es.contract_id = c.id
+    LEFT JOIN rent_items ri    ON ri.contract_id = COALESCE(es.supp_id, c.id)
+    LEFT JOIN entities ent     ON ent.id = ri.entity_id AND ent.deleted_at IS NULL
+    LEFT JOIN entities bld     ON bld.id = ent.parent_id AND bld.deleted_at IS NULL
+    LEFT JOIN entities contr   ON contr.id = c.contractor_id AND contr.deleted_at IS NULL
+    LEFT JOIN entities subt    ON subt.id  = c.subtenant_id  AND subt.deleted_at IS NULL
+    ORDER BY c.contract_date NULLS LAST, c.name, ri.sort_order NULLS LAST`;
 
   const result = await pool.query(sql);
-
-  const roomsRes = await pool.query(
-    `SELECT e.id, e.properties FROM entities e
-     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'room'
-     WHERE e.deleted_at IS NULL`);
-  const roomPropsMap = {};
-  roomsRes.rows.forEach(function(r) { roomPropsMap[r.id] = r.properties || {}; });
-
   const rows = [];
   let seq = 0;
+  const fromSupp = v => v === true || v === 't';
 
-  result.rows.forEach(function(c) {
-    let roList = [];
-    try { roList = JSON.parse(c.rent_objects || '[]'); } catch(e) {}
-    if (!Array.isArray(roList) || roList.length === 0) {
-      seq++;
-      rows.push({
-        seq, contract_id: c.id, contract_name: c.name,
-        contract_type: c.contract_type || '', contract_number: c.contract_number || '',
-        contract_date: c.contract_date || '', contract_end_date: c.contract_end_date || '',
-        our_legal_entity: c.our_legal_entity || '', contractor_name: c.contractor_name || '',
-        subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
-        object_type: '', building: '',
-        area: 0, rent_rate: 0, annual_amount: 0, monthly_amount: 0,
-        external_rental: c.external_rental === 'true' || c.external_rental === true,
-        net_rate: 0, utility_rate: '', comment: '', room: ''
-      });
-      return;
-    }
-    const fromSupp = c.from_supplement === true || c.from_supplement === 't';
-    roList.forEach(function(ro) {
-      seq++;
-      const area = resolveRoArea(ro, roomPropsMap);
-      const rate = parseFloat(ro.rent_rate) || 0;
-      const monthly = area * rate;
-      const annual = monthly * 12;
-      rows.push({
-        seq, contract_id: c.id, contract_name: c.name,
-        contract_type: c.contract_type || '', contract_number: c.contract_number || '',
-        contract_date: c.contract_date || '', contract_end_date: c.contract_end_date || '',
-        our_legal_entity: c.our_legal_entity || '', contractor_name: c.contractor_name || '',
-        subtenant_name: c.subtenant_name || '', vat_rate: parseFloat(c.vat_rate) || 0,
-        object_type: (function() {
-          var rId = parseInt(ro.room_id) || 0;
-          var rType = (rId && roomPropsMap[rId]) ? (roomPropsMap[rId].object_type || '') : '';
-          return rType || ro.object_type || (ro.item_type === 'room' ? 'Помещение' : ro.item_type === 'equipment' ? 'Оборудование' : ro.item_type === 'land_plot' ? 'Земельный участок' : '') || '';
-        })(), building: ro.building || '',
-        rent_scope: ro.rent_scope || '',
-        area, rent_rate: rate, annual_amount: annual, monthly_amount: monthly,
-        net_rate: parseFloat(ro.net_rate) || 0,
-        utility_rate: ro.utility_rate || '',
-        external_rental: c.external_rental === 'true' || c.external_rental === true || ro.external_rental === 'true' || ro.external_rental === true,
-        comment: ro.comment || '', room: ro.room || '',
-        from_supplement: fromSupp,
-        supp_name: fromSupp ? (c.supp_name || '') : '',
-        supp_date: fromSupp ? (c.supp_date || '') : '',
-      });
+  result.rows.forEach(c => {
+    seq++;
+    const area = parseFloat(c.area) || 0;
+    const rate = parseFloat(c.rent_rate) || 0;
+    const objType = c.room_object_type ||
+      (c.object_type === 'land_plot'      ? 'Земельный участок' :
+       c.object_type === 'land_plot_part' ? 'Часть ЗУ'          : '') || '';
+    rows.push({
+      seq,
+      contract_id: c.id,           contract_name: c.name,
+      contract_type: c.contract_type     || '',
+      contract_number: c.contract_number || '',
+      contract_date: c.contract_date     || '',
+      contract_end_date: c.contract_end_date || '',
+      our_legal_entity: c.our_legal_entity   || '',
+      contractor_name: c.contractor_name     || '',
+      subtenant_name: c.subtenant_name       || '',
+      vat_rate: parseFloat(c.vat_rate) || 0,
+      object_type: objType,
+      building: c.building_name || '',
+      room: c.entity_name       || '',
+      area, rent_rate: rate,
+      annual_amount:  area * rate * 12,
+      monthly_amount: area * rate,
+      net_rate: parseFloat(c.net_rate) || 0,
+      utility_rate: c.utility_rate || '',
+      comment: c.comment || '',
+      external_rental: c.external_rental === 'true' || c.external_rental === true,
+      from_supplement: fromSupp(c.from_supplement),
+      supp_name: fromSupp(c.from_supplement) ? (c.supp_name || '') : '',
+      supp_date: fromSupp(c.from_supplement) ? (c.supp_date || '') : '',
     });
   });
 
-  const limit = Math.min(Math.max(parseInt(req.query.limit) || 0, 0), 10000);
+  const limit  = Math.min(Math.max(parseInt(req.query.limit)  || 0, 0), 10000);
   const offset = Math.max(parseInt(req.query.offset) || 0, 0);
   if (limit > 0) {
     res.json({ total: rows.length, rows: rows.slice(offset, offset + limit) });
@@ -128,84 +133,108 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
   }
 }));
 
-// GET /api/reports/area-stats — total vs rented area per building
+// GET /api/reports/area-stats — total vs rented area per building / land_plot
 router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
+  // Buildings with room totals
   const buildingRes = await pool.query(`
     SELECT b.id, b.name, b.properties->>'short_name' AS short_name,
            COALESCE(SUM(CAST(r.properties->>'area' AS numeric)), 0) AS total_area
     FROM entities b
     JOIN entity_types bt ON b.entity_type_id = bt.id AND bt.name = 'building'
-    LEFT JOIN entities r ON r.parent_id = b.id AND r.deleted_at IS NULL
+    LEFT JOIN entities r   ON r.parent_id = b.id AND r.deleted_at IS NULL
       AND EXISTS (SELECT 1 FROM entity_types rt WHERE rt.id = r.entity_type_id AND rt.name = 'room')
     WHERE b.deleted_at IS NULL
     GROUP BY b.id, b.name, b.properties->>'short_name'
     ORDER BY b.name`);
 
-  const allContracts = await pool.query(`
-    SELECT e.id, e.parent_id, e.properties->>'rent_objects' AS rent_objects,
-           e.properties->>'contract_date' AS contract_date,
-           et.name AS type_name
+  // For each signed Аренды/Субаренды contract, find effective rent_items source
+  const rentContracts = await pool.query(`
+    SELECT e.id,
+           (e.properties->>'contractor_id')::int AS contractor_id
     FROM entities e
-    JOIN entity_types et ON e.entity_type_id = et.id
+    JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
     WHERE e.deleted_at IS NULL
-      AND et.name IN ('contract','supplement')
-      AND (e.properties->>'contract_type' IN ('Аренды','Субаренды'))
-      AND (
-        (et.name = 'contract' AND (e.properties->>'doc_status' = 'Подписан' OR (e.properties->>'doc_status') IS NULL OR e.properties->>'doc_status' = ''))
-        OR (et.name = 'supplement' AND e.parent_id IN (
-          SELECT p.id FROM entities p
-          JOIN entity_types pt ON pt.id = p.entity_type_id AND pt.name = 'contract'
-          WHERE p.deleted_at IS NULL
-            AND (p.properties->>'doc_status' = 'Подписан' OR (p.properties->>'doc_status') IS NULL OR p.properties->>'doc_status' = '')
-        ))
-      )
-    ORDER BY e.properties->>'contract_date' NULLS FIRST, e.id`);
+      AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
+      AND (e.properties->>'doc_status' IN ('Подписан','') OR e.properties->>'doc_status' IS NULL)`);
 
-  const parentContracts = {};
-  allContracts.rows.forEach(r => {
-    if (r.type_name === 'contract') {
-      if (!parentContracts[r.id]) parentContracts[r.id] = { own: r.rent_objects, latest: null };
-    } else if (r.type_name === 'supplement' && r.parent_id) {
-      if (!parentContracts[r.parent_id]) parentContracts[r.parent_id] = { own: null, latest: null };
-      if (r.rent_objects && r.rent_objects !== '[]') parentContracts[r.parent_id].latest = r.rent_objects;
+  // Effective source for each contract (latest supplement with rent_items, else contract itself)
+  const effSuppRes = await pool.query(`
+    SELECT DISTINCT ON (s.parent_id)
+      s.parent_id AS contract_id, s.id AS supp_id
+    FROM entities s
+    JOIN entity_types st ON st.id = s.entity_type_id AND st.name = 'supplement'
+    WHERE s.deleted_at IS NULL
+      AND s.parent_id = ANY($1)
+      AND EXISTS (SELECT 1 FROM rent_items ri WHERE ri.contract_id = s.id)
+    ORDER BY s.parent_id, s.properties->>'contract_date' DESC NULLS LAST, s.id DESC`,
+    [rentContracts.rows.map(r => r.id)]);
+  const effSuppMap = {};
+  effSuppRes.rows.forEach(r => { effSuppMap[r.contract_id] = r.supp_id; });
+
+  // Get all rent_items for effective sources (rooms only → buildings)
+  const srcIds = rentContracts.rows.map(c => effSuppMap[c.id] || c.id);
+  const contractBySrc = {};
+  rentContracts.rows.forEach(c => { contractBySrc[effSuppMap[c.id] || c.id] = c.id; });
+
+  const rentItemsRes = await pool.query(`
+    SELECT ri.contract_id AS src_id,
+           ri.object_type,
+           ri.entity_id,
+           COALESCE(ri.area, CAST(ent.properties->>'area' AS numeric), 0) AS area,
+           bld.name AS building_name,
+           lp.name  AS lp_name
+    FROM rent_items ri
+    LEFT JOIN entities ent ON ent.id = ri.entity_id AND ent.deleted_at IS NULL
+    LEFT JOIN entities bld ON bld.id = ent.parent_id AND bld.deleted_at IS NULL
+                          AND ri.object_type = 'room'
+    LEFT JOIN entities lp  ON lp.id  = ri.entity_id AND lp.deleted_at IS NULL
+                          AND ri.object_type IN ('land_plot','land_plot_part')
+    WHERE ri.contract_id = ANY($1)`, [srcIds.length ? srcIds : [0]]);
+
+  // contractor names
+  const contractorIds = [...new Set(rentContracts.rows.map(r => r.contractor_id).filter(Boolean))];
+  const contractorNames = {};
+  if (contractorIds.length) {
+    const cnRes = await pool.query(`SELECT id, name FROM entities WHERE id = ANY($1)`, [contractorIds]);
+    cnRes.rows.forEach(r => { contractorNames[r.id] = r.name; });
+  }
+
+  // Aggregate rented area by building
+  const rentedByBuilding = {};    // buildingName → area
+  const contractsByBuilding = {}; // buildingName → { contractId → { area } }
+  const lpRentedByName = {};
+  const lpContractsByName = {};
+
+  rentItemsRes.rows.forEach(ri => {
+    const contractId = contractBySrc[ri.src_id];
+    const area = parseFloat(ri.area) || 0;
+    if (!area) return;
+
+    if (ri.object_type === 'room' && ri.building_name) {
+      const bn = ri.building_name;
+      rentedByBuilding[bn] = (rentedByBuilding[bn] || 0) + area;
+      if (!contractsByBuilding[bn]) contractsByBuilding[bn] = {};
+      if (!contractsByBuilding[bn][contractId]) contractsByBuilding[bn][contractId] = { area: 0 };
+      contractsByBuilding[bn][contractId].area += area;
+    } else if ((ri.object_type === 'land_plot' || ri.object_type === 'land_plot_part') && ri.lp_name) {
+      const lpn = ri.lp_name;
+      lpRentedByName[lpn] = (lpRentedByName[lpn] || 0) + area;
+      if (!lpContractsByName[lpn]) lpContractsByName[lpn] = {};
+      if (!lpContractsByName[lpn][contractId]) lpContractsByName[lpn][contractId] = { area: 0 };
+      lpContractsByName[lpn][contractId].area += area;
     }
   });
 
-  const areaStatsRoomsRes = await pool.query(
-    `SELECT e.id, e.properties FROM entities e
-     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'room'
-     WHERE e.deleted_at IS NULL`);
-  const roomPropsMapAS = {};
-  areaStatsRoomsRes.rows.forEach(r => { roomPropsMapAS[r.id] = r.properties || {}; });
-
-  const rentedByBuilding = {};
-  const contractsByBuilding = {};
-  Object.entries(parentContracts).forEach(([contractId, c]) => {
-    let raw = c.latest || c.own;
-    if (!raw) return;
-    let objects = [];
-    try { objects = JSON.parse(raw); } catch(e) { return; }
-    if (!Array.isArray(objects)) return;
-    objects.forEach(ro => {
-      const area = resolveRoArea(ro, roomPropsMapAS);
-      if (!area) return;
-      const buildingName = ro.building || '';
-      if (buildingName) {
-        rentedByBuilding[buildingName] = (rentedByBuilding[buildingName] || 0) + area;
-        if (!contractsByBuilding[buildingName]) contractsByBuilding[buildingName] = {};
-        const key = contractId;
-        if (!contractsByBuilding[buildingName][key]) contractsByBuilding[buildingName][key] = { area: 0 };
-        contractsByBuilding[buildingName][key].area += area;
-      }
-    });
-  });
-
+  // Contract name lookup
   const allContractIds = new Set();
-  Object.values(contractsByBuilding).forEach(map => Object.keys(map).forEach(id => allContractIds.add(parseInt(id))));
-  const contractNames = {};
+  Object.values(contractsByBuilding).forEach(m => Object.keys(m).forEach(id => allContractIds.add(parseInt(id))));
+  Object.values(lpContractsByName).forEach(m => Object.keys(m).forEach(id => allContractIds.add(parseInt(id))));
+  const contractMeta = {};
   if (allContractIds.size > 0) {
-    const cnRes = await pool.query(`SELECT id, name, properties->>'contractor_name' AS tenant FROM entities WHERE id = ANY($1)`, [Array.from(allContractIds)]);
-    cnRes.rows.forEach(r => { contractNames[r.id] = { name: r.name, tenant: r.tenant || '' }; });
+    const cmRes = await pool.query(
+      `SELECT e.id, e.name, (e.properties->>'contractor_id')::int AS cid FROM entities e WHERE e.id = ANY($1)`,
+      [Array.from(allContractIds)]);
+    cmRes.rows.forEach(r => { contractMeta[r.id] = { name: r.name, tenant: contractorNames[r.cid] || '' }; });
   }
 
   const buildings = buildingRes.rows.map(b => {
@@ -213,18 +242,15 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
     const cMap = contractsByBuilding[b.name] || contractsByBuilding[b.short_name] || {};
     const contracts = Object.entries(cMap).map(([cid, v]) => ({
       contract_id: parseInt(cid),
-      contract_name: (contractNames[cid] || {}).name || 'Договор #' + cid,
-      tenant: (contractNames[cid] || {}).tenant || '',
+      contract_name: (contractMeta[cid] || {}).name || 'Договор #' + cid,
+      tenant: (contractMeta[cid] || {}).tenant || '',
       area: v.area,
     })).sort((a, b) => b.area - a.area);
-    return {
-      id: b.id, name: b.name, short_name: b.short_name || '',
-      total_area: parseFloat(b.total_area) || 0, rented_area: rented,
-      contracts: contracts,
-    };
+    return { id: b.id, name: b.name, short_name: b.short_name || '',
+      total_area: parseFloat(b.total_area) || 0, rented_area: rented, contracts };
   });
 
-  const grandTotal = buildings.reduce((s, b) => s + b.total_area, 0);
+  const grandTotal  = buildings.reduce((s, b) => s + b.total_area, 0);
   const grandRented = buildings.reduce((s, b) => s + b.rented_area, 0);
 
   const tenantMap = {};
@@ -245,43 +271,20 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
     FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'land_plot'
     WHERE e.deleted_at IS NULL ORDER BY e.name`);
 
-  const lpRentedByName = {};
-  const lpContractsByName = {};
-  Object.entries(parentContracts).forEach(([contractId, c]) => {
-    let raw = c.latest || c.own;
-    if (!raw) return;
-    let objects = [];
-    try { objects = JSON.parse(raw); } catch(e) { return; }
-    if (!Array.isArray(objects)) return;
-    objects.forEach(ro => {
-      if (ro.object_type !== 'Земельный участок') return;
-      const area = parseFloat(ro.area) || 0;
-      if (!area) return;
-      const lpName = ro.land_plot_name || ro.room || '';
-      if (!lpName) return;
-      lpRentedByName[lpName] = (lpRentedByName[lpName] || 0) + area;
-      if (!lpContractsByName[lpName]) lpContractsByName[lpName] = {};
-      if (!lpContractsByName[lpName][contractId]) lpContractsByName[lpName][contractId] = { area: 0 };
-      lpContractsByName[lpName][contractId].area += area;
-    });
-  });
-
   const landPlots = lpRes.rows.map(lp => {
     const rented = lpRentedByName[lp.name] || lpRentedByName[lp.short_name] || 0;
     const cMap = lpContractsByName[lp.name] || lpContractsByName[lp.short_name] || {};
     const contracts = Object.entries(cMap).map(([cid, v]) => ({
       contract_id: parseInt(cid),
-      contract_name: (contractNames[cid] || {}).name || 'Договор #' + cid,
-      tenant: (contractNames[cid] || {}).tenant || '',
+      contract_name: (contractMeta[cid] || {}).name || 'Договор #' + cid,
+      tenant: (contractMeta[cid] || {}).tenant || '',
       area: v.area,
     })).sort((a, b) => b.area - a.area);
-    return {
-      id: lp.id, name: lp.name, short_name: lp.short_name || '',
-      total_area: parseFloat(lp.area) || 0, rented_area: rented, contracts,
-    };
+    return { id: lp.id, name: lp.name, short_name: lp.short_name || '',
+      total_area: parseFloat(lp.area) || 0, rented_area: rented, contracts };
   });
 
-  const lpTotal = landPlots.reduce((s, lp) => s + lp.total_area, 0);
+  const lpTotal  = landPlots.reduce((s, lp) => s + lp.total_area, 0);
   const lpRented = landPlots.reduce((s, lp) => s + lp.rented_area, 0);
 
   const lpTenantMap = {};

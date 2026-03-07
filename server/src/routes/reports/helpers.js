@@ -52,4 +52,37 @@ function latestSuppValue(supplements, fieldName) {
   return null;
 }
 
-module.exports = { _odataGetRpt, resolveRoArea, latestSuppValue, ODATA_BASE_RPT, ODATA_AUTH_RPT };
+/**
+ * Find the effective source entity for a normalized line-items table.
+ * Returns the latest supplement's ID (if it has rows in the table),
+ * or the contractId itself as fallback.
+ *
+ * Safe: tableName and fkCol are always hardcoded call-site constants.
+ * @param {Pool} pool
+ * @param {number} contractId
+ * @param {string} tableName  - e.g. 'rent_items'
+ * @param {string} fkCol      - FK column name, e.g. 'contract_id'
+ * @returns {Promise<{id: number, fromSupp: boolean, suppName: string, suppDate: string}>}
+ */
+async function getEffectiveSrc(pool, contractId, tableName, fkCol) {
+  const allowed = {
+    rent_items: 'contract_id',
+    contract_equipment: 'contract_id',
+    contract_line_items: 'contract_id',
+    contract_advances: 'contract_id',
+  };
+  if (allowed[tableName] !== fkCol) throw new Error('Invalid table/fk combination: ' + tableName + '.' + fkCol);
+  const q = `
+    SELECT s.id, s.name, s.properties->>'contract_date' AS supp_date
+    FROM entities s
+    JOIN entity_types et ON et.id = s.entity_type_id AND et.name = 'supplement'
+    WHERE s.parent_id = $1 AND s.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM ${tableName} t WHERE t.${fkCol} = s.id)
+    ORDER BY s.properties->>'contract_date' DESC NULLS LAST, s.id DESC
+    LIMIT 1`;
+  const { rows } = await pool.query(q, [contractId]);
+  if (rows.length) return { id: rows[0].id, fromSupp: true, suppName: rows[0].name || '', suppDate: rows[0].supp_date || '' };
+  return { id: contractId, fromSupp: false, suppName: '', suppDate: '' };
+}
+
+module.exports = { _odataGetRpt, resolveRoArea, latestSuppValue, getEffectiveSrc, ODATA_BASE_RPT, ODATA_AUTH_RPT };

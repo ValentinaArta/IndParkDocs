@@ -4,7 +4,7 @@ const pool = require('../../db');
 const { authenticate } = require('../../middleware/auth');
 const { asyncHandler } = require('../../middleware/errorHandler');
 const { getContractDirection, isAllPartiesInternal } = require('../../utils/contractDirection');
-const { _odataGetRpt, resolveRoArea, latestSuppValue } = require('./helpers');
+const { _odataGetRpt, resolveRoArea, latestSuppValue, getEffectiveSrc } = require('./helpers');
 
 const router = express.Router();
 
@@ -21,7 +21,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const contract = cRes.rows[0];
   const cProps = contract.properties || {};
 
-  // 1b. Subject objects: rooms / buildings / land_plots via located_in relations
+  // 1b. Subject objects via located_in relations
   const subjectObjRes = await pool.query(
     `SELECT e.id, e.name, et.name as type_name
      FROM relations r
@@ -30,9 +30,9 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
      WHERE r.from_entity_id = $1 AND r.relation_type = 'located_in'
        AND et.name IN ('room', 'building', 'land_plot')
      ORDER BY et.name, e.name`, [contractId]);
-  const subjectRooms    = subjectObjRes.rows.filter(r => r.type_name === 'room');
-  const subjectBuildings = subjectObjRes.rows.filter(r => r.type_name === 'building');
-  const subjectLandPlots = subjectObjRes.rows.filter(r => r.type_name === 'land_plot');
+  const subjectRooms      = subjectObjRes.rows.filter(r => r.type_name === 'room');
+  const subjectBuildings  = subjectObjRes.rows.filter(r => r.type_name === 'building');
+  const subjectLandPlots  = subjectObjRes.rows.filter(r => r.type_name === 'land_plot');
 
   // 1c. Own company IDs for ВГО detection
   const ownRes = await pool.query(
@@ -50,93 +50,82 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
      ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`, [contractId]);
   const supplements = sRes.rows;
 
-  // 3. Latest supplement with rent_objects
-  let rentObjects = [];
-  let rentSourceName = '';
-  for (let i = supplements.length - 1; i >= 0; i--) {
-    const sp = supplements[i];
-    const raw = (sp.properties || {}).rent_objects;
-    if (raw && raw !== '[]' && raw !== 'null') {
-      try {
-        const ro = JSON.parse(raw);
-        if (Array.isArray(ro) && ro.length > 0) { rentObjects = ro; rentSourceName = sp.name; break; }
-      } catch(e) {}
-    }
-  }
-  if (!rentObjects.length) {
-    try { rentObjects = JSON.parse(cProps.rent_objects || '[]'); } catch(e) {}
-  }
+  // 3. Rent objects from rent_items table (effective source: latest supp with rows, else contract)
+  const rentSrc = await getEffectiveSrc(pool, contractId, 'rent_items', 'contract_id');
+  const riRes = await pool.query(`
+    SELECT ri.*,
+           ent.name                        AS entity_name,
+           ent.properties->>'area'         AS ent_area,
+           ent.properties->>'object_type'  AS ent_object_type,
+           bld.name                        AS building_name
+    FROM rent_items ri
+    LEFT JOIN entities ent ON ent.id = ri.entity_id AND ent.deleted_at IS NULL
+    LEFT JOIN entities bld ON bld.id = ent.parent_id AND bld.deleted_at IS NULL
+    WHERE ri.contract_id = $1
+    ORDER BY ri.sort_order`, [rentSrc.id]);
 
-  // 4. Latest supplement with transfer_equipment
+  // 4. Transfer equipment: supplement with transfer_equipment=true flag (still in properties)
   let transferEquipment = [];
   let transferSourceName = '';
   for (let i = supplements.length - 1; i >= 0; i--) {
     const sp = supplements[i];
     const p = sp.properties || {};
     if (p.transfer_equipment === 'true' || p.transfer_equipment === true) {
-      try {
-        const eqList = JSON.parse(p.equipment_list || '[]');
-        if (Array.isArray(eqList) && eqList.length > 0) {
-          transferEquipment = eqList; transferSourceName = sp.name; break;
-        }
-      } catch(e) {}
+      // Read from contract_equipment for this supplement
+      const teRes = await pool.query(`
+        SELECT ce.equipment_id,
+               eq.name                               AS equipment_name,
+               eq.properties->>'inv_number'          AS inv_number,
+               eq.properties->>'equipment_category'  AS equipment_category,
+               eq.properties->>'equipment_kind'      AS equipment_kind,
+               eq.properties->>'status'              AS status,
+               eq.properties->>'manufacturer'        AS manufacturer
+        FROM contract_equipment ce
+        JOIN entities eq ON eq.id = ce.equipment_id AND eq.deleted_at IS NULL
+        WHERE ce.contract_id = $1
+        ORDER BY ce.sort_order`, [sp.id]);
+      if (teRes.rows.length) {
+        transferEquipment = teRes.rows;
+        transferSourceName = sp.name;
+        break;
+      }
     }
   }
 
-  // 4b. Latest supplement with equipment_rent_items
-  let equipmentRentItems = [];
-  let equipmentRentSourceName = '';
-  for (let i = supplements.length - 1; i >= 0; i--) {
-    const sp = supplements[i];
-    const raw = (sp.properties || {}).equipment_rent_items;
-    if (raw && raw !== '[]' && raw !== 'null') {
-      try {
-        const items = JSON.parse(raw);
-        if (Array.isArray(items) && items.length > 0) {
-          equipmentRentItems = items; equipmentRentSourceName = sp.name; break;
-        }
-      } catch(e) {}
-    }
-  }
-  if (!equipmentRentItems.length) {
-    try { equipmentRentItems = JSON.parse(cProps.equipment_rent_items || '[]'); } catch(e) {}
-  }
+  // 4b. Equipment rent items from contract_equipment (rows with rent_cost > 0)
+  //     Effective source: latest supp with such rows, else contract itself
+  const eqRentSrc = await getEffectiveSrc(pool, contractId, 'contract_equipment', 'contract_id');
+  const eqRentRes = await pool.query(`
+    SELECT ce.equipment_id,
+           ce.rent_cost,
+           eq.name                               AS equipment_name,
+           eq.properties->>'inv_number'          AS inv_number,
+           eq.properties->>'equipment_category'  AS equipment_category,
+           eq.properties->>'equipment_kind'      AS equipment_kind,
+           eq.properties->>'status'              AS status
+    FROM contract_equipment ce
+    JOIN entities eq ON eq.id = ce.equipment_id AND eq.deleted_at IS NULL
+    WHERE ce.contract_id = $1
+      AND ce.rent_cost IS NOT NULL AND ce.rent_cost > 0
+    ORDER BY ce.sort_order`, [eqRentSrc.id]);
 
-  // Enrich equipment_rent_items with DB data
-  const rentEqIds = [...new Set(equipmentRentItems.map(i => parseInt(i.equipment_id)).filter(id => id > 0))];
-  const rentEqMap = {};
-  if (rentEqIds.length) {
-    const reRes = await pool.query(
-      'SELECT id, name, properties FROM entities WHERE id = ANY($1)', [rentEqIds]);
-    reRes.rows.forEach(eq => { rentEqMap[eq.id] = { name: eq.name, props: eq.properties || {} }; });
-  }
-  const enrichedRentItems = equipmentRentItems.map(item => {
-    const id = parseInt(item.equipment_id);
-    const d = rentEqMap[id] || {};
-    const p = d.props || {};
-    return {
-      equipment_id: id,
-      name: d.name || item.equipment_name || item.name || '—',
-      inv_number: p.inv_number || item.inv_number || '',
-      category: p.equipment_category || '',
-      qty: parseFloat(item.qty) || 1,
-      rate: parseFloat(item.rent_cost || item.rate || item.rent_rate) || 0,
-    };
-  });
+  const enrichedRentItems = eqRentRes.rows.map(item => ({
+    equipment_id: item.equipment_id,
+    name: item.equipment_name || '—',
+    inv_number: item.inv_number || '',
+    category: item.equipment_category || '',
+    qty: 1,
+    rate: parseFloat(item.rent_cost) || 0,
+  }));
   const rentItemsMonthly = enrichedRentItems.reduce((s, i) => s + i.qty * i.rate, 0);
 
-  // 5. Room descriptions
-  const roomIds = [...new Set(rentObjects.map(ro => parseInt(ro.room_id)).filter(id => id > 0))];
-  const roomMap = {};
-  if (roomIds.length) {
-    const rRes = await pool.query(
-      'SELECT id, name, properties FROM entities WHERE id = ANY($1) AND deleted_at IS NULL', [roomIds]);
-    rRes.rows.forEach(r => { roomMap[r.id] = { name: r.name, props: r.properties || {} }; });
-  }
+  // 5. Room map for rent_rows descriptions (already fetched above via ri JOIN)
   const roomPropsMapCC = {};
-  Object.entries(roomMap).forEach(([id, r]) => { roomPropsMapCC[id] = r.props; });
+  riRes.rows.forEach(ri => {
+    if (ri.entity_id) roomPropsMapCC[ri.entity_id] = { area: ri.ent_area };
+  });
 
-  // 6. Equipment details + located_in + broken-from-acts
+  // 6. Equipment details + located_in + broken-from-acts (for transferEquipment)
   const eqIds = [...new Set(transferEquipment.map(eq => parseInt(eq.equipment_id)).filter(id => id > 0))];
   const eqMap = {};
   const brokenEqIds = new Set();
@@ -152,83 +141,78 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const locMap = {};
     locRes.rows.forEach(r => { if (!locMap[r.eq_id]) locMap[r.eq_id] = r.loc; });
     Object.keys(eqMap).forEach(id => { eqMap[id].location = locMap[parseInt(id)] || ''; });
-    const brokenRes = await pool.query(
-      `SELECT DISTINCT ON (r.from_entity_id) r.from_entity_id AS eq_id, a.properties->>'act_items' AS act_items
-       FROM relations r
-       JOIN entities a ON a.id = r.to_entity_id AND a.deleted_at IS NULL
-       JOIN entity_types at ON a.entity_type_id = at.id AND at.name = 'act'
-       WHERE r.from_entity_id = ANY($1) AND r.relation_type = 'subject_of'
-       ORDER BY r.from_entity_id, (a.properties->>'act_date') DESC NULLS LAST, a.id DESC`, [eqIds]);
-    brokenRes.rows.forEach(function(row) {
-      let items = [];
-      try { items = JSON.parse(row.act_items || '[]'); } catch(e) {}
-      const item = items.find(i => parseInt(i.equipment_id) === row.eq_id);
-      if (item && (item.broken === true || item.broken === 'true')) brokenEqIds.add(row.eq_id);
-    });
+
+    // Broken status: check latest act line items
+    const brokenRes = await pool.query(`
+      SELECT DISTINCT ON (ali.equipment_id)
+        ali.equipment_id, ali.broken
+      FROM act_line_items ali
+      JOIN entities a ON a.id = ali.act_id AND a.deleted_at IS NULL
+      WHERE ali.equipment_id = ANY($1)
+      ORDER BY ali.equipment_id,
+               (a.properties->>'act_date') DESC NULLS LAST, a.id DESC`, [eqIds]);
+    brokenRes.rows.forEach(r => { if (r.broken) brokenEqIds.add(r.equipment_id); });
   }
 
-  // 7. Build rent rows
-  const rentRows = rentObjects.map(ro => {
-    const roomId = parseInt(ro.room_id) || 0;
-    const rd = roomMap[roomId] || {};
-    const area = resolveRoArea(ro, roomPropsMapCC);
-    const rate = parseFloat(ro.rent_rate) || 0;
-    const isLandPlot = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');
-    const displayName = isLandPlot
-      ? (ro.land_plot_part_name || ro.land_plot_name || ro.room || rd.name || '')
-      : (ro.room || rd.name || '');
+  // 7. Build rent rows from rent_items
+  const rentRows = riRes.rows.map(ri => {
+    const area = parseFloat(ri.area) || parseFloat(ri.ent_area) || 0;
+    const rate = parseFloat(ri.rent_rate) || 0;
+    const isLandPlot = ri.object_type === 'land_plot' || ri.object_type === 'land_plot_part';
     return {
-      room_name: displayName,
-      description: (rd.props || {}).description || '',
+      room_name: ri.entity_name || '',
+      description: '',
       area, rate, monthly: area * rate,
-      object_type: ro.object_type || '',
+      object_type: ri.ent_object_type || (isLandPlot ? 'Земельный участок' : '') || '',
     };
   });
   const totalMonthly = rentRows.reduce((s, r) => s + r.monthly, 0);
 
-  // 8. Build equipment list
+  // 8. Build equipment list (transferred/serviced equipment)
   const eqList = transferEquipment.map(eq => {
     const id = parseInt(eq.equipment_id);
     const d = eqMap[id] || {};
     const p = d.props || {};
     return {
       id,
-      name: d.name || eq.equipment_name || '',
-      inv_number: p.inv_number || eq.inv_number || '',
-      category: p.equipment_category || '', kind: p.equipment_kind || '',
-      location: d.location || '', status: p.status || '',
-      is_emergency: p.status === 'Аварийное', is_broken: brokenEqIds.has(id),
+      name: eq.equipment_name || d.name || '',
+      inv_number: eq.inv_number || p.inv_number || '',
+      category: eq.equipment_category || p.equipment_category || '',
+      kind: eq.equipment_kind || p.equipment_kind || '',
+      location: d.location || '',
+      status: eq.status || p.status || '',
+      is_emergency: (eq.status || p.status) === 'Аварийное',
+      is_broken: brokenEqIds.has(id),
     };
   });
 
-  // 9. Acts for this contract
+  // 9. Acts for this contract — line items from act_line_items table
   const aRes = await pool.query(
     `SELECT e.id, e.name, e.properties
      FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'act'
      WHERE e.parent_id = $1 AND e.deleted_at IS NULL
      ORDER BY e.properties->>'act_date' ASC NULLS LAST, e.id ASC`, [contractId]);
-  const actEqIds = new Set();
-  const actItemsMap = {};
-  aRes.rows.forEach(a => {
-    try {
-      const items = JSON.parse((a.properties || {}).act_items || '[]');
-      actItemsMap[a.id] = items;
-      items.forEach(i => { if (i.equipment_id) actEqIds.add(parseInt(i.equipment_id)); });
-    } catch(e) { actItemsMap[a.id] = []; }
-  });
-  const actEqMap = {};
-  if (actEqIds.size > 0) {
-    const eqRes = await pool.query('SELECT id, name FROM entities WHERE id = ANY($1)', [[...actEqIds]]);
-    eqRes.rows.forEach(eq => { actEqMap[eq.id] = eq.name; });
+
+  const actIds = aRes.rows.map(a => a.id);
+  const actLineItemsMap = {};
+  if (actIds.length) {
+    const aliRes = await pool.query(`
+      SELECT ali.*, eq.name AS eq_db_name
+      FROM act_line_items ali
+      LEFT JOIN entities eq ON eq.id = ali.equipment_id AND eq.deleted_at IS NULL
+      WHERE ali.act_id = ANY($1)
+      ORDER BY ali.act_id, ali.sort_order`, [actIds]);
+    aliRes.rows.forEach(row => {
+      if (!actLineItemsMap[row.act_id]) actLineItemsMap[row.act_id] = [];
+      actLineItemsMap[row.act_id].push(row);
+    });
   }
+
   const acts = aRes.rows.map(a => {
     const p = a.properties || {};
-    const items = actItemsMap[a.id] || [];
+    const items = actLineItemsMap[a.id] || [];
     const total = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
-    const equipment = items.map(i => {
-      const eqId = parseInt(i.equipment_id);
-      return actEqMap[eqId] || i.equipment_name || '';
-    }).filter(Boolean);
+    const equipment = items.map(i => i.eq_db_name || i.name || '').filter(Boolean);
     return { id: a.id, name: a.name, number: p.act_number || p.number || '',
       date: p.act_date || p.contract_date || '', total, equipment, is_act: true };
   });
@@ -251,65 +235,49 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     ...histItems,
   ];
 
-  // Parse contract_items for non-rental types
-  let contractItems = [];
-  try { contractItems = JSON.parse(cProps.contract_items || '[]'); } catch(e) {}
+  // 11. contract_line_items (effective source: latest supp with rows, else contract)
+  const cliSrc = await getEffectiveSrc(pool, contractId, 'contract_line_items', 'contract_id');
+  const cliRes = await pool.query(
+    'SELECT * FROM contract_line_items WHERE contract_id=$1 ORDER BY sort_order', [cliSrc.id]);
+  const contractItems = cliRes.rows;
 
-  // For non-rental: get equipment_list directly from contract/latest supplement
-  let directEquipment = [];
-  if (cProps.contract_type !== 'Аренды' && cProps.contract_type !== 'Субаренды') {
-    let eqRaw = null;
-    for (let i = supplements.length - 1; i >= 0; i--) {
-      const sp = supplements[i];
-      const raw = (sp.properties || {}).equipment_list;
-      if (raw && raw !== '[]' && raw !== 'null') { eqRaw = raw; break; }
-    }
-    if (!eqRaw) eqRaw = cProps.equipment_list;
-    try { directEquipment = JSON.parse(eqRaw || '[]'); } catch(e) {}
-  }
-
-  if (eqList.length === 0 && directEquipment.length > 0) {
-    const deqIds = directEquipment.map(eq => parseInt(eq.equipment_id)).filter(id => id > 0);
-    if (deqIds.length) {
-      const deRes = await pool.query(
-        'SELECT id, name, properties FROM entities WHERE id = ANY($1)', [deqIds]);
-      const deMap = {};
-      deRes.rows.forEach(eq => { deMap[eq.id] = { name: eq.name, props: eq.properties || {} }; });
-      directEquipment.forEach(eq => {
-        const id = parseInt(eq.equipment_id);
-        const d = deMap[id] || {};
-        const p = d.props || {};
-        eqList.push({
-          id,
-          name: d.name || eq.equipment_name || '',
-          inv_number: p.inv_number || eq.inv_number || '',
-          category: p.equipment_category || '',
-          kind: p.equipment_kind || '', location: '', status: p.status || '',
-          is_emergency: p.status === 'Аварийное', is_broken: false,
-        });
+  // For non-rental: also try direct equipment_list from contract_equipment (no rent_cost filter)
+  if (eqList.length === 0 && cProps.contract_type !== 'Аренды' && cProps.contract_type !== 'Субаренды') {
+    const directSrc = await getEffectiveSrc(pool, contractId, 'contract_equipment', 'contract_id');
+    const directRes = await pool.query(`
+      SELECT ce.equipment_id,
+             eq.name                               AS equipment_name,
+             eq.properties->>'inv_number'          AS inv_number,
+             eq.properties->>'equipment_category'  AS equipment_category,
+             eq.properties->>'equipment_kind'      AS equipment_kind,
+             eq.properties->>'status'              AS status
+      FROM contract_equipment ce
+      JOIN entities eq ON eq.id = ce.equipment_id AND eq.deleted_at IS NULL
+      WHERE ce.contract_id = $1
+      ORDER BY ce.sort_order`, [directSrc.id]);
+    directRes.rows.forEach(eq => {
+      const id = parseInt(eq.equipment_id);
+      eqList.push({
+        id, name: eq.equipment_name || '',
+        inv_number: eq.inv_number || '',
+        category: eq.equipment_category || '',
+        kind: eq.equipment_kind || '',
+        location: '', status: eq.status || '',
+        is_emergency: eq.status === 'Аварийное', is_broken: false,
       });
-    }
+    });
   }
 
-  // Effective values: latest supplement overrides contract
-  const effAmount      = latestSuppValue(supplements, 'contract_amount')    || cProps.contract_amount    || '';
-  const effSubject     = latestSuppValue(supplements, 'subject')             || latestSuppValue(supplements, 'service_subject') || cProps.subject || cProps.service_subject || '';
-  const effDurType     = latestSuppValue(supplements, 'duration_type')       || cProps.duration_type      || '';
-  const effDurDate     = latestSuppValue(supplements, 'duration_date')       || latestSuppValue(supplements, 'contract_end_date') || cProps.duration_date || cProps.contract_end_date || '';
-  const effDurText     = latestSuppValue(supplements, 'duration_text')       || cProps.duration_text      || '';
-  const effPayFreq     = latestSuppValue(supplements, 'payment_frequency')   || cProps.payment_frequency  || '';
-  const effVat         = latestSuppValue(supplements, 'vat_rate')            || cProps.vat_rate           || '';
-  const effDeadline    = latestSuppValue(supplements, 'completion_deadline') || cProps.completion_deadline || '';
-  const effComment     = latestSuppValue(supplements, 'service_comment')     || cProps.service_comment    || '';
-
-  let effContractItems = contractItems;
-  const suppCiRaw = latestSuppValue(supplements, 'contract_items');
-  if (suppCiRaw) {
-    try {
-      const parsed = JSON.parse(suppCiRaw);
-      if (Array.isArray(parsed) && parsed.length > 0) effContractItems = parsed;
-    } catch(e) {}
-  }
+  // Effective scalar values: latest supplement overrides contract
+  const effAmount   = latestSuppValue(supplements, 'contract_amount')    || cProps.contract_amount    || '';
+  const effSubject  = latestSuppValue(supplements, 'subject')             || latestSuppValue(supplements, 'service_subject') || cProps.subject || cProps.service_subject || '';
+  const effDurType  = latestSuppValue(supplements, 'duration_type')       || cProps.duration_type      || '';
+  const effDurDate  = latestSuppValue(supplements, 'duration_date')       || latestSuppValue(supplements, 'contract_end_date') || cProps.duration_date || cProps.contract_end_date || '';
+  const effDurText  = latestSuppValue(supplements, 'duration_text')       || cProps.duration_text      || '';
+  const effPayFreq  = latestSuppValue(supplements, 'payment_frequency')   || cProps.payment_frequency  || '';
+  const effVat      = latestSuppValue(supplements, 'vat_rate')            || cProps.vat_rate           || '';
+  const effDeadline = latestSuppValue(supplements, 'completion_deadline') || cProps.completion_deadline || '';
+  const effComment  = latestSuppValue(supplements, 'service_comment')     || cProps.service_comment    || '';
 
   let effSubjectBuildings = subjectBuildings;
   let effSubjectRooms     = subjectRooms;
@@ -354,8 +322,8 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     payment_frequency: effPayFreq,
     has_power_allocation: latestSuppValue(supplements, 'has_power_allocation') || cProps.has_power_allocation || '',
     power_allocation_kw: latestSuppValue(supplements, 'power_allocation_kw')  || cProps.power_allocation_kw  || '',
-    contract_items: effContractItems,
-    rent_source_name: rentSourceName,
+    contract_items: contractItems,
+    rent_source_name: rentSrc.fromSupp ? rentSrc.suppName : '',
     transfer_source_name: transferSourceName,
     rent_rows: rentRows, total_monthly: totalMonthly,
     equipment_list: eqList, history,
@@ -364,7 +332,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     subject_buildings: effSubjectBuildings,
     subject_land_plots: effSubjectLandPlots,
     equipment_rent_items: enrichedRentItems,
-    equipment_rent_source_name: equipmentRentSourceName,
+    equipment_rent_source_name: eqRentSrc.fromSupp ? eqRentSrc.suppName : '',
     equipment_rent_monthly: rentItemsMonthly,
   });
 }));
@@ -379,23 +347,15 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
   if (!cRes.rows.length) return res.status(404).json({ error: 'Not found' });
   const cProps = cRes.rows[0].properties || {};
 
-  const sRes = await pool.query(
-    `SELECT e.properties FROM entities e
-     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'supplement'
-     WHERE e.parent_id = $1 AND e.deleted_at IS NULL
-     ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`,
-    [contractId]);
-  const supplements = sRes.rows;
-
-  let advancesRaw = '';
-  for (let i = supplements.length - 1; i >= 0; i--) {
-    const v = (supplements[i].properties || {}).advances;
-    if (v && v !== '' && v !== '[]') { advancesRaw = v; break; }
-  }
-  if (!advancesRaw) advancesRaw = cProps.advances || '';
-
-  let advances = [];
-  try { if (advancesRaw) advances = JSON.parse(advancesRaw); } catch (_) {}
+  // Advances from contract_advances table (effective source: latest supp or contract)
+  const advSrc = await getEffectiveSrc(pool, contractId, 'contract_advances', 'contract_id');
+  const advRes = await pool.query(
+    'SELECT amount, date FROM contract_advances WHERE contract_id=$1 ORDER BY sort_order',
+    [advSrc.id]);
+  const advances = advRes.rows.map(r => ({
+    amount: r.amount !== null ? String(r.amount) : '',
+    date: r.date ? r.date.toISOString().slice(0, 10) : '',
+  }));
 
   const checkedAt = new Date().toISOString();
   if (!advances.length) return res.json({ advances: [], checkedAt });
