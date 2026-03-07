@@ -7,6 +7,170 @@ const { computeAndSaveVgo } = require('../utils/contractDirection');
 const { logAction } = require('../middleware/audit');
 const router = express.Router();
 
+// ─── Line-items helpers ──────────────────────────────────────────────────────
+
+function parseArr(v) {
+  if (!v) return null;
+  if (Array.isArray(v)) return v.length ? v : null;
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s || s === 'null' || s === '[]') return null;
+    try { const a = JSON.parse(s); return Array.isArray(a) && a.length ? a : null; } catch (_) { return null; }
+  }
+  return null;
+}
+
+async function loadLineItems(pool, entityId, typeName) {
+  const result = {};
+
+  if (typeName === 'contract' || typeName === 'supplement') {
+    const { rows: ri } = await pool.query(
+      `SELECT ri.*, e.name as entity_name
+       FROM rent_items ri
+       LEFT JOIN entities e ON e.id = ri.entity_id AND e.deleted_at IS NULL
+       WHERE ri.contract_id = $1
+       ORDER BY ri.sort_order`, [entityId]
+    );
+    if (ri.length) result.rent_objects = ri;
+
+    const { rows: cli } = await pool.query(
+      'SELECT * FROM contract_line_items WHERE contract_id=$1 ORDER BY sort_order', [entityId]
+    );
+    if (cli.length) result.contract_items = cli;
+
+    const { rows: adv } = await pool.query(
+      'SELECT * FROM contract_advances WHERE contract_id=$1 ORDER BY sort_order', [entityId]
+    );
+    if (adv.length) result.advances = adv;
+
+    const { rows: ceq } = await pool.query(
+      `SELECT ce.*, e.name as equipment_name,
+         e.properties->>'inv_number'        as inv_number,
+         e.properties->>'equipment_category' as equipment_category,
+         e.properties->>'equipment_kind'     as equipment_kind,
+         e.properties->>'status'             as status,
+         e.properties->>'manufacturer'       as manufacturer
+       FROM contract_equipment ce
+       JOIN entities e ON e.id = ce.equipment_id AND e.deleted_at IS NULL
+       WHERE ce.contract_id = $1
+       ORDER BY ce.sort_order`, [entityId]
+    );
+    if (ceq.length) result.equipment_list = ceq;
+  }
+
+  if (typeName === 'act') {
+    const { rows: ali } = await pool.query(
+      `SELECT ali.*, e.name as equipment_name,
+         e.properties->>'inv_number'        as inv_number,
+         e.properties->>'equipment_category' as equipment_category,
+         e.properties->>'equipment_kind'     as equipment_kind
+       FROM act_line_items ali
+       LEFT JOIN entities e ON e.id = ali.equipment_id AND e.deleted_at IS NULL
+       WHERE ali.act_id = $1
+       ORDER BY ali.sort_order`, [entityId]
+    );
+    if (ali.length) result.act_items = ali;
+  }
+
+  return result;
+}
+
+async function saveLineItems(pool, entityId, typeName, props) {
+  if (!props) return;
+
+  if (typeName === 'contract' || typeName === 'supplement') {
+    // rent_objects → rent_items
+    const ro = parseArr(props.rent_objects);
+    if (ro !== null) {
+      await pool.query('DELETE FROM rent_items WHERE contract_id=$1', [entityId]);
+      for (let i = 0; i < ro.length; i++) {
+        const it = ro[i];
+        let entityRef = null, objectType = 'room';
+        if (it.land_plot_part_id && parseInt(it.land_plot_part_id)) {
+          entityRef = parseInt(it.land_plot_part_id); objectType = 'land_plot_part';
+        } else if (it.land_plot_id && parseInt(it.land_plot_id)) {
+          entityRef = parseInt(it.land_plot_id); objectType = 'land_plot';
+        } else if (it.room_id && parseInt(it.room_id)) {
+          entityRef = parseInt(it.room_id); objectType = 'room';
+        } else if (it.entity_id) {
+          entityRef = parseInt(it.entity_id);
+          objectType = it.object_type || 'room';
+        }
+        function sn(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+        await pool.query(
+          `INSERT INTO rent_items (contract_id,entity_id,object_type,area,rent_rate,net_rate,utility_rate,calc_mode,comment,sort_order)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [entityId, entityRef, objectType, sn(it.area), sn(it.rent_rate), sn(it.net_rate), sn(it.utility_rate),
+           it.calc_mode || 'area_rate', it.comment || '', i]
+        );
+      }
+    }
+
+    // contract_items → contract_line_items
+    const ci = parseArr(props.contract_items) || parseArr(props.service_items);
+    if (ci !== null) {
+      await pool.query('DELETE FROM contract_line_items WHERE contract_id=$1', [entityId]);
+      for (let i = 0; i < ci.length; i++) {
+        const it = ci[i];
+        const nm = it.name || it.subject || ''; if (!nm) continue;
+        function sn2(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+        await pool.query(
+          `INSERT INTO contract_line_items (contract_id,name,unit,quantity,price,amount,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [entityId, nm, it.unit || '', sn2(it.quantity), sn2(it.price), sn2(it.amount), i]
+        );
+      }
+    }
+
+    // advances → contract_advances
+    const adv = parseArr(props.advances);
+    if (adv !== null) {
+      await pool.query('DELETE FROM contract_advances WHERE contract_id=$1', [entityId]);
+      for (let i = 0; i < adv.length; i++) {
+        const it = adv[i];
+        function sn3(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+        const amt = sn3(it.amount); if (amt === null) continue;
+        await pool.query(
+          `INSERT INTO contract_advances (contract_id,amount,date,sort_order) VALUES ($1,$2,$3,$4)`,
+          [entityId, amt, (it.date && it.date !== '') ? it.date : null, i]
+        );
+      }
+    }
+
+    // equipment_list → contract_equipment
+    const el = parseArr(props.equipment_list);
+    if (el !== null) {
+      await pool.query('DELETE FROM contract_equipment WHERE contract_id=$1', [entityId]);
+      for (let i = 0; i < el.length; i++) {
+        const it = el[i];
+        const eqId = parseInt(it.equipment_id || it.id || 0); if (!eqId) continue;
+        function sn4(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+        await pool.query(
+          `INSERT INTO contract_equipment (contract_id,equipment_id,rent_cost,sort_order) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (contract_id,equipment_id) DO UPDATE SET rent_cost=EXCLUDED.rent_cost, sort_order=EXCLUDED.sort_order`,
+          [entityId, eqId, sn4(it.rent_cost), i]
+        );
+      }
+    }
+  }
+
+  if (typeName === 'act') {
+    const ai = parseArr(props.act_items);
+    if (ai !== null) {
+      await pool.query('DELETE FROM act_line_items WHERE act_id=$1', [entityId]);
+      for (let i = 0; i < ai.length; i++) {
+        const it = ai[i];
+        const eqId = parseInt(it.equipment_id || 0) || null;
+        function sn5(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+        await pool.query(
+          `INSERT INTO act_line_items (act_id,equipment_id,name,amount,description,comment,broken,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [entityId, eqId, it.equipment_name || it.name || '', sn5(it.amount) || 0,
+           it.description || '', it.comment || '', it.broken === true || it.broken === 'true', i]
+        );
+      }
+    }
+  }
+}
+
 // GET /api/entities
 router.get('/', authenticate, asyncHandler(async (req, res) => {
   const { type, parent_id, search, limit = 50, offset = 0 } = req.query;
@@ -115,6 +279,12 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
     WHERE e.id=$1 AND e.deleted_at IS NULL`, [id]
   );
   if (!entity) return res.status(404).json({ error: 'Не найдено' });
+
+  // Inject line items from normalized tables into properties
+  const lineItems = await loadLineItems(pool, entity.id, entity.type_name);
+  if (Object.keys(lineItems).length) {
+    entity.properties = Object.assign({}, entity.properties, lineItems);
+  }
 
   const { rows: children } = await pool.query(
     `SELECT e.*, et.name as type_name, et.name_ru as type_name_ru, et.icon, et.color
@@ -350,6 +520,7 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
   if (typeInfo) {
     await autoLinkEntities(rows[0].id, typeInfo.name, cleanProps);
     if (typeInfo.name === 'contract') await computeAndSaveVgo(rows[0].id, cleanProps, pool);
+    await saveLineItems(pool, rows[0].id, typeInfo.name, cleanProps);
   }
 
   res.status(201).json(rows[0]);
@@ -393,6 +564,7 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
       }
       await autoLinkEntities(id, typeInfo.name, cleanProps);
       if (typeInfo.name === 'contract') await computeAndSaveVgo(id, cleanProps, pool);
+      await saveLineItems(pool, id, typeInfo.name, cleanProps);
     }
   }
 
@@ -430,6 +602,7 @@ router.patch('/:id', authenticate, authorize('admin', 'editor'), validate(schema
       }
       await autoLinkEntities(id, typeInfo.name, cleanProps);
       if (typeInfo.name === 'contract') await computeAndSaveVgo(id, cleanProps, pool);
+      await saveLineItems(pool, id, typeInfo.name, cleanProps);
     }
   }
 
