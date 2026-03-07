@@ -323,6 +323,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     has_power_allocation: latestSuppValue(supplements, 'has_power_allocation') || cProps.has_power_allocation || '',
     power_allocation_kw: latestSuppValue(supplements, 'power_allocation_kw')  || cProps.power_allocation_kw  || '',
     contract_items: contractItems,
+    cli_source_name: cliSrc.fromSupp ? cliSrc.suppName : '',
     rent_source_name: rentSrc.fromSupp ? rentSrc.suppName : '',
     transfer_source_name: transferSourceName,
     rent_rows: rentRows, total_monthly: totalMonthly,
