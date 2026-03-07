@@ -108,9 +108,9 @@ router.get('/linked', authenticate, asyncHandler(async (req, res) => {
         e.properties AS eq_props,
         'parent'    AS link_type
       FROM entities e
-      JOIN entity_types et  ON et.id  = e.entity_type_id AND et.name IN ('equipment','crane_track')
+      JOIN entity_types et  ON et.id  = e.entity_type_id AND et.name IN ('equipment')
       JOIN entities loc     ON loc.id = e.parent_id
-      JOIN entity_types lot ON lot.id = loc.entity_type_id AND lot.name IN ('building','room','workshop','land_plot')
+      JOIN entity_types lot ON lot.id = loc.entity_type_id AND lot.name IN ('building','room','land_plot')
       WHERE e.deleted_at IS NULL AND loc.deleted_at IS NULL
 
       UNION
@@ -126,10 +126,10 @@ router.get('/linked', authenticate, asyncHandler(async (req, res) => {
         e.properties AS eq_props,
         'relation'  AS link_type
       FROM entities e
-      JOIN entity_types et  ON et.id = e.entity_type_id AND et.name IN ('equipment','crane_track')
+      JOIN entity_types et  ON et.id = e.entity_type_id AND et.name IN ('equipment')
       JOIN relations r      ON r.from_entity_id = e.id AND r.relation_type = 'located_in'
       JOIN entities loc     ON loc.id = r.to_entity_id
-      JOIN entity_types lot ON lot.id = loc.entity_type_id AND lot.name IN ('building','room','workshop','land_plot')
+      JOIN entity_types lot ON lot.id = loc.entity_type_id AND lot.name IN ('building','room','land_plot')
       WHERE e.deleted_at IS NULL AND loc.deleted_at IS NULL
 
       ORDER BY loc_name, eq_name
@@ -167,9 +167,9 @@ router.get('/linked', authenticate, asyncHandler(async (req, res) => {
       JOIN entity_types ctype  ON ctype.id = c.entity_type_id AND ctype.name IN ('contract','supplement')
       JOIN relations r_loc     ON r_loc.from_entity_id = c.id AND r_loc.relation_type = 'located_in'
       JOIN entities b          ON b.id = r_loc.to_entity_id
-      JOIN entity_types bt     ON bt.id = b.entity_type_id AND bt.name IN ('building','room','workshop','land_plot')
+      JOIN entity_types bt     ON bt.id = b.entity_type_id AND bt.name IN ('building','room','land_plot')
       LEFT JOIN entities e     ON e.parent_id = b.id AND e.deleted_at IS NULL
-        AND e.entity_type_id IN (SELECT id FROM entity_types WHERE name IN ('equipment','crane_track'))
+        AND e.entity_type_id IN (SELECT id FROM entity_types WHERE name IN ('equipment'))
       LEFT JOIN entity_types et ON et.id = e.entity_type_id
       LEFT JOIN relations r_eq ON r_eq.from_entity_id = e.id AND r_eq.to_entity_id = b.id AND r_eq.relation_type = 'located_in'
       WHERE comp.deleted_at IS NULL

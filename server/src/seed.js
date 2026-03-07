@@ -6,27 +6,21 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process
 
 const TYPES = [
   { name: 'building', name_ru: 'Корпус', icon: '🏢', color: '#6366F1', sort_order: 1 },
-  { name: 'workshop', name_ru: 'Цех', icon: '🏭', color: '#8B5CF6', sort_order: 2 },
-  { name: 'room', name_ru: 'Помещение', icon: '🚪', color: '#A78BFA', sort_order: 3 },
-  { name: 'company', name_ru: 'Компания', icon: '🏛', color: '#3B82F6', sort_order: 4 },
-  { name: 'contract', name_ru: 'Договор', icon: '📄', color: '#EF4444', sort_order: 5 },
-  { name: 'equipment', name_ru: 'Оборудование', icon: '⚙️', color: '#F59E0B', sort_order: 6 },
-  { name: 'document', name_ru: 'Документ', icon: '📋', color: '#10B981', sort_order: 7 },
-  { name: 'crane_track', name_ru: 'Подкрановый путь', icon: '🛤', color: '#F97316', sort_order: 8 },
-  { name: 'supplement', name_ru: 'Доп. соглашение', icon: '📎', color: '#8B5CF6', sort_order: 9 },
-  { name: 'land_plot', name_ru: 'Земельный участок', icon: '🌍', color: '#10B981', sort_order: 10 },
-  { name: 'order', name_ru: 'Приказ', icon: '📜', color: '#6366F1', sort_order: 11 },
-  { name: 'meter', name_ru: 'Счётчик', icon: '🔢', color: '#0EA5E9', sort_order: 12 },
+  { name: 'room', name_ru: 'Помещение', icon: '🚪', color: '#A78BFA', sort_order: 2 },
+  { name: 'company', name_ru: 'Компания', icon: '🏛', color: '#3B82F6', sort_order: 3 },
+  { name: 'contract', name_ru: 'Договор', icon: '📄', color: '#EF4444', sort_order: 4 },
+  { name: 'equipment', name_ru: 'Оборудование', icon: '⚙️', color: '#F59E0B', sort_order: 5 },
+  { name: 'document', name_ru: 'Документ', icon: '📋', color: '#10B981', sort_order: 6 },
+  { name: 'supplement', name_ru: 'Доп. соглашение', icon: '📎', color: '#8B5CF6', sort_order: 7 },
+  { name: 'land_plot', name_ru: 'Земельный участок', icon: '🌍', color: '#10B981', sort_order: 8 },
+  { name: 'order', name_ru: 'Приказ', icon: '📜', color: '#6366F1', sort_order: 9 },
+  { name: 'meter', name_ru: 'Счётчик', icon: '🔢', color: '#0EA5E9', sort_order: 10 },
 ];
 
 const FIELDS = {
   building: [
     { name: 'address', name_ru: 'Адрес', field_type: 'text' },
     { name: 'total_area', name_ru: 'Общая площадь (м²)', field_type: 'number' },
-  ],
-  workshop: [
-    { name: 'area', name_ru: 'Площадь (м²)', field_type: 'number' },
-    { name: 'purpose', name_ru: 'Назначение', field_type: 'text' },
   ],
   room: [
     { name: 'area', name_ru: 'Площадь (м²)', field_type: 'number' },
@@ -88,10 +82,6 @@ const FIELDS = {
     { name: 'doc_number', name_ru: 'Номер документа', field_type: 'text' },
     { name: 'doc_type', name_ru: 'Тип документа', field_type: 'select', options: JSON.stringify(['Приказ','Акт','Доп.соглашение','Протокол','Справка','Прочее']) },
     { name: 'doc_date', name_ru: 'Дата', field_type: 'date' },
-  ],
-  crane_track: [
-    { name: 'length', name_ru: 'Длина (м)', field_type: 'number' },
-    { name: 'location', name_ru: 'Расположение', field_type: 'text' },
   ],
   meter: [
     { name: 'status',                  name_ru: 'Статус',                                 field_type: 'select', options: JSON.stringify(['Установлен','На поверке','Демонтирован']) },

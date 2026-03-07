@@ -59,7 +59,7 @@ async function showTypeFields(typeId) {
 
 function openAddTypeModal() {
   let html = '<h3>Новый тип сущности</h3>' +
-    '<div class="form-group"><label>Системное имя (eng)</label><input id="t_name" placeholder="crane_track"></div>' +
+    '<div class="form-group"><label>Системное имя (eng)</label><input id="t_name" placeholder="document"></div>' +
     '<div class="form-group"><label>Название (рус)</label><input id="t_name_ru" placeholder="Подкрановый путь"></div>' +
     '<div class="form-group"><label>Иконка</label><input id="t_icon" placeholder="" maxlength="4"></div>' +
     '<div class="form-group"><label>Цвет</label><input type="color" id="t_color" value="#6366F1"></div>' +

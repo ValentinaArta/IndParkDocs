@@ -432,7 +432,7 @@ async function showEntity(id, _forceDetail) {
 
   // Location block (for non-contract entities)
   if (e.type_name !== 'contract' && e.type_name !== 'supplement') {
-    var isBuildingType = (e.type_name === 'building' || e.type_name === 'workshop');
+    var isBuildingType = (e.type_name === 'building');
     var isRoomType = (e.type_name === 'room');
     var locationTitle = isBuildingType ? 'Собственник' : (isRoomType ? 'Находится в корпусе' : 'Расположение');
 
@@ -469,8 +469,8 @@ async function showEntity(id, _forceDetail) {
     html += '<div class="detail-section"><h3>Содержит (' + e.children.length + ')</h3><div class="children-grid">';
     e.children.forEach(c => {
       var cProps = c.properties || {};
-      var cIsBroken = (c.type_name === 'equipment' || c.type_name === 'crane_track') && _brokenEqIds.has(parseInt(c.id));
-      var cIsEmerg = (c.type_name === 'equipment' || c.type_name === 'crane_track') && (cProps.status === 'Аварийное');
+      var cIsBroken = (c.type_name === 'equipment') && _brokenEqIds.has(parseInt(c.id));
+      var cIsEmerg = (c.type_name === 'equipment') && (cProps.status === 'Аварийное');
       var cCardStyle = cIsBroken ? 'border-left:3px solid #dc2626;background:rgba(239,68,68,.06);' : (cIsEmerg ? 'border-left:3px solid #b85c5c;background:rgba(184,92,92,.05);' : '');
       var cBadge = cIsBroken ? ' <span class="eq-broken-badge">⚠ Нерабочий</span>' : (cIsEmerg ? ' <span class="eq-emergency-badge">⚠ Авария</span>' : '');
       html += '<div class="child-card" onclick="showEntity(' + c.id + ')" style="' + cCardStyle + '">' +
@@ -504,7 +504,7 @@ async function showEntity(id, _forceDetail) {
   if (_isContract || _isSupp) html += renderFilesSection(id);
 
   // Секция поэтажных планов (только для корпусов/мастерских)
-  var _isBuildingForFp = (e.type_name === 'building' || e.type_name === 'workshop');
+  var _isBuildingForFp = (e.type_name === 'building');
   if (_isBuildingForFp) {
     html += '<div class="detail-section"><h3>🗺 Поэтажные планы</h3>' +
       '<div id="fpContainer"><div style="padding:8px;color:var(--text-muted);font-size:13px">Загрузка...</div></div></div>';
