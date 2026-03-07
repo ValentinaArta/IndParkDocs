@@ -97,7 +97,8 @@ async function openEditModal(id) {
       if (f.name === 'parent_contract_id' || f.name === 'parent_contract_name') return;
       if (f.name === 'total_amount') {
         var items = [];
-        try { items = JSON.parse(props.act_items || '[]'); } catch(ex) {}
+        if (Array.isArray(props.act_items)) items = props.act_items;
+        else { try { items = JSON.parse(props.act_items || '[]'); } catch(ex) {} }
         var total = items.reduce(function(s, i) { return s + (parseFloat(i.amount) || 0); }, 0);
         html += '<div class="form-group"><label>Итого по акту, ₽</label><input type="number" id="f_total_amount" value="' + total + '" readonly style="background:var(--bg-hover);color:var(--text-muted)"></div>';
         return;
@@ -222,7 +223,7 @@ async function _doSubmitEdit(id) {
     name = (e.type_name === 'supplement' ? 'ДС' : 'Договор') + ' №' + num + (contractor ? ' — ' + contractor : '');
     if (properties.rent_objects) {
       try {
-        var _rosE = JSON.parse(properties.rent_objects);
+        var _rosE = Array.isArray(properties.rent_objects) ? properties.rent_objects : JSON.parse(properties.rent_objects);
         var _lpE = _rosE
           .filter(function(ro) { return ro.object_type === 'ЗУ'; })
           .map(function(ro) { return ro.land_plot_part_name || ro.land_plot_name; })
