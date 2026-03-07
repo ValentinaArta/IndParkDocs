@@ -136,6 +136,52 @@ async function showEntity(id, _forceDetail) {
         html += '</div></div>';
         return;
       }
+      if (f.field_type === 'act_items') {
+        var aiView = [];
+        if (Array.isArray(val)) aiView = val;
+        else { try { if (typeof val === 'string' && val) aiView = JSON.parse(val); } catch(ex) {} }
+        if (aiView.length > 0) {
+          html += '<div class="prop-item" style="grid-column:1/-1"><div class="prop-label">' + escapeHtml(label) + '</div>';
+          html += '<div class="prop-value"><table style="width:100%;border-collapse:collapse;font-size:13px">';
+          html += '<thead><tr style="border-bottom:2px solid var(--border)"><th style="text-align:left;padding:6px">Оборудование</th><th style="text-align:right;padding:6px">Сумма, ₽</th><th style="text-align:left;padding:6px">Описание</th></tr></thead><tbody>';
+          var actTot = 0;
+          aiView.forEach(function(item) {
+            actTot += parseFloat(item.amount) || 0;
+            var eqName = item.name || item.equipment_name || '—';
+            html += '<tr style="border-bottom:1px solid var(--border)">';
+            html += '<td style="padding:6px">';
+            if (item.equipment_id) {
+              html += '<a href="#" onclick="showEntity(' + item.equipment_id + ');return false" style="color:var(--accent)">' + escapeHtml(eqName) + '</a>';
+            } else {
+              html += escapeHtml(eqName);
+            }
+            if (item.broken) html += ' <span style="color:#dc2626;font-size:11px">[сломано]</span>';
+            html += '</td>';
+            html += '<td style="text-align:right;padding:6px;font-weight:500">' + _fmtNum(parseFloat(item.amount) || 0) + ' ₽</td>';
+            html += '<td style="padding:6px;color:var(--text-secondary);white-space:pre-wrap">' + escapeHtml(item.description || '—') + '</td>';
+            html += '</tr>';
+          });
+          html += '<tr style="font-weight:600;background:var(--bg-hover)"><td style="padding:6px">Итого</td><td style="text-align:right;padding:6px">' + _fmtNum(actTot) + ' ₽</td><td></td></tr>';
+          html += '</tbody></table></div></div>';
+        } else {
+          html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div><div class="prop-value">—</div></div>';
+        }
+        return;
+      }
+      if (f.field_type === 'subject_buildings' || f.field_type === 'subject_rooms' || f.field_type === 'subject_land_plots' || f.field_type === 'subject_land_plot_parts') {
+        var svIds = [];
+        if (Array.isArray(val)) svIds = val;
+        else { try { if (typeof val === 'string' && val) svIds = JSON.parse(val); } catch(ex) {} }
+        html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div><div class="prop-value">';
+        if (svIds.length > 0) {
+          html += svIds.map(function(id) {
+            var sv = id ? ((_entities || []).find(function(x) { return x.id === parseInt(id); }) || null) : null;
+            return sv ? '<a href="#" onclick="showEntity(' + sv.id + ');return false" style="color:var(--accent)">' + escapeHtml(sv.name) + '</a>' : String(id);
+          }).join(', ');
+        } else { html += '—'; }
+        html += '</div></div>';
+        return;
+      }
       html += '<div class="prop-item"><div class="prop-label">' + escapeHtml(label) + '</div>' +
         '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });
