@@ -68,7 +68,8 @@ async function showEntity(id, _forceDetail) {
   const fields = e.fields || [];
   if (fields.length > 0) {
     html += '<div class="detail-section"><h3>Свойства</h3><div class="props-grid">';
-    var detailRoles = CONTRACT_ROLES[props.contract_type] || {};
+    var effectiveContractType = e.effective_contract_type || props.contract_type || '';
+    var detailRoles = CONTRACT_ROLES[effectiveContractType] || {};
     fields.forEach(f => {
       if (f.sort_order >= 999) return; // hidden fields (room_number, room_type etc.)
       // For entity-selector fields: stored id+name, display the name
@@ -79,7 +80,7 @@ async function showEntity(id, _forceDetail) {
       // Skip internal role fields in display
       if (f.name === 'our_role_label' || f.name === 'contractor_role_label') return;
       // Hide subtenant if not Субаренды
-      if (f.name === 'subtenant_name' && props.contract_type !== 'Субаренды') return;
+      if (f.name === 'subtenant_name' && effectiveContractType !== 'Субаренды') return;
       // Custom labels for parties
       var label = f.name_ru || f.name;
       if (f.name === 'our_legal_entity') label = props.our_role_label || detailRoles.our || label;
@@ -139,8 +140,8 @@ async function showEntity(id, _forceDetail) {
         '<div class="prop-value">' + (val ? escapeHtml(String(val)) : '—') + '</div></div>';
     });
     // Show dynamic contract-type fields in detail
-    if ((e.type_name === 'contract' || e.type_name === 'supplement') && props.contract_type) {
-      const extraFields = CONTRACT_TYPE_FIELDS[props.contract_type] || [];
+    if ((e.type_name === 'contract' || e.type_name === 'supplement') && effectiveContractType) {
+      const extraFields = CONTRACT_TYPE_FIELDS[effectiveContractType] || [];
       var isLand = (props.object_type === 'Земельный участок');
       var hasExtra = (props.extra_services === 'true');
       var durType = props.duration_type || '';

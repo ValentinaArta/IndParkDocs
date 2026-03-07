@@ -78,8 +78,8 @@ function _getEntityTableCols(typeName) {
         render: function(e) { return '<span style="font-weight:500">' + escapeHtml((e.properties || {}).number || '—') + '</span>'; }
       },
       { id: 'contract_type', label: 'Тип договора', sortable: true,
-        getValue: function(e) { return (e.properties || {}).contract_type || ''; },
-        render: function(e) { return escapeHtml((e.properties || {}).contract_type || '—'); }
+        getValue: function(e) { return e.effective_contract_type || (e.properties || {}).contract_type || ''; },
+        render: function(e) { return escapeHtml(e.effective_contract_type || (e.properties || {}).contract_type || '—'); }
       },
       { id: 'subject', label: 'Предмет договора', sortable: true,
         getValue: function(e) {

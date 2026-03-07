@@ -10,7 +10,9 @@ function renderSupplementCard(supp) {
   var sp = supp.properties || {};
   // Если поля сторон не заполнены на ДС — берём из родительского договора
   var pp = (supp.parent && supp.parent.properties) ? supp.parent.properties : {};
-  var isRental = (sp.contract_type === 'Аренды' || sp.contract_type === 'Субаренды' || sp.contract_type === 'Аренда оборудования');
+  // Тип договора: наследуется от родителя
+  var contractType = supp.effective_contract_type || sp.contract_type || pp.contract_type || '';
+  var isRental = (contractType === 'Аренды' || contractType === 'Субаренды' || contractType === 'Аренда оборудования');
 
   var h = '';
 
@@ -22,7 +24,7 @@ function renderSupplementCard(supp) {
   if (sp.contract_date) titleParts.push(_ccFmtDate(sp.contract_date));
   h += '<div style="margin-bottom:20px">';
   h += '<h2 style="font-size:1.3rem;font-weight:700;margin:0 0 4px">' + escapeHtml(titleParts.join(', ') || supp.name || '') + '</h2>';
-  h += '<span style="font-size:13px;color:var(--text-secondary)">Доп. соглашение' + (sp.contract_type ? ' к договору ' + escapeHtml(sp.contract_type) : '') + '</span>';
+  h += '<span style="font-size:13px;color:var(--text-secondary)">Доп. соглашение' + (contractType ? ' к договору ' + escapeHtml(contractType) : '') + '</span>';
   h += '</div>';
 
   // ── Link to parent contract ─────────────────────────────────────────────────
@@ -86,10 +88,10 @@ function renderSupplementCard(supp) {
     var contractItems = [];
     try { contractItems = JSON.parse(sp.contract_items); } catch(ex) {}
     if (contractItems.length > 0) {
-      var isSale = (sp.contract_type === 'Купли-продажи');
+      var isSale = (contractType === 'Купли-продажи');
       h += '<div style="margin-bottom:16px">';
       h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase">';
-      h += isSale ? 'Перечень товаров' : (sp.contract_type === 'Услуг' ? 'Перечень услуг' : 'Перечень работ');
+      h += isSale ? 'Перечень товаров' : (contractType === 'Услуг' ? 'Перечень услуг' : 'Перечень работ');
       h += '</div>';
       h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
       h += '<thead><tr style="background:#4F6BCC;color:#fff">';
