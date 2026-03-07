@@ -9,8 +9,8 @@ const logger = require('../logger');
 const ODATA_BASE = process.env.ODATA_BASE_URL || 'http://192.168.2.3/BF/odata/standard.odata';
 const ODATA_AUTH = 'Basic ' + Buffer.from((process.env.ODATA_USER || '') + ':' + (process.env.ODATA_PASS || '')).toString('base64');
 
-const ORG_IPZ = '1df6218d-8996-11e8-b18d-001e67301201';
-const ORG_EKZ = '6bf16c76-8993-11e8-b18d-001e67301201';
+const ORG_IPZ = process.env.ORG_GUID_IPZ || '1df6218d-8996-11e8-b18d-001e67301201';
+const ORG_EKZ = process.env.ORG_GUID_EKZ || '6bf16c76-8993-11e8-b18d-001e67301201';
 const ORG_NAMES = { [ORG_IPZ]: 'ИПЗ', [ORG_EKZ]: 'ЭКЗ' };
 
 // Simple in-memory cache (TTL 5 min)
