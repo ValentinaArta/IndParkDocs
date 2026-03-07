@@ -1,4 +1,5 @@
 module.exports = `// ============ SUPPLEMENTS ============
+var _currentSuppExisting = [];
 
 // Шаг 1: выбор родительского договора (из реестра ДС)
 async function openSelectParentContractForSupplement() {
@@ -43,6 +44,7 @@ async function openCreateSupplementModal(parentContractId) {
   // Auto-number: find max existing supplement number for this contract
   var existingSupps = [];
   try { existingSupps = await api('/entities?type=supplement&parent_id=' + parentContractId + '&limit=200'); } catch(ex) {}
+  _currentSuppExisting = existingSupps;
   var maxSuppNum = existingSupps.reduce(function(mx, s) {
     var n = parseInt(((s.properties||{}).number)||'0')||0; return n > mx ? n : mx;
   }, 0);
