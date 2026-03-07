@@ -249,6 +249,9 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
       OR e.properties->>'outgoing_number' ILIKE $${pi}
       OR e.properties->>'room_number' ILIKE $${pi}
       OR e.properties->>'cadastral_number' ILIKE $${pi}
+      OR e.properties->>'subject' ILIKE $${pi}
+      OR e.properties->>'service_subject' ILIKE $${pi}
+      OR EXISTS (SELECT 1 FROM relations r JOIN entities loc ON r.to_entity_id = loc.id AND loc.deleted_at IS NULL WHERE r.from_entity_id = e.id AND r.relation_type = 'located_in' AND loc.name ILIKE $${pi})
       OR e.properties->>'subtenant_name' ILIKE $${pi}
       OR e.properties->>'contractor_name' ILIKE $${pi}
       OR e.properties->>'our_legal_entity' ILIKE $${pi}
