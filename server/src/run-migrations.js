@@ -41,6 +41,7 @@ const migrations = {
   '037':         require('./migrations/037_subject_fields_for_acts_letters_orders'),
   '038':         require('./migrations/038_ai_token_usage'),
   '039':         require('./migrations/039_perf_indexes'),
+  '040':         require('./migrations/040_backfill_located_in'),
 };
 
 async function initMigrationTracker(pool) {
