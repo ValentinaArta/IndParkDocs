@@ -17,7 +17,7 @@ const ORG_NAMES = { [ORG_IPZ]: 'ИПЗ', [ORG_EKZ]: 'ЭКЗ' };
 const _cache = {};
 function cacheGet(key) {
   const e = _cache[key];
-  return (e && Date.now() - e.ts < 5 * 60 * 1000) ? e.val : null;
+  return (e && Date.now() - e.ts < 5 * 60 * 1000) ? { val: e.val, ts: e.ts } : null;
 }
 function cacheSet(key, val) { _cache[key] = { ts: Date.now(), val }; }
 
@@ -172,7 +172,7 @@ router.get('/overdue', authenticate, async (req, res) => {
     const orgKey = req.query.org || ORG_IPZ;
     const cacheKey = `overdue_${orgKey}`;
     const cached = cacheGet(cacheKey);
-    if (cached) return res.json({ ...cached, data_as_of: today.toISOString(), cached: true });
+    if (cached) return res.json({ ...cached.val, data_as_of: today.toISOString(), cached: true, cached_at: new Date(cached.ts).toISOString() });
 
     const dateFilter = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00'");
     const payFilter  = encodeURIComponent("Date gt datetime'2025-01-01T00:00:00' and ВидОперации eq 'ОплатаПокупателя'");
@@ -412,7 +412,7 @@ router.get('/budget', authenticate, async (req, res) => {
 router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
   const cacheKey = 'rent_drilldown_ipz';
   const cached = cacheGet(cacheKey);
-  if (cached) return res.json(cached);
+  if (cached) return res.json({ ...cached.val, cached: true, cached_at: new Date(cached.ts).toISOString() });
 
   try {
     const ORG = ORG_IPZ;
@@ -606,7 +606,7 @@ router.get('/budget/meta', authenticate, async (req, res) => {
 router.get('/expenses', authenticate, async (req, res) => {
   const cacheKey = 'expenses_all';
   const cached = cacheGet(cacheKey);
-  if (cached) return res.json({ ...cached, cached: true });
+  if (cached) return res.json({ ...cached.val, cached: true, cached_at: new Date(cached.ts).toISOString() });
 
   try {
     const dateFilter = encodeURIComponent("Date gt datetime'2026-01-01T00:00:00' and Posted eq true");
