@@ -49,6 +49,19 @@ async function showEntity(id, _forceDetail) {
     return;
   }
 
+  // For acts — show card inline
+  if (e.type_name === 'act' && !_forceDetail) {
+    var actContentEl = document.getElementById('content');
+    actContentEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)">Загрузка...</div>';
+    var actParent = null;
+    if (e.parent_id) {
+      try { actParent = await api('/entities/' + e.parent_id); } catch(ex) {}
+    }
+    actContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderActCard(e, actParent) + renderFilesSection(id) + '</div>';
+    loadEntityFiles(id);
+    return;
+  }
+
   // For supplements — show card inline (with parent entity data for link display)
   if (_isSupp && !_forceDetail) {
     var suppContentEl = document.getElementById('content');
