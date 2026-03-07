@@ -133,11 +133,12 @@
 cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/frontend.js'); const scripts = html.match(/<script>([\s\S]*?)<\/script>/g) || []; let ok=true; scripts.forEach((s,i)=>{const body=s.replace(/<\/?script>/g,''); try{new Function(body);}catch(e){console.error('Script block '+i+' ERROR:',e.message);ok=false;}}); if(ok) console.log('All scripts OK');"
 ```
 
-## Текущий HEAD (07.03.2026 — 09:07 UTC)
-- **`origin/main`** = после PR #148 (fix migration 040)
-- **Тесты**: 109 тестов, 10 сьютов ✅
+## Текущий HEAD (07.03.2026 — 15:55 UTC)
+- **`origin/main`** = после PR #152 (AI chat timeout 90s)
+- **Тесты**: 251 тест, 12 сьютов ✅
 - **Сервис**: active ✅
-- **Миграции**: 001–040 все применены
+- **Миграции**: 001–043 все применены
+- **Ветка в работе**: `feature/ipd-split-reports-rentobjects` (commit: 170d8ed) — PR готов, нужен merge
 
 ## ✅ Выполнено (07.03.2026)
 
@@ -151,6 +152,16 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 - **#146**: предмет договора из DB (located_in subquery в entities.js), убрана вся JSON-логика
 - **#147–#148**: migration 040 backfill located_in relations + bugfix (ambiguous id)
 
+### PRs #149–#152 — Нормализация данных + AI fix
+- **#149**: migration 041 — 5 JSON-массивов → реляционные таблицы (rent_items, act_line_items, contract_line_items, contract_advances, contract_equipment); хелперы parseArr/loadLineItems/saveLineItems в entities.js
+- **#150**: migration 042 — field_option_values (71 строка, 14 полей); injectOptions/saveOptions в entityTypes.js; fd.options синхронизируется
+- **#151**: migration 043 — supplement contract_type наследуется от родителя; field_def id=35 удалена; effective_contract_type COALESCE в entities.js
+- **#152**: AI chat timeout 30s → 90s (multi-step tool chains)
+
+### Написан SPEC_PRODUCT.md
+- `/root/workspace-indparkdocs/SPEC_PRODUCT.md` (235 строк)
+- 11 разделов: цель, модули, типы сущностей, field definitions, relations, lifecycle, нормализованные таблицы, dropdowns, интеграции, роли, архитектурные принципы
+
 ### Архитектурные решения (07.03)
 - **located_in_names**: новое virtual поле в GET /api/entities — string_agg из located_in relations
 - **Предмет договора**: для Аренды/Субаренды ВСЕГДА из e.located_in_names, не из JSON
@@ -162,9 +173,29 @@ cd /root/workspace-indparkdocs/server && node -e "const html = require('./src/fr
 - Migration 039: индексы на contract_type, contractor_id, our_legal_entity_id, doc_status
 - Migration 040: backfill located_in relations из старых rent_objects JSON
 
+## ✅ Выполнено (07.03.2026 — вечер, ~15:55 UTC)
+
+### PR #153 — Split refactor: reports.js + rent-objects.js
+- **Backend**: `server/src/routes/reports.js` (1258 строк) → `reports/` директория:
+  - `helpers.js` — `_odataGetRpt`, `resolveRoArea`, `latestSuppValue`, ODATA-константы
+  - `pivot.js` — /pivot, /fields, /linked, /aggregate
+  - `rent.js` — /rent-analysis, /area-stats
+  - `work.js` — /work-history, /broken-equipment
+  - `contract-card.js` — /contract-card/:id, /advance-status
+  - `index.js` — монтирует все sub-routers
+- **Frontend**: `server/src/frontend/rent-objects.js` (1008 строк) → `rent-objects/` директория:
+  - `shared.js` — globals, comments, calc fields
+  - `room-block.js` — room/land plot rent blocks
+  - `equipment-block.js` — equipment rent blocks
+  - `index.js` (в `server/src/frontend/index.js`) обновлён
+- 251 тест, 12 сьютов — все зелёные ✅
+- Ветка: `feature/ipd-split-reports-rentobjects` (commit: 170d8ed)
+
 ## Планы / Next Steps (backlog)
+- **Merge PR #153** — `gh pr merge 153 --squash --admin --delete-branch` (split refactor готов)
+- **SPEC_TECH.md** — написать техническую спецификацию (SPEC_PRODUCT.md готов)
 - **040626/PRT-ИП-З-1** — пересохранить через форму (помещение free-text → создать entity)
-- **JSON→DB migration**: rent_items, contract_line_items, act_line_items (большой рефактор, обсудить)
+- Code review backlog: reports.js монолит (1258 строк), health.js IP allowlist, create-admin.js stdin
 - Заполнить `inv_number` для eq id=581 (ЖД путь инв. №593000) — поле пустое
 - Добавить больше договоров аренды (38 из 42 арендаторов не в системе)
 - Date range filter для Должники (overdue hardcoded 2025-01-01)

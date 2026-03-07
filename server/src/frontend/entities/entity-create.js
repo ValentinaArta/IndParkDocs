@@ -148,7 +148,7 @@ async function openCreateModal(typeName, preParentId) {
 
   // Parent selector (hide for contracts; special label for buildings)
   if (!isContractLike) {
-    if (typeName === 'building' || typeName === 'workshop') {
+    if (typeName === 'building') {
       html += '<div class="form-group"><label>Собственник</label><select id="f_parent"><option value="">— не указано —</option>';
       _allCompanies.forEach(function(c) {
         html += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
@@ -210,7 +210,7 @@ async function openCreateModal(typeName, preParentId) {
   });
 
   // Building: land plot selector
-  if (typeName === 'building' || typeName === 'workshop') {
+  if (typeName === 'building') {
     html += renderLandPlotSelectorField(null);
   }
 
@@ -343,8 +343,8 @@ async function _doSubmitCreate(typeName) {
     throw err;
   }
 
-  // Handle located_on relation for building/workshop
-  if ((typeName === 'building' || typeName === 'workshop') && createdEntity && createdEntity.id) {
+  // Handle located_on relation for building
+  if (typeName === 'building' && createdEntity && createdEntity.id) {
     var lpSel = document.getElementById('f_land_plot_id');
     if (lpSel && lpSel.value) {
       await api('/relations', { method: 'POST', body: JSON.stringify({

@@ -41,7 +41,7 @@ async function openEditModal(id) {
 
   // Non-contract edit
   var isAct = (e.type_name === 'act');
-  var isBuildingLike = (e.type_name === 'building' || e.type_name === 'workshop');
+  var isBuildingLike = (e.type_name === 'building');
 
   if (!isAct) {
     if (isBuildingLike) {
@@ -240,8 +240,8 @@ async function _doSubmitEdit(id) {
 
   await api('/entities/' + id, { method: 'PUT', body: JSON.stringify({ name, properties, parent_id }) });
 
-  // Handle located_on relation for building/workshop
-  if (e.type_name === 'building' || e.type_name === 'workshop') {
+  // Handle located_on relation for building
+  if (e.type_name === 'building') {
     var lpSelEdit = document.getElementById('f_land_plot_id');
     if (lpSelEdit) {
       // Delete existing located_on from this building
