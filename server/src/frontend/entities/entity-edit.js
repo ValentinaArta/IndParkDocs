@@ -231,8 +231,12 @@ async function _doSubmitEdit(id) {
   }
 
   // Collect dynamic contract-type fields
-  if (isContractLike && properties.contract_type) {
-    Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
+  var _editContractType = properties.contract_type;
+  if (!_editContractType && isContractLike && e.type_name === 'supplement' && e.parent_id) {
+    try { var _pp = await api('/entities/' + e.parent_id); _editContractType = (_pp.properties || {}).contract_type || ''; } catch(ex) {}
+  }
+  if (isContractLike && _editContractType) {
+    Object.assign(properties, collectDynamicFieldValues(_editContractType));
   }
 
   // Collect entity IDs
