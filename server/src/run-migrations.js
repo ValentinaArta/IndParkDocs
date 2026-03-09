@@ -49,6 +49,7 @@ const migrations = {
   '045':         require('./migrations/045_restore_act_field_defs'),
   '046':         require('./migrations/046_typed_relations'),
   '047':         require('./migrations/047_equipment_relations'),
+  '048':         require('./migrations/048_backfill_part_of'),
 };
 
 async function initMigrationTracker(pool) {

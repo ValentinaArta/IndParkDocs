@@ -357,7 +357,15 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
     [entity.entity_type_id]
   );
 
-  res.json({ ...entity, children, relations, parent, ancestry, fields });
+  // For equipment: expose part_of parent from relations
+  let part_of_id = null;
+  let part_of_name = null;
+  if (entity.type_name === 'equipment') {
+    const partOfRel = relations.find(r => r.from_entity_id === id && r.relation_type === 'part_of');
+    if (partOfRel) { part_of_id = partOfRel.to_entity_id; part_of_name = partOfRel.to_name; }
+  }
+
+  res.json({ ...entity, children, relations, parent, ancestry, fields, part_of_id, part_of_name });
 }));
 
 // Auto-create relations from entity properties (contract → company, building, etc.)
@@ -634,6 +642,17 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
       await autoLinkEntities(id, typeInfo.name, cleanProps);
       if (typeInfo.name === 'contract') await computeAndSaveVgo(id, cleanProps, pool);
       await saveLineItems(pool, id, typeInfo.name, cleanProps);
+      // Sync part_of relation when parent_equipment_id changes
+      if (typeInfo.name === 'equipment') {
+        const newParentEqId = parseInt(cleanProps.parent_equipment_id) || null;
+        await pool.query("DELETE FROM relations WHERE from_entity_id=$1 AND relation_type='part_of'", [id]);
+        if (newParentEqId && newParentEqId !== id) {
+          await pool.query(
+            "INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,'part_of') ON CONFLICT DO NOTHING",
+            [id, newParentEqId]
+          );
+        }
+      }
     }
   }
 

@@ -105,7 +105,7 @@ async function openEditModal(id) {
       var eqBldId = eqParentIsLP ? null : e.parent_id;
       var eqLpId  = eqParentIsLP ? e.parent_id : null;
       html += renderEquipmentLocationFields(eqBldId, existingRoomId, eqLpId);
-      html += renderEqParentField((e.properties || {}).parent_equipment_id || null);
+      html += renderEqParentField(e.part_of_id || (e.properties || {}).parent_equipment_id || null);
     } else if (e.type_name === 'land_plot_part') {
       html += '<div class="form-group"><label>Земельный участок <span style="color:var(--danger)">*</span></label><select id="f_parent" onchange="onLpPartParentChange(this)"><option value="">— выберите ЗУ —</option>';
       (_lpForEdit.length ? _lpForEdit : allEntities.filter(function(x) { return x.type_name === 'land_plot'; })).forEach(function(x) {
