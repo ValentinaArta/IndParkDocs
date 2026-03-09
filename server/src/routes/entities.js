@@ -122,9 +122,12 @@ async function saveLineItems(pool, entityId, typeName, props) {
         const it = ci[i];
         const nm = it.name || it.subject || ''; if (!nm) continue;
         function sn2(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+        const chargeType = it.charge_type || 'Повторяющийся';
+        const paymentDate = it.payment_date || null;
+        const freq = it.frequency || (chargeType === 'Повторяющийся' ? 'Ежемесячно' : null);
         await pool.query(
-          `INSERT INTO contract_line_items (contract_id,name,unit,quantity,price,amount,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [entityId, nm, it.unit || '', sn2(it.quantity), sn2(it.price), sn2(it.amount), i]
+          `INSERT INTO contract_line_items (contract_id,name,unit,quantity,price,amount,sort_order,charge_type,payment_date,frequency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [entityId, nm, it.unit || '', sn2(it.quantity), sn2(it.price), sn2(it.amount), i, chargeType, paymentDate, freq]
         );
       }
     }
