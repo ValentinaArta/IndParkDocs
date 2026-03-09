@@ -13,6 +13,7 @@ function showSettings(tab) {
   var tabsHtml = '<div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--border)">';
   tabsHtml += '<button id="stab_types" class="btn' + (tab==='types'?' btn-primary':'') + '" onclick="showSettings(\\'types\\')" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Типы и поля</button>';
   tabsHtml += '<button id="stab_lists" class="btn' + (tab==='lists'?' btn-primary':'') + '" onclick="showSettings(\\'lists\\')" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Справочники</button>';
+  tabsHtml += '<button id="stab_ctf" class="btn' + (tab==='contract-types'?' btn-primary':'') + '" onclick="showSettings(\\'contract-types\\')" style="border-radius:6px 6px 0 0;border-bottom:none;padding:8px 20px">Типы договоров</button>';
   tabsHtml += '</div>';
 
   if (tab === 'types') {
@@ -26,6 +27,10 @@ function showSettings(tab) {
     html += '</div>';
     document.getElementById('content').innerHTML = html;
     renderIcons();
+  } else if (tab === 'contract-types') {
+    document.getElementById('topActions').innerHTML = '';
+    document.getElementById('content').innerHTML = tabsHtml + '<div id="ctfSettingsWrap"></div>';
+    _ctfRenderInSettings();
   } else {
     document.getElementById('topActions').innerHTML = '';
     document.getElementById('content').innerHTML = tabsHtml + '<div id="settingsListsContent"><div style="padding:40px;text-align:center;color:var(--text-muted)">Загрузка...</div></div>';

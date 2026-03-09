@@ -10,11 +10,13 @@ var _ctfTypes = [];      // distinct type names
 var _ctfActiveType = ''; // currently selected type
 
 async function showContractTypesPage() {
-  _setNavHash('#contract-types');
-  setActive('[data-type="contract-types"]');
-  document.getElementById('sidebar').style.display = '';
-  var main = document.getElementById('content');
-  main.innerHTML = '<div style="padding:24px"><div class="loading-spinner"></div></div>';
+  showSettings('contract-types');
+}
+
+async function _ctfRenderInSettings() {
+  var wrap = document.getElementById('ctfSettingsWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="padding:24px"><div class="loading-spinner"></div></div>';
 
   try {
     _ctfData = await api('/contract-type-fields/all');
@@ -25,13 +27,12 @@ async function showContractTypesPage() {
     });
     _ctfTypes.sort();
   } catch(e) {
-    main.innerHTML = '<div style="padding:24px;color:var(--red)">Ошибка загрузки: ' + escapeHtml(e.message || String(e)) + '</div>';
+    wrap.innerHTML = '<div style="padding:24px;color:var(--red)">Ошибка загрузки: ' + escapeHtml(e.message || String(e)) + '</div>';
     return;
   }
 
-  var h = '<div style="padding:24px;max-width:1100px">';
+  var h = '<div style="max-width:1100px">';
   h += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">';
-  h += '<h2 style="margin:0">Справочник типов договоров</h2>';
   h += '<button class="btn btn-primary" onclick="_ctfAddType()" style="margin-left:auto">+ Новый тип</button>';
   h += '</div>';
 
@@ -41,7 +42,7 @@ async function showContractTypesPage() {
   // Fields table
   h += '<div id="ctfBody"></div>';
   h += '</div>';
-  main.innerHTML = h;
+  wrap.innerHTML = h;
 
   _ctfRenderTabs();
   if (_ctfTypes.length) _ctfSelectType(_ctfActiveType && _ctfTypes.indexOf(_ctfActiveType) >= 0 ? _ctfActiveType : _ctfTypes[0]);
@@ -132,7 +133,7 @@ async function _ctfRenameType() {
   }
   _ctfActiveType = newName;
   _ctfLoaded = false;
-  showContractTypesPage();
+  _ctfRenderInSettings();
 }
 
 // ── Delete type ──────────────────────────────────────────────────────────────
@@ -144,7 +145,7 @@ async function _ctfDeleteType() {
   }
   _ctfActiveType = '';
   _ctfLoaded = false;
-  showContractTypesPage();
+  _ctfRenderInSettings();
 }
 
 // ── Field CRUD ───────────────────────────────────────────────────────────────
@@ -204,7 +205,7 @@ async function _ctfSaveNewField(maxSort) {
   await api('/contract-type-fields', { method: 'POST', body: JSON.stringify(data) });
   closeModal();
   await loadContractTypeFields(); // refresh cache
-  showContractTypesPage();
+  _ctfRenderInSettings();
 }
 
 function _ctfEditField(id) {
@@ -224,7 +225,7 @@ async function _ctfSaveEditField(id, sortOrder) {
   await api('/contract-type-fields/' + id, { method: 'PUT', body: JSON.stringify(data) });
   closeModal();
   await loadContractTypeFields(); // refresh cache
-  showContractTypesPage();
+  _ctfRenderInSettings();
 }
 
 async function _ctfDeleteField(id) {
@@ -233,7 +234,7 @@ async function _ctfDeleteField(id) {
   if (!confirm('Удалить поле «' + f.name_ru + '» (' + f.field_name + ')?')) return;
   await api('/contract-type-fields/' + id, { method: 'DELETE' });
   _ctfLoaded = false;
-  showContractTypesPage();
+  _ctfRenderInSettings();
 }
 
 async function _ctfMoveField(id, dir) {
@@ -254,7 +255,7 @@ async function _ctfMoveField(id, dir) {
   await api('/contract-type-fields/' + a.id, { method: 'PUT', body: JSON.stringify(a) });
   await api('/contract-type-fields/' + b.id, { method: 'PUT', body: JSON.stringify(b) });
   _ctfLoaded = false;
-  showContractTypesPage();
+  _ctfRenderInSettings();
 }
 
 `;
