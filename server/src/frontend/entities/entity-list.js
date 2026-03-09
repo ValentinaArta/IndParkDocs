@@ -322,6 +322,7 @@ function _areaBarClick(bi) {
 
 async function showEntityList(typeName, opts) {
   opts = opts || {};
+  _setNavHash('list/' + typeName);
   currentView = 'list';
   currentTypeFilter = typeName;
   const type = entityTypes.find(t => t.name === typeName);
