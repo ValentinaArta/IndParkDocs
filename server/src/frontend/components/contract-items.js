@@ -60,13 +60,13 @@ function _renderContractItem(item, idx, isSale) {
   // Single row: name + amount + type + conditional + remove
   h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
   if (isSale) {
-    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:120px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование" value="' + escapeHtml(item.name||'') + '" style="flex:3;min-width:200px" oninput="recalcContractAmount()">';
     h += '<input class="ci-qty" data-idx="' + idx + '" type="number" min="0" step="any" placeholder="Кол-во" value="' + escapeHtml(String(item.qty||1)) + '" style="width:60px" oninput="recalcContractAmount()">';
     h += '<input class="ci-uprice" data-idx="' + idx + '" type="number" min="0" step="any" placeholder="Цена" value="' + escapeHtml(String(item.unit_price||'')) + '" style="width:80px" oninput="recalcContractAmount()">';
     h += '<span class="ci-total" data-idx="' + idx + '" style="width:70px;font-size:12px;color:var(--text-secondary);white-space:nowrap">' + (item.amount ? Number(item.amount).toLocaleString('ru-RU') + ' \\u20BD' : '') + '</span>';
   } else {
-    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование работ/услуг" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:120px" oninput="recalcContractAmount()">';
-    h += '<input class="ci-amount" data-idx="' + idx + '" type="number" min="0" step="any" placeholder="Сумма" value="' + escapeHtml(String(item.amount||'')) + '" style="width:100px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование работ/услуг" value="' + escapeHtml(item.name||'') + '" style="flex:3;min-width:200px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-amount" data-idx="' + idx + '" type="number" min="0" step="any" placeholder="Сумма" value="' + escapeHtml(String(item.amount||'')) + '" style="width:110px;flex-shrink:0" oninput="recalcContractAmount()">';
   }
 
   // Type selector
