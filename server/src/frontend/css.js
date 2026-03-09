@@ -95,13 +95,19 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 /* Searchable select */
 .srch-wrap { position:relative; }
 .srch-input { width:100%; box-sizing:border-box; }
-.srch-drop { position:absolute;top:100%;left:0;right:0;z-index:9999;background:var(--bg);border:1px solid var(--primary);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+.srch-drop { position:absolute;top:100%;left:0;right:0;z-index:9999;background:var(--bg);border:1px solid var(--primary);border-top:none;border-radius:0 0 6px 6px;max-height:320px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12); }
 .srch-wrap { position:relative; }
 .srch-item { padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;touch-action:manipulation; }
 .srch-item:hover,.srch-item.srch-active { background:var(--bg-hover); }
 .srch-new { color:var(--primary);font-style:italic;border-top:1px solid var(--border); }
 .srch-custom { width:100%;box-sizing:border-box;margin-top:6px; }
-.srch-group-hdr { padding:5px 12px 3px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;background:var(--bg-secondary);cursor:default;pointer-events:none;border-top:1px solid var(--border);position:sticky;top:0; }
+.srch-group-hdr { padding:5px 12px 3px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;background:var(--bg-secondary);border-top:1px solid var(--border);position:sticky;top:0; }
+.srch-group-toggle { cursor:pointer;pointer-events:auto; }
+.srch-group-toggle::before { content:'\\25B6';display:inline-block;margin-right:4px;font-size:9px;transition:transform 0.15s; }
+.srch-group-toggle[data-srch-grp="expanded"]::before { transform:rotate(90deg); }
+.srch-eq-tabs { display:flex;gap:2px;padding:4px 6px;background:var(--bg-secondary);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1; }
+.srch-eq-tab { flex:1;padding:4px 6px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;text-align:center;white-space:nowrap; }
+.srch-eq-tab.is-active { background:var(--accent);color:#fff;border-color:var(--accent); }
 .modal h3 { font-size: 16px; margin-bottom: 16px; padding-right: 80px; }
 .modal .form-group { margin-bottom: 14px; }
 .modal label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
