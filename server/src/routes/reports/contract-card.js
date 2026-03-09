@@ -217,13 +217,21 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
       date: p.act_date || p.contract_date || '', total, equipment, is_act: true };
   });
 
-  // 10. Supplements history
+  // 10. Supplements history — resolve contractor names from typed relations
+  const _suppContrMap = {};
+  if (supplements.length > 0) {
+    const _scrRes = await pool.query(
+      `SELECT r.from_entity_id, e.name FROM relations r JOIN entities e ON e.id = r.to_entity_id
+       WHERE r.from_entity_id = ANY($1) AND r.relation_type = 'contractor' AND r.deleted_at IS NULL`,
+      [supplements.map(s => s.id)]);
+    _scrRes.rows.forEach(r => { _suppContrMap[r.from_entity_id] = r.name; });
+  }
   const histItems = [
     ...supplements.map(sp => {
       const p = sp.properties || {};
       return { id: sp.id, name: sp.name, number: p.number || '',
         date: p.contract_date || '', changes: p.changes_description || '',
-        contractor_name: p.contractor_name || '', doc_status: p.doc_status || '',
+        contractor_name: _suppContrMap[sp.id] || '', doc_status: p.doc_status || '',
         is_contract: false, is_act: false };
     }),
     ...acts,
@@ -290,24 +298,26 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const suppSlRaw = latestSuppValue(supplements, 'subject_land_plots');
   if (suppSlRaw) { const a = _parseSubjArr(suppSlRaw); if (a) effSubjectLandPlots = a; }
 
-  const _companyIds = [parseInt(cProps.contractor_id), parseInt(cProps.subtenant_id), parseInt(cProps.our_legal_entity_id)].filter(Boolean);
-  const _companyMap = {};
-  if (_companyIds.length) {
-    const _cRes = await pool.query('SELECT id, name FROM entities WHERE id = ANY($1)', [_companyIds]);
-    _cRes.rows.forEach(r => { _companyMap[r.id] = r.name; });
-  }
+  // Resolve company names from typed relations
+  const _relRes = await pool.query(
+    `SELECT r.relation_type, r.to_entity_id, e.name FROM relations r
+     JOIN entities e ON e.id = r.to_entity_id
+     WHERE r.from_entity_id = $1 AND r.relation_type IN ('contractor','our_entity','subtenant') AND r.deleted_at IS NULL`, [contractId]);
+  const _relMap = {};
+  const _relIdMap = {};
+  _relRes.rows.forEach(r => { _relMap[r.relation_type] = r.name; _relIdMap[r.relation_type] = r.to_entity_id; });
 
   res.json({
     id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
     doc_status: cProps.doc_status || '',
     number: cProps.number || '', date: cProps.contract_date || '',
-    our_legal_entity: _companyMap[parseInt(cProps.our_legal_entity_id)] || cProps.our_legal_entity || '',
+    our_legal_entity: _relMap.our_entity || '',
     our_role_label: cProps.our_role_label || '',
-    contractor_name: _companyMap[parseInt(cProps.contractor_id)] || cProps.contractor_name || '',
-    contractor_id: parseInt(cProps.contractor_id) || null,
+    contractor_name: _relMap.contractor || '',
+    contractor_id: _relIdMap.contractor || null,
     contractor_role_label: cProps.contractor_role_label || '',
-    subtenant_name: _companyMap[parseInt(cProps.subtenant_id)] || cProps.subtenant_name || '',
-    subtenant_id: parseInt(cProps.subtenant_id) || null,
+    subtenant_name: _relMap.subtenant || '',
+    subtenant_id: _relIdMap.subtenant || null,
     contract_end_date: effDurDate,
     duration_type: effDurType,
     duration_text: effDurText,
@@ -367,7 +377,7 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
     : 'Document_СписаниеСРасчетногоСчета';
 
   let contractorRefKey = null;
-  const contractorId = parseInt(cProps.contractor_id) || 0;
+  const contractorId = _relIdMap.contractor || 0;
   if (contractorId) {
     const compRes = await pool.query(
       `SELECT properties->>'odata_ref_key' AS ref_key

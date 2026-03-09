@@ -207,7 +207,7 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     let extra = '';
     if (date_from) { params.push(date_from); extra += ` AND (${prefix}.properties->>'contract_date') >= $${params.length}`; }
     if (date_to)   { params.push(date_to);   extra += ` AND (${prefix}.properties->>'contract_date') <= $${params.length}`; }
-    if (contractor_id) { params.push(parseInt(contractor_id)); extra += ` AND (${prefix}.properties->>'contractor_id')::int = $${params.length}`; }
+    if (contractor_id) { params.push(parseInt(contractor_id)); extra += ` AND r_contr.to_entity_id = $${params.length}`; }
     return extra;
   };
 
@@ -222,8 +222,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       eq_status: ep.status || '',
       contract_id: r.contract_id, contract_name: r.contract_name,
       act_id: r.act_id || null, act_name: r.act_name || null, act_date: r.act_date || null,
-      contract_our_legal_entity: cp.our_legal_entity || '',
-      contract_contractor: cp.contractor_name || '',
+      contract_our_legal_entity: r.our_entity_name || '',
+      contract_contractor: r.contractor_name || '',
       contract_type: cp.contract_type || '',
       contract_date: cp.contract_date || '',
       contract_year: (cp.contract_date || '').substring(0, 4),
@@ -239,7 +239,7 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
            ELSE COALESCE(par.name, '—') END AS building_name,
       c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
       NULL::int AS act_id, NULL::text AS act_name, NULL::text AS act_date,
-      c_contractor.name AS contract_contractor_name
+      contr_ent.name AS contractor_name, our_ent.name AS our_entity_name
     FROM entities e
     JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
     JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
@@ -248,7 +248,10 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
-    LEFT JOIN entities c_contractor ON c_contractor.id = (c.properties->>'contractor_id')::int
+    LEFT JOIN relations r_contr ON r_contr.from_entity_id = c.id AND r_contr.relation_type = 'contractor' AND r_contr.deleted_at IS NULL
+    LEFT JOIN entities contr_ent ON contr_ent.id = r_contr.to_entity_id
+    LEFT JOIN relations r_our ON r_our.from_entity_id = c.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL
+    LEFT JOIN entities our_ent ON our_ent.id = r_our.to_entity_id
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
       AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p1, 'c')} ORDER BY e.name, c.id`;
@@ -264,7 +267,7 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       act.id AS act_id, act.name AS act_name,
       act.properties->>'act_date' AS act_date,
       act.properties AS act_props,
-      c_contractor.name AS contract_contractor_name
+      contr_ent2.name AS contractor_name, our_ent2.name AS our_entity_name
     FROM entities e
     JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
     JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
@@ -276,7 +279,10 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
-    LEFT JOIN entities c_contractor ON c_contractor.id = (c.properties->>'contractor_id')::int
+    LEFT JOIN relations r_contr2 ON r_contr2.from_entity_id = c.id AND r_contr2.relation_type = 'contractor' AND r_contr2.deleted_at IS NULL
+    LEFT JOIN entities contr_ent2 ON contr_ent2.id = r_contr2.to_entity_id
+    LEFT JOIN relations r_our2 ON r_our2.from_entity_id = c.id AND r_our2.relation_type = 'our_entity' AND r_our2.deleted_at IS NULL
+    LEFT JOIN entities our_ent2 ON our_ent2.id = r_our2.to_entity_id
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
       AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p2, 'c')} ORDER BY e.name, act.id`;
