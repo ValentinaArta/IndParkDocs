@@ -84,8 +84,10 @@ async function _loadLettersList() {
   }
 }
 
-function showCreateLetter() {
-  _loadLetterTopics().then(function() { _renderLetterForm(); });
+async function showCreateLetter() {
+  await loadEntityLists();
+  await _loadLetterTopics();
+  _renderLetterForm();
 }
 
 function _renderLetterForm(editData) {
