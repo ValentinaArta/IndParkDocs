@@ -118,8 +118,7 @@ function renderFieldInput(f, value) {
   } else if (f.field_type === 'multi_comments') {
     return renderCommentsBlock(val);
   } else if (f.field_type === 'advances') {
-    var advances = [];
-    try { if (typeof val === 'string' && val) advances = JSON.parse(val); else if (Array.isArray(val)) advances = val; } catch(e) {}
+    var advances = Array.isArray(val) ? val : [];
     return renderAdvancesBlock(advances);
   } else if (f.field_type === 'select_or_custom') {
     const opts = f.options || [];

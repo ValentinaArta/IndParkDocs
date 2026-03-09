@@ -46,40 +46,31 @@ async function createBIViews(pool) {
       JOIN entity_types et ON e.entity_type_id = et.id
       WHERE et.name = 'supplement' AND e.deleted_at IS NULL`);
 
-    // v_bi_rent_objects — rent objects array exploded (one row per rented object)
-    // Fix: rent_objects stored as JSON string → cast via ->>'rent_objects')::jsonb
-    // Fix: correct field names: area (not total_area), room (not object_name)
+    // v_bi_rent_objects — rent objects from rent_items table (one row per rented object)
     await pool.query(`CREATE OR REPLACE VIEW v_bi_rent_objects AS
       SELECT
         e.id AS contract_id,
         e.name AS contract_name,
         e.properties->>'contract_type'    AS contract_type,
-        e.properties->>'contractor_name'  AS tenant_name,
-        e.properties->>'our_legal_entity' AS landlord_name,
+        contr_ent.name                    AS tenant_name,
+        our_ent.name                      AS landlord_name,
         e.properties->>'contract_date'    AS contract_date,
         e.properties->>'contract_end_date' AS contract_end_date,
         COALESCE(NULLIF(e.properties->>'vat_rate','')::numeric, 22) AS vat_rate,
-        obj->>'room'        AS room_name,
-        obj->>'building'    AS building_name,
-        obj->>'object_type' AS object_type,
-        obj->>'comment'     AS comment,
-        NULLIF(obj->>'area','')::numeric       AS area_sqm,
-        NULLIF(obj->>'rent_rate','')::numeric   AS rate_per_sqm,
-        ROUND(
-          COALESCE(NULLIF(obj->>'area','')::numeric, 0)
-          * COALESCE(NULLIF(obj->>'rent_rate','')::numeric, 0),
-          2
-        ) AS monthly_amount_net
-      FROM entities e
-      JOIN entity_types et ON e.entity_type_id = et.id
-      CROSS JOIN LATERAL jsonb_array_elements(
-        (e.properties->>'rent_objects')::jsonb
-      ) AS obj
-      WHERE et.name IN ('contract','supplement')
-        AND e.deleted_at IS NULL
-        AND e.properties->>'rent_objects' IS NOT NULL
-        AND e.properties->>'rent_objects' != ''
-        AND e.properties->>'rent_objects' != '[]'`);
+        rm.name             AS room_name,
+        ri.object_type,
+        ri.comment,
+        ri.area             AS area_sqm,
+        ri.rent_rate        AS rate_per_sqm,
+        ROUND(COALESCE(ri.area, 0) * COALESCE(ri.rent_rate, 0), 2) AS monthly_amount_net
+      FROM rent_items ri
+      JOIN entities e ON e.id = ri.contract_id AND e.deleted_at IS NULL
+      JOIN entity_types et ON e.entity_type_id = et.id AND et.name IN ('contract','supplement')
+      LEFT JOIN entities rm ON rm.id = ri.entity_id
+      LEFT JOIN relations contr_rel ON contr_rel.from_entity_id = e.id AND contr_rel.relation_type = 'contractor' AND contr_rel.deleted_at IS NULL
+      LEFT JOIN entities contr_ent ON contr_ent.id = contr_rel.to_entity_id
+      LEFT JOIN relations our_rel ON our_rel.from_entity_id = e.id AND our_rel.relation_type = 'our_entity' AND our_rel.deleted_at IS NULL
+      LEFT JOIN entities our_ent ON our_ent.id = our_rel.to_entity_id`);
 
     // v_bi_equipment — equipment with building, owner, all fields
     await pool.query(`CREATE OR REPLACE VIEW v_bi_equipment AS

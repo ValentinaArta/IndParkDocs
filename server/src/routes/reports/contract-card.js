@@ -308,13 +308,21 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     });
   }
 
+  // Advances from contract_advances table (effective source)
+  const advEffSrc = await getEffectiveSrc(pool, contractId, 'contract_advances', 'contract_id');
+  const contractAdvancesRes = await pool.query(
+    'SELECT amount, date FROM contract_advances WHERE contract_id=$1 ORDER BY sort_order', [advEffSrc.id]);
+  const contractAdvances = contractAdvancesRes.rows.map(r => ({
+    amount: r.amount !== null ? String(r.amount) : '',
+    date: r.date ? r.date.toISOString().slice(0, 10) : '',
+  }));
+
   // Effective scalar values: latest supplement overrides contract
   const effAmount   = latestSuppValue(supplements, 'contract_amount')    || cProps.contract_amount    || '';
   const effSubject  = latestSuppValue(supplements, 'subject')             || latestSuppValue(supplements, 'service_subject') || cProps.subject || cProps.service_subject || '';
   const effDurType  = latestSuppValue(supplements, 'duration_type')       || cProps.duration_type      || '';
   const effDurDate  = latestSuppValue(supplements, 'duration_date')       || latestSuppValue(supplements, 'contract_end_date') || cProps.duration_date || cProps.contract_end_date || '';
   const effDurText  = latestSuppValue(supplements, 'duration_text')       || cProps.duration_text      || '';
-  const effPayFreq  = latestSuppValue(supplements, 'payment_frequency')   || cProps.payment_frequency  || '';
   const effVat      = latestSuppValue(supplements, 'vat_rate')            || cProps.vat_rate           || '';
   const effDeadline = latestSuppValue(supplements, 'completion_deadline') || cProps.completion_deadline || '';
   const effComment  = latestSuppValue(supplements, 'service_comment')     || cProps.service_comment    || '';
@@ -359,10 +367,9 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     building: cProps.building || '',
     tenant: cProps.tenant || '',
     vat_rate: effVat,
-    advances: latestSuppValue(supplements, 'advances') || cProps.advances || '',
+    advances: contractAdvances,
     completion_deadline: effDeadline,
     service_comment: effComment,
-    payment_frequency: effPayFreq,
     has_power_allocation: latestSuppValue(supplements, 'has_power_allocation') || cProps.has_power_allocation || '',
     power_allocation_kw: latestSuppValue(supplements, 'power_allocation_kw')  || cProps.power_allocation_kw  || '',
     contract_items: contractItems,

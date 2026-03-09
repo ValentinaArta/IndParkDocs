@@ -9,6 +9,13 @@ module.exports = `
 function renderActCard(act, parentContract) {
   var props = act.properties || {};
   var pp = (parentContract && parentContract.properties) ? parentContract.properties : {};
+  // Resolve company names from parent contract's typed relations
+  if (parentContract && parentContract.relations) {
+    parentContract.relations.forEach(function(r) {
+      if (r.relation_type === 'contractor' && !pp.contractor_name) pp.contractor_name = r.to_name || '';
+      if (r.relation_type === 'our_entity' && !pp.our_legal_entity) pp.our_legal_entity = r.to_name || '';
+    });
+  }
 
   var h = '';
 

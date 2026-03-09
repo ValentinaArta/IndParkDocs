@@ -397,8 +397,8 @@ function renderEntityGrid(entities) {
       if (ctType) tags += '<span class="prop-tag" style="font-weight:600">' + escapeHtml(ctType) + '</span>';
       // Стороны
       var sides = [];
-      if (props.our_legal_entity) sides.push(escapeHtml(props.our_legal_entity));
-      if (props.contractor_name) sides.push(escapeHtml(props.contractor_name));
+      if (e.effective_our_legal_entity || props.our_legal_entity) sides.push(escapeHtml(e.effective_our_legal_entity || props.our_legal_entity));
+      if (e.effective_contractor_name || props.contractor_name) sides.push(escapeHtml(e.effective_contractor_name || props.contractor_name));
       if (props.subtenant_name)  sides.push(escapeHtml(props.subtenant_name));
       if (sides.length) tags += '<span class="prop-tag" style="color:var(--text-secondary)">' + sides.join(' · ') + '</span>';
       // Предмет

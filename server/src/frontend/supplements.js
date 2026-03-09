@@ -37,6 +37,13 @@ async function openCreateSupplementModal(parentContractId) {
   await loadEntityLists();
   const parentEntity = await api('/entities/' + parentContractId);
   const parentProps = parentEntity.properties || {};
+  // Resolve company names from typed relations (properties no longer hold them)
+  var _parentRels = parentEntity.relations || [];
+  _parentRels.forEach(function(r) {
+    if (r.relation_type === 'contractor') { parentProps.contractor_name = r.to_name || r.name || ''; parentProps.contractor_id = String(r.to_entity_id); }
+    if (r.relation_type === 'our_entity') { parentProps.our_legal_entity = r.to_name || r.name || ''; parentProps.our_legal_entity_id = String(r.to_entity_id); }
+    if (r.relation_type === 'subtenant') { parentProps.subtenant_name = r.to_name || r.name || ''; parentProps.subtenant_id = String(r.to_entity_id); }
+  });
   const suppType = entityTypes.find(t => t.name === 'supplement');
   if (!suppType) return alert('Тип "Доп. соглашение" не найден');
   const fields = await api('/entity-types/' + suppType.id + '/fields');

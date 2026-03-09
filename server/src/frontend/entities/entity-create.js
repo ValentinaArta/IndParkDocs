@@ -304,7 +304,7 @@ async function _doSubmitCreate(typeName) {
     // Добавляем названия частей ЗУ (или самих ЗУ) в имя договора аренды
     if (properties.rent_objects) {
       try {
-        var _rosN = Array.isArray(properties.rent_objects) ? properties.rent_objects : JSON.parse(properties.rent_objects);
+        var _rosN = Array.isArray(properties.rent_objects) ? properties.rent_objects : [];
         var _lpN = _rosN
           .filter(function(ro) { return ro.object_type === 'ЗУ'; })
           .map(function(ro) { return ro.land_plot_part_name || ro.land_plot_name; })

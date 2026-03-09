@@ -84,19 +84,13 @@ function renderContractCard(data) {
     }
     h += '<div><span style="color:var(--text-secondary)">Срок выполнения:</span> ' + escapeHtml(dlVal) + '</div>';
   }
-  // Периодичность оплаты
-  if (data.payment_frequency) {
-    h += '<div><span style="color:var(--text-secondary)">Периодичность оплаты:</span> ' + escapeHtml(data.payment_frequency) + '</div>';
-  }
   // НДС
   if (data.vat_rate) {
     var _vatLabel = data.vat_rate === 'exempt' ? 'не облагается' : (data.vat_rate + '%');
     h += '<div><span style="color:var(--text-secondary)">НДС:</span> ' + escapeHtml(_vatLabel) + '</div>';
   }
-  // Авансы
-  var _advances = [];
-  if (Array.isArray(data.advances)) _advances = data.advances;
-  else { try { if (data.advances) _advances = JSON.parse(data.advances); } catch(ex) {} }
+  // Авансы (из contract_advances таблицы)
+  var _advances = Array.isArray(data.advances) ? data.advances : [];
   if (_advances.length) {
     h += '<div><span style="color:var(--text-secondary)">Авансы:</span>';
     h += '<ul style="margin:4px 0 0 18px;padding:0;font-size:13px">';
@@ -472,9 +466,7 @@ async function openContractCard(id) {
 }
 
 async function _loadAdvanceStatus(id, data) {
-  var advances = [];
-  if (Array.isArray(data.advances)) advances = data.advances;
-  else { try { if (data.advances) advances = JSON.parse(data.advances); } catch(_) {} }
+  var advances = Array.isArray(data.advances) ? data.advances : [];
   if (!advances.length) return;
 
   try {

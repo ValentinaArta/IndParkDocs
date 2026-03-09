@@ -58,13 +58,6 @@ async function openEditModal(id) {
       }
       var inheritFields = ['our_legal_entity', 'our_legal_entity_id', 'our_role_label', 'contractor_name', 'contractor_id', 'contractor_role_label', 'subtenant_name', 'subtenant_id'];
       inheritFields.forEach(function(fn) { if (!props[fn] && pp[fn]) props[fn] = pp[fn]; });
-      // Inherit line items from parent if supplement has none (pre-fill for editing)
-      if (!props.contract_items || (Array.isArray(props.contract_items) && props.contract_items.length === 0)) {
-        if (pp.contract_items) props.contract_items = pp.contract_items;
-      }
-      if (!props.equipment_list || (Array.isArray(props.equipment_list) && props.equipment_list.length === 0)) {
-        if (pp.equipment_list) props.equipment_list = pp.equipment_list;
-      }
       if (!props.contract_type && pp.contract_type) props.contract_type = pp.contract_type;
     } catch(ex) { console.error('Failed to load parent contract:', ex); }
   }
@@ -270,7 +263,7 @@ async function _doSubmitEdit(id) {
     name = (e.type_name === 'supplement' ? 'ДС' : 'Договор') + ' №' + num + (contractor ? ' — ' + contractor : '');
     if (properties.rent_objects) {
       try {
-        var _rosE = Array.isArray(properties.rent_objects) ? properties.rent_objects : JSON.parse(properties.rent_objects);
+        var _rosE = Array.isArray(properties.rent_objects) ? properties.rent_objects : [];
         var _lpE = _rosE
           .filter(function(ro) { return ro.object_type === 'ЗУ'; })
           .map(function(ro) { return ro.land_plot_part_name || ro.land_plot_name; })

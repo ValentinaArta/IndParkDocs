@@ -220,10 +220,7 @@ async function buildPivotTable() {
   var rows = [];
   entities.forEach(function(e) {
     var props = Object.assign({}, e.properties || {});
-    var ros = null;
-    if (props.rent_objects) {
-      try { ros = typeof props.rent_objects === 'string' ? JSON.parse(props.rent_objects) : props.rent_objects; } catch(ex) {}
-    }
+    var ros = Array.isArray(props.rent_objects) ? props.rent_objects : null;
     if (ros && Array.isArray(ros) && ros.length > 0) {
       ros.forEach(function(ro) {
         var merged = Object.assign({}, props, ro);

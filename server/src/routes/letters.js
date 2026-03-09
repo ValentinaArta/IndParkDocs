@@ -87,20 +87,24 @@ router.get('/letters/tenants/:companyId', authenticate, async (req, res) => {
     const { rows } = await db.query(`
       SELECT DISTINCT
         COALESCE(
-          CASE WHEN properties->>'contractor_id' = $1 THEN properties->>'subtenant_id'
-               ELSE properties->>'contractor_id' END,
+          CASE WHEN contr_rel.to_entity_id::text = $1 THEN sub_rel.to_entity_id::text
+               ELSE contr_rel.to_entity_id::text END,
           ''
         ) as tenant_id,
         COALESCE(
-          CASE WHEN properties->>'contractor_id' = $1 THEN properties->>'subtenant_name'
-               ELSE properties->>'contractor_name' END,
+          CASE WHEN contr_rel.to_entity_id::text = $1 THEN sub_ent.name
+               ELSE contr_ent.name END,
           ''
         ) as tenant_name
-      FROM entities
-      WHERE entity_type_id = (SELECT id FROM entity_types WHERE name = 'contract')
-        AND deleted_at IS NULL
-        AND (properties->>'contractor_id' = $1 OR properties->>'subtenant_id' IS NOT NULL)
-        AND (properties->>'contract_type' IN ('Аренды', 'Субаренды'))
+      FROM entities e
+      LEFT JOIN relations contr_rel ON contr_rel.from_entity_id = e.id AND contr_rel.relation_type = 'contractor' AND contr_rel.deleted_at IS NULL
+      LEFT JOIN entities contr_ent ON contr_ent.id = contr_rel.to_entity_id
+      LEFT JOIN relations sub_rel ON sub_rel.from_entity_id = e.id AND sub_rel.relation_type = 'subtenant' AND sub_rel.deleted_at IS NULL
+      LEFT JOIN entities sub_ent ON sub_ent.id = sub_rel.to_entity_id
+      WHERE e.entity_type_id = (SELECT id FROM entity_types WHERE name = 'contract')
+        AND e.deleted_at IS NULL
+        AND (contr_rel.to_entity_id::text = $1 OR sub_rel.to_entity_id IS NOT NULL)
+        AND (e.properties->>'contract_type' IN ('Аренды', 'Субаренды'))
       ORDER BY tenant_name
     `, [companyId]);
     res.json(rows.filter(r => r.tenant_id && r.tenant_name));
