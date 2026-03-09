@@ -36,7 +36,22 @@ async function loadLineItems(pool, entityId, typeName) {
     const { rows: cli } = await pool.query(
       'SELECT * FROM contract_line_items WHERE contract_id=$1 ORDER BY sort_order', [entityId]
     );
-    if (cli.length) result.contract_items = cli;
+    if (cli.length) {
+      const cliIds = cli.map(c => c.id);
+      const { rows: eqLinks } = await pool.query(
+        `SELECT cel.cli_id, cel.equipment_id, e.name AS equipment_name
+         FROM cli_equipment_links cel
+         JOIN entities e ON e.id = cel.equipment_id AND e.deleted_at IS NULL
+         WHERE cel.cli_id = ANY($1)`, [cliIds]
+      );
+      const eqMap = {};
+      eqLinks.forEach(l => { if (!eqMap[l.cli_id]) eqMap[l.cli_id] = []; eqMap[l.cli_id].push(l); });
+      cli.forEach(c => {
+        c.equipment_ids = (eqMap[c.id] || []).map(l => l.equipment_id);
+        c.equipment_names = (eqMap[c.id] || []).map(l => l.equipment_name);
+      });
+      result.contract_items = cli;
+    }
 
     const { rows: adv } = await pool.query(
       'SELECT * FROM contract_advances WHERE contract_id=$1 ORDER BY sort_order', [entityId]
@@ -125,11 +140,16 @@ async function saveLineItems(pool, entityId, typeName, props) {
         const chargeType = it.charge_type || 'Повторяющийся';
         const paymentDate = it.payment_date || null;
         const freq = it.frequency || (chargeType === 'Повторяющийся' ? 'Ежемесячно' : null);
-        const eqId = parseInt(it.equipment_id) || null;
-        await pool.query(
-          `INSERT INTO contract_line_items (contract_id,name,unit,quantity,price,amount,sort_order,charge_type,payment_date,frequency,equipment_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-          [entityId, nm, it.unit || '', sn2(it.quantity), sn2(it.price), sn2(it.amount), i, chargeType, paymentDate, freq, eqId]
+        const { rows: [inserted] } = await pool.query(
+          `INSERT INTO contract_line_items (contract_id,name,unit,quantity,price,amount,sort_order,charge_type,payment_date,frequency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+          [entityId, nm, it.unit || '', sn2(it.quantity), sn2(it.price), sn2(it.amount), i, chargeType, paymentDate, freq]
         );
+        // Equipment links (multi)
+        const eqIds = Array.isArray(it.equipment_ids) ? it.equipment_ids : (it.equipment_id ? [it.equipment_id] : []);
+        for (const eid of eqIds) {
+          const eqIdInt = parseInt(eid);
+          if (eqIdInt) await pool.query(`INSERT INTO cli_equipment_links (cli_id, equipment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [inserted.id, eqIdInt]);
+        }
       }
     }
 

@@ -192,9 +192,10 @@ router.get('/:id/work-history', authenticate, asyncHandler(async (req, res) => {
     SELECT cli.name, cli.amount, cli.payment_date, cli.charge_type,
            src.name AS source_name, src.properties->>'number' AS source_number,
            src.properties->>'date' AS source_date
-    FROM contract_line_items cli
+    FROM cli_equipment_links cel
+    JOIN contract_line_items cli ON cli.id = cel.cli_id
     JOIN entities src ON src.id = cli.contract_id AND src.deleted_at IS NULL
-    WHERE cli.equipment_id = $1
+    WHERE cel.equipment_id = $1
     ORDER BY cli.payment_date DESC NULLS LAST, cli.id DESC
   `, [eqId]);
   res.json(rows);

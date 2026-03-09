@@ -56,6 +56,7 @@ const migrations = {
   '051b':        require('./migrations/051_unify_equipment_contracts'),
   '052':         require('./migrations/052_contract_type_fields'),
   '053':         require('./migrations/053_cli_equipment_id'),
+  '054':         require('./migrations/054_cli_equipment_links'),
   '053':         require('./migrations/053_line_item_charge_types'),
 };
 
