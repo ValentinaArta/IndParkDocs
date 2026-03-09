@@ -115,6 +115,7 @@ async function saveLineItems(pool, entityId, typeName, props) {
     }
 
     // contract_items → contract_line_items
+    logger.info({ msg: 'saveLineItems contract_items', entityId, raw: typeof props.contract_items, val: String(props.contract_items || '').slice(0, 200) });
     const ci = parseArr(props.contract_items) || parseArr(props.service_items);
     if (ci !== null) {
       await pool.query('DELETE FROM contract_line_items WHERE contract_id=$1', [entityId]);
@@ -649,8 +650,20 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
 router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.entityUpdate), asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   const { name, properties, parent_id } = req.body;
-  const cleanProps = properties;
+  let cleanProps = properties;
   const cleanName = name;
+
+  // For supplements: inherit contract_type from parent if missing
+  if (cleanProps) {
+    const { rows: [meta] } = await pool.query(
+      'SELECT et.name as tn, e.parent_id FROM entities e JOIN entity_types et ON et.id=e.entity_type_id WHERE e.id=$1', [id]);
+    if (meta && meta.tn === 'supplement' && meta.parent_id && (!cleanProps.contract_type || cleanProps.contract_type === '')) {
+      const { rows: [par] } = await pool.query('SELECT properties FROM entities WHERE id=$1', [meta.parent_id]);
+      if (par && par.properties && par.properties.contract_type) {
+        cleanProps = Object.assign({}, cleanProps, { contract_type: par.properties.contract_type });
+      }
+    }
+  }
 
   // Build dynamic update
   const sets = [];
