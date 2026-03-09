@@ -232,6 +232,17 @@ async function _doSubmitEdit(id) {
     Object.assign(properties, collectDynamicFieldValues(_editContractType));
   }
 
+  // Fallback: always collect contract_items if not gathered via dynamic fields
+  if (isContractLike && !properties.contract_items) {
+    var _ciFallback = getContractItemsValue();
+    if (_ciFallback !== null) {
+      properties.contract_items = JSON.stringify(_ciFallback);
+      var _totalFb = 0;
+      _ciFallback.forEach(function(item) { if (!item.charge_type || item.charge_type === 'Повторяющийся') _totalFb += parseFloat(item.amount) || 0; });
+      if (_totalFb > 0 && !properties.contract_amount) properties.contract_amount = String(Math.round(_totalFb * 100) / 100);
+    }
+  }
+
   // Collect entity IDs
   if (isContractLike) {
     collectEntityIds(properties);

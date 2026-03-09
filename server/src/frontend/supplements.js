@@ -270,6 +270,16 @@ async function _doSubmitCreateSupplement(parentContractId) {
   if (properties.contract_type) {
     Object.assign(properties, collectDynamicFieldValues(properties.contract_type));
   }
+  // Fallback: always collect contract_items if not gathered via dynamic fields
+  if (!properties.contract_items) {
+    var _ciFb = getContractItemsValue();
+    if (_ciFb !== null) {
+      properties.contract_items = JSON.stringify(_ciFb);
+      var _totalFb = 0;
+      _ciFb.forEach(function(item) { if (!item.charge_type || item.charge_type === 'Повторяющийся') _totalFb += parseFloat(item.amount) || 0; });
+      if (_totalFb > 0 && !properties.contract_amount) properties.contract_amount = String(Math.round(_totalFb * 100) / 100);
+    }
+  }
   // Always capture vat_rate if field is visible (e.g. for non-Аренда supplement types)
   var vatEl = document.getElementById('f_vat_rate');
   if (vatEl && vatEl.value) properties.vat_rate = vatEl.value;

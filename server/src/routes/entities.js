@@ -737,6 +737,14 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
     return res.status(409).json({ error: 'duplicate', existing: dupCheck.rows[0], message: 'Запись с таким именем уже существует' });
   }
 
+  // For supplements: inherit contract_type from parent if missing
+  if (parent_id && (!cleanProps.contract_type || cleanProps.contract_type === '')) {
+    const { rows: [par] } = await pool.query('SELECT properties FROM entities WHERE id=$1', [parent_id]);
+    if (par && par.properties && par.properties.contract_type) {
+      cleanProps.contract_type = par.properties.contract_type;
+    }
+  }
+
   const { rows } = await pool.query(
     'INSERT INTO entities (entity_type_id, name, properties, parent_id) VALUES ($1,$2,$3,$4) RETURNING *',
     [entity_type_id, cleanName, cleanProps, parent_id || null]
