@@ -199,8 +199,8 @@ function renderSupplementCard(supp) {
       validObjs.forEach(function(ro, i) {
         var isLP = (ro.object_type === 'ЗУ' || ro.object_type === 'Земельный участок');
         var objName = isLP
-          ? (ro.land_plot_part_name || ro.land_plot_name || ro.room || ro.room_name || '—')
-          : (ro.room || ro.room_name || ro.object_type || '—');
+          ? (ro.land_plot_part_name || ro.land_plot_name || ro.entity_name || ro.room || ro.room_name || '—')
+          : (ro.entity_name || ro.room || ro.room_name || ro.object_type || '—');
         var area = parseFloat(ro.area) || 0;
         var rate = parseFloat(ro.rent_rate) || 0;
         var monthly = ro.fixed_rent ? parseFloat(ro.fixed_rent) : (area * rate);
