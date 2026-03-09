@@ -186,6 +186,33 @@ function renderContractCard(data) {
     }
   }
 
+  // ── Разовые работы (из всех ДС + договора) ────────────────────────────────
+  if (data.all_one_time_items && data.all_one_time_items.length) {
+    h += '<div style="margin-bottom:12px">';
+    h += '<div style="font-size:13px;font-weight:600;color:#9333ea;margin-bottom:6px">РАЗОВЫЕ РАБОТЫ <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(справочно, из всех ДС)</span></div>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    h += '<thead><tr style="background:#9333ea;color:#fff">';
+    h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
+    h += '<th style="padding:7px 10px;text-align:right">Сумма, \\u20BD</th>';
+    h += '<th style="padding:7px 10px;text-align:left">Дата оплаты</th>';
+    h += '<th style="padding:7px 10px;text-align:left;border-radius:0 4px 0 0">Источник</th>';
+    h += '</tr></thead><tbody>';
+    data.all_one_time_items.forEach(function(item, i) {
+      var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+      var amt = parseFloat(item.amount) || 0;
+      var pd = item.payment_date || '';
+      var hasPaid = data.payments && data.payments.some(function(p) { return p.amount && Math.abs(p.amount - amt) < 0.01; });
+      var pdStyle = pd && !hasPaid ? 'color:#dc2626;font-weight:600' : '';
+      h += '<tr style="' + bg + '">';
+      h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(item.name || '\\u2014') + '</td>';
+      h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _ccFmtNum(amt) : '') + '</td>';
+      h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);' + pdStyle + '">' + (pd || '\\u2014') + '</td>';
+      h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-secondary)">' + escapeHtml(item.source_name || '') + '</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
   // ── Сумма договора (для не-аренды) — только повторяющиеся ──────────────────
   if (!isRental && data.contract_amount) {
     h += '<div style="font-size:15px;font-weight:600;margin-bottom:16px;color:var(--accent)">';

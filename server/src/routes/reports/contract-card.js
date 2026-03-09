@@ -249,6 +249,21 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     'SELECT * FROM contract_line_items WHERE contract_id=$1 ORDER BY sort_order', [cliSrc.id]);
   const contractItems = cliRes.rows;
 
+  // 11b. Collect ALL one-time items from contract + all supplements (historical)
+  const allOneTimeRes = await pool.query(
+    `SELECT cli.*, e.name as source_name
+     FROM contract_line_items cli
+     JOIN entities e ON e.id = cli.contract_id AND e.deleted_at IS NULL
+     WHERE cli.charge_type = 'Разовый'
+       AND (cli.contract_id = $1 OR cli.contract_id IN (
+         SELECT s.id FROM entities s
+         JOIN entity_types et ON et.id = s.entity_type_id AND et.name = 'supplement'
+         WHERE s.parent_id = $1 AND s.deleted_at IS NULL
+       ))
+     ORDER BY cli.payment_date NULLS LAST, cli.sort_order`, [contractId]
+  );
+  const allOneTimeItems = allOneTimeRes.rows;
+
   // For non-rental: also try direct equipment_list from contract_equipment (no rent_cost filter)
   if (eqList.length === 0 && cProps.contract_type !== 'Аренды' && cProps.contract_type !== 'Субаренды') {
     const directSrc = await getEffectiveSrc(pool, contractId, 'contract_equipment', 'contract_id');
@@ -334,6 +349,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     has_power_allocation: latestSuppValue(supplements, 'has_power_allocation') || cProps.has_power_allocation || '',
     power_allocation_kw: latestSuppValue(supplements, 'power_allocation_kw')  || cProps.power_allocation_kw  || '',
     contract_items: contractItems,
+    all_one_time_items: allOneTimeItems,
     cli_source_name: cliSrc.fromSupp ? cliSrc.suppName : '',
     rent_source_name: rentSrc.fromSupp ? rentSrc.suppName : '',
     transfer_source_name: transferSourceName,
