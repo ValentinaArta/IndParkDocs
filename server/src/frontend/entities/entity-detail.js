@@ -85,6 +85,15 @@ async function showEntity(id, _forceDetail) {
     return;
   }
 
+  // For equipment — show custom card
+  if (e.type_name === 'equipment' && !_forceDetail) {
+    var eqContentEl = document.getElementById('content');
+    eqContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderEquipmentCard(e) + renderFilesSection(id) + '</div>';
+    loadEntityFiles(id);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    return;
+  }
+
   let html = '';
 
   // Properties
