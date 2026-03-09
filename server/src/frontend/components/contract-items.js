@@ -1,6 +1,9 @@
 /* eslint-disable */
 module.exports = `
-// === CONTRACT ITEMS — moved from entity-form.js ===
+// === CONTRACT ITEMS — with charge_type per line ===
+
+var _CI_CHARGE_TYPES = ['Повторяющийся', 'Разовый', 'Доп. услуги'];
+var _CI_FREQUENCIES = ['Ежемесячно', 'Ежеквартально', 'Раз в полгода', 'Ежегодно'];
 
 function renderContractItemsField(items, isSale) {
   if (!Array.isArray(items) || !items.length) items = [{}];
@@ -14,19 +17,58 @@ function renderContractItemsField(items, isSale) {
 }
 
 function _renderContractItem(item, idx, isSale) {
-  var h = '<div class="contract-item" data-idx="' + idx + '" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+  var ct = item.charge_type || 'Повторяющийся';
+  var freq = item.frequency || 'Ежемесячно';
+  var pd = item.payment_date || '';
+
+  var h = '<div class="contract-item" data-idx="' + idx + '" style="margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary)">';
+
+  // Row 1: name + amount + remove
+  h += '<div style="display:flex;gap:6px;align-items:center">';
   if (isSale) {
     h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:0" oninput="recalcContractAmount()">';
     h += '<input class="ci-qty" data-idx="' + idx + '" type="number" min="0" placeholder="Кол-во" value="' + escapeHtml(String(item.qty||1)) + '" style="width:65px" oninput="recalcContractAmount()">';
-    h += '<input class="ci-uprice" data-idx="' + idx + '" type="number" min="0" placeholder="Цена, ₽" value="' + escapeHtml(String(item.unit_price||'')) + '" style="width:100px" oninput="recalcContractAmount()">';
-    h += '<span class="ci-total" data-idx="' + idx + '" style="width:90px;font-size:12px;color:var(--text-secondary);white-space:nowrap">' + (item.amount ? item.amount + ' ₽' : '') + '</span>';
+    h += '<input class="ci-uprice" data-idx="' + idx + '" type="number" min="0" placeholder="Цена" value="' + escapeHtml(String(item.unit_price||'')) + '" style="width:90px" oninput="recalcContractAmount()">';
+    h += '<span class="ci-total" data-idx="' + idx + '" style="width:80px;font-size:12px;color:var(--text-secondary);white-space:nowrap">' + (item.amount ? Number(item.amount).toLocaleString('ru-RU') + ' \\u20BD' : '') + '</span>';
   } else {
     h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование работ/услуг" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:0" oninput="recalcContractAmount()">';
-    h += '<input class="ci-amount" data-idx="' + idx + '" type="number" min="0" placeholder="Сумма, ₽" value="' + escapeHtml(String(item.amount||'')) + '" style="width:120px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-amount" data-idx="' + idx + '" type="number" min="0" placeholder="Сумма" value="' + escapeHtml(String(item.amount||'')) + '" style="width:110px" oninput="recalcContractAmount()">';
   }
-  h += '<button type="button" onclick="contractItemRemove(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>';
+  h += '<button type="button" onclick="contractItemRemove(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:0 4px;line-height:1">\\u00d7</button>';
+  h += '</div>';
+
+  // Row 2: charge_type + conditional fields
+  h += '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">';
+  h += '<select class="ci-charge-type" data-idx="' + idx + '" onchange="_ciChargeTypeChanged(this)" style="font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid var(--border)">';
+  _CI_CHARGE_TYPES.forEach(function(t) {
+    h += '<option value="' + escapeHtml(t) + '"' + (ct === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+  });
+  h += '</select>';
+
+  // Frequency (for Повторяющийся)
+  h += '<select class="ci-frequency" data-idx="' + idx + '" style="font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid var(--border)' + (ct !== 'Повторяющийся' ? ';display:none' : '') + '">';
+  _CI_FREQUENCIES.forEach(function(f) {
+    h += '<option value="' + escapeHtml(f) + '"' + (freq === f ? ' selected' : '') + '>' + escapeHtml(f) + '</option>';
+  });
+  h += '</select>';
+
+  // Payment date (for Разовый)
+  h += '<input class="ci-payment-date" data-idx="' + idx + '" type="date" value="' + escapeHtml(pd) + '" placeholder="Дата оплаты" style="font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid var(--border)' + (ct !== 'Разовый' ? ';display:none' : '') + '">';
+
+  h += '</div>';
   h += '</div>';
   return h;
+}
+
+function _ciChargeTypeChanged(sel) {
+  var item = sel.closest('.contract-item');
+  if (!item) return;
+  var ct = sel.value;
+  var freqEl = item.querySelector('.ci-frequency');
+  var dateEl = item.querySelector('.ci-payment-date');
+  if (freqEl) freqEl.style.display = ct === 'Повторяющийся' ? '' : 'none';
+  if (dateEl) dateEl.style.display = ct === 'Разовый' ? '' : 'none';
+  recalcContractAmount();
 }
 
 function contractItemAdd() {
@@ -45,7 +87,6 @@ function contractItemRemove(btn) {
   var item = btn.closest('.contract-item');
   if (item) item.remove();
   recalcContractAmount();
-  // Renumber indices
   var list = document.getElementById('f_contract_items_list');
   if (list) list.querySelectorAll('.contract-item').forEach(function(el, i) {
     el.setAttribute('data-idx', i);
@@ -63,23 +104,25 @@ function recalcContractAmount() {
     total += parseFloat(inp.value) || 0;
   });
 
-  // Sum contract items
+  // Sum contract items — only Повторяющийся
   var wrapper = document.getElementById('f_contract_items_wrapper');
   if (wrapper) {
     var isSale = wrapper.getAttribute('data-sale') === '1';
     var list = document.getElementById('f_contract_items_list');
     if (list) {
       list.querySelectorAll('.contract-item').forEach(function(item) {
+        var ctSel = item.querySelector('.ci-charge-type');
+        var ct = ctSel ? ctSel.value : 'Повторяющийся';
         if (isSale) {
           var qty = parseFloat(item.querySelector('.ci-qty').value) || 0;
           var up = parseFloat(item.querySelector('.ci-uprice').value) || 0;
           var rowAmt = qty * up;
           var totalEl = item.querySelector('.ci-total');
-          if (totalEl) totalEl.textContent = rowAmt ? rowAmt.toLocaleString('ru-RU') + ' ₽' : '';
-          total += rowAmt;
+          if (totalEl) totalEl.textContent = rowAmt ? rowAmt.toLocaleString('ru-RU') + ' \\u20BD' : '';
+          if (ct === 'Повторяющийся') total += rowAmt;
         } else {
           var amt = parseFloat(item.querySelector('.ci-amount').value) || 0;
-          total += amt;
+          if (ct === 'Повторяющийся') total += amt;
         }
       });
     }
@@ -97,13 +140,20 @@ function getContractItemsValue() {
   var items = [];
   list.querySelectorAll('.contract-item').forEach(function(item) {
     var name = (item.querySelector('.ci-name') || {}).value || '';
+    var ctSel = item.querySelector('.ci-charge-type');
+    var ct = ctSel ? ctSel.value : 'Повторяющийся';
+    var freqSel = item.querySelector('.ci-frequency');
+    var freq = freqSel ? freqSel.value : null;
+    var pdEl = item.querySelector('.ci-payment-date');
+    var pd = pdEl ? pdEl.value : null;
+
     if (isSale) {
       var qty = parseFloat((item.querySelector('.ci-qty') || {}).value) || 0;
       var up = parseFloat((item.querySelector('.ci-uprice') || {}).value) || 0;
-      items.push({ name: name.trim(), qty: qty, unit_price: up, amount: qty * up });
+      items.push({ name: name.trim(), qty: qty, unit_price: up, amount: qty * up, charge_type: ct, frequency: ct === 'Повторяющийся' ? freq : null, payment_date: ct === 'Разовый' ? pd : null });
     } else {
       var amt = parseFloat((item.querySelector('.ci-amount') || {}).value) || 0;
-      if (name.trim() || amt) items.push({ name: name.trim(), amount: amt });
+      if (name.trim() || amt) items.push({ name: name.trim(), amount: amt, charge_type: ct, frequency: ct === 'Повторяющийся' ? freq : null, payment_date: ct === 'Разовый' ? pd : null });
     }
   });
   return items;

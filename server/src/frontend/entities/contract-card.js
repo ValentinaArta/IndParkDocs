@@ -119,67 +119,78 @@ function renderContractCard(data) {
 
   // ── Перечень работ/услуг/товаров (contract_items) ──────────────────────────
   if (data.contract_items && data.contract_items.length) {
-    h += '<div style="margin-bottom:16px">';
-    var _cliLabel = 'ПЕРЕЧЕНЬ ПОЗИЦИЙ';
-    if (data.cli_source_name) _cliLabel += ' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(из ' + escapeHtml(data.cli_source_name) + ')</span>';
-    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">' + _cliLabel + '</div>';
-    h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    var _ciRecurring = data.contract_items.filter(function(it) { return !it.charge_type || it.charge_type === 'Повторяющийся' || it.charge_type === 'recurring'; });
+    var _ciOneTime = data.contract_items.filter(function(it) { return it.charge_type === 'Разовый' || it.charge_type === 'one_time'; });
+    var _ciExtra = data.contract_items.filter(function(it) { return it.charge_type === 'Доп. услуги'; });
     var _hasQty = data.contract_items[0].qty !== undefined;
-    var _hasCT = data.contract_items.some(function(it) { return it.charge_type && it.charge_type !== 'recurring'; });
-    h += '<thead><tr style="background:#4F6BCC;color:#fff">';
-    h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
-    if (_hasCT) h += '<th style="padding:8px 10px;text-align:center">Тип</th>';
-    if (_hasQty) {
-      h += '<th style="padding:8px 10px;text-align:right">Кол-во</th>';
-      h += '<th style="padding:8px 10px;text-align:right">Цена</th>';
-    }
-    h += '<th style="padding:8px 10px;text-align:right;border-radius:0 4px 0 0">Сумма, ₽</th>';
-    h += '</tr></thead><tbody>';
-    var _ccRecurring = 0, _ccOneTime = 0;
-    data.contract_items.forEach(function(item, i) {
-      var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
-      var isOT = item.charge_type === 'one_time';
-      var amt = parseFloat(item.amount) || 0;
-      if (isOT) _ccOneTime += amt; else _ccRecurring += amt;
-      h += '<tr style="' + bg + '">';
-      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(item.name || '—') + '</td>';
-      if (_hasCT) {
-        var badge = isOT
-          ? '<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;border-radius:3px">Разовое</span>'
-          : '<span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:1px 6px;border-radius:3px">Ежемес.</span>';
-        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:center">' + badge + '</td>';
-      }
+
+    function _ccRenderItemsTable(items, label, extraCols) {
+      if (!items.length) return '';
+      var hh = '<div style="margin-bottom:12px">';
+      var _srcLabel = data.cli_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(из ' + escapeHtml(data.cli_source_name) + ')</span>' : '';
+      hh += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">' + label + _srcLabel + '</div>';
+      hh += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      hh += '<thead><tr style="background:#4F6BCC;color:#fff">';
+      hh += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
       if (_hasQty) {
-        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.qty || '') + '</td>';
-        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.unit_price ? _ccFmtNum(item.unit_price) : '') + '</td>';
+        hh += '<th style="padding:8px 10px;text-align:right">Кол-во</th>';
+        hh += '<th style="padding:8px 10px;text-align:right">Цена</th>';
       }
-      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _ccFmtNum(amt) : '') + '</td>';
-      h += '</tr>';
-    });
-    if (_hasCT && _ccRecurring > 0 && _ccOneTime > 0) {
-      var _cs = (_hasCT ? 1 : 0) + (_hasQty ? 2 : 0);
-      h += '<tr style="font-size:12px;color:var(--text-secondary)"><td style="padding:4px 10px">Ежемесячные</td><td colspan="' + (_cs + 1) + '" style="padding:4px 10px;text-align:right">' + _ccFmtNum(_ccRecurring) + ' ₽</td></tr>';
-      h += '<tr style="font-size:12px;color:var(--text-secondary)"><td style="padding:4px 10px">Разовые</td><td colspan="' + (_cs + 1) + '" style="padding:4px 10px;text-align:right">' + _ccFmtNum(_ccOneTime) + ' ₽</td></tr>';
+      hh += '<th style="padding:8px 10px;text-align:right">Сумма, \\u20BD</th>';
+      if (extraCols) hh += extraCols;
+      hh += '</tr></thead><tbody>';
+      items.forEach(function(item, i) {
+        var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+        var amt = parseFloat(item.amount) || 0;
+        hh += '<tr style="' + bg + '">';
+        hh += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(item.name || '\\u2014') + '</td>';
+        if (_hasQty) {
+          hh += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.qty || '') + '</td>';
+          hh += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.unit_price ? _ccFmtNum(item.unit_price) : '') + '</td>';
+        }
+        hh += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _ccFmtNum(amt) : '') + '</td>';
+        if (extraCols) hh += (item._extraTd || '');
+        hh += '</tr>';
+      });
+      hh += '</tbody></table></div>';
+      return hh;
     }
-    h += '</tbody></table>';
-    h += '</div>';
+
+    // Повторяющиеся
+    _ciRecurring.forEach(function(it) {
+      it._extraTd = '<td style="padding:7px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-secondary)">' + escapeHtml(it.frequency || 'Ежемесячно') + '</td>';
+    });
+    h += _ccRenderItemsTable(_ciRecurring, 'ПОВТОРЯЮЩИЕСЯ РАБОТЫ/УСЛУГИ', '<th style="padding:8px 10px;text-align:left;border-radius:0 4px 0 0">Период</th>');
+
+    // Разовые
+    _ciOneTime.forEach(function(it) {
+      var pd = it.payment_date || '';
+      var hasPaid = data.payments && data.payments.length > 0;
+      var pdStyle = pd && !hasPaid ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)';
+      it._extraTd = '<td style="padding:7px 10px;border-bottom:1px solid var(--border);font-size:11px;' + pdStyle + '">' + (pd ? escapeHtml(pd) : '\\u2014') + '</td>';
+    });
+    h += _ccRenderItemsTable(_ciOneTime, 'РАЗОВЫЕ РАБОТЫ/УСЛУГИ', '<th style="padding:8px 10px;text-align:left;border-radius:0 4px 0 0">Дата оплаты</th>');
+
+    // Доп. услуги
+    if (_ciExtra.length) {
+      h += '<div style="margin-bottom:12px">';
+      h += '<div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">ДОП. УСЛУГИ <span style="font-size:11px;font-weight:400">(справочно, не суммируются)</span></div>';
+      h += '<table style="width:100%;border-collapse:collapse;font-size:13px;opacity:0.7">';
+      _ciExtra.forEach(function(item, i) {
+        var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+        var amt = parseFloat(item.amount) || 0;
+        h += '<tr style="' + bg + '"><td style="padding:5px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(item.name || '\\u2014') + '</td>';
+        h += '<td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _ccFmtNum(amt) + ' \\u20BD' : '') + '</td></tr>';
+      });
+      h += '</table></div>';
+    }
   }
 
-  // ── Сумма договора (для не-аренды) ─────────────────────────────────────────
+  // ── Сумма договора (для не-аренды) — только повторяющиеся ──────────────────
   if (!isRental && data.contract_amount) {
     h += '<div style="font-size:15px;font-weight:600;margin-bottom:16px;color:var(--accent)">';
-    h += 'Сумма договора: ' + _ccFmtNum(data.contract_amount) + ' ₽';
+    h += 'Сумма договора (повтор.): ' + _ccFmtNum(data.contract_amount) + ' \\u20BD';
     h += '</div>';
-    // Предупреждение: сумма из ДС, но перечень позиций не обновлён
-    if (!data.cli_source_name && data.contract_items && data.contract_items.length > 0) {
-      var _itemsSum = data.contract_items.reduce(function(s, it) { return s + (parseFloat(it.amount) || 0); }, 0);
-      var _effAmt = parseFloat(data.contract_amount) || 0;
-      if (Math.abs(_itemsSum - _effAmt) > 0.01) {
-        h += '<div style="font-size:12px;color:#b45309;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:6px;padding:6px 10px;margin-bottom:12px">';
-        h += '⚠ Сумма по ДС (' + _ccFmtNum(_effAmt) + ' ₽) не совпадает с перечнем позиций (' + _ccFmtNum(_itemsSum) + ' ₽). Обновите позиции в последнем ДС.';
-        h += '</div>';
-      }
-    }
   }
 
   // ── Помещения (для аренды) ─────────────────────────────────────────────────
