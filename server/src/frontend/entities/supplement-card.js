@@ -17,7 +17,14 @@ function renderSupplementCard(supp) {
   var h = '';
 
   // ── Header ─────────────────────────────────────────────────────────────────
-  var contractorName = sp.contractor_name || pp.contractor_name || '';
+  var _hdrRels = supp.relations || [];
+  var _hdrParRels = (supp.parent && supp.parent.relations) ? supp.parent.relations : [];
+  var contractorName = (function() {
+    var r = _hdrRels.find(function(x) { return x.relation_type === 'contractor' && x.from_entity_id === supp.id; });
+    if (r) return r.to_name || '';
+    var rp = _hdrParRels.find(function(x) { return x.relation_type === 'contractor' && x.from_entity_id === supp.parent_id; });
+    return rp ? (rp.to_name || '') : '';
+  })();
   var titleParts = [];
   if (contractorName) titleParts.push(contractorName);
   if (sp.number) titleParts.push('ДС №' + sp.number);
@@ -36,12 +43,19 @@ function renderSupplementCard(supp) {
     h += '</div>';
   }
 
-  // ── Стороны (берём из ДС или из родительского договора) ───────────────────
+  // ── Стороны (из typed relations → ДС или родительский договор) ──────────────
   var ourLabel = sp.our_role_label || pp.our_role_label || (isRental ? 'Арендодатель' : 'Наше юр. лицо');
   var contrLabel = sp.contractor_role_label || pp.contractor_role_label || (isRental ? 'Арендатор' : 'Контрагент');
-  var ourEntity = sp.our_legal_entity || pp.our_legal_entity || '';
-  var contrName = sp.contractor_name || pp.contractor_name || '';
-  var subName = sp.subtenant_name || pp.subtenant_name || '';
+  // Resolve company names from relations (source of truth)
+  var _suppRels = supp.relations || [];
+  var _parentRels = (supp.parent && supp.parent.relations) ? supp.parent.relations : [];
+  function _relName(rels, eid, rtype) {
+    var r = rels.find(function(x) { return x.relation_type === rtype && x.from_entity_id === eid; });
+    return r ? (r.to_name || '') : '';
+  }
+  var ourEntity = _relName(_suppRels, supp.id, 'our_entity') || _relName(_parentRels, supp.parent_id, 'our_entity') || '';
+  var contrName = _relName(_suppRels, supp.id, 'contractor') || _relName(_parentRels, supp.parent_id, 'contractor') || '';
+  var subName = _relName(_suppRels, supp.id, 'subtenant') || _relName(_parentRels, supp.parent_id, 'subtenant') || '';
   if (ourEntity || contrName) {
     h += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;font-size:14px">';
     if (ourEntity) h += '<div><span style="color:var(--text-secondary)">' + escapeHtml(ourLabel) + ':</span> <strong>' + escapeHtml(ourEntity) + '</strong></div>';
