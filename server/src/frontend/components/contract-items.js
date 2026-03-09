@@ -21,42 +21,43 @@ function _renderContractItem(item, idx, isSale) {
   var freq = item.frequency || 'Ежемесячно';
   var pd = item.payment_date || '';
 
-  var h = '<div class="contract-item" data-idx="' + idx + '" style="margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary)">';
+  // Color coding by charge type
+  var _ciBg = ct === 'Разовый' ? '#fef3c720' : ct === 'Доп. услуги' ? '#f0fdf420' : '#eff6ff30';
+  var _ciBorder = ct === 'Разовый' ? '#fbbf24' : ct === 'Доп. услуги' ? '#86efac' : '#93c5fd';
 
-  // Row 1: name + amount + remove
-  h += '<div style="display:flex;gap:6px;align-items:center">';
+  var h = '<div class="contract-item" data-idx="' + idx + '" style="margin-bottom:6px;padding:6px 8px;border:1px solid ' + _ciBorder + ';border-left:3px solid ' + _ciBorder + ';border-radius:6px;background:' + _ciBg + '">';
+
+  // Single row: name + amount + type + conditional + remove
+  h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
   if (isSale) {
-    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:0" oninput="recalcContractAmount()">';
-    h += '<input class="ci-qty" data-idx="' + idx + '" type="number" min="0" placeholder="Кол-во" value="' + escapeHtml(String(item.qty||1)) + '" style="width:65px" oninput="recalcContractAmount()">';
-    h += '<input class="ci-uprice" data-idx="' + idx + '" type="number" min="0" placeholder="Цена" value="' + escapeHtml(String(item.unit_price||'')) + '" style="width:90px" oninput="recalcContractAmount()">';
-    h += '<span class="ci-total" data-idx="' + idx + '" style="width:80px;font-size:12px;color:var(--text-secondary);white-space:nowrap">' + (item.amount ? Number(item.amount).toLocaleString('ru-RU') + ' \\u20BD' : '') + '</span>';
+    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:120px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-qty" data-idx="' + idx + '" type="number" min="0" placeholder="Кол-во" value="' + escapeHtml(String(item.qty||1)) + '" style="width:60px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-uprice" data-idx="' + idx + '" type="number" min="0" placeholder="Цена" value="' + escapeHtml(String(item.unit_price||'')) + '" style="width:80px" oninput="recalcContractAmount()">';
+    h += '<span class="ci-total" data-idx="' + idx + '" style="width:70px;font-size:12px;color:var(--text-secondary);white-space:nowrap">' + (item.amount ? Number(item.amount).toLocaleString('ru-RU') + ' \\u20BD' : '') + '</span>';
   } else {
-    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование работ/услуг" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:0" oninput="recalcContractAmount()">';
-    h += '<input class="ci-amount" data-idx="' + idx + '" type="number" min="0" placeholder="Сумма" value="' + escapeHtml(String(item.amount||'')) + '" style="width:110px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-name" data-idx="' + idx + '" placeholder="Наименование работ/услуг" value="' + escapeHtml(item.name||'') + '" style="flex:2;min-width:120px" oninput="recalcContractAmount()">';
+    h += '<input class="ci-amount" data-idx="' + idx + '" type="number" min="0" placeholder="Сумма" value="' + escapeHtml(String(item.amount||'')) + '" style="width:100px" oninput="recalcContractAmount()">';
   }
-  h += '<button type="button" onclick="contractItemRemove(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:0 4px;line-height:1">\\u00d7</button>';
-  h += '</div>';
 
-  // Row 2: charge_type + conditional fields
-  h += '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">';
-  h += '<select class="ci-charge-type" data-idx="' + idx + '" onchange="_ciChargeTypeChanged(this)" style="font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid var(--border)">';
+  // Type selector
+  h += '<select class="ci-charge-type" data-idx="' + idx + '" onchange="_ciChargeTypeChanged(this)" style="font-size:11px;padding:2px 4px;border-radius:4px;border:1px solid var(--border);width:auto">';
   _CI_CHARGE_TYPES.forEach(function(t) {
     h += '<option value="' + escapeHtml(t) + '"' + (ct === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
   });
   h += '</select>';
 
   // Frequency (for Повторяющийся)
-  h += '<select class="ci-frequency" data-idx="' + idx + '" style="font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid var(--border)' + (ct !== 'Повторяющийся' ? ';display:none' : '') + '">';
+  h += '<select class="ci-frequency" data-idx="' + idx + '" style="font-size:11px;padding:2px 4px;border-radius:4px;border:1px solid var(--border)' + (ct !== 'Повторяющийся' ? ';display:none' : '') + '">';
   _CI_FREQUENCIES.forEach(function(f) {
     h += '<option value="' + escapeHtml(f) + '"' + (freq === f ? ' selected' : '') + '>' + escapeHtml(f) + '</option>';
   });
   h += '</select>';
 
   // Payment date (for Разовый)
-  h += '<input class="ci-payment-date" data-idx="' + idx + '" type="date" value="' + escapeHtml(pd) + '" placeholder="Дата оплаты" style="font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid var(--border)' + (ct !== 'Разовый' ? ';display:none' : '') + '">';
+  h += '<input class="ci-payment-date" data-idx="' + idx + '" type="date" value="' + escapeHtml(pd) + '" style="font-size:11px;padding:2px 4px;border-radius:4px;border:1px solid var(--border);width:auto' + (ct !== 'Разовый' ? ';display:none' : '') + '">';
 
-  h += '</div>';
-  h += '</div>';
+  h += '<button type="button" onclick="contractItemRemove(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;flex-shrink:0">\\u00d7</button>';
+  h += '</div></div>';
   return h;
 }
 
@@ -68,6 +69,12 @@ function _ciChargeTypeChanged(sel) {
   var dateEl = item.querySelector('.ci-payment-date');
   if (freqEl) freqEl.style.display = ct === 'Повторяющийся' ? '' : 'none';
   if (dateEl) dateEl.style.display = ct === 'Разовый' ? '' : 'none';
+  // Update colors
+  var border = ct === 'Разовый' ? '#fbbf24' : ct === 'Доп. услуги' ? '#86efac' : '#93c5fd';
+  var bg = ct === 'Разовый' ? '#fef3c720' : ct === 'Доп. услуги' ? '#f0fdf420' : '#eff6ff30';
+  item.style.borderColor = border;
+  item.style.borderLeftColor = border;
+  item.style.background = bg;
   recalcContractAmount();
 }
 
