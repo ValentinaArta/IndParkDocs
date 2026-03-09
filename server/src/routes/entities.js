@@ -416,6 +416,15 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
     ).catch(() => {});
   }
 
+  // Clean up legacy _id/_name copies from properties (source of truth is relations)
+  const _cleanKeys = ['contractor_id', 'contractor_name', 'our_legal_entity_id', 'our_legal_entity', 'subtenant_id', 'subtenant_name'];
+  if (_cleanKeys.some(k => properties[k] !== undefined)) {
+    await pool.query(
+      `UPDATE entities SET properties = properties - 'contractor_id' - 'contractor_name' - 'our_legal_entity_id' - 'our_legal_entity' - 'subtenant_id' - 'subtenant_name' WHERE id = $1`,
+      [entityId]
+    ).catch(() => {});
+  }
+
   // Link rent objects (buildings/rooms/equipment from rental contracts)
   if (properties.rent_objects) {
     let objs = [];
