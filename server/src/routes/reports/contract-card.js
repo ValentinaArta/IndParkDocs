@@ -286,6 +286,8 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const effVat      = latestSuppValue(supplements, 'vat_rate')            || cProps.vat_rate           || '';
   const effDeadline = latestSuppValue(supplements, 'completion_deadline') || cProps.completion_deadline || '';
   const effComment  = latestSuppValue(supplements, 'service_comment')     || cProps.service_comment    || '';
+  const effChargeType    = latestSuppValue(supplements, 'charge_type')       || cProps.charge_type        || 'Ежемесячное';
+  const effOneTimeAmount = latestSuppValue(supplements, 'one_time_amount')   || cProps.one_time_amount    || '';
 
   let effSubjectBuildings = subjectBuildings;
   let effSubjectRooms     = subjectRooms;
@@ -330,6 +332,8 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     completion_deadline: effDeadline,
     service_comment: effComment,
     payment_frequency: effPayFreq,
+    charge_type: effChargeType,
+    one_time_amount: effOneTimeAmount,
     has_power_allocation: latestSuppValue(supplements, 'has_power_allocation') || cProps.has_power_allocation || '',
     power_allocation_kw: latestSuppValue(supplements, 'power_allocation_kw')  || cProps.power_allocation_kw  || '',
     contract_items: contractItems,
