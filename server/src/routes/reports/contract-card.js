@@ -251,10 +251,9 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
 
   // 11b. Collect ALL one-time items from contract + all supplements (historical)
   const allOneTimeRes = await pool.query(
-    `SELECT cli.*, e.name as source_name, eq.name as equipment_name
+    `SELECT cli.*, e.name as source_name
      FROM contract_line_items cli
      JOIN entities e ON e.id = cli.contract_id AND e.deleted_at IS NULL
-     LEFT JOIN entities eq ON eq.id = cli.equipment_id AND eq.deleted_at IS NULL
      WHERE cli.charge_type = 'Разовый'
        AND (cli.contract_id = $1 OR cli.contract_id IN (
          SELECT s.id FROM entities s
@@ -264,6 +263,23 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
      ORDER BY cli.payment_date NULLS LAST, cli.sort_order`, [contractId]
   );
   const allOneTimeItems = allOneTimeRes.rows;
+  // Enrich with equipment names from junction table
+  if (allOneTimeItems.length) {
+    const otiIds = allOneTimeItems.map(r => r.id);
+    const { rows: eqLinks } = await pool.query(
+      `SELECT cel.cli_id, e.id AS equipment_id, e.name AS equipment_name
+       FROM cli_equipment_links cel
+       JOIN entities e ON e.id = cel.equipment_id AND e.deleted_at IS NULL
+       WHERE cel.cli_id = ANY($1)`, [otiIds]
+    );
+    const eqMap = {};
+    eqLinks.forEach(l => { if (!eqMap[l.cli_id]) eqMap[l.cli_id] = []; eqMap[l.cli_id].push(l); });
+    allOneTimeItems.forEach(item => {
+      const links = eqMap[item.id] || [];
+      item.equipment_ids = links.map(l => l.equipment_id);
+      item.equipment_names = links.map(l => l.equipment_name);
+    });
+  }
 
   // For non-rental: also try direct equipment_list from contract_equipment (no rent_cost filter)
   if (eqList.length === 0 && cProps.contract_type !== 'Аренды' && cProps.contract_type !== 'Субаренды') {

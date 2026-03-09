@@ -210,7 +210,13 @@ function renderContractCard(data) {
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(item.name || '\\u2014') + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _ccFmtNum(amt) : '') + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);' + pdStyle + '">' + (pd || '\\u2014') + '</td>';
-      h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px">' + (item.equipment_name ? '<a href="#" onclick="showEntity(' + item.equipment_id + ');return false" style="color:var(--accent)">' + escapeHtml(item.equipment_name) + '</a>' : '') + '</td>';
+      var _eqLinks = '';
+      if (item.equipment_names && item.equipment_names.length) {
+        _eqLinks = item.equipment_names.map(function(nm, ei) {
+          return '<a href="#" onclick="showEntity(' + item.equipment_ids[ei] + ');return false" style="color:var(--accent)">' + escapeHtml(nm) + '</a>';
+        }).join(', ');
+      }
+      h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px">' + _eqLinks + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-secondary)">' + escapeHtml(item.source_name || '') + '</td>';
       h += '</tr>';
     });
