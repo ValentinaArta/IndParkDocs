@@ -46,7 +46,7 @@ function renderEquipmentCard(e) {
     return r.relation_type === 'subject_of' && r.from_entity_id === id && r.to_type_name === 'act';
   });
 
-  // Group equipment_contracts by role
+  // Group equipment_contracts by role, then deduplicate by root contract
   var contractsByGroup = {};
   eqContracts.forEach(function(c) {
     var ct = c.contract_type || '';
@@ -56,6 +56,20 @@ function renderEquipmentCard(e) {
     });
     if (!contractsByGroup[groupKey]) contractsByGroup[groupKey] = [];
     contractsByGroup[groupKey].push(c);
+  });
+
+  // Within each group: keep only latest doc per root contract + contractor
+  Object.keys(contractsByGroup).forEach(function(gk) {
+    var items = contractsByGroup[gk];
+    var byRoot = {};
+    items.forEach(function(c) {
+      var rootKey = String(c.contract_parent_id || c.contract_id) + '_' + (c.contractor_name || '');
+      if (!byRoot[rootKey]) { byRoot[rootKey] = c; return; }
+      var prevDate = byRoot[rootKey].contract_date || '0000';
+      var curDate = c.contract_date || '0000';
+      if (curDate > prevDate) byRoot[rootKey] = c;
+    });
+    contractsByGroup[gk] = Object.keys(byRoot).map(function(k) { return byRoot[k]; });
   });
 
   var h = '<div style="max-width:860px">';
@@ -204,6 +218,10 @@ function _renderEqContractSection(label, icon, items) {
 
     // Row 2: contract link + date + status
     h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+    // If this is a supplement, show parent contract name first
+    if (c.contract_parent_id && c.parent_contract_name) {
+      h += '<span style="font-size:12px;color:var(--text-muted)">' + escapeHtml(c.parent_contract_name) + ' \\u2192</span>';
+    }
     h += '<a href="#" data-eid="' + c.contract_id + '" onclick="showEntity(parseInt(this.dataset.eid));return false"'
        + ' style="font-size:13px;color:var(--accent);text-decoration:none">'
        + escapeHtml(c.contract_name) + '</a>';

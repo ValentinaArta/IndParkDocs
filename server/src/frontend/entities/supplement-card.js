@@ -77,10 +77,7 @@ function renderSupplementCard(supp) {
   if (sp.contract_date)    infoRows.push({ label: 'Дата подписания', val: _ccFmtDate(sp.contract_date) });
   var _effAmount = sp.contract_amount || pp.contract_amount || '';
   if (_effAmount) infoRows.push({ label: 'Сумма договора', val: _ccFmtNum(_effAmount) + ' \\u20BD' });
-  var _effChargeType = sp.charge_type || pp.charge_type || '';
-  if (_effChargeType && _effChargeType !== 'Ежемесячное') infoRows.push({ label: 'Тип начисления', val: _effChargeType });
-  var _effOneTime = sp.one_time_amount || pp.one_time_amount || '';
-  if (_effOneTime) infoRows.push({ label: 'Сумма разовых работ', val: _ccFmtNum(_effOneTime) + ' \\u20BD' });
+  // charge_type now on individual contract_line_items rows
   var durStr = sp.contract_end_date
     ? ('до ' + _ccFmtDate(sp.contract_end_date))
     : (sp.duration_date ? ('до ' + _ccFmtDate(sp.duration_date)) : sp.duration_text || '');
@@ -118,28 +115,43 @@ function renderSupplementCard(supp) {
       if (_ciSource) h += ' <span style="font-weight:400;font-size:12px;text-transform:none">(из ' + escapeHtml(_ciSource) + ')</span>';
       h += '</div>';
       h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      var _hasChargeTypes = contractItems.some(function(ci) { return ci.charge_type && ci.charge_type !== 'recurring'; });
       h += '<thead><tr style="background:#4F6BCC;color:#fff">';
       h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 4px">Наименование</th>';
+      if (_hasChargeTypes) h += '<th style="padding:7px 10px;text-align:center">Тип</th>';
       h += '<th style="padding:7px 10px;text-align:right">Кол-во</th>';
       h += '<th style="padding:7px 10px;text-align:right">Цена</th>';
       h += '<th style="padding:7px 10px;text-align:right;border-radius:0 4px 4px 0">Сумма</th>';
       h += '</tr></thead><tbody>';
-      var ciTotal = 0;
+      var ciTotal = 0, ciRecurring = 0, ciOneTime = 0;
       contractItems.forEach(function(ci, i) {
         var qty = parseFloat(ci.qty || ci.quantity) || 0;
         var price = parseFloat(ci.price || ci.unit_price) || 0;
         var sum = parseFloat(ci.amount || ci.sum) || (qty * price);
+        var isOneTime = ci.charge_type === 'one_time';
         ciTotal += sum;
+        if (isOneTime) ciOneTime += sum; else ciRecurring += sum;
         var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
         h += '<tr style="' + bg + '">';
         h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(ci.name || ci.description || '—') + '</td>';
+        if (_hasChargeTypes) {
+          var badge = isOneTime
+            ? '<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;border-radius:3px">Разовое</span>'
+            : '<span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:1px 6px;border-radius:3px">Ежемес.</span>';
+          h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:center">' + badge + '</td>';
+        }
         h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (qty || '—') + '</td>';
         h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (price ? _ccFmtNum(price) : '—') + '</td>';
         h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:500">' + (sum ? _ccFmtNum(sum) : '—') + '</td>';
         h += '</tr>';
       });
+      var _colSpan = _hasChargeTypes ? 4 : 3;
       if (ciTotal > 0) {
-        h += '<tr style="font-weight:600"><td style="padding:6px 10px">Итого</td><td></td><td></td><td style="padding:6px 10px;text-align:right">' + _ccFmtNum(ciTotal) + ' руб.</td></tr>';
+        h += '<tr style="font-weight:600"><td style="padding:6px 10px">Итого</td><td colspan="' + _colSpan + '" style="padding:6px 10px;text-align:right">' + _ccFmtNum(ciTotal) + ' руб.</td></tr>';
+      }
+      if (_hasChargeTypes && ciRecurring > 0 && ciOneTime > 0) {
+        h += '<tr style="font-size:12px;color:var(--text-secondary)"><td style="padding:4px 10px">в т.ч. ежемесячные</td><td colspan="' + _colSpan + '" style="padding:4px 10px;text-align:right">' + _ccFmtNum(ciRecurring) + ' руб.</td></tr>';
+        h += '<tr style="font-size:12px;color:var(--text-secondary)"><td style="padding:4px 10px">в т.ч. разовые</td><td colspan="' + _colSpan + '" style="padding:4px 10px;text-align:right">' + _ccFmtNum(ciOneTime) + ' руб.</td></tr>';
       }
       h += '</tbody></table></div>';
     }

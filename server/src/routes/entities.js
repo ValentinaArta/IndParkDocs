@@ -375,15 +375,17 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 
     // Load contracts via contract_equipment with contractor info
     const { rows: eqContracts } = await pool.query(`
-      SELECT ce.contract_id, c.name as contract_name,
+      SELECT ce.contract_id, c.name as contract_name, c.parent_id as contract_parent_id,
              c.properties->>'contract_type' as contract_type,
              c.properties->>'contract_date' as contract_date,
              c.properties->>'doc_status' as doc_status,
              ce.rent_cost,
              contr.name as contractor_name, contr.id as contractor_id,
-             our.name as our_entity_name
+             our.name as our_entity_name,
+             pc.name as parent_contract_name
       FROM contract_equipment ce
       JOIN entities c ON c.id = ce.contract_id AND c.deleted_at IS NULL
+      LEFT JOIN entities pc ON pc.id = c.parent_id AND pc.deleted_at IS NULL
       LEFT JOIN relations rc ON rc.from_entity_id = c.id AND rc.relation_type = 'contractor' AND rc.deleted_at IS NULL
       LEFT JOIN entities contr ON contr.id = rc.to_entity_id
       LEFT JOIN relations ro ON ro.from_entity_id = c.id AND ro.relation_type = 'our_entity' AND ro.deleted_at IS NULL
