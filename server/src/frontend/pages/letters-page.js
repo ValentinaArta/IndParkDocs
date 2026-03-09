@@ -126,15 +126,8 @@ function _renderLetterForm(editData) {
   // Deadline
   h += '<div class="form-group"><label>Срок</label><input id="f_deadline" type="date" value="' + escapeHtml(p.deadline || '') + '"></div>';
 
-  // Linked entities
-  h += '<div class="form-group"><label>Связанные объекты</label>';
-  h += '<div id="letterLinkedEntities" style="margin-bottom:8px"></div>';
-  h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;building&quot;)">+ Корпус</button>';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;room&quot;)">+ Помещение</button>';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;land_plot&quot;)">+ ЗУ</button>';
-  h += '<button type="button" class="btn btn-sm" onclick="_linkLetterEntity(&quot;equipment&quot;)">+ Оборудование</button>';
-  h += '</div></div>';
+  // Linked entities — standard "5 buttons" block
+  h += renderSubjectFieldsBlock(p);
 
   // File attachment
   h += '<div class="form-group"><label>Файлы</label>' +
@@ -339,8 +332,9 @@ async function _submitLetter(editId) {
     topic_name: topicOpt && topicOpt.dataset && topicOpt.dataset.name ? topicOpt.dataset.name : '',
     description: document.getElementById('f_description').value.trim(),
     deadline: document.getElementById('f_deadline').value,
-    linked_entities: JSON.stringify(_letterLinkedItems)
   };
+  // Collect standard subject fields (5 buttons: buildings, rooms, land plots, parts, equipment)
+  Object.assign(properties, collectSubjectFieldValues());
 
   // Generate name
   var name = '✉️ ' + (properties.outgoing_number ? '№' + properties.outgoing_number + ' ' : '') +
