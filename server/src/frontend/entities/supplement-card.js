@@ -77,6 +77,10 @@ function renderSupplementCard(supp) {
   if (sp.contract_date)    infoRows.push({ label: 'Дата подписания', val: _ccFmtDate(sp.contract_date) });
   var _effAmount = sp.contract_amount || pp.contract_amount || '';
   if (_effAmount) infoRows.push({ label: 'Сумма договора', val: _ccFmtNum(_effAmount) + ' \\u20BD' });
+  var _effChargeType = sp.charge_type || pp.charge_type || '';
+  if (_effChargeType && _effChargeType !== 'Ежемесячное') infoRows.push({ label: 'Тип начисления', val: _effChargeType });
+  var _effOneTime = sp.one_time_amount || pp.one_time_amount || '';
+  if (_effOneTime) infoRows.push({ label: 'Сумма разовых работ', val: _ccFmtNum(_effOneTime) + ' \\u20BD' });
   var durStr = sp.contract_end_date
     ? ('до ' + _ccFmtDate(sp.contract_end_date))
     : (sp.duration_date ? ('до ' + _ccFmtDate(sp.duration_date)) : sp.duration_text || '');

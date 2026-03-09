@@ -9,6 +9,7 @@ var CUBE_DIM_GROUPS = [
     color: { accent: '#3b82f6', bg: 'rgba(59,130,246,0.13)' },
     dims: [
     { id: 'contract_type',  label: 'Тип договора' },
+    { id: 'charge_type',    label: 'Тип начисления' },
     { id: 'our_company',    label: 'Наша организация' },
     { id: 'doc_status',     label: 'Статус документа' },
     { id: 'period_month',   label: 'Период (месяц)' },
@@ -275,8 +276,8 @@ async function _cubeLoadFilters() {
 function _cubeRenderFilters() {
   var bar = document.getElementById('cubeFiltersBar');
   if (!bar || !_cubeFilterMeta) return;
-  var types = _cubeFilterMeta.contract_types || [], stats = _cubeFilterMeta.doc_statuses || [];
-  var selT = _cubeFilters.contract_type || [], selS = _cubeFilters.doc_status || [];
+  var types = _cubeFilterMeta.contract_types || [], stats = _cubeFilterMeta.doc_statuses || [], charges = _cubeFilterMeta.charge_types || [];
+  var selT = _cubeFilters.contract_type || [], selS = _cubeFilters.doc_status || [], selC = _cubeFilters.charge_type || [];
   function chips(items, sel, fk) {
     return items.map(function(v) {
       var on = sel.indexOf(v) >= 0;
@@ -285,8 +286,9 @@ function _cubeRenderFilters() {
   }
   var h = '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">';
   if (types.length) h += '<div><div style="font-size:10px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Тип договора</div><div style="display:flex;flex-wrap:wrap;gap:4px">' + chips(types, selT, 'contract_type') + '</div></div>';
+  if (charges.length > 1) h += '<div><div style="font-size:10px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Тип начисления</div><div style="display:flex;flex-wrap:wrap;gap:4px">' + chips(charges, selC, 'charge_type') + '</div></div>';
   if (stats.length) h += '<div><div style="font-size:10px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Статус</div><div style="display:flex;flex-wrap:wrap;gap:4px">' + chips(stats, selS, 'doc_status') + '</div></div>';
-  var n = selT.length + selS.length;
+  var n = selT.length + selS.length + selC.length;
   if (n) h += '<div style="margin-left:auto;align-self:flex-end"><button type="button" onclick="_cubeClearFilters()" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Сбросить (' + n + ')</button></div>';
   h += '<div style="' + (n ? '' : 'margin-left:auto;') + 'align-self:center"><label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px"><input type="checkbox" ' + (_cubeHideEmpty ? 'checked' : '') + ' onchange="_cubeSetHideEmpty(this.checked)" style="cursor:pointer"> Скрыть пустые</label></div>';
   h += '</div>';

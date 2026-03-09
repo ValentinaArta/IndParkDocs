@@ -228,6 +228,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       contract_date: cp.contract_date || '',
       contract_year: (cp.contract_date || '').substring(0, 4),
       contract_amount: amount,
+      charge_type: cp.charge_type || 'Ежемесячное',
+      one_time_amount: parseFloat(cp.one_time_amount) || 0,
       rent_monthly: parseFloat(cp.rent_monthly) || 0,
     };
   };
