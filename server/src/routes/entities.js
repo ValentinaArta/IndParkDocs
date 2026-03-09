@@ -505,6 +505,35 @@ router.get('/:id/work-history', authenticate, asyncHandler(async (req, res) => {
   res.json(rows);
 }));
 
+// GET /api/entities/:id/equipment — оборудование, связанное с договором через relations (subject_of)
+router.get('/:id/equipment', authenticate, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id || id < 1) return res.status(400).json({ error: 'Неверный ID' });
+
+  // Оборудование договора + всех его ДС (supplement_to)
+  const { rows } = await pool.query(`
+    SELECT DISTINCT e.id, e.name, e.properties
+    FROM relations r
+    JOIN entities e ON e.id = r.from_entity_id
+    WHERE r.relation_type = 'subject_of'
+      AND e.entity_type_id = 6
+      AND (r.to_entity_id = $1
+        OR r.to_entity_id IN (
+          SELECT from_entity_id FROM relations WHERE to_entity_id = $1 AND relation_type = 'supplement_to'
+        ))
+    ORDER BY e.name
+  `, [id]);
+
+  res.json(rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    inv_number: (r.properties || {}).inv_number || '',
+    category: (r.properties || {}).equipment_category || '',
+    kind: (r.properties || {}).equipment_kind || '',
+    status: (r.properties || {}).status || '',
+  })));
+}));
+
 // POST /api/entities
 router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.entity), asyncHandler(async (req, res) => {
   const { entity_type_id, name, properties, parent_id } = req.body;

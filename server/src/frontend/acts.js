@@ -7,19 +7,12 @@ async function openEditActModal(actId, actEntity) {
     var props = e.properties || {};
     var parentContractId = e.parent_id || parseInt(props.parent_contract_id) || null;
 
-    // Загружаем список оборудования для этого договора
+    // Загружаем оборудование договора из DB relations (subject_of)
     _actEquipmentList = null;
     if (parentContractId) {
       try {
-        var parentEntity = await api('/entities/' + parentContractId);
-        var contractEqItems = [];
-        var _eqRaw = (parentEntity.properties || {}).equipment_list;
-        if (Array.isArray(_eqRaw)) contractEqItems = _eqRaw;
-        else { try { contractEqItems = JSON.parse(_eqRaw || '[]'); } catch(ex) {} }
-        var contractEqIds = contractEqItems.map(function(i) { return parseInt(i.equipment_id); }).filter(Boolean);
-        _actEquipmentList = contractEqIds.length > 0
-          ? _equipment.filter(function(eq) { return contractEqIds.indexOf(eq.id) !== -1; })
-          : null;
+        var contractEquipment = await api('/entities/' + parentContractId + '/equipment');
+        _actEquipmentList = contractEquipment.length > 0 ? contractEquipment : null;
       } catch(ex) {}
     }
 
@@ -95,35 +88,13 @@ async function openCreateActModal(parentContractId) {
   const actType = entityTypes.find(function(t) { return t.name === 'act'; });
   if (!actType) return alert('Тип "Акт" не найден. Возможно, сервер ещё не перезапустился после добавления миграции.');
 
-  // Collect effective equipment_list from contract + all supplements (newest first)
-  // so that equipment added in amendments is also available in the act form
-  var allSupps = await api('/entities?type=supplement&limit=500');
-  var contractSupps = allSupps.filter(function(s) { return s.parent_id === parentContractId; });
-  contractSupps.sort(function(a, b) {
-    var da = ((a.properties || {}).contract_date) || '';
-    var db = ((b.properties || {}).contract_date) || '';
-    return db.localeCompare(da) || b.id - a.id;
-  });
+  // Get equipment linked to contract (+ its supplements) from DB relations
+  var contractEquipment = [];
+  try { contractEquipment = await api('/entities/' + parentContractId + '/equipment'); } catch(ex) {}
+  _actEquipmentList = contractEquipment.length > 0 ? contractEquipment : null;
 
-  // Find most recent non-empty equipment_list across supplements, then contract
-  var effectiveEqRaw = '';
-  for (var _si = 0; _si < contractSupps.length; _si++) {
-    var v = (contractSupps[_si].properties || {}).equipment_list;
-    if (v && v !== '[]' && v !== 'null') { effectiveEqRaw = v; break; }
-  }
-  if (!effectiveEqRaw) effectiveEqRaw = parentProps.equipment_list || '';
-
-  var contractEqItems = [];
-  try { contractEqItems = JSON.parse(effectiveEqRaw || '[]'); } catch(ex) {}
-  var contractEqIds = contractEqItems.map(function(i) { return parseInt(i.equipment_id); }).filter(Boolean);
-  _actEquipmentList = contractEqIds.length > 0
-    ? _equipment.filter(function(e) { return contractEqIds.indexOf(e.id) !== -1; })
-    : null;  // null = show all if contract has no equipment_list
-
-  var eqSource = contractSupps.length > 0 && effectiveEqRaw && effectiveEqRaw !== parentProps.equipment_list
-    ? ' (из ДС)' : '';
-  var eqNote = contractEqIds.length > 0
-    ? '<span style="color:var(--accent)">' + (_actEquipmentList ? _actEquipmentList.length : 0) + ' ед.' + escapeHtml(eqSource) + '</span>'
+  var eqNote = contractEquipment.length > 0
+    ? '<span style="color:var(--accent)">' + contractEquipment.length + ' ед.</span>'
     : '<span style="color:var(--text-muted)">весь реестр (по договору нет оборудования)</span>';
 
   var html = '<h3>Новый акт</h3>';
