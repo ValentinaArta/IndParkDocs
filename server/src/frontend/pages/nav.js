@@ -89,20 +89,34 @@ async function startApp() {
 // Use location.hash directly (works reliably across all browsers incl. iOS Safari).
 // We temporarily remove the hashchange listener to avoid re-triggering navigation.
 var _hashChangePaused = false;
-var _navDepth = 0; // counts how many hash pushes happened; drives "← Назад" visibility
+var _navStack = []; // stack of previous hashes for "← Назад" button
+var _isNavBack = false; // true while navBack() is executing (prevents stack push)
 
 function _updateNavBackBtn() {
   var btn = document.getElementById('navBackBtn');
   if (!btn) return;
-  btn.style.display = _navDepth > 0 ? 'inline-flex' : 'none';
+  btn.style.display = _navStack.length > 0 ? 'inline-flex' : 'none';
 }
 
 function navBack() {
-  history.back(); // browser handles the hash pop; hashchange listener will decrement _navDepth
+  if (_navStack.length === 0) return;
+  var prev = _navStack.pop();
+  _isNavBack = true;
+  _hashChangePaused = true;
+  window.location.hash = prev || '';
+  setTimeout(function() { _hashChangePaused = false; }, 0);
+  _routeFromHash(prev || '');
+  _isNavBack = false;
+  _updateNavBackBtn();
 }
 
 function _setNavHash(h) {
-  _navDepth++;
+  if (_isNavBack) return; // don't push while navigating back
+  var cur = window.location.hash || '';
+  // Don't push duplicate (same page twice)
+  if (cur && cur !== '#' && cur !== (h || '')) {
+    _navStack.push(cur);
+  }
   _hashChangePaused = true;
   window.location.hash = h ? h : '';
   // Re-enable after current event loop tick
@@ -136,11 +150,11 @@ function _routeFromHash(hash) {
   showMapPage();
 }
 
-// Listen for hash changes (back/forward browser buttons)
+// Listen for hash changes (browser Back/Forward buttons)
 window.addEventListener('hashchange', function() {
   if (_hashChangePaused) return;
-  // User pressed browser Back/Forward — adjust our depth counter
-  if (_navDepth > 0) _navDepth--;
+  // Browser back/forward — pop stack if possible
+  if (_navStack.length > 0) _navStack.pop();
   _updateNavBackBtn();
   _routeFromHash(window.location.hash);
 });
