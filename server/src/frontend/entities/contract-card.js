@@ -128,7 +128,7 @@ function renderContractCard(data) {
       opts = opts || {};
       if (!items.length) return '';
       var hdrColor = opts.headerColor || '#4F6BCC';
-      var hh = '<div style="margin-bottom:12px">';
+      var hh = '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg)">';
       var _srcLabel = data.cli_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(из ' + escapeHtml(data.cli_source_name) + ')</span>' : '';
       hh += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">' + label + _srcLabel + '</div>';
       hh += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
@@ -171,11 +171,11 @@ function renderContractCard(data) {
       var pdStyle = pd && !hasPaid ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)';
       it._extraTd = '<td style="padding:7px 10px;border-bottom:1px solid var(--border);font-size:11px;' + pdStyle + '">' + (pd ? escapeHtml(pd) : '\\u2014') + '</td>';
     });
-    h += _ccRenderItemsTable(_ciOneTime, 'РАЗОВЫЕ РАБОТЫ/УСЛУГИ', '<th style="padding:8px 10px;text-align:left;border-radius:0 4px 0 0">Дата оплаты</th>', {headerColor:'#7c3aed'});
+    h += _ccRenderItemsTable(_ciOneTime, 'РАЗОВЫЕ РАБОТЫ/УСЛУГИ', '<th style="padding:8px 10px;text-align:left;border-radius:0 4px 0 0">Дата оплаты</th>', {});
 
     // Доп. услуги
     if (_ciExtra.length) {
-      h += '<div style="margin-bottom:12px">';
+      h += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg)">';
       h += '<div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">ДОП. УСЛУГИ <span style="font-size:11px;font-weight:400">(справочно, не суммируются)</span></div>';
       h += '<table style="width:100%;border-collapse:collapse;font-size:13px;opacity:0.7">';
       _ciExtra.forEach(function(item, i) {
@@ -190,10 +190,10 @@ function renderContractCard(data) {
 
   // ── Разовые работы (из всех ДС + договора) ────────────────────────────────
   if (data.all_one_time_items && data.all_one_time_items.length) {
-    h += '<div style="margin-bottom:12px">';
-    h += '<div style="font-size:13px;font-weight:600;color:#9333ea;margin-bottom:6px">РАЗОВЫЕ РАБОТЫ <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(справочно, из всех ДС)</span></div>';
+    h += '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg)">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">РАЗОВЫЕ РАБОТЫ <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(справочно, из всех ДС)</span></div>';
     h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-    h += '<thead><tr style="background:#9333ea;color:#fff">';
+    h += '<thead><tr style="background:#4F6BCC;color:#fff">';
     h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
     h += '<th style="padding:7px 10px;text-align:right">Сумма, \\u20BD</th>';
     h += '<th style="padding:7px 10px;text-align:left">Дата оплаты</th>';
