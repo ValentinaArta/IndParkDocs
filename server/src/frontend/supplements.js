@@ -90,25 +90,50 @@ async function openCreateSupplementModal(parentContractId) {
     if (!SUPP_PARENT_FIELDS.has(k) && lastSuppProps[k]) prefillProps[k] = lastSuppProps[k];
   });
 
-  // Эффективные "кумулятивные" поля: ищем в КАЖДОМ ДС от новейшего, не только в lastSuppProps
-  // rent_objects: актуальные помещения / ставки
-  var effRentObjects = _effSuppProp('rent_objects') || parentProps.rent_objects || '';
-  if (effRentObjects) prefillProps.rent_objects = effRentObjects;
+  // ── Effective source for normalized data ──
+  // Load newest ДС via API (it returns normalized tables). If no data, fall back to parent.
+  var effSourceEntity = null;
+  if (sortedSupps.length > 0) {
+    try { effSourceEntity = await api('/entities/' + sortedSupps[0].id); } catch(ex) {}
+  }
+  // Check if it has normalized data; if not, try parent contract
+  var _effP = effSourceEntity ? (effSourceEntity.properties || {}) : {};
+  var _effHasData = (Array.isArray(_effP.equipment_list) && _effP.equipment_list.length > 0) ||
+                    (Array.isArray(_effP.contract_items) && _effP.contract_items.length > 0);
+  if (!_effHasData) {
+    // parentEntity is already loaded above
+    effSourceEntity = parentEntity;
+    _effP = effSourceEntity.properties || {};
+  }
+
+  // rent_objects from effective source
+  if (Array.isArray(_effP.rent_objects) && _effP.rent_objects.length) {
+    prefillProps.rent_objects = _effP.rent_objects;
+  } else {
+    var effRentObjects = _effSuppProp('rent_objects') || parentProps.rent_objects || '';
+    if (effRentObjects) prefillProps.rent_objects = effRentObjects;
+  }
 
   // power_allocation_kw: выделенная мощность
-  var effPowerKw = _effSuppProp('power_allocation_kw') || parentProps.power_allocation_kw || '';
+  var effPowerKw = _effP.power_allocation_kw || _effSuppProp('power_allocation_kw') || parentProps.power_allocation_kw || '';
   if (effPowerKw) { prefillProps.power_allocation_kw = effPowerKw; prefillProps.has_power_allocation = 'true'; }
 
-  // equipment_list + transfer_equipment: переданное/обслуживаемое оборудование
-  // Берём последнее непустое значение из любого ДС (не обязательно с transfer_equipment=true)
-  // — так оборудование наследуется через промежуточные ДС, которые его не трогали
-  var effEqList     = _effSuppProp('equipment_list')     || parentProps.equipment_list     || '';
-  var effTransferEq = _effSuppProp('transfer_equipment') || parentProps.transfer_equipment || '';
-  if (effEqList && effEqList !== '[]') {
-    prefillProps.equipment_list = effEqList;
-    if (effTransferEq === 'true' || effTransferEq === true) {
-      prefillProps.transfer_equipment = 'true';
+  // equipment_list from normalized table (contract_equipment via API)
+  if (Array.isArray(_effP.equipment_list) && _effP.equipment_list.length) {
+    prefillProps.equipment_list = _effP.equipment_list;
+    prefillProps.transfer_equipment = 'true';
+  } else {
+    var effEqList = _effSuppProp('equipment_list') || parentProps.equipment_list || '';
+    var effTransferEq = _effSuppProp('transfer_equipment') || parentProps.transfer_equipment || '';
+    if (effEqList && effEqList !== '[]') {
+      prefillProps.equipment_list = effEqList;
+      if (effTransferEq === 'true' || effTransferEq === true) prefillProps.transfer_equipment = 'true';
     }
+  }
+
+  // contract_items from normalized table (contract_line_items via API)
+  if (Array.isArray(_effP.contract_items) && _effP.contract_items.length) {
+    prefillProps.contract_items = _effP.contract_items;
   }
 
   // Find specific fields
@@ -250,17 +275,20 @@ async function _doSubmitCreateSupplement(parentContractId) {
   if (durDate && durDate.value) properties.duration_date = durDate.value;
   if (durText && durText.value) properties.duration_text = durText.value;
 
-  // Наследуемые поля — не сохраняем в ДС, они берутся из родительского договора
+  // Наследуемые поля — не сохраняем в ДС (кроме contractor для отображения)
   delete properties.our_legal_entity;
   delete properties.our_legal_entity_id;
-  delete properties.contractor_name;
-  delete properties.contractor_id;
   delete properties.our_role_label;
   delete properties.contractor_role_label;
+  // Keep contractor_name/id for display in lists and name generation
+  if (!properties.contractor_name) {
+    var _parentE = await api('/entities/' + parentContractId);
+    var _pp = _parentE.properties || {};
+    if (_pp.contractor_name) { properties.contractor_name = _pp.contractor_name; properties.contractor_id = _pp.contractor_id || ''; }
+  }
 
   const num = properties.number || '?';
-  const parentContractorName = (await api('/entities/' + parentContractId)).properties.contractor_name || '';
-  const name = 'ДС №' + num + (parentContractorName ? ' — ' + parentContractorName : '');
+  const name = 'ДС №' + num + (properties.contractor_name ? ' — ' + properties.contractor_name : '');
 
   await api('/entities', { method: 'POST', body: JSON.stringify({ entity_type_id: suppType.id, name, properties, parent_id: parentContractId }) });
   closeModal();
