@@ -100,7 +100,7 @@ function renderSupplementCard(supp) {
   }
 
   // ── Перечень работ / услуг / товаров (из ДС или из родительского договора) ──
-  console.log('[SUPP-CARD] sp.contract_items:', sp.contract_items, 'pp.contract_items:', pp.contract_items, 'pp keys:', Object.keys(pp).join(','));
+  console.log('[SUPP-CARD] sp.contract_items:', sp.contract_items, 'pp.contract_items:', pp.contract_items, 'pp keys:', Object.keys(pp).join(','), 'supp.parent:', supp.parent ? 'exists' : 'MISSING', 'parent.props:', supp.parent ? JSON.stringify(Object.keys(supp.parent.properties || {})) : 'N/A');
   var _ciRaw = sp.contract_items || (pp.contract_items || null);
   var _ciSource = sp.contract_items ? null : (supp.parent ? supp.parent.name : null);
   if (_ciRaw) {
