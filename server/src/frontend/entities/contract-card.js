@@ -124,13 +124,15 @@ function renderContractCard(data) {
     var _ciExtra = data.contract_items.filter(function(it) { return it.charge_type === 'Доп. услуги'; });
     var _hasQty = data.contract_items[0].qty !== undefined;
 
-    function _ccRenderItemsTable(items, label, extraCols, showTotal) {
+    function _ccRenderItemsTable(items, label, extraCols, opts) {
+      opts = opts || {};
       if (!items.length) return '';
+      var hdrColor = opts.headerColor || '#4F6BCC';
       var hh = '<div style="margin-bottom:12px">';
       var _srcLabel = data.cli_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(из ' + escapeHtml(data.cli_source_name) + ')</span>' : '';
       hh += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">' + label + _srcLabel + '</div>';
       hh += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-      hh += '<thead><tr style="background:#4F6BCC;color:#fff">';
+      hh += '<thead><tr style="background:' + hdrColor + ';color:#fff">';
       hh += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
       if (_hasQty) {
         hh += '<th style="padding:8px 10px;text-align:right">Кол-во</th>';
@@ -169,7 +171,7 @@ function renderContractCard(data) {
       var pdStyle = pd && !hasPaid ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)';
       it._extraTd = '<td style="padding:7px 10px;border-bottom:1px solid var(--border);font-size:11px;' + pdStyle + '">' + (pd ? escapeHtml(pd) : '\\u2014') + '</td>';
     });
-    h += _ccRenderItemsTable(_ciOneTime, 'РАЗОВЫЕ РАБОТЫ/УСЛУГИ', '<th style="padding:8px 10px;text-align:left;border-radius:0 4px 0 0">Дата оплаты</th>');
+    h += _ccRenderItemsTable(_ciOneTime, 'РАЗОВЫЕ РАБОТЫ/УСЛУГИ', '<th style="padding:8px 10px;text-align:left;border-radius:0 4px 0 0">Дата оплаты</th>', {headerColor:'#7c3aed'});
 
     // Доп. услуги
     if (_ciExtra.length) {
