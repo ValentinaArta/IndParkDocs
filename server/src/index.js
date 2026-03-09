@@ -137,6 +137,7 @@ const migration031 = require('./migrations/031_meter_status_field');
 const migration032 = require('./migrations/032_building_fields');
 const migration033 = require('./migrations/033_meter_connected_equipment');
 const mergeORRVesta = require('./migrations/merge_orr_vesta');
+const migration040 = require('./migrations/040_typed_relations');
 
 // Migration tracker — run each migration only once
 async function initMigrationTracker() {
@@ -235,7 +236,8 @@ initMigrationTracker()
       .then(() => runOnce('031', () => migration031(pool)))
       .then(() => runOnce('032', () => migration032(pool)))
       .then(() => runOnce('033', () => migration033(pool)))
-      .then(() => runOnce('mergeORRVesta', () => mergeORRVesta(pool)));
+      .then(() => runOnce('mergeORRVesta', () => mergeORRVesta(pool)))
+      .then(() => runOnce('040', () => migration040(pool)));
   })
   .then(() => createBIViews())
   .then(() => syncMetabase())
