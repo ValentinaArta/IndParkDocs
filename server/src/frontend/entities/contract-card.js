@@ -124,25 +124,43 @@ function renderContractCard(data) {
     if (data.cli_source_name) _cliLabel += ' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(из ' + escapeHtml(data.cli_source_name) + ')</span>';
     h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">' + _cliLabel + '</div>';
     h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    var _hasQty = data.contract_items[0].qty !== undefined;
+    var _hasCT = data.contract_items.some(function(it) { return it.charge_type && it.charge_type !== 'recurring'; });
     h += '<thead><tr style="background:#4F6BCC;color:#fff">';
     h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
-    if (data.contract_items[0].qty !== undefined) {
+    if (_hasCT) h += '<th style="padding:8px 10px;text-align:center">Тип</th>';
+    if (_hasQty) {
       h += '<th style="padding:8px 10px;text-align:right">Кол-во</th>';
       h += '<th style="padding:8px 10px;text-align:right">Цена</th>';
     }
     h += '<th style="padding:8px 10px;text-align:right;border-radius:0 4px 0 0">Сумма, ₽</th>';
     h += '</tr></thead><tbody>';
+    var _ccRecurring = 0, _ccOneTime = 0;
     data.contract_items.forEach(function(item, i) {
       var bg = i % 2 === 0 ? '' : 'background:var(--bg-secondary)';
+      var isOT = item.charge_type === 'one_time';
+      var amt = parseFloat(item.amount) || 0;
+      if (isOT) _ccOneTime += amt; else _ccRecurring += amt;
       h += '<tr style="' + bg + '">';
       h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(item.name || '—') + '</td>';
-      if (item.qty !== undefined) {
+      if (_hasCT) {
+        var badge = isOT
+          ? '<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;border-radius:3px">Разовое</span>'
+          : '<span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:1px 6px;border-radius:3px">Ежемес.</span>';
+        h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:center">' + badge + '</td>';
+      }
+      if (_hasQty) {
         h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.qty || '') + '</td>';
         h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.unit_price ? _ccFmtNum(item.unit_price) : '') + '</td>';
       }
-      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (item.amount ? _ccFmtNum(item.amount) : '') + '</td>';
+      h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _ccFmtNum(amt) : '') + '</td>';
       h += '</tr>';
     });
+    if (_hasCT && _ccRecurring > 0 && _ccOneTime > 0) {
+      var _cs = (_hasCT ? 1 : 0) + (_hasQty ? 2 : 0);
+      h += '<tr style="font-size:12px;color:var(--text-secondary)"><td style="padding:4px 10px">Ежемесячные</td><td colspan="' + (_cs + 1) + '" style="padding:4px 10px;text-align:right">' + _ccFmtNum(_ccRecurring) + ' ₽</td></tr>';
+      h += '<tr style="font-size:12px;color:var(--text-secondary)"><td style="padding:4px 10px">Разовые</td><td colspan="' + (_cs + 1) + '" style="padding:4px 10px;text-align:right">' + _ccFmtNum(_ccOneTime) + ' ₽</td></tr>';
+    }
     h += '</tbody></table>';
     h += '</div>';
   }

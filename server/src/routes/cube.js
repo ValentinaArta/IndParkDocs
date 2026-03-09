@@ -8,7 +8,6 @@ const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next
 // ── Dimension registry ──────────────────────────────────────────────────────
 const DIM_META = {
   contract_type:      { group: 'contract',   col: 'contract_type' },
-  charge_type:        { group: 'contract',   col: 'charge_type' },
   our_company:        { group: 'contract',   col: 'our_company' },
   doc_status:         { group: 'contract',   col: 'doc_status' },
   period_month:       { group: 'contract',   col: 'period_month' },
@@ -50,7 +49,6 @@ SELECT
   cb.contract_id,
   cb.contract_name,
   cb.p->>'contract_type'    AS contract_type,
-  COALESCE(cb.p->>'charge_type', 'Ежемесячное') AS charge_type,
   cb.p->>'contractor_name'  AS contractor_name,
   cb.p->>'our_legal_entity' AS our_company,
   cb.p->>'doc_status'       AS doc_status,
@@ -126,7 +124,6 @@ cmeta AS (
     e.properties->>'contractor_name'  AS contractor_name,
     e.properties->>'our_legal_entity' AS our_company,
     e.properties->>'contract_type'    AS contract_type,
-    COALESCE(e.properties->>'charge_type', 'Ежемесячное') AS charge_type,
     e.properties->>'doc_status'       AS doc_status,
     CASE WHEN e.properties->>'contract_date' ~ '^[0-9]{4}-[0-9]{2}'
       THEN LEFT(e.properties->>'contract_date', 7) END AS period_month,
@@ -152,7 +149,6 @@ SELECT
   cm.contractor_name,
   cm.our_company,
   cm.contract_type,
-  cm.charge_type,
   cm.doc_status,
   cm.period_month,
   cm.period_quarter,
@@ -246,14 +242,6 @@ function buildWhere(filters, mode) {
       const col = isEq ? 'cm.contract_type' : "cb.p->>'contract_type'";
       conds.push(`${col} = ANY($${p})`);
       params.push(ct);
-      p++;
-    }
-    // charge_type filter
-    const cht = filters.charge_type;
-    if (Array.isArray(cht) && cht.length) {
-      const col = isEq ? 'cm.charge_type' : "COALESCE(cb.p->>'charge_type', 'Ежемесячное')";
-      conds.push(`${col} = ANY($${p})`);
-      params.push(cht);
       p++;
     }
     // doc_status filter
@@ -430,13 +418,11 @@ router.get('/filter-values', authenticate, asyncHandler(async (req, res) => {
         FILTER (WHERE e.properties->>'contract_type' IS NOT NULL AND e.properties->>'contract_type' <> '') AS contract_types,
       ARRAY_AGG(DISTINCT e.properties->>'doc_status' ORDER BY e.properties->>'doc_status')
         FILTER (WHERE e.properties->>'doc_status' IS NOT NULL AND e.properties->>'doc_status' <> '') AS doc_statuses,
-      ARRAY_AGG(DISTINCT COALESCE(e.properties->>'charge_type', 'Ежемесячное'))
-        FILTER (WHERE TRUE) AS charge_types
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
     WHERE e.deleted_at IS NULL
   `);
-  res.json(rows[0] || { contract_types: [], doc_statuses: [], charge_types: [] });
+  res.json(rows[0] || { contract_types: [], doc_statuses: [] });
 }));
 
 // ── GET /api/cube/drilldown ─────────────────────────────────────────────────
