@@ -31,6 +31,23 @@ const ORG_KEY_MAP = {
   'СОК ЗВЕЗДА АО':                       '40d57818-8993-11e8-b18d-001e67301201',
 };
 
+// Map our contractor names → 1C Контрагент Ref_Key (Owner_Key in ДоговорыКонтрагентов)
+const CONTRACTOR_KEY_MAP = {
+  'АДМОС ООО':                          'cdc696ad-14a3-11e9-905d-d094662a4ed7',
+  'ВСЕВОЛОЖСКИЙ КРАНОВЫЙ ЗАВОД ООО':    '4848b20e-5fa1-11ea-9075-d094662a4ed7',
+  'ЗВЕЗДА ПАО':                         'cdaf5416-a51e-11e8-b18d-001e67301201',
+  'ЗЕТАСОФТ ООО':                       '9a1d47c2-0433-11e9-905b-d094662a4ed7',
+  'НОВЫЙ РЕГИСТРАТОР АО':               'd3c17061-a51e-11e8-b18d-001e67301201',
+  'ПОЖЗАЩИТА ООО':                      '91df32ad-616f-11eb-9082-d094662a4ed7',
+  'ПСП-СЕРВИС ООО':                     'b5d4ed45-14a3-11e9-905d-d094662a4ed7',
+  'Паруса рекламы':                     '008f3ddc-f265-11ee-9093-d094662a4ed7',
+  'ПАРУСА РЕКЛАМЫ ООО':                 '008f3ddc-f265-11ee-9093-d094662a4ed7',
+  'Петербург Электро Строй, ООО':       null, // not found in 1C
+  'СПЭЦ СПБ ООО':                       '4f957f9b-a619-11ee-9092-d094662a4ed7',
+  'ХЛОРКА ООО':                         'c3c1f4b2-90ad-11ec-9084-d094662a4ed6',
+  'ЦЕНТРГАЗ ООО':                       'a99c954f-baa1-11ee-9093-d094662a4ed7',
+};
+
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const SINGLE_ID = (() => {
@@ -50,8 +67,8 @@ async function odataGet(path) {
 const ENC_CONTRACTS = encodeURIComponent('Catalog_ДоговорыКонтрагентов');
 const ENC_PAYMENTS  = encodeURIComponent('Document_СписаниеСРасчетногоСчета');
 
-async function findContractIn1C(contractNumber, contractDate, orgKey) {
-  const selectFields = `Ref_Key,${encodeURIComponent('Номер')},${encodeURIComponent('Дата')},Description,${encodeURIComponent('Организация_Key')}`;
+async function findContractIn1C(contractNumber, contractDate, orgKey, contractorKey) {
+  const selectFields = `Ref_Key,${encodeURIComponent('Номер')},${encodeURIComponent('Дата')},Description,${encodeURIComponent('Организация_Key')},Owner_Key`;
 
   // Exact match by number
   const filter = encodeURIComponent(`Номер eq '${contractNumber}'`);
@@ -67,19 +84,23 @@ async function findContractIn1C(contractNumber, contractDate, orgKey) {
 
   if (!matches.length) return [];
 
-  // Strict filter: org key must match
+  // Strict filter 1: org key (наше юрлицо)
   if (orgKey) {
     const byOrg = matches.filter(m => m['Организация_Key'] === orgKey);
     if (byOrg.length) matches = byOrg;
-    else return []; // no org match → skip entirely
+    else return [];
   }
 
-  // Strict filter: date must match (compare YYYY-MM-DD)
+  // Strict filter 2: contractor (Owner_Key = контрагент)
+  if (contractorKey) {
+    const byContr = matches.filter(m => m.Owner_Key === contractorKey);
+    if (byContr.length) matches = byContr;
+    else return [];
+  }
+
+  // Strict filter 3: date
   if (contractDate && matches.length > 1) {
-    const byDate = matches.filter(m => {
-      const d1c = (m['Дата'] || '').substring(0, 10);
-      return d1c === contractDate;
-    });
+    const byDate = matches.filter(m => (m['Дата'] || '').substring(0, 10) === contractDate);
     if (byDate.length) matches = byDate;
   }
 
@@ -120,11 +141,14 @@ async function run() {
   const { rows: contracts } = await pool.query(`
     SELECT e.id, e.properties->>'number' AS number, e.name,
       e.properties->>'contract_date' AS contract_date,
-      our_ent.name AS our_entity_name
+      our_ent.name AS our_entity_name,
+      contr_ent.name AS contractor_name
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
     LEFT JOIN relations r_our ON r_our.from_entity_id = e.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL
     LEFT JOIN entities our_ent ON our_ent.id = r_our.to_entity_id
+    LEFT JOIN relations r_contr ON r_contr.from_entity_id = e.id AND r_contr.relation_type = 'contractor' AND r_contr.deleted_at IS NULL
+    LEFT JOIN entities contr_ent ON contr_ent.id = r_contr.to_entity_id
     WHERE e.deleted_at IS NULL
       AND e.properties->>'number' IS NOT NULL
       ${whereExtra}
@@ -141,7 +165,8 @@ async function run() {
 
     try {
       const expectedOrgKey = c.our_entity_name ? ORG_KEY_MAP[c.our_entity_name] : null;
-      const matches = await findContractIn1C(num, c.contract_date || null, expectedOrgKey);
+      const expectedContrKey = c.contractor_name ? CONTRACTOR_KEY_MAP[c.contractor_name] : null;
+      const matches = await findContractIn1C(num, c.contract_date || null, expectedOrgKey, expectedContrKey);
       if (!matches.length) {
         logger.warn(`  [${c.id}] ${num} — not found in 1C (org: ${c.our_entity_name || '?'})`);
         continue;
