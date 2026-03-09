@@ -24,6 +24,7 @@ function setModalContent(html) {
     var active = (_modalSize === s) ? ' is-active' : '';
     resizeBar += '<button class="modal-resize-btn' + active + '" data-modal-size="' + s + '" title="' + titles[s] + '">' + labels[s] + '</button>';
   });
+  resizeBar += '<button class="modal-resize-btn" onclick="closeModal()" title="Закрыть" style="margin-left:auto;font-size:18px;line-height:1">&times;</button>';
   resizeBar += '</div>';
   var el = document.getElementById('modal');
   el.innerHTML = resizeBar + html;
