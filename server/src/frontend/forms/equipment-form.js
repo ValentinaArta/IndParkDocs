@@ -10,12 +10,11 @@ function _renderEqListItem(item, rowId) {
   var eqTypeId = eqTypeObj ? eqTypeObj.id : '';
   var h = '<div class="eq-list-item" data-row="' + rowId + '">';
   h += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">';
-  h += '<select class="eq-list-sel" style="flex:1"><option value="">— выберите из реестра —</option>';
-  _equipment.forEach(function(e) {
-    var sel = (e.id === parseInt(item.equipment_id)) ? ' selected' : '';
-    h += '<option value="' + e.id + '"' + sel + '>' + escapeHtml(e.name) + '</option>';
-  });
-  h += '</select>';
+  var _eqSelId = 'eq_sel_' + rowId;
+  var _eqSelVal = parseInt(item.equipment_id) || 0;
+  var _eqSelName = item.equipment_name || '';
+  if (_eqSelVal && !_eqSelName) { var _ef = (_equipment || []).find(function(e) { return e.id === _eqSelVal; }); if (_ef) _eqSelName = _ef.name; }
+  h += '<div style="flex:1">' + renderSearchableSelect(_eqSelId, (_equipment || []).map(function(e) { var p = e.properties || {}; var inv = p.inv_number; return {id:e.id, name: e.name + (inv ? " (инв. " + inv + ")" : ""), category: p.equipment_category || "Прочее"}; }), _eqSelVal, _eqSelName, "начните вводить...", "act_equipment") + '</div>';
   h += '<button type="button" class="btn btn-sm" style="font-size:11px;white-space:nowrap" data-row="' + rowId + '" data-eqtype="' + eqTypeId + '" onclick="eqListCreateShow(this)">+ Создать</button>';
   h += '<button type="button" class="btn btn-sm" style="color:var(--danger)" onclick="eqListRemove(this)">×</button>';
   h += '</div>';
@@ -106,8 +105,11 @@ function eqListRemove(btn) {
   var item = btn.closest('.eq-list-item');
   var items = container.querySelectorAll('.eq-list-item');
   if (items.length <= 1) {
-    var sel = item ? item.querySelector('select') : null;
-    if (sel) sel.value = '';
+    var rowId = item ? item.getAttribute('data-row') : '';
+    var hiddenEl = rowId ? document.getElementById('eq_sel_' + rowId) : null;
+    var textEl = rowId ? document.getElementById('eq_sel_' + rowId + '_text') : null;
+    if (hiddenEl) hiddenEl.value = '';
+    if (textEl) textEl.value = '';
     var panel = item ? item.querySelector('.eq-list-create-panel') : null;
     if (panel) panel.style.display = 'none';
     return;
@@ -245,14 +247,10 @@ async function eqListCreateSubmit(btn) {
   }
   function selectNewEq(ent) {
     if (!_equipment.find(function(e) { return e.id === ent.id; })) _equipment.push(ent);
-    var item = btn.closest('.eq-list-item');
-    var sel = item ? item.querySelector('.eq-list-sel') : null;
-    if (sel) {
-      var opt = document.createElement('option');
-      opt.value = ent.id; opt.textContent = ent.name; opt.selected = true;
-      Array.from(sel.options).forEach(function(o) { o.selected = false; });
-      sel.appendChild(opt);
-    }
+    var hiddenEl = document.getElementById('eq_sel_' + rowId);
+    var textEl = document.getElementById('eq_sel_' + rowId + '_text');
+    if (hiddenEl) hiddenEl.value = ent.id;
+    if (textEl) textEl.value = ent.name;
     var panel = document.getElementById('eq_create_' + rowId);
     if (panel) panel.style.display = 'none';
   }
@@ -299,9 +297,11 @@ function getEqListValue() {
   if (!container) return [];
   var result = [];
   container.querySelectorAll('.eq-list-item').forEach(function(item) {
-    var sel = item.querySelector('select');
-    if (sel && sel.value) {
-      var eqId = parseInt(sel.value);
+    var rowId = item.getAttribute('data-row');
+    var hiddenEl = document.getElementById('eq_sel_' + rowId);
+    var eqIdStr = hiddenEl ? hiddenEl.value : '';
+    if (eqIdStr) {
+      var eqId = parseInt(eqIdStr);
       var eqItem = { equipment_id: eqId };
       var priceInput = item.querySelector('.eq-list-price');
       if (priceInput && priceInput.value) eqItem.price = parseFloat(priceInput.value) || 0;
