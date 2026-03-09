@@ -378,23 +378,30 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
     return;
   }
 
-  // Map: property name → { relation_type, entity_id_field }
+  // Map: property name → typed relation + legacy party_to
   const linkMap = [
-    { prop: 'our_legal_entity_id', relType: 'party_to' },
-    { prop: 'contractor_id', relType: 'party_to' },
-    { prop: 'subtenant_id', relType: 'party_to' },
+    { prop: 'our_legal_entity_id', relType: 'our_entity' },
+    { prop: 'contractor_id', relType: 'contractor' },
+    { prop: 'subtenant_id', relType: 'subtenant' },
   ];
 
   for (const link of linkMap) {
     const targetId = parseInt(properties[link.prop]);
     if (!targetId) continue;
-    // Upsert relation
+    // Create typed relation (new) + party_to (legacy, for backward compat)
+    for (const rt of [link.relType, 'party_to']) {
+      await pool.query(
+        `INSERT INTO relations (from_entity_id, to_entity_id, relation_type)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (from_entity_id, to_entity_id, relation_type) DO NOTHING`,
+        [entityId, targetId, rt]
+      ).catch(() => {});
+    }
+    // Remove old typed relation if company changed
     await pool.query(
-      `INSERT INTO relations (from_entity_id, to_entity_id, relation_type)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (from_entity_id, to_entity_id, relation_type) DO NOTHING`,
-      [entityId, targetId, link.relType]
-    ).catch(() => {}); // Ignore if entity doesn't exist
+      `DELETE FROM relations WHERE from_entity_id = $1 AND relation_type = $2 AND to_entity_id != $3`,
+      [entityId, link.relType, targetId]
+    ).catch(() => {});
   }
 
   // Link rent objects (buildings/rooms/equipment from rental contracts)
