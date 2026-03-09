@@ -57,7 +57,22 @@ function _renderContractItem(item, idx, isSale) {
   h += '<input class="ci-payment-date" data-idx="' + idx + '" type="date" value="' + escapeHtml(pd) + '" style="font-size:11px;padding:2px 4px;border-radius:4px;border:1px solid var(--border);width:auto' + (ct !== 'Разовый' ? ';display:none' : '') + '">';
 
   h += '<button type="button" onclick="contractItemRemove(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;flex-shrink:0">\\u00d7</button>';
-  h += '</div></div>';
+  h += '</div>';
+
+  // Equipment selector (for Разовый) — second row
+  var eqId = parseInt(item.equipment_id) || 0;
+  var eqName = item.equipment_name || '';
+  if (eqId && !eqName) {
+    var _eqF = (_equipment || []).find(function(e) { return e.id === eqId; });
+    if (_eqF) eqName = _eqF.name;
+  }
+  var eqInputId = 'ci_eq_' + idx;
+  h += '<div class="ci-eq-row" data-idx="' + idx + '" style="margin-top:4px;padding-left:4px' + (ct !== 'Разовый' ? ';display:none' : '') + '">';
+  h += '<span style="font-size:11px;color:var(--text-muted);margin-right:4px">Оборудование:</span>';
+  h += renderSearchableSelect(eqInputId, (_equipment || []).map(function(e) { var p = e.properties || {}; var inv = p.inv_number; return {id:e.id, name: e.name + (inv ? " (инв. " + inv + ")" : ""), category: p.equipment_category || "Прочее"}; }), eqId, eqName, "выберите оборудование...", "act_equipment");
+  h += '</div>';
+
+  h += '</div>';
   return h;
 }
 
@@ -69,6 +84,8 @@ function _ciChargeTypeChanged(sel) {
   var dateEl = item.querySelector('.ci-payment-date');
   if (freqEl) freqEl.style.display = ct === 'Повторяющийся' ? '' : 'none';
   if (dateEl) dateEl.style.display = ct === 'Разовый' ? '' : 'none';
+  var eqRow = item.querySelector('.ci-eq-row');
+  if (eqRow) eqRow.style.display = ct === 'Разовый' ? '' : 'none';
   // Update colors
   var border = ct === 'Разовый' ? '#fbbf24' : ct === 'Доп. услуги' ? '#86efac' : '#93c5fd';
   var bg = ct === 'Разовый' ? '#fef3c720' : ct === 'Доп. услуги' ? '#f0fdf420' : '#eff6ff30';
@@ -154,13 +171,18 @@ function getContractItemsValue() {
     var pdEl = item.querySelector('.ci-payment-date');
     var pd = pdEl ? pdEl.value : null;
 
+    // Equipment id for Разовый items
+    var idx = item.getAttribute('data-idx');
+    var eqHidden = document.getElementById('ci_eq_' + idx);
+    var eqIdVal = (ct === 'Разовый' && eqHidden) ? (parseInt(eqHidden.value) || null) : null;
+
     if (isSale) {
       var qty = parseFloat((item.querySelector('.ci-qty') || {}).value) || 0;
       var up = parseFloat((item.querySelector('.ci-uprice') || {}).value) || 0;
-      items.push({ name: name.trim(), qty: qty, unit_price: up, amount: qty * up, charge_type: ct, frequency: ct === 'Повторяющийся' ? freq : null, payment_date: ct === 'Разовый' ? pd : null });
+      items.push({ name: name.trim(), qty: qty, unit_price: up, amount: qty * up, charge_type: ct, frequency: ct === 'Повторяющийся' ? freq : null, payment_date: ct === 'Разовый' ? pd : null, equipment_id: eqIdVal });
     } else {
       var amt = parseFloat((item.querySelector('.ci-amount') || {}).value) || 0;
-      if (name.trim() || amt) items.push({ name: name.trim(), amount: amt, charge_type: ct, frequency: ct === 'Повторяющийся' ? freq : null, payment_date: ct === 'Разовый' ? pd : null });
+      if (name.trim() || amt) items.push({ name: name.trim(), amount: amt, charge_type: ct, frequency: ct === 'Повторяющийся' ? freq : null, payment_date: ct === 'Разовый' ? pd : null, equipment_id: eqIdVal });
     }
   });
   return items;

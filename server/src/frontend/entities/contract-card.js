@@ -197,6 +197,7 @@ function renderContractCard(data) {
     h += '<th style="padding:7px 10px;text-align:left;border-radius:4px 0 0 0">Наименование</th>';
     h += '<th style="padding:7px 10px;text-align:right">Сумма, \\u20BD</th>';
     h += '<th style="padding:7px 10px;text-align:left">Дата оплаты</th>';
+    h += '<th style="padding:7px 10px;text-align:left">Оборудование</th>';
     h += '<th style="padding:7px 10px;text-align:left;border-radius:0 4px 0 0">Источник</th>';
     h += '</tr></thead><tbody>';
     data.all_one_time_items.forEach(function(item, i) {
@@ -209,6 +210,7 @@ function renderContractCard(data) {
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(item.name || '\\u2014') + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _ccFmtNum(amt) : '') + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);' + pdStyle + '">' + (pd || '\\u2014') + '</td>';
+      h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px">' + (item.equipment_name ? '<a href="#" onclick="showEntity(' + item.equipment_id + ');return false" style="color:var(--accent)">' + escapeHtml(item.equipment_name) + '</a>' : '') + '</td>';
       h += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-secondary)">' + escapeHtml(item.source_name || '') + '</td>';
       h += '</tr>';
     });
