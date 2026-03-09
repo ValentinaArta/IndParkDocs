@@ -6,7 +6,7 @@ var _p2vTab = 'lenenergo';
 
 var _P2V_TABS = [
   { key: 'lenenergo',     label: 'ЛенЭнерго',    companyIds: [472] },
-  { key: 'zheldorenergo', label: 'ЖелДорЭнерго',  companyIds: [] },
+  { key: 'zheldorenergo', label: 'ЖелДорЭнерго',  companyIds: [957] },
   { key: 'pao_zvezda',    label: 'ПАО ЗВЕЗДА',    companyIds: [350] },
   { key: 'gpu',           label: 'ГПУ',           companyIds: [] }
 ];
