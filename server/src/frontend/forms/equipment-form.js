@@ -97,6 +97,7 @@ function eqListAdd() {
   var addBtn = container.querySelector('.eq-list-add-btn');
   if (addBtn) container.insertBefore(child, addBtn);
   else container.appendChild(child);
+  _srchInitAll();
 }
 
 function eqListRemove(btn) {
