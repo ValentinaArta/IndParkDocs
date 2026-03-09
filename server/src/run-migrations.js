@@ -47,6 +47,7 @@ const migrations = {
   '043':         require('./migrations/043_supplement_inherit_type'),
   '044':         require('./migrations/044_remove_workshop_crane_track'),
   '045':         require('./migrations/045_restore_act_field_defs'),
+  '046':         require('./migrations/046_typed_relations'),
 };
 
 async function initMigrationTracker(pool) {

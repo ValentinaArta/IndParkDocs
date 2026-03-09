@@ -20,13 +20,17 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
         e.properties->>'number'             AS contract_number,
         e.properties->>'contract_date'      AS contract_date,
         e.properties->>'contract_end_date'  AS contract_end_date,
-        e.properties->>'our_legal_entity'   AS our_legal_entity,
         e.properties->>'vat_rate'           AS vat_rate,
         e.properties->>'external_rental'    AS external_rental,
-        (e.properties->>'contractor_id')::int AS contractor_id,
-        (e.properties->>'subtenant_id')::int  AS subtenant_id
+        r_our_ent.name                       AS our_legal_entity,
+        r_contr.to_entity_id                 AS contractor_id,
+        r_sub.to_entity_id                   AS subtenant_id
       FROM entities e
       JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
+      LEFT JOIN relations r_contr ON r_contr.from_entity_id = e.id AND r_contr.relation_type = 'contractor' AND r_contr.deleted_at IS NULL
+      LEFT JOIN relations r_our ON r_our.from_entity_id = e.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL
+      LEFT JOIN entities r_our_ent ON r_our_ent.id = r_our.to_entity_id
+      LEFT JOIN relations r_sub ON r_sub.from_entity_id = e.id AND r_sub.relation_type = 'subtenant' AND r_sub.deleted_at IS NULL
       WHERE e.deleted_at IS NULL
         AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
         AND (e.properties->>'doc_status' IN ('Подписан','')
@@ -150,9 +154,10 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
   // For each signed Аренды/Субаренды contract, find effective rent_items source
   const rentContracts = await pool.query(`
     SELECT e.id,
-           (e.properties->>'contractor_id')::int AS contractor_id
+           r_contr.to_entity_id AS contractor_id
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
+    LEFT JOIN relations r_contr ON r_contr.from_entity_id = e.id AND r_contr.relation_type = 'contractor' AND r_contr.deleted_at IS NULL
     WHERE e.deleted_at IS NULL
       AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
       AND (e.properties->>'doc_status' IN ('Подписан','') OR e.properties->>'doc_status' IS NULL)`);
@@ -231,10 +236,15 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
   Object.values(lpContractsByName).forEach(m => Object.keys(m).forEach(id => allContractIds.add(parseInt(id))));
   const contractMeta = {};
   if (allContractIds.size > 0) {
-    const cmRes = await pool.query(
-      `SELECT e.id, e.name, (e.properties->>'contractor_id')::int AS cid FROM entities e WHERE e.id = ANY($1)`,
-      [Array.from(allContractIds)]);
-    cmRes.rows.forEach(r => { contractMeta[r.id] = { name: r.name, tenant: contractorNames[r.cid] || '' }; });
+    const idsArr = Array.from(allContractIds);
+    const cmRes = await pool.query(`SELECT e.id, e.name FROM entities e WHERE e.id = ANY($1)`, [idsArr]);
+    // Resolve tenant names from typed relations
+    const cmRelRes = await pool.query(
+      `SELECT r.from_entity_id, e.name FROM relations r JOIN entities e ON e.id = r.to_entity_id
+       WHERE r.from_entity_id = ANY($1) AND r.relation_type = 'contractor' AND r.deleted_at IS NULL`, [idsArr]);
+    const _tenantMap = {};
+    cmRelRes.rows.forEach(r => { _tenantMap[r.from_entity_id] = r.name; });
+    cmRes.rows.forEach(r => { contractMeta[r.id] = { name: r.name, tenant: _tenantMap[r.id] || '' }; });
   }
 
   const buildings = buildingRes.rows.map(b => {
