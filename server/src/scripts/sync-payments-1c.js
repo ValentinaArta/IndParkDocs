@@ -19,6 +19,18 @@ const ODATA_USER = 'odata.user';
 const ODATA_PASS = 'gjdbh2642!';
 const AUTH_HEADER = 'Basic ' + Buffer.from(`${ODATA_USER}:${ODATA_PASS}`).toString('base64');
 
+// Map our entity names → 1C Организация_Key for matching
+const ORG_KEY_MAP = {
+  'Индустриальный парк Звезда':          '1df6218d-8996-11e8-b18d-001e67301201',
+  'Экспериментальный комплекс «Звезда»': '6bf16c76-8993-11e8-b18d-001e67301201',
+  'Складской Терминал "Звезда"':         'd5778166-8992-11e8-b18d-001e67301201',
+  'КОМПАНИЯ ГЕРМЕС ПАО':                 '9aa29c23-8991-11e8-b18d-001e67301201',
+  'ОРР ВЕСТА АО':                        '5bc6a780-843a-11e8-b18d-001e67301201',
+  'Техноприбор-М':                       'a58e2498-89c3-11e8-b18d-001e67301201',
+  'СЦ ЗВЕЗДА ООО':                       'f1761ed4-8994-11e8-b18d-001e67301201',
+  'СОК ЗВЕЗДА АО':                       '40d57818-8993-11e8-b18d-001e67301201',
+};
+
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const SINGLE_ID = (() => {
@@ -39,14 +51,15 @@ const ENC_CONTRACTS = encodeURIComponent('Catalog_ДоговорыКонтраг
 const ENC_PAYMENTS  = encodeURIComponent('Document_СписаниеСРасчетногоСчета');
 
 async function findContractIn1C(contractNumber) {
+  const selectFields = `Ref_Key,${encodeURIComponent('Номер')},Description,${encodeURIComponent('Организация_Key')}`;
   // Try exact match first
   const filter = encodeURIComponent(`Номер eq '${contractNumber}'`);
-  const data = await odataGet(`${ENC_CONTRACTS}?$filter=${filter}&$select=Ref_Key,${encodeURIComponent('Номер')},Description&$top=5`);
+  const data = await odataGet(`${ENC_CONTRACTS}?$filter=${filter}&$select=${selectFields}&$top=10`);
   if (data.value && data.value.length > 0) return data.value;
 
   // Try substring match
   const filter2 = encodeURIComponent(`substringof('${contractNumber}',Номер)`);
-  const data2 = await odataGet(`${ENC_CONTRACTS}?$filter=${filter2}&$select=Ref_Key,${encodeURIComponent('Номер')},Description&$top=5`);
+  const data2 = await odataGet(`${ENC_CONTRACTS}?$filter=${filter2}&$select=${selectFields}&$top=10`);
   return data2.value || [];
 }
 
@@ -82,9 +95,12 @@ async function run() {
   }
 
   const { rows: contracts } = await pool.query(`
-    SELECT e.id, e.properties->>'number' AS number, e.name
+    SELECT e.id, e.properties->>'number' AS number, e.name,
+      our_ent.name AS our_entity_name
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
+    LEFT JOIN relations r_our ON r_our.from_entity_id = e.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL
+    LEFT JOIN entities our_ent ON our_ent.id = r_our.to_entity_id
     WHERE e.deleted_at IS NULL
       AND e.properties->>'number' IS NOT NULL
       ${whereExtra}
@@ -100,13 +116,22 @@ async function run() {
     if (!num) continue;
 
     try {
-      const matches = await findContractIn1C(num);
+      let matches = await findContractIn1C(num);
       if (!matches.length) {
         logger.warn(`  [${c.id}] ${num} — not found in 1C`);
         continue;
       }
 
-      // May match multiple 1C contracts (different orgs) — take all payments
+      // Filter by organization if we know it
+      const expectedOrgKey = c.our_entity_name ? ORG_KEY_MAP[c.our_entity_name] : null;
+      if (expectedOrgKey && matches.length > 1) {
+        const filtered = matches.filter(m => m['Организация_Key'] === expectedOrgKey);
+        if (filtered.length) matches = filtered;
+      } else if (expectedOrgKey && matches.length === 1 && matches[0]['Организация_Key'] !== expectedOrgKey) {
+        logger.warn(`  [${c.id}] ${num} — org mismatch: expected ${c.our_entity_name}, skipping`);
+        continue;
+      }
+
       totalMatched++;
       let contractPayments = 0;
 
