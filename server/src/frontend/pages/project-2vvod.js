@@ -5,10 +5,10 @@ module.exports = `
 var _p2vTab = 'lenenergo';
 
 var _P2V_TABS = [
-  { key: 'lenenergo',    label: 'ЛенЭнерго' },
-  { key: 'zheldorenergo', label: 'ЖелДорЭнерго' },
-  { key: 'pao_zvezda',   label: 'ПАО ЗВЕЗДА' },
-  { key: 'gpu',          label: 'ГПУ' }
+  { key: 'lenenergo',     label: 'ЛенЭнерго',    companyIds: [472] },
+  { key: 'zheldorenergo', label: 'ЖелДорЭнерго',  companyIds: [] },
+  { key: 'pao_zvezda',    label: 'ПАО ЗВЕЗДА',    companyIds: [350] },
+  { key: 'gpu',           label: 'ГПУ',           companyIds: [] }
 ];
 
 function showProject2Vvod(tab) {
@@ -17,7 +17,7 @@ function showProject2Vvod(tab) {
   _setNavHash('project-2vvod');
   setActive('[data-type="project-2vvod"]');
 
-  var h = '<div style="max-width:1100px">';
+  var h = '<div style="max-width:1200px">';
   h += '<h2 style="margin-bottom:16px">2й ввод</h2>';
 
   // Tabs
@@ -29,22 +29,79 @@ function showProject2Vvod(tab) {
   h += '</div>';
 
   // Content
-  h += '<div id="p2v_content" style="min-height:200px">';
-  h += _p2vRenderTab(_p2vTab);
-  h += '</div>';
-
+  h += '<div id="p2v_content"><div style="padding:40px;text-align:center;color:var(--text-muted)">Загрузка...</div></div>';
   h += '</div>';
   document.getElementById('content').innerHTML = h;
+
+  _p2vLoadTab(_p2vTab);
 }
 
-function _p2vRenderTab(tab) {
-  var tabObj = _P2V_TABS.find(function(t) { return t.key === tab; });
-  var label = tabObj ? tabObj.label : tab;
-  var h = '<div style="padding:40px 20px;text-align:center;color:var(--text-muted)">';
-  h += '<i data-lucide="construction" class="lucide" style="width:48px;height:48px;margin-bottom:12px;opacity:0.3"></i>';
-  h += '<div style="font-size:16px;margin-bottom:4px">' + label + '</div>';
-  h += '<div style="font-size:13px">Раздел в разработке</div>';
-  h += '</div>';
-  return h;
+async function _p2vLoadTab(tabKey) {
+  var tabObj = _P2V_TABS.find(function(t) { return t.key === tabKey; });
+  if (!tabObj) return;
+  var el = document.getElementById('p2v_content');
+  if (!el) return;
+
+  if (!tabObj.companyIds.length) {
+    el.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--text-muted)">' +
+      '<i data-lucide="building-2" class="lucide" style="width:48px;height:48px;margin-bottom:12px;opacity:0.3"></i>' +
+      '<div style="font-size:16px;margin-bottom:4px">' + escapeHtml(tabObj.label) + '</div>' +
+      '<div style="font-size:13px">Контрагент ещё не добавлен в систему. Создайте компанию и обновите настройки.</div></div>';
+    renderIcons();
+    return;
+  }
+
+  try {
+    var url = '/letters/by-topic/2й ввод?companies=' + tabObj.companyIds.join(',');
+    var letters = await api(url);
+    _p2vRenderLetters(el, tabObj, letters);
+  } catch(ex) {
+    el.innerHTML = '<div style="padding:20px;color:var(--danger)">Ошибка загрузки: ' + escapeHtml(ex.message || String(ex)) + '</div>';
+  }
+}
+
+function _p2vRenderLetters(el, tabObj, letters) {
+  if (!letters || !letters.length) {
+    el.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--text-muted)">' +
+      '<div style="font-size:14px">Нет писем по теме «2й ввод» для ' + escapeHtml(tabObj.label) + '</div>' +
+      '<div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="showLetters()">Перейти в Письма</button></div></div>';
+    return;
+  }
+
+  var h = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  h += '<thead><tr style="background:#4F6BCC;color:#fff">';
+  h += '<th style="padding:8px 10px;text-align:left;border-radius:4px 0 0 0">Дата</th>';
+  h += '<th style="padding:8px 10px;text-align:left">Исх. №</th>';
+  h += '<th style="padding:8px 10px;text-align:left">От</th>';
+  h += '<th style="padding:8px 10px;text-align:left">Кому</th>';
+  h += '<th style="padding:8px 10px;text-align:left">Суть</th>';
+  h += '<th style="padding:8px 10px;text-align:left;border-radius:0 4px 0 0">Срок</th>';
+  h += '</tr></thead><tbody>';
+
+  letters.forEach(function(e, i) {
+    var p = e.properties || {};
+    var bg = i % 2 ? 'background:var(--bg-secondary)' : '';
+    var dt = p.letter_date || '';
+    if (dt) dt = dt.split('-').reverse().join('.');
+    var deadline = p.deadline || '';
+    if (deadline) deadline = deadline.split('-').reverse().join('.');
+    var dlStyle = '';
+    if (deadline) {
+      var dlDate = new Date(p.deadline);
+      if (dlDate < new Date()) dlStyle = 'color:#dc2626;font-weight:600';
+    }
+    h += '<tr style="cursor:pointer;' + bg + '" onclick="showEntity(' + e.id + ')">';
+    h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap">' + dt + '</td>';
+    h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(p.outgoing_number || '') + '</td>';
+    h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(p.from_name || '') + '</td>';
+    h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(p.to_name || '') + '</td>';
+    h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);max-width:300px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(p.summary || '') + '</td>';
+    h += '<td style="padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap;' + dlStyle + '">' + deadline + '</td>';
+    h += '</tr>';
+  });
+
+  h += '</tbody></table>';
+  h += '<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Всего: ' + letters.length + '</div>';
+  el.innerHTML = h;
 }
 `;
