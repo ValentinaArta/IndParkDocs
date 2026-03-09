@@ -86,7 +86,6 @@ app.use('/api/companies',       require('./routes/companies'));
 app.use('/api/entities/:id/files', require('./routes/files'));
 app.use('/api/cube',            require('./routes/cube'));
 app.use('/api/buildings',       require('./routes/floorplan'));
-app.use('/api/equipment',       require('./routes/equipment'));
 app.use('/api',                 require('./routes/letters'));
 
 // SPA fallback
