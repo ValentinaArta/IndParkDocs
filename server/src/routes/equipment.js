@@ -185,4 +185,19 @@ router.get('/tree', authenticate, asyncHandler(async (req, res) => {
   res.json({ view, tree });
 }));
 
+// GET /api/equipment/:id/work-history — one-time work items linked to this equipment
+router.get('/:id/work-history', authenticate, asyncHandler(async (req, res) => {
+  const eqId = parseInt(req.params.id);
+  const { rows } = await pool.query(`
+    SELECT cli.name, cli.amount, cli.payment_date, cli.charge_type,
+           src.name AS source_name, src.properties->>'number' AS source_number,
+           src.properties->>'date' AS source_date
+    FROM contract_line_items cli
+    JOIN entities src ON src.id = cli.contract_id AND src.deleted_at IS NULL
+    WHERE cli.equipment_id = $1
+    ORDER BY cli.payment_date DESC NULLS LAST, cli.id DESC
+  `, [eqId]);
+  res.json(rows);
+}));
+
 module.exports = router;

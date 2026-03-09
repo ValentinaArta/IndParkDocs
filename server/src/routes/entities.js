@@ -125,9 +125,10 @@ async function saveLineItems(pool, entityId, typeName, props) {
         const chargeType = it.charge_type || 'Повторяющийся';
         const paymentDate = it.payment_date || null;
         const freq = it.frequency || (chargeType === 'Повторяющийся' ? 'Ежемесячно' : null);
+        const eqId = parseInt(it.equipment_id) || null;
         await pool.query(
-          `INSERT INTO contract_line_items (contract_id,name,unit,quantity,price,amount,sort_order,charge_type,payment_date,frequency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [entityId, nm, it.unit || '', sn2(it.quantity), sn2(it.price), sn2(it.amount), i, chargeType, paymentDate, freq]
+          `INSERT INTO contract_line_items (contract_id,name,unit,quantity,price,amount,sort_order,charge_type,payment_date,frequency,equipment_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [entityId, nm, it.unit || '', sn2(it.quantity), sn2(it.price), sn2(it.amount), i, chargeType, paymentDate, freq, eqId]
         );
       }
     }

@@ -182,6 +182,40 @@ function renderEquipmentCard(e) {
     h += '</div>';
   }
 
+  // ── Work history (from contract_line_items with equipment_id) ──
+  h += '<div id="eq_work_history_' + e.id + '" style="margin-top:20px"></div>';
+
+  // Async load
+  setTimeout(function() {
+    api('/equipment/' + e.id + '/work-history').then(function(rows) {
+      var el = document.getElementById('eq_work_history_' + e.id);
+      if (!el || !rows || !rows.length) return;
+      var wh = '<div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.05em;margin-bottom:8px">';
+      wh += '<i data-lucide="history" class="lucide" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"></i> ИСТОРИЯ РАБОТ</div>';
+      wh += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      wh += '<thead><tr style="background:#4F6BCC;color:#fff">';
+      wh += '<th style="padding:6px 10px;text-align:left;border-radius:4px 0 0 0">Работа</th>';
+      wh += '<th style="padding:6px 10px;text-align:right">Сумма</th>';
+      wh += '<th style="padding:6px 10px;text-align:left">Дата</th>';
+      wh += '<th style="padding:6px 10px;text-align:left;border-radius:0 4px 0 0">Источник</th>';
+      wh += '</tr></thead><tbody>';
+      rows.forEach(function(r, i) {
+        var bg = i % 2 ? 'background:var(--bg-secondary)' : '';
+        var amt = parseFloat(r.amount) || 0;
+        var pd = r.payment_date ? r.payment_date.split('T')[0].split('-').reverse().join('.') : '';
+        wh += '<tr style="' + bg + '">';
+        wh += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(r.name || '') + '</td>';
+        wh += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">' + (amt ? _fmtNum(amt) + ' \\u20bd' : '') + '</td>';
+        wh += '<td style="padding:6px 10px;border-bottom:1px solid var(--border)">' + pd + '</td>';
+        wh += '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-secondary)">' + escapeHtml(r.source_name || '') + '</td>';
+        wh += '</tr>';
+      });
+      wh += '</tbody></table>';
+      el.innerHTML = wh;
+      renderIcons();
+    }).catch(function() {});
+  }, 100);
+
   h += '</div>';
   return h;
 }
