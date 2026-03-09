@@ -307,7 +307,7 @@ function renderDynamicFields(contractType, props) {
     return;
   }
 
-  var _financialNames = ['contract_amount', 'vat_rate', 'payment_frequency', 'advances', 'completion_deadline', 'rent_monthly'];
+  var _financialNames = ['contract_amount', 'vat_rate', 'completion_deadline', 'rent_monthly'];
   let html = '';
   extraFields.forEach(function(f) {
     if (hasFinancial && _financialNames.indexOf(f.name) >= 0) return;

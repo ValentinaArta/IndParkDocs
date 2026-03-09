@@ -320,24 +320,7 @@ function renderFinancialSection(contractType, props) {
     html += '</div>';
   }
 
-  var _freqTypes = ['Услуг', 'ТО и ППР', 'Эксплуатации', 'Обслуживания'];
-  if (_freqTypes.indexOf(contractType) >= 0) {
-    var freqOpts = ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'];
-    var freqVal = props.payment_frequency || '';
-    var freqCustom = freqVal && freqOpts.indexOf(freqVal) < 0;
-    html += '<div class="form-group"><label>Периодичность оплаты</label>';
-    html += '<div style="display:flex;gap:6px;align-items:center"><select id="f_payment_frequency" onchange="toggleCustomInput(this)" style="flex:1"><option value="">\\u2014</option>';
-    freqOpts.forEach(function(o) { html += '<option value="' + escapeHtml(o) + '"' + (o === freqVal ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
-    html += '<option value="__custom__"' + (freqCustom ? ' selected' : '') + '>Другое...</option></select>';
-    html += '<input id="f_payment_frequency_custom" placeholder="Введите значение" value="' + (freqCustom ? escapeHtml(freqVal) : '') + '" style="flex:1;' + (freqCustom ? '' : 'display:none') + '"></div></div>';
-  }
-
-  var _advTypes = ['Подряда', 'Услуг', 'ТО и ППР'];
-  if (_advTypes.indexOf(contractType) >= 0) {
-    var advances = [];
-    try { if (typeof props.advances === 'string' && props.advances) advances = JSON.parse(props.advances); } catch(ex) {}
-    html += '<div class="form-group"><label>Авансы</label>' + renderAdvancesBlock(advances) + '</div>';
-  }
+  // payment_frequency and advances removed — now per-line in contract_items
 
   if (contractType === 'Подряда') {
     html += renderDeadlineSection(props);
