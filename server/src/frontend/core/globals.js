@@ -10,126 +10,22 @@ var ENTITY_TYPE_ICONS = {
 };
 
 function entityIcon(typeName, size) { return icon(ENTITY_TYPE_ICONS[typeName] || 'file', size); }
-// Conditional fields shown when contract_type matches
-const CONTRACT_TYPE_FIELDS = {
-  'Подряда': [
-    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'contract_items', name_ru: 'Перечень работ', field_type: 'contract_items' },
-    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
-    { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
-    { name: 'completion_deadline', name_ru: 'Срок выполнения', field_type: 'text' },
-  ],
-  'Услуг': [
-    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'contract_items', name_ru: 'Перечень услуг', field_type: 'contract_items' },
-    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
-    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'] },
-    { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
-  ],
-  'ТО и ППР': [
-    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'contract_items', name_ru: 'Перечень работ', field_type: 'contract_items' },
-    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
-    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'] },
-    { name: 'advances', name_ru: 'Авансы', field_type: 'advances' },
-  ],
-  'Купли-продажи': [
-    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'contract_items', name_ru: 'Перечень товаров', field_type: 'contract_items_sale' },
-    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
-  ],
-  'Эксплуатации': [
-    { name: 'subject', name_ru: 'Предмет договора', field_type: 'text' },
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'contract_items', name_ru: 'Перечень работ/услуг', field_type: 'contract_items' },
-    { name: 'contract_amount', name_ru: 'Сумма договора', field_type: 'number', _readonly: true },
-    { name: 'payment_frequency', name_ru: 'Периодичность оплаты', field_type: 'select_or_custom', options: ['Единовременно','Ежемесячно','Ежеквартально','Раз в полгода','Ежегодно'] },
-  ],
-  'Субаренды': [
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },
-    { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
-    { name: 'rent_comments', name_ru: 'Комментарии', field_type: 'multi_comments', _group: 'all' },
-    { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
-    { name: 'external_rental', name_ru: 'Аренда внешняя', field_type: 'checkbox', _group: 'all' },
-    { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
-    { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
-    { name: 'extra_services_cost', name_ru: 'Стоимость в месяц', field_type: 'number', _group: 'extra' },
-    { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
-    { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
-    { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
-    { name: 'transfer_equipment', name_ru: 'Передача оборудования', field_type: 'checkbox', _group: 'all' },
-    { name: 'equipment_list', name_ru: 'Передаваемое оборудование', field_type: 'equipment_list', _group: 'transfer' },
-  ],
-  'Аренда оборудования': [
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'equipment_rent_items', name_ru: 'Предметы аренды', field_type: 'equipment_rent_items' },
-    { name: 'rent_monthly', name_ru: 'Стоимость аренды в месяц', field_type: 'number', _group: 'all', _readonly: true },
-    { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
-    { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
-    { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
-    { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
-  ],
-  'Обслуживания': [
-    { name: 'service_subject', name_ru: 'Описание работ / предмет', field_type: 'text' },
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'equipment_list', name_ru: 'Оборудование', field_type: 'equipment_list' },
-    { name: 'contract_amount', name_ru: 'Стоимость', field_type: 'number' },
-    { name: 'service_comment', name_ru: 'Комментарий', field_type: 'text' },
-  ],
-  'Аренды': [
-    { name: 'subject_buildings', name_ru: 'Корпуса', field_type: 'subject_buildings' },
-    { name: 'subject_rooms', name_ru: 'Помещения', field_type: 'subject_rooms' },
-    { name: 'subject_land_plots', name_ru: 'Земельные участки', field_type: 'subject_land_plots' },
-    { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ', field_type: 'subject_land_plot_parts' },
-    { name: 'rent_objects', name_ru: 'Объекты', field_type: 'rent_objects' },
-    { name: 'rent_monthly', name_ru: 'Арендная плата в месяц', field_type: 'number', _group: 'all', _readonly: true },
-    { name: 'rent_comments', name_ru: 'Комментарии', field_type: 'multi_comments', _group: 'all' },
-    { name: 'vat_rate', name_ru: 'НДС (%)', field_type: 'number', _group: 'all' },
-    { name: 'external_rental', name_ru: 'Аренда внешняя', field_type: 'checkbox', _group: 'all' },
-    { name: 'extra_services', name_ru: 'Доп. услуги', field_type: 'checkbox', _group: 'all' },
-    { name: 'extra_services_desc', name_ru: 'Описание доп. услуг', field_type: 'text', _group: 'extra' },
-    { name: 'extra_services_cost', name_ru: 'Стоимость в месяц', field_type: 'number', _group: 'extra' },
-    { name: 'duration_type', name_ru: 'Срок действия', field_type: 'select', options: ['Дата', 'Текст'], _group: 'all' },
-    { name: 'duration_date', name_ru: 'Дата окончания', field_type: 'date', _group: 'duration_date' },
-    { name: 'duration_text', name_ru: 'Срок действия (текст)', field_type: 'text', _group: 'duration_text' },
-    { name: 'transfer_equipment', name_ru: 'Передача оборудования', field_type: 'checkbox', _group: 'all' },
-    { name: 'equipment_list', name_ru: 'Передаваемое оборудование', field_type: 'equipment_list', _group: 'transfer' },
-  ]
-};
+// CONTRACT_TYPE_FIELDS — loaded from DB via /api/contract-type-fields
+var CONTRACT_TYPE_FIELDS = {};
+var _ctfLoaded = false;
+
+async function loadContractTypeFields() {
+  if (_ctfLoaded) return CONTRACT_TYPE_FIELDS;
+  try {
+    var data = await api('/contract-type-fields');
+    if (data && typeof data === 'object') {
+      CONTRACT_TYPE_FIELDS = data;
+      _ctfLoaded = true;
+    }
+  } catch (e) {
+    console.error('Failed to load contract type fields:', e);
+  }
+  return CONTRACT_TYPE_FIELDS;
+}
 
 `;

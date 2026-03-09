@@ -16,6 +16,7 @@ async function loadEntityLists() {
   _equipment = await loadEntitiesByType('equipment');
   _landPlots = await loadEntitiesByType('land_plot');
   _landPlotParts = await loadEntitiesByType('land_plot_part');
+  await loadContractTypeFields(); // load contract type fields from DB
   loadBrokenEquipment(); // background load, no await
 }
 
