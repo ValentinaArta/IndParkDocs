@@ -417,9 +417,9 @@ function collectDynamicFieldValues(contractType) {
       var items = getContractItemsValue();
       if (items !== null) {
         result[f.name] = JSON.stringify(items);
-        // Auto-calculate total
+        // Auto-calculate total — only Повторяющийся
         var total = 0;
-        items.forEach(function(item) { total += parseFloat(item.amount) || 0; });
+        items.forEach(function(item) { if (!item.charge_type || item.charge_type === 'Повторяющийся') total += parseFloat(item.amount) || 0; });
         result.contract_amount = total > 0 ? String(Math.round(total * 100) / 100) : (result.contract_amount || '');
       }
     } else {
@@ -469,7 +469,7 @@ function collectDynamicFieldValues(contractType) {
     if (_ciItems2 !== null) {
       result.contract_items = JSON.stringify(_ciItems2);
       var _totalAuto = 0;
-      _ciItems2.forEach(function(item) { _totalAuto += parseFloat(item.amount) || 0; });
+      _ciItems2.forEach(function(item) { if (!item.charge_type || item.charge_type === 'Повторяющийся') _totalAuto += parseFloat(item.amount) || 0; });
       if (_totalAuto > 0 && !result.contract_amount) result.contract_amount = String(Math.round(_totalAuto * 100) / 100);
     }
   }

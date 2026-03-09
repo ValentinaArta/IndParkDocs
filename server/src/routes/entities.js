@@ -115,7 +115,6 @@ async function saveLineItems(pool, entityId, typeName, props) {
     }
 
     // contract_items → contract_line_items
-    logger.info({ msg: 'saveLineItems contract_items', entityId, raw: typeof props.contract_items, val: String(props.contract_items || '').slice(0, 200) });
     const ci = parseArr(props.contract_items) || parseArr(props.service_items);
     if (ci !== null) {
       await pool.query('DELETE FROM contract_line_items WHERE contract_id=$1', [entityId]);
