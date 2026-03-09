@@ -268,8 +268,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       eq_status: ep.status || '',
       contract_id: r.contract_id, contract_name: r.contract_name,
       act_id: r.act_id || null, act_name: r.act_name || null, act_date: r.act_date || null,
-      contract_our_legal_entity: cp.our_legal_entity || '',
-      contract_contractor: cp.contractor_name || '',
+      contract_our_legal_entity: r.our_entity_name || '',
+      contract_contractor: r.contractor_name || '',
       contract_type: cp.contract_type || '',
       contract_date: cp.contract_date || '',
       contract_year: (cp.contract_date || '').substring(0, 4),
@@ -285,7 +285,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       CASE WHEN par_type.name = 'room' THEN COALESCE(grandpar.name, par.name)
            ELSE COALESCE(par.name, '—') END AS building_name,
       c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
-      NULL::int AS act_id, NULL::text AS act_name, NULL::text AS act_date
+      NULL::int AS act_id, NULL::text AS act_name, NULL::text AS act_date,
+      contr_ent.name AS contractor_name, our_ent.name AS our_entity_name
     FROM entities e
     JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
     JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
@@ -294,6 +295,10 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
+    LEFT JOIN relations r_contr ON r_contr.from_entity_id = c.id AND r_contr.relation_type = 'contractor' AND r_contr.deleted_at IS NULL
+    LEFT JOIN entities contr_ent ON contr_ent.id = r_contr.to_entity_id
+    LEFT JOIN relations r_our ON r_our.from_entity_id = c.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL
+    LEFT JOIN entities our_ent ON our_ent.id = r_our.to_entity_id
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
       AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p1, 'c')} ORDER BY e.name, c.id`;
@@ -309,7 +314,8 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
       c.id AS contract_id, c.name AS contract_name, c.properties AS contract_props,
       act.id AS act_id, act.name AS act_name,
       act.properties->>'act_date' AS act_date,
-      act.properties AS act_props
+      act.properties AS act_props,
+      contr_ent.name AS contractor_name, our_ent.name AS our_entity_name
     FROM entities e
     JOIN entity_types et_e ON e.entity_type_id = et_e.id AND et_e.name = 'equipment'
     JOIN relations r ON r.from_entity_id = e.id AND r.relation_type = 'subject_of'
@@ -321,6 +327,10 @@ router.get('/aggregate', authenticate, asyncHandler(async (req, res) => {
     LEFT JOIN entities par ON par.id = e.parent_id AND par.deleted_at IS NULL
     LEFT JOIN entity_types par_type ON par_type.id = par.entity_type_id
     LEFT JOIN entities grandpar ON grandpar.id = par.parent_id AND grandpar.deleted_at IS NULL
+    LEFT JOIN relations r_contr ON r_contr.from_entity_id = c.id AND r_contr.relation_type = 'contractor' AND r_contr.deleted_at IS NULL
+    LEFT JOIN entities contr_ent ON contr_ent.id = r_contr.to_entity_id
+    LEFT JOIN relations r_our ON r_our.from_entity_id = c.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL
+    LEFT JOIN entities our_ent ON our_ent.id = r_our.to_entity_id
     WHERE e.deleted_at IS NULL AND c.properties->>'contract_type' = ANY($1)
       AND (c.properties->>'doc_status' = 'Подписан' OR (c.properties->>'doc_status') IS NULL OR c.properties->>'doc_status' = '')
     ${buildExtra(p2, 'c')} ORDER BY e.name, act.id`;
@@ -377,9 +387,9 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
       e.properties->>'number'            AS contract_number,
       e.properties->>'contract_date'     AS contract_date,
       COALESCE(ls.supp_end_date, e.properties->>'contract_end_date') AS contract_end_date,
-      e.properties->>'our_legal_entity'  AS our_legal_entity,
-      e.properties->>'contractor_name'   AS contractor_name,
-      e.properties->>'subtenant_name'    AS subtenant_name,
+      our_ent.name                        AS our_legal_entity,
+      contr_ent.name                      AS contractor_name,
+      sub_ent.name                        AS subtenant_name,
       e.properties->>'vat_rate'          AS vat_rate,
       e.properties->>'external_rental'   AS external_rental,
       COALESCE(ls.rent_objects, e.properties->>'rent_objects') AS rent_objects,
@@ -389,6 +399,12 @@ router.get('/rent-analysis', authenticate, asyncHandler(async (req, res) => {
     FROM entities e
     JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'contract'
     LEFT JOIN latest_supps ls ON ls.contract_id = e.id
+    LEFT JOIN relations r_contr ON r_contr.from_entity_id = e.id AND r_contr.relation_type = 'contractor' AND r_contr.deleted_at IS NULL
+    LEFT JOIN entities contr_ent ON contr_ent.id = r_contr.to_entity_id
+    LEFT JOIN relations r_our ON r_our.from_entity_id = e.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL
+    LEFT JOIN entities our_ent ON our_ent.id = r_our.to_entity_id
+    LEFT JOIN relations r_sub ON r_sub.from_entity_id = e.id AND r_sub.relation_type = 'subtenant' AND r_sub.deleted_at IS NULL
+    LEFT JOIN entities sub_ent ON sub_ent.id = r_sub.to_entity_id
     WHERE e.deleted_at IS NULL
       AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
       AND (e.properties->>'doc_status' = 'Подписан' OR (e.properties->>'doc_status') IS NULL OR e.properties->>'doc_status' = '')
@@ -590,6 +606,14 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const contract = cRes.rows[0];
   const cProps = contract.properties || {};
 
+  // 1a. Resolve company names from typed relations
+  const _companyRelsRes = await pool.query(
+    `SELECT r.relation_type, e.name FROM relations r
+     JOIN entities e ON e.id = r.to_entity_id
+     WHERE r.from_entity_id = $1 AND r.relation_type IN ('contractor','our_entity','subtenant') AND r.deleted_at IS NULL`, [contractId]);
+  const _companyRels = {};
+  _companyRelsRes.rows.forEach(r => { _companyRels[r.relation_type] = r.name; });
+
   // 1b. Subject objects: rooms / buildings / land_plots via located_in relations
   const subjectObjRes = await pool.query(
     `SELECT e.id, e.name, et.name as type_name
@@ -608,7 +632,10 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     `SELECT e.id FROM entities e JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'company'
      WHERE e.deleted_at IS NULL AND e.properties->>'is_own' = 'true'`);
   const ownIds = new Set(ownRes.rows.map(r => r.id));
-  const contractorId = parseInt(cProps.contractor_id) || 0;
+  // Resolve contractorId from typed relation (for VGO detection)
+  const _contrIdRes = await pool.query(
+    `SELECT to_entity_id FROM relations WHERE from_entity_id = $1 AND relation_type = 'contractor' AND deleted_at IS NULL LIMIT 1`, [contractId]);
+  const contractorId = _contrIdRes.rows.length ? _contrIdRes.rows[0].to_entity_id : 0;
   const isVgo = isInternalContract(contractorId, ownIds);
   const direction = getContractDirection(cProps.our_role_label || '');
 
@@ -619,6 +646,17 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
      WHERE e.parent_id = $1 AND e.deleted_at IS NULL
      ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`, [contractId]);
   const supplements = sRes.rows;
+
+  // 2b. Resolve contractor names for supplements from typed relations
+  const suppContractorMap = {};
+  if (supplements.length > 0) {
+    const suppIds = supplements.map(s => s.id);
+    const scrRes = await pool.query(
+      `SELECT r.from_entity_id, e.name FROM relations r
+       JOIN entities e ON e.id = r.to_entity_id
+       WHERE r.from_entity_id = ANY($1) AND r.relation_type = 'contractor' AND r.deleted_at IS NULL`, [suppIds]);
+    scrRes.rows.forEach(r => { suppContractorMap[r.from_entity_id] = r.name; });
+  }
 
   // 3. Latest supplement with rent_objects
   let rentObjects = [];
@@ -797,9 +835,10 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const histItems = [
     ...supplements.map(sp => {
       const p = sp.properties || {};
+      // Resolve contractor name from typed relations (loaded via suppContractorMap)
       return { id: sp.id, name: sp.name, number: p.number || '',
         date: p.contract_date || '', changes: p.changes_description || '',
-        contractor_name: p.contractor_name || '', doc_status: p.doc_status || '',
+        contractor_name: suppContractorMap[sp.id] || '', doc_status: p.doc_status || '',
         is_contract: false, is_act: false };
     }),
     ...acts,
@@ -890,11 +929,11 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
     doc_status: cProps.doc_status || '',
     number: cProps.number || '', date: cProps.contract_date || '',
-    our_legal_entity: cProps.our_legal_entity || '',
+    our_legal_entity: _companyRels.our_entity || '',
     our_role_label: cProps.our_role_label || '',
-    contractor_name: cProps.contractor_name || '',
+    contractor_name: _companyRels.contractor || '',
     contractor_role_label: cProps.contractor_role_label || '',
-    subtenant_name: cProps.subtenant_name || '',
+    subtenant_name: _companyRels.subtenant || '',
     contract_end_date: effDurDate,
     duration_type: effDurType,
     duration_text: effDurText,
@@ -963,9 +1002,11 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
     ? 'Document_ПоступлениеНаРасчетныйСчет'
     : 'Document_СписаниеСРасчетногоСчета';
 
-  // Resolve contractor odata_ref_key for precise matching
+  // Resolve contractor from typed relation for odata_ref_key matching
   let contractorRefKey = null;
-  const contractorId = parseInt(cProps.contractor_id) || 0;
+  const _contrId2Res = await pool.query(
+    `SELECT to_entity_id FROM relations WHERE from_entity_id = $1 AND relation_type = 'contractor' AND deleted_at IS NULL LIMIT 1`, [contractId]);
+  const contractorId = _contrId2Res.rows.length ? _contrId2Res.rows[0].to_entity_id : 0;
   if (contractorId) {
     const compRes = await pool.query(
       `SELECT properties->>'odata_ref_key' AS ref_key
@@ -1126,8 +1167,16 @@ router.get('/area-stats', authenticate, asyncHandler(async (req, res) => {
   Object.values(contractsByBuilding).forEach(map => Object.keys(map).forEach(id => allContractIds.add(parseInt(id))));
   const contractNames = {};
   if (allContractIds.size > 0) {
-    const cnRes = await pool.query(`SELECT id, name, properties->>'contractor_name' AS tenant FROM entities WHERE id = ANY($1)`, [Array.from(allContractIds)]);
-    cnRes.rows.forEach(r => { contractNames[r.id] = { name: r.name, tenant: r.tenant || '' }; });
+    const idsArr = Array.from(allContractIds);
+    const cnRes = await pool.query(`SELECT id, name FROM entities WHERE id = ANY($1)`, [idsArr]);
+    // Resolve tenant (contractor) names from typed relations
+    const cnRelRes = await pool.query(
+      `SELECT r.from_entity_id, e.name AS tenant FROM relations r
+       JOIN entities e ON e.id = r.to_entity_id
+       WHERE r.from_entity_id = ANY($1) AND r.relation_type = 'contractor' AND r.deleted_at IS NULL`, [idsArr]);
+    const tenantByContract = {};
+    cnRelRes.rows.forEach(r => { tenantByContract[r.from_entity_id] = r.tenant; });
+    cnRes.rows.forEach(r => { contractNames[r.id] = { name: r.name, tenant: tenantByContract[r.id] || '' }; });
   }
 
   // Match rented area to buildings by name
