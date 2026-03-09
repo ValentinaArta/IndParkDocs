@@ -144,6 +144,7 @@ function _routeFromHash(hash) {
   if (hash === '#fire-safety')  { showFireSafety();    return; }
   if (hash === '#ai-sandbox')   { showAISandbox();     return; }
   if (hash === '#meters')       { showMetersPage();    return; }
+  if (hash === '#contract-types') { showContractTypesPage(); return; }
   if (hash === '#eq-tree')      { showEquipmentTree(); return; }
   if (hash === '#reports')  { showReports();      return; }
   if (hash === '#cube')     { showCubePage();     return; }
@@ -303,6 +304,10 @@ function renderTypeNav() {
 
   html += '<div class="nav-item" onclick="showMetersPage()" style="padding-left:14px">🔢 Счётчики</div>';
   html += '<div class="nav-item" onclick="showEquipmentTree()" style="padding-left:14px"><i data-lucide="git-branch" class="lucide" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"></i>Дерево</div>';
+
+  // Справочники
+  html += '<div class="nav-section" style="margin-top:8px">Справочники</div>';
+  html += '<div class="nav-item" data-type="contract-types" onclick="showContractTypesPage()"><i data-lucide="settings" class="lucide" style="width:16px;height:16px"></i> Типы договоров</div>';
 
   nav.innerHTML = html;
   renderIcons();
