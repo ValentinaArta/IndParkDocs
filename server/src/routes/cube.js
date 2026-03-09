@@ -44,13 +44,23 @@ cbld AS (
   JOIN entity_types et ON et.id = b.entity_type_id AND et.name IN ('building')
   WHERE r.relation_type = 'located_in'
   ORDER BY r.from_entity_id
+),
+c_contr AS (
+  SELECT r.from_entity_id AS contract_id, e.name AS contractor_name
+  FROM relations r JOIN entities e ON e.id = r.to_entity_id
+  WHERE r.relation_type = 'contractor' AND r.deleted_at IS NULL
+),
+c_our AS (
+  SELECT r.from_entity_id AS contract_id, e.name AS our_company
+  FROM relations r JOIN entities e ON e.id = r.to_entity_id
+  WHERE r.relation_type = 'our_entity' AND r.deleted_at IS NULL
 )
 SELECT
   cb.contract_id,
   cb.contract_name,
   cb.p->>'contract_type'    AS contract_type,
-  cb.p->>'contractor_name'  AS contractor_name,
-  cb.p->>'our_legal_entity' AS our_company,
+  cc.contractor_name,
+  co.our_company,
   cb.p->>'doc_status'       AS doc_status,
   CASE WHEN cb.p->>'contract_date' ~ '^[0-9]{4}-[0-9]{2}'
     THEN LEFT(cb.p->>'contract_date', 7) END AS period_month,
@@ -63,7 +73,9 @@ SELECT
   COALESCE(NULLIF(cb.p->>'contract_amount',''),'0')::numeric AS contract_amount,
   bld.building_name
 FROM cbase cb
-LEFT JOIN cbld bld ON bld.contract_id = cb.contract_id`;
+LEFT JOIN cbld bld ON bld.contract_id = cb.contract_id
+LEFT JOIN c_contr cc ON cc.contract_id = cb.contract_id
+LEFT JOIN c_our co ON co.contract_id = cb.contract_id`;
 
 // ── Equipment-primary fact ──────────────────────────────────────────────────
 const EQUIPMENT_FACT_BASE = `
@@ -121,8 +133,8 @@ eq_bld AS (
 cmeta AS (
   SELECT
     e.id AS contract_id, e.name AS contract_name,
-    e.properties->>'contractor_name'  AS contractor_name,
-    e.properties->>'our_legal_entity' AS our_company,
+    contr_ent.name  AS contractor_name,
+    our_ent.name    AS our_company,
     e.properties->>'contract_type'    AS contract_type,
     e.properties->>'doc_status'       AS doc_status,
     CASE WHEN e.properties->>'contract_date' ~ '^[0-9]{4}-[0-9]{2}'
@@ -136,6 +148,10 @@ cmeta AS (
     COALESCE(NULLIF(e.properties->>'contract_amount',''),'0')::numeric AS contract_amount
   FROM entities e
   JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'contract'
+  LEFT JOIN relations contr_rel ON contr_rel.from_entity_id = e.id AND contr_rel.relation_type = 'contractor' AND contr_rel.deleted_at IS NULL
+  LEFT JOIN entities contr_ent ON contr_ent.id = contr_rel.to_entity_id
+  LEFT JOIN relations our_rel ON our_rel.from_entity_id = e.id AND our_rel.relation_type = 'our_entity' AND our_rel.deleted_at IS NULL
+  LEFT JOIN entities our_ent ON our_ent.id = our_rel.to_entity_id
   WHERE e.deleted_at IS NULL
 )
 SELECT
@@ -438,7 +454,7 @@ router.get('/drilldown', authenticate, asyncHandler(async (req, res) => {
       et.name    AS type_name,
       et.name_ru AS type_label,
       e.properties->>'contract_type'      AS contract_type,
-      e.properties->>'contractor_name'    AS contractor_name,
+      contr_ent.name                      AS contractor_name,
       e.properties->>'contract_amount'    AS contract_amount,
       e.properties->>'contract_date'      AS contract_date,
       e.properties->>'doc_status'         AS doc_status,
@@ -447,6 +463,8 @@ router.get('/drilldown', authenticate, asyncHandler(async (req, res) => {
       e.properties->>'equipment_kind'     AS equipment_kind
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id
+    LEFT JOIN relations contr_rel ON contr_rel.from_entity_id = e.id AND contr_rel.relation_type = 'contractor' AND contr_rel.deleted_at IS NULL
+    LEFT JOIN entities contr_ent ON contr_ent.id = contr_rel.to_entity_id
     WHERE e.id = ANY($1) AND e.deleted_at IS NULL
     ORDER BY et.name, e.name
   `, [all]);

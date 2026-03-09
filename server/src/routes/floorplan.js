@@ -54,14 +54,18 @@ router.get('/:id/room-status', authenticate, asyncH(async (req, res) => {
       r.to_entity_id  AS room_id,
       c.id            AS contract_id,
       c.name          AS contract_name,
-      c.properties->>'contractor_name' AS contractor_name,
-      c.properties->>'contractor_id'   AS contractor_id,
-      c.properties->>'subtenant_name'  AS subtenant_name,
-      c.properties->>'subtenant_id'    AS subtenant_id,
+      contr_ent.name  AS contractor_name,
+      contr_rel.to_entity_id AS contractor_id,
+      sub_ent.name    AS subtenant_name,
+      sub_rel.to_entity_id AS subtenant_id,
       c.properties->>'contract_type'   AS contract_type
     FROM relations r
     JOIN entities c ON c.id = r.from_entity_id
     JOIN entity_types cet ON cet.id = c.entity_type_id AND cet.name = 'contract'
+    LEFT JOIN relations contr_rel ON contr_rel.from_entity_id = c.id AND contr_rel.relation_type = 'contractor' AND contr_rel.deleted_at IS NULL
+    LEFT JOIN entities contr_ent ON contr_ent.id = contr_rel.to_entity_id
+    LEFT JOIN relations sub_rel ON sub_rel.from_entity_id = c.id AND sub_rel.relation_type = 'subtenant' AND sub_rel.deleted_at IS NULL
+    LEFT JOIN entities sub_ent ON sub_ent.id = sub_rel.to_entity_id
     WHERE r.to_entity_id = ANY($1::int[])
       AND r.relation_type = 'located_in'
       AND c.deleted_at IS NULL

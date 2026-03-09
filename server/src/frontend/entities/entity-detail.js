@@ -334,8 +334,7 @@ async function showEntity(id, _forceDetail) {
           html += '</div></div>';
           return;
         } else if (f.field_type === 'advances') {
-          var advances = [];
-          try { if (typeof val === 'string' && val) advances = JSON.parse(val); else if (Array.isArray(val)) advances = val; } catch(ex) {}
+          var advances = Array.isArray(val) ? val : [];
           html += '<div class="prop-item"><div class="prop-label">' + (f.name_ru || f.name) + '</div><div class="prop-value">';
           if (advances.length > 0) {
             advances.forEach(function(adv, i) {

@@ -35,7 +35,7 @@ router.get('/pivot', authenticate, asyncHandler(async (req, res) => {
 
     if (!val && props.rent_objects) {
       try {
-        const objs = typeof props.rent_objects === 'string' ? JSON.parse(props.rent_objects) : props.rent_objects;
+        const objs = Array.isArray(props.rent_objects) ? props.rent_objects : [];
         if (Array.isArray(objs)) {
           objs.forEach(obj => {
             const v = obj[groupBy];

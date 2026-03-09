@@ -467,16 +467,20 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     // Читаем договоры аренды из IndParkDocs (ИПЗ) + компании с odata_ref_key
     const contractsRes = await pool.query(`
       SELECT e.id, e.name,
-             e.properties->>'contractor_name' AS tenant,
-             e.properties->>'contractor_id'   AS contractor_entity_id,
+             contr_ent.name AS tenant,
+             contr_rel.to_entity_id AS contractor_entity_id,
              e.properties->>'contract_type'   AS ctype,
-             e.properties->>'rent_objects'     AS rent_objects_raw
+             NULL     AS rent_objects_raw
       FROM entities e
       JOIN entity_types et ON et.id = e.entity_type_id
+      LEFT JOIN relations contr_rel ON contr_rel.from_entity_id = e.id AND contr_rel.relation_type = 'contractor' AND contr_rel.deleted_at IS NULL
+      LEFT JOIN entities contr_ent ON contr_ent.id = contr_rel.to_entity_id
+      LEFT JOIN relations our_rel ON our_rel.from_entity_id = e.id AND our_rel.relation_type = 'our_entity' AND our_rel.deleted_at IS NULL
+      LEFT JOIN entities our_ent ON our_ent.id = our_rel.to_entity_id
       WHERE et.name = 'contract'
         AND e.properties->>'contract_type' IN ('Аренды','Субаренды')
-        AND (e.properties->>'our_legal_entity' ILIKE '%Индустриальный%'
-          OR e.properties->>'our_legal_entity' ILIKE '%ИПЗ%')
+        AND (our_ent.name ILIKE '%Индустриальный%'
+          OR our_ent.name ILIKE '%ИПЗ%')
     `);
     const contracts = contractsRes.rows;
 
@@ -492,6 +496,17 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
     for (const c of companiesRes.rows) {
       if (c.ref_key) companyByRefKey[c.ref_key] = c;
     }
+
+    // Pre-load rent_items for monthly plan calculation
+    const contractIds = contracts.map(c => c.id);
+    const riAllRes = contractIds.length
+      ? await pool.query('SELECT contract_id, area, rent_rate FROM rent_items WHERE contract_id = ANY($1)', [contractIds])
+      : { rows: [] };
+    const riByContract = {};
+    riAllRes.rows.forEach(ri => {
+      if (!riByContract[ri.contract_id]) riByContract[ri.contract_id] = [];
+      riByContract[ri.contract_id].push(ri);
+    });
 
     // Матчинг договоров по имени контрагента (fallback)
     function normalize(s) {
@@ -515,19 +530,12 @@ router.get('/budget/rent-drilldown', authenticate, async (req, res) => {
         const companyEntity = companyByRefKey[c.key] || null;
         const contract = contractByNorm[norm] || null;
 
-        // Ежемесячный план из rent_objects (если договор найден)
+        // Ежемесячный план из rent_items таблицы (если договор найден)
         let monthlyPlan = null;
-        if (contract && contract.rent_objects_raw) {
-          try {
-            const ro = JSON.parse(contract.rent_objects_raw);
-            if (Array.isArray(ro)) {
-              monthlyPlan = ro.reduce((s, obj) => {
-                const area = parseFloat(obj.area) || 0;
-                const rate = parseFloat(obj.rent_rate) || 0;
-                return s + area * rate;
-              }, 0);
-            }
-          } catch(e) {}
+        if (contract && riByContract[contract.id]) {
+          monthlyPlan = riByContract[contract.id].reduce((s, ri) => {
+            return s + (parseFloat(ri.area) || 0) * (parseFloat(ri.rent_rate) || 0);
+          }, 0);
         }
 
         const ytdMonths = pastMonths.map(pm => ({

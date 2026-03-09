@@ -3,12 +3,7 @@ module.exports = `
 // Subject-only version for new 3-section layout
 function renderRentSubjectOnly(container, allFields, props) {
   props = props || {};
-  var objects = [];
-  try {
-    var ro = props.rent_objects;
-    if (typeof ro === 'string' && ro) objects = JSON.parse(ro);
-    else if (Array.isArray(ro)) objects = ro;
-  } catch(e) {}
+  var objects = Array.isArray(props.rent_objects) ? props.rent_objects : [];
   if (objects.length === 0) objects = [{}];
   _rentObjectCounter = objects.length;
 
@@ -24,7 +19,7 @@ function renderRentSubjectOnly(container, allFields, props) {
   html += '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') + ' style="display:none">';
   if (hasTransfer) {
     var transferItems = [];
-    try { if (typeof props.equipment_list === 'string' && props.equipment_list) transferItems = JSON.parse(props.equipment_list); else if (Array.isArray(props.equipment_list)) transferItems = props.equipment_list; } catch(ex) {}
+    transferItems = Array.isArray(props.equipment_list) ? props.equipment_list : [];
     html += '<div class="form-group" style="margin-top:8px;border-left:3px solid var(--accent);padding-left:12px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><label style="font-weight:600">Передача оборудования</label>';
     html += '<button type="button" onclick="disableEquipmentTransfer()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer">\\u2715 Убрать</button></div>';
@@ -43,12 +38,7 @@ function renderRentFields(container, allFields, props) {
   var hasExtra = props.extra_services === 'true' || props.extra_services === true;
   var durationType = props.duration_type || '';
 
-  var objects = [];
-  try {
-    var ro = props.rent_objects;
-    if (typeof ro === 'string' && ro) objects = JSON.parse(ro);
-    else if (Array.isArray(ro)) objects = ro;
-  } catch(e) {}
+  var objects = Array.isArray(props.rent_objects) ? props.rent_objects : [];
   if (objects.length === 0) objects = [{}];
   _rentObjectCounter = objects.length;
 
@@ -99,11 +89,7 @@ function renderRentFields(container, allFields, props) {
   var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
   html += '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') + ' style="display:none">';
   if (hasTransfer) {
-    var transferItems = [];
-    try {
-      if (typeof props.equipment_list === 'string' && props.equipment_list) transferItems = JSON.parse(props.equipment_list);
-      else if (Array.isArray(props.equipment_list)) transferItems = props.equipment_list;
-    } catch(ex) {}
+    var transferItems = Array.isArray(props.equipment_list) ? props.equipment_list : [];
     html += '<div class="form-group" style="margin-top:8px;border-left:3px solid var(--accent);padding-left:12px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
     html += '<label style="font-weight:600">Передача оборудования</label>';
