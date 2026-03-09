@@ -66,7 +66,8 @@ async function showEntity(id, _forceDetail) {
   if (_isSupp && !_forceDetail) {
     var suppContentEl = document.getElementById('content');
     suppContentEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)">Загрузка...</div>';
-    if (e.parent_id && !e.parent) {
+    // Always load full parent (ancestry only has id/name, need properties)
+    if (e.parent_id) {
       try { e.parent = await api('/entities/' + e.parent_id); } catch(ex) {}
     }
     // Load equipment (from ДС or parent contract)
