@@ -75,7 +75,8 @@ function renderSupplementCard(supp) {
   // ── Общие поля (для всех типов, если заполнены в ДС) ──────────────────────
   var infoRows = [];
   if (sp.contract_date)    infoRows.push({ label: 'Дата подписания', val: _ccFmtDate(sp.contract_date) });
-  if (sp.contract_amount)  infoRows.push({ label: 'Сумма договора', val: _ccFmtNum(sp.contract_amount) + ' руб.' });
+  var _effAmount = sp.contract_amount || pp.contract_amount || '';
+  if (_effAmount) infoRows.push({ label: 'Сумма договора', val: _ccFmtNum(_effAmount) + ' \\u20BD' });
   var durStr = sp.contract_end_date
     ? ('до ' + _ccFmtDate(sp.contract_end_date))
     : (sp.duration_date ? ('до ' + _ccFmtDate(sp.duration_date)) : sp.duration_text || '');
@@ -97,16 +98,19 @@ function renderSupplementCard(supp) {
     h += '<div style="margin-bottom:12px;font-size:14px"><span style="color:var(--text-secondary)">Корпус:</span> ' + escapeHtml(sp.building) + '</div>';
   }
 
-  // ── Перечень работ / услуг / товаров (Подряда, Услуг, Купли-продажи) ───────
-  if (sp.contract_items) {
+  // ── Перечень работ / услуг / товаров (из ДС или из родительского договора) ──
+  var _ciRaw = sp.contract_items || (pp.contract_items || null);
+  var _ciSource = sp.contract_items ? null : (supp.parent ? supp.parent.name : null);
+  if (_ciRaw) {
     var contractItems = [];
-    if (Array.isArray(sp.contract_items)) contractItems = sp.contract_items;
-    else { try { contractItems = JSON.parse(sp.contract_items); } catch(ex) {} }
+    if (Array.isArray(_ciRaw)) contractItems = _ciRaw;
+    else { try { contractItems = JSON.parse(_ciRaw); } catch(ex) {} }
     if (contractItems.length > 0) {
       var isSale = (contractType === 'Купли-продажи');
       h += '<div style="margin-bottom:16px">';
       h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase">';
-      h += isSale ? 'Перечень товаров' : (contractType === 'Услуг' ? 'Перечень услуг' : 'Перечень работ');
+      h += isSale ? 'Перечень товаров' : (contractType === 'Услуг' ? 'Перечень услуг' : 'Перечень позиций');
+      if (_ciSource) h += ' <span style="font-weight:400;font-size:12px;text-transform:none">(из ' + escapeHtml(_ciSource) + ')</span>';
       h += '</div>';
       h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
       h += '<thead><tr style="background:#4F6BCC;color:#fff">';
@@ -134,6 +138,21 @@ function renderSupplementCard(supp) {
       }
       h += '</tbody></table></div>';
     }
+  }
+
+  // ── Переданное оборудование (collapsible) ──────────────────────────────────
+  var _eqList = supp._equipment || [];
+  if (_eqList.length > 0) {
+    var _eqFromP = supp._equipmentFromParent ? ' <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">(из договора)</span>' : '';
+    h += '<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+    h += '<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\x27none\\x27?\\x27block\\x27:\\x27none\\x27;this.querySelector(\\x27span:last-child\\x27).textContent=this.nextElementSibling.style.display===\\x27none\\x27?\\x27\\u25BC\\x27:\\x27\\u25B2\\x27" ';
+    h += 'style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;font-weight:600;font-size:14px;background:var(--bg-secondary)">';
+    h += '<span>Переданное оборудование (' + _eqList.length + ')' + _eqFromP + '</span><span>\\u25BC</span></div>';
+    h += '<div style="display:none;padding:8px 14px">';
+    _eqList.forEach(function(eq) {
+      h += '<div style="padding:4px 0;font-size:13px;border-bottom:1px solid var(--border)">' + escapeHtml(eq.name || eq) + '</div>';
+    });
+    h += '</div></div>';
   }
 
   // ── Условия аренды (Аренды / Субаренды) ────────────────────────────────────
@@ -271,6 +290,16 @@ async function openSupplementCard(id) {
     if (supp.parent_id && !supp.parent) {
       try { supp.parent = await api('/entities/' + supp.parent_id); } catch(ex) {}
     }
+    // Загружаем оборудование (из ДС или родительского договора)
+    try {
+      var eqRes = await api('/entities/' + supp.id + '/equipment');
+      supp._equipment = (eqRes && eqRes.equipment) ? eqRes.equipment : [];
+      if (!supp._equipment.length && supp.parent_id) {
+        var peqRes = await api('/entities/' + supp.parent_id + '/equipment');
+        supp._equipment = (peqRes && peqRes.equipment) ? peqRes.equipment : [];
+        supp._equipmentFromParent = true;
+      }
+    } catch(ex) { supp._equipment = []; }
 
     var cardHtml = renderSupplementCard(supp);
 
