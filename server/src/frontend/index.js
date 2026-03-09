@@ -39,7 +39,8 @@ const entityEdit    = require('./entities/entity-edit');
 const entityDelete  = require('./entities/entity-delete');
 const contractCard  = require('./entities/contract-card');
 const supplementCard = require('./entities/supplement-card');
-const actCard       = require('./entities/act-card');
+const actCard        = require('./entities/act-card');
+const equipmentCard  = require('./entities/equipment-card');
 const modal        = require('./modal');
 const navPage      = require('./pages/nav');
 const totpPage     = require('./pages/totp');
@@ -173,6 +174,8 @@ const FRONTEND_HTML =
   supplementCard +
   '\n' +
   actCard +
+  '\n' +
+  equipmentCard +
   '\n' +
   rentObjectsShared +
   '\n' +
