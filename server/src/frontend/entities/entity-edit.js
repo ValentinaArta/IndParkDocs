@@ -16,11 +16,46 @@ async function openEditModal(id) {
   const isContractLike = (e.type_name === 'contract' || e.type_name === 'supplement');
   _contractFormTypeName = e.type_name;
 
+  // Populate company IDs from typed relations (source of truth)
+  if (isContractLike && e.relations) {
+    e.relations.forEach(function(r) {
+      if (r.relation_type === 'contractor' && r.from_entity_id === e.id) {
+        props.contractor_id = String(r.to_entity_id);
+        if (!props.contractor_name) props.contractor_name = r.to_name || '';
+      }
+      if (r.relation_type === 'our_entity' && r.from_entity_id === e.id) {
+        props.our_legal_entity_id = String(r.to_entity_id);
+        if (!props.our_legal_entity) props.our_legal_entity = r.to_name || '';
+      }
+      if (r.relation_type === 'subtenant' && r.from_entity_id === e.id) {
+        props.subtenant_id = String(r.to_entity_id);
+        if (!props.subtenant_name) props.subtenant_name = r.to_name || '';
+      }
+    });
+  }
+
   // For supplements: inherit missing party fields + line items from parent contract
   if (e.type_name === 'supplement' && e.parent_id) {
     try {
       var parentEntity = await api('/entities/' + e.parent_id);
       var pp = parentEntity.properties || {};
+      // Populate parent company data from relations
+      if (parentEntity.relations) {
+        parentEntity.relations.forEach(function(r) {
+          if (r.relation_type === 'contractor' && r.from_entity_id === parentEntity.id) {
+            if (!pp.contractor_id) pp.contractor_id = String(r.to_entity_id);
+            if (!pp.contractor_name) pp.contractor_name = r.to_name || '';
+          }
+          if (r.relation_type === 'our_entity' && r.from_entity_id === parentEntity.id) {
+            if (!pp.our_legal_entity_id) pp.our_legal_entity_id = String(r.to_entity_id);
+            if (!pp.our_legal_entity) pp.our_legal_entity = r.to_name || '';
+          }
+          if (r.relation_type === 'subtenant' && r.from_entity_id === parentEntity.id) {
+            if (!pp.subtenant_id) pp.subtenant_id = String(r.to_entity_id);
+            if (!pp.subtenant_name) pp.subtenant_name = r.to_name || '';
+          }
+        });
+      }
       var inheritFields = ['our_legal_entity', 'our_legal_entity_id', 'our_role_label', 'contractor_name', 'contractor_id', 'contractor_role_label', 'subtenant_name', 'subtenant_id'];
       inheritFields.forEach(function(fn) { if (!props[fn] && pp[fn]) props[fn] = pp[fn]; });
       // Inherit line items from parent if supplement has none (pre-fill for editing)

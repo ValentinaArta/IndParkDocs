@@ -204,15 +204,27 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
      JOIN entity_types bet ON b.entity_type_id = bet.id
      WHERE r.to_entity_id = e.id AND r.relation_type = 'located_on'
        AND bet.name IN ('building') AND b.deleted_at IS NULL) as buildings_on_plot,
-    (SELECT c.properties->>'contractor_name'
-     FROM relations r JOIN entities c ON r.to_entity_id = c.id
+    (SELECT contr_eq.name
+     FROM relations r_eq JOIN entities c ON r_eq.to_entity_id = c.id
      JOIN entity_types ct ON c.entity_type_id = ct.id
-     WHERE r.from_entity_id = e.id AND r.relation_type = 'subject_of'
+     LEFT JOIN relations r_eq_contr ON r_eq_contr.from_entity_id = c.id AND r_eq_contr.relation_type = 'contractor' AND r_eq_contr.deleted_at IS NULL
+     LEFT JOIN entities contr_eq ON contr_eq.id = r_eq_contr.to_entity_id
+     WHERE r_eq.from_entity_id = e.id AND r_eq.relation_type = 'subject_of'
        AND ct.name = 'contract'
        AND c.properties->>'contract_type' IN ('Аренды','Субаренды')
        AND c.deleted_at IS NULL LIMIT 1) as equipment_tenant,
-    COALESCE(NULLIF(e.properties->>'our_legal_entity',''), p.properties->>'our_legal_entity') as effective_our_legal_entity,
-    COALESCE(NULLIF(e.properties->>'contractor_name',''), p.properties->>'contractor_name') as effective_contractor_name,
+    COALESCE(
+      (SELECT our_ent.name FROM relations r_our JOIN entities our_ent ON our_ent.id = r_our.to_entity_id
+       WHERE r_our.from_entity_id = e.id AND r_our.relation_type = 'our_entity' AND r_our.deleted_at IS NULL LIMIT 1),
+      (SELECT our_ent_p.name FROM relations r_our_p JOIN entities our_ent_p ON our_ent_p.id = r_our_p.to_entity_id
+       WHERE r_our_p.from_entity_id = e.parent_id AND r_our_p.relation_type = 'our_entity' AND r_our_p.deleted_at IS NULL LIMIT 1)
+    ) as effective_our_legal_entity,
+    COALESCE(
+      (SELECT contr.name FROM relations r_c JOIN entities contr ON contr.id = r_c.to_entity_id
+       WHERE r_c.from_entity_id = e.id AND r_c.relation_type = 'contractor' AND r_c.deleted_at IS NULL LIMIT 1),
+      (SELECT contr_p.name FROM relations r_cp JOIN entities contr_p ON contr_p.id = r_cp.to_entity_id
+       WHERE r_cp.from_entity_id = e.parent_id AND r_cp.relation_type = 'contractor' AND r_cp.deleted_at IS NULL LIMIT 1)
+    ) as effective_contractor_name,
     COALESCE(NULLIF(e.properties->>'contract_type',''), p.properties->>'contract_type') as effective_contract_type,
     (SELECT string_agg(loc.name, ', ' ORDER BY loc.name)
      FROM relations r
