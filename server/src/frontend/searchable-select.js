@@ -1,5 +1,24 @@
 module.exports = `var _srch1cStore = {};
 
+function _srchEqList() {
+  var bldMap = {};
+  (_buildings || []).forEach(function(b) { bldMap[b.id] = b.name; });
+  var eqMap = {};
+  (_equipment || []).forEach(function(e) { eqMap[e.id] = e.name; });
+  return (_equipment || []).map(function(e) {
+    var p = e.properties || {};
+    var inv = p.inv_number;
+    var parentEqId = parseInt(p.parent_equipment_id) || 0;
+    return {
+      id: e.id,
+      name: e.name + (inv ? ' (инв. ' + inv + ')' : ''),
+      category: p.equipment_category || 'Прочее',
+      buildingName: bldMap[e.parent_id] || '',
+      parentName: parentEqId ? (eqMap[parentEqId] || '') : ''
+    };
+  });
+}
+
 function renderSearchableSelect(id, entities, selectedId, selectedName, placeholder, fieldName) {
   var selId = parseInt(selectedId) || 0;
   var fn = fieldName || id.replace(/^f_/, '');
@@ -60,23 +79,7 @@ function _srchGetList(id) {
   var fn = document.querySelector('[data-srch-id="' + id + '"]').dataset.srchField;
   if (fn === 'our_legal_entity') return _ownCompanies || [];
   if (fn === 'balance_owner') return _ownCompanies || [];
-  if (fn === 'equipment_rent') return (_equipment || []).map(function(e) {
-    var p = e.properties || {};
-    var invNum = p.inv_number;
-    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : ''), category: p.equipment_category || 'Прочее' };
-  });
-  if (fn === 'eq_parent') return (_equipment || []).map(function(e) {
-    var p = e.properties || {};
-    var invNum = p.inv_number;
-    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : ''), category: p.equipment_category || 'Прочее' };
-  });
-  if (fn === 'meter_equipment') return (_equipment || []).map(function(e) {
-    var p = e.properties || {};
-    var cat = p.equipment_category || 'Прочее';
-    var inv = p.inv_number || '';
-    var suffix = inv ? 'инв. ' + inv : '';
-    return { id: e.id, name: e.name + (suffix ? ' (' + suffix + ')' : ''), category: cat };
-  });
+  if (fn === 'equipment_rent' || fn === 'eq_parent' || fn === 'meter_equipment' || fn === 'act_equipment') return _srchEqList();
   if (fn === 'rent_room') return (_rooms || []).map(function(r) {
     var bld = _getRoomBuilding(r);
     return { id: r.id, name: r.name + (bld ? ' (' + bld + ')' : '') };
@@ -95,11 +98,6 @@ function _srchGetList(id) {
     });
     return items;
   }
-  if (fn === 'act_equipment') return (_equipment || []).map(function(e) {
-    var p = e.properties || {};
-    var invNum = p.inv_number;
-    return { id: e.id, name: e.name + (invNum ? ' (инв. ' + invNum + ')' : ''), category: p.equipment_category || 'Прочее' };
-  });
   if (fn === 'building') return (_buildings || []).map(function(b) { return { id: b.id, name: b.name }; });
   if (fn === 'land_plot') return (_landPlots || []).map(function(lp) {
     return { id: lp.id, name: _lpLabel(lp) };
@@ -121,20 +119,41 @@ function _srchFilter(id) {
   var isGrouped = GROUPED_FIELDS.indexOf(fn) >= 0;
   var h = '';
   if (isGrouped && !q) {
-    // Grouped by category — no limit, category headers as dividers
+    // Tab-based grouping for equipment fields
+    var activeTab = dropEl.getAttribute('data-eq-tab') || 'category';
+    h += '<div class="srch-eq-tabs">';
+    h += '<button type="button" class="srch-eq-tab' + (activeTab === 'category' ? ' is-active' : '') + '" data-eq-tab-btn="category">По категории</button>';
+    h += '<button type="button" class="srch-eq-tab' + (activeTab === 'building' ? ' is-active' : '') + '" data-eq-tab-btn="building">По корпусу</button>';
+    h += '<button type="button" class="srch-eq-tab' + (activeTab === 'parent' ? ' is-active' : '') + '" data-eq-tab-btn="parent">По составу</button>';
+    h += '</div>';
     var groups = {};
     var groupOrder = [];
     filtered.forEach(function(e) {
-      var cat = e.category || 'Прочее';
-      if (!groups[cat]) { groups[cat] = []; groupOrder.push(cat); }
-      groups[cat].push(e);
+      var key = '';
+      if (activeTab === 'category') {
+        key = e.category || 'Прочее';
+      } else if (activeTab === 'building') {
+        var bld = e.buildingName || 'Без корпуса';
+        key = bld;
+      } else if (activeTab === 'parent') {
+        var pName = e.parentName || '';
+        key = pName || '— без родителя —';
+      }
+      if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+      groups[key].push(e);
     });
-    groupOrder.sort();
-    groupOrder.forEach(function(cat) {
-      h += '<div class="srch-group-hdr">' + escapeHtml(cat) + ' <span style="font-weight:400;opacity:0.7">(' + groups[cat].length + ')</span></div>';
-      groups[cat].forEach(function(e) {
+    groupOrder.sort(function(a, b) {
+      if (a === 'Прочее' || a === 'Без корпуса' || a === '— без родителя —') return 1;
+      if (b === 'Прочее' || b === 'Без корпуса' || b === '— без родителя —') return -1;
+      return a.localeCompare(b);
+    });
+    groupOrder.forEach(function(grp) {
+      h += '<div class="srch-group-hdr srch-group-toggle" data-srch-grp="collapsed">' + escapeHtml(grp) + ' <span style="font-weight:400;opacity:0.7">(' + groups[grp].length + ')</span></div>';
+      h += '<div class="srch-group-items" style="display:none">';
+      groups[grp].forEach(function(e) {
         h += '<div class="srch-item" data-srch-pick="' + e.id + '">' + escapeHtml(e.name) + '</div>';
       });
+      h += '</div>';
     });
   } else {
     filtered.slice(0, 80).forEach(function(e) {
@@ -156,6 +175,27 @@ function _srchFilter(id) {
   dropEl.onmousedown = function(ev) { ev.preventDefault(); };
   // Single delegated click handler (works on iOS Safari, Android, desktop)
   dropEl.onclick = function(ev) {
+    // Tab switching for equipment grouping
+    var tabBtn = ev.target.closest ? ev.target.closest('[data-eq-tab-btn]') : null;
+    if (tabBtn) {
+      ev.preventDefault(); ev.stopPropagation();
+      dropEl.setAttribute('data-eq-tab', tabBtn.getAttribute('data-eq-tab-btn'));
+      dropEl._lastQ = null;
+      _srchFilter(id);
+      return;
+    }
+    // Group toggle (expand/collapse)
+    var grpHdr = ev.target.closest ? ev.target.closest('.srch-group-toggle') : null;
+    if (grpHdr) {
+      ev.preventDefault(); ev.stopPropagation();
+      var items = grpHdr.nextElementSibling;
+      if (items && items.classList.contains('srch-group-items')) {
+        var isCollapsed = items.style.display === 'none';
+        items.style.display = isCollapsed ? '' : 'none';
+        grpHdr.setAttribute('data-srch-grp', isCollapsed ? 'expanded' : 'collapsed');
+      }
+      return;
+    }
     var item = ev.target.closest ? ev.target.closest('[data-srch-pick],[data-srch-new],[data-srch-1c-search],[data-srch-1c-pick]') : ev.target;
     if (!item) return;
     ev.preventDefault();
