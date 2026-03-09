@@ -368,12 +368,33 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
   // For equipment: expose part_of parent from relations
   let part_of_id = null;
   let part_of_name = null;
+  let equipment_contracts = [];
   if (entity.type_name === 'equipment') {
     const partOfRel = relations.find(r => r.from_entity_id === id && r.relation_type === 'part_of');
     if (partOfRel) { part_of_id = partOfRel.to_entity_id; part_of_name = partOfRel.to_name; }
+
+    // Load contracts via contract_equipment with contractor info
+    const { rows: eqContracts } = await pool.query(`
+      SELECT ce.contract_id, c.name as contract_name,
+             c.properties->>'contract_type' as contract_type,
+             c.properties->>'contract_date' as contract_date,
+             c.properties->>'doc_status' as doc_status,
+             ce.rent_cost,
+             contr.name as contractor_name, contr.id as contractor_id,
+             our.name as our_entity_name
+      FROM contract_equipment ce
+      JOIN entities c ON c.id = ce.contract_id AND c.deleted_at IS NULL
+      LEFT JOIN relations rc ON rc.from_entity_id = c.id AND rc.relation_type = 'contractor' AND rc.deleted_at IS NULL
+      LEFT JOIN entities contr ON contr.id = rc.to_entity_id
+      LEFT JOIN relations ro ON ro.from_entity_id = c.id AND ro.relation_type = 'our_entity' AND ro.deleted_at IS NULL
+      LEFT JOIN entities our ON our.id = ro.to_entity_id
+      WHERE ce.equipment_id = $1
+      ORDER BY c.properties->>'contract_date' DESC NULLS LAST
+    `, [id]);
+    equipment_contracts = eqContracts;
   }
 
-  res.json({ ...entity, children, relations, parent, ancestry, fields, part_of_id, part_of_name });
+  res.json({ ...entity, children, relations, parent, ancestry, fields, part_of_id, part_of_name, equipment_contracts });
 }));
 
 // Auto-create relations from entity properties (contract → company, building, etc.)
@@ -459,13 +480,7 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
             [entityId, parseInt(obj.room_id), 'located_in']
           ).catch(() => {});
         }
-        if (obj.equipment_id) {
-          // equipment → subject_of → contract
-          await pool.query(
-            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-            [parseInt(obj.equipment_id), entityId, 'subject_of']
-          ).catch(() => {});
-        }
+        // equipment↔contract now tracked via contract_equipment table only
       }
     }
   }
@@ -479,10 +494,7 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
       for (const item of eqItems) {
         if (item.equipment_id) {
           const eqId = parseInt(item.equipment_id);
-          await pool.query(
-            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-            [eqId, entityId, 'subject_of']
-          ).catch(() => {});
+          // equipment↔contract tracked via contract_equipment table (no subject_of)
           // Write back purchase_price to equipment card from sale contract
           if (isSaleContract && item.price != null && item.price !== '') {
             await pool.query(
@@ -554,17 +566,15 @@ router.get('/:id/equipment', authenticate, asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (!id || id < 1) return res.status(400).json({ error: 'Неверный ID' });
 
-  // Оборудование договора + всех его ДС (supplement_to)
+  // Оборудование договора + всех его ДС (supplement_to) — из contract_equipment
   const { rows } = await pool.query(`
     SELECT DISTINCT e.id, e.name, e.properties
-    FROM relations r
-    JOIN entities e ON e.id = r.from_entity_id
-    WHERE r.relation_type = 'subject_of'
-      AND e.entity_type_id = 6
-      AND (r.to_entity_id = $1
-        OR r.to_entity_id IN (
-          SELECT from_entity_id FROM relations WHERE to_entity_id = $1 AND relation_type = 'supplement_to'
-        ))
+    FROM contract_equipment ce
+    JOIN entities e ON e.id = ce.equipment_id AND e.deleted_at IS NULL
+    WHERE ce.contract_id = $1
+       OR ce.contract_id IN (
+         SELECT from_entity_id FROM relations WHERE to_entity_id = $1 AND relation_type = 'supplement_to' AND deleted_at IS NULL
+       )
     ORDER BY e.name
   `, [id]);
 

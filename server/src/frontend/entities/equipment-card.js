@@ -7,12 +7,21 @@ var _EQ_STATUS_STYLE = {
   'На ремонте':       { color: 'var(--warning)',     bg: 'rgba(234,179,8,.1)'  },
   'Законсервировано': { color: 'var(--text-muted)',  bg: 'var(--bg-secondary)' },
   'Списано':          { color: 'var(--danger)',       bg: 'rgba(239,68,68,.08)' },
+  'Аварийное':        { color: 'var(--danger)',       bg: 'rgba(239,68,68,.12)' },
+};
+
+var _EQ_CONTRACT_GROUPS = {
+  supplier:    { label: 'Поставщик',                types: ['Купли-продажи'],                                          icon: 'truck' },
+  tenant:      { label: 'Передано арендатору',       types: ['Аренды', 'Субаренды', 'Аренда оборудования'],              icon: 'key' },
+  maintenance: { label: 'Обслуживающая организация', types: ['ТО и ППР', 'Обслуживания', 'Услуг', 'Электроснабжения'],  icon: 'wrench' },
+  contractor:  { label: 'Подрядчик',                 types: ['Подряда', 'Работы/Подряда'],                               icon: 'hard-hat' },
 };
 
 function renderEquipmentCard(e) {
   var p = e.properties || {};
   var id = e.id;
   var rels = e.relations || [];
+  var eqContracts = e.equipment_contracts || [];
 
   var status   = p.status || '';
   var category = p.equipment_category || '';
@@ -32,25 +41,28 @@ function renderEquipmentCard(e) {
     return r.relation_type === 'part_of' && r.to_entity_id === id;
   });
 
-  // Contracts this equipment is used in
-  var contracts = rels.filter(function(r) {
-    return r.relation_type === 'subject_of' && r.from_entity_id === id && r.to_type_name === 'contract';
-  });
-
-  // Acts (work performed on this equipment)
+  // Acts (work performed on this equipment — via subject_of → act)
   var acts = rels.filter(function(r) {
     return r.relation_type === 'subject_of' && r.from_entity_id === id && r.to_type_name === 'act';
+  });
+
+  // Group equipment_contracts by role
+  var contractsByGroup = {};
+  eqContracts.forEach(function(c) {
+    var ct = c.contract_type || '';
+    var groupKey = 'other';
+    Object.keys(_EQ_CONTRACT_GROUPS).forEach(function(key) {
+      if (_EQ_CONTRACT_GROUPS[key].types.indexOf(ct) >= 0) groupKey = key;
+    });
+    if (!contractsByGroup[groupKey]) contractsByGroup[groupKey] = [];
+    contractsByGroup[groupKey].push(c);
   });
 
   var h = '<div style="max-width:860px">';
 
   // ── Header ─────────────────────────────────────────────────────────────────
   h += '<div style="margin-bottom:20px">';
-  h += '<div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:8px">';
-  h += '<h2 style="font-size:1.25rem;font-weight:700;margin:0;line-height:1.35;flex:1;min-width:0">' + escapeHtml(e.name) + '</h2>';
-  h += '</div>';
-
-  // Badges row
+  h += '<h2 style="font-size:1.25rem;font-weight:700;margin:0 0 8px;line-height:1.35">' + escapeHtml(e.name) + '</h2>';
   h += '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">';
   if (status) {
     h += '<span style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px'
@@ -76,7 +88,7 @@ function renderEquipmentCard(e) {
   if (serial)   infoRows.push(['Серийный номер',  escapeHtml(serial)]);
   if (year)     infoRows.push(['Год выпуска',     escapeHtml(year)]);
   if (mfr)      infoRows.push(['Производитель',   escapeHtml(mfr)]);
-  if (price !== null && !isNaN(price)) infoRows.push(['Стоимость',  _fmtNum(price) + ' \u20bd']);
+  if (price !== null && !isNaN(price)) infoRows.push(['Стоимость', _fmtNum(price) + ' \\u20bd']);
   if (balOwner) infoRows.push(['Балансодержатель', escapeHtml(balOwner)]);
   if (e.parent_name) infoRows.push(['Расположение', escapeHtml(e.parent_name)]);
   if (e.part_of_name) {
@@ -91,80 +103,61 @@ function renderEquipmentCard(e) {
     infoRows.forEach(function(row, i) {
       var isLast = i === infoRows.length - 1;
       var isOdd  = (infoRows.length % 2 !== 0) && isLast;
-      var borderB = isLast && !isOdd ? '' : ';border-bottom:1px solid var(--border)';
-      if (isOdd) {
-        // Odd last row — span full width
-        h += '<div style="display:flex;gap:8px;padding:9px 14px;grid-column:1/-1;background:' + (i%2===0?'var(--bg-primary)':'var(--bg-hover)') + borderB + '">'
-           + '<span style="font-size:12px;color:var(--text-muted);min-width:130px;flex-shrink:0">' + row[0] + '</span>'
-           + '<span style="font-size:13px;font-weight:500">' + row[1] + '</span>'
-           + '</div>';
-      } else {
-        h += '<div style="display:flex;gap:8px;padding:9px 14px;background:' + (i%2===0?'var(--bg-primary)':'var(--bg-hover)') + borderB + '">'
-           + '<span style="font-size:12px;color:var(--text-muted);min-width:110px;flex-shrink:0">' + row[0] + '</span>'
-           + '<span style="font-size:13px;font-weight:500">' + row[1] + '</span>'
-           + '</div>';
-      }
+      var bg = i % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-hover)';
+      var borderB = (isLast && !isOdd) || (isOdd) ? '' : ';border-bottom:1px solid var(--border)';
+      var span = isOdd ? ';grid-column:1/-1' : '';
+      h += '<div style="display:flex;gap:8px;padding:9px 14px;background:' + bg + borderB + span + '">'
+         + '<span style="font-size:12px;color:var(--text-muted);min-width:120px;flex-shrink:0">' + row[0] + '</span>'
+         + '<span style="font-size:13px;font-weight:500">' + row[1] + '</span>'
+         + '</div>';
     });
     h += '</div>';
   }
 
+  // ── Contract-based sections ────────────────────────────────────────────────
+  var groupOrder = ['supplier', 'tenant', 'maintenance', 'contractor', 'other'];
+  groupOrder.forEach(function(groupKey) {
+    var items = contractsByGroup[groupKey];
+    if (!items || !items.length) return;
+    var cfg = _EQ_CONTRACT_GROUPS[groupKey] || { label: 'Прочие договоры', icon: 'file-text' };
+    h += _renderEqContractSection(cfg.label, cfg.icon, items);
+  });
+
   // ── Components ─────────────────────────────────────────────────────────────
   if (components.length > 0) {
     h += '<div style="margin-bottom:20px">';
-    h += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Компоненты (' + components.length + ')</div>';
+    h += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">'
+       + '<i data-lucide="git-branch" class="lucide" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"></i>'
+       + 'Компоненты (' + components.length + ')</div>';
     h += '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">';
     components.forEach(function(r, i) {
-      var compSt = '';
       var borderB = i < components.length - 1 ? 'border-bottom:1px solid var(--border);' : '';
       h += '<div style="' + borderB + 'padding:8px 14px;display:flex;align-items:center;gap:10px">';
       h += '<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;display:inline-block"></span>';
       h += '<a href="#" data-eid="' + r.from_entity_id + '" onclick="showEntity(parseInt(this.dataset.eid));return false"'
          + ' style="font-size:13px;color:var(--accent);text-decoration:none">'
          + escapeHtml(r.from_name) + '</a>';
-      if (r.from_type_ru) h += '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">' + escapeHtml(r.from_type_ru) + '</span>';
       h += '</div>';
     });
-    h += '</div>';
-    h += '</div>';
+    h += '</div></div>';
   }
 
-  // ── Contracts ──────────────────────────────────────────────────────────────
-  if (contracts.length > 0) {
-    h += '<div style="margin-bottom:20px">';
-    h += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Договоры (' + contracts.length + ')</div>';
-    h += '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">';
-    contracts.forEach(function(r, i) {
-      var borderB = i < contracts.length - 1 ? 'border-bottom:1px solid var(--border);' : '';
-      h += '<div style="' + borderB + 'padding:8px 14px;display:flex;align-items:center;gap:10px">';
-      h += '<i data-lucide="file-text" class="lucide" style="width:14px;height:14px;color:var(--text-muted);flex-shrink:0"></i>';
-      h += '<a href="#" data-eid="' + r.to_entity_id + '" onclick="showEntity(parseInt(this.dataset.eid));return false"'
-         + ' style="font-size:13px;color:var(--accent);text-decoration:none">'
-         + escapeHtml(r.to_name) + '</a>';
-      h += '</div>';
-    });
-    h += '</div>';
-    h += '</div>';
-  }
-
-  // ── Acts (work history summary) ────────────────────────────────────────────
+  // ── Work history (acts) ────────────────────────────────────────────────────
   if (acts.length > 0) {
     h += '<div style="margin-bottom:20px">';
-    h += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Акты выполненных работ (' + acts.length + ')</div>';
+    h += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">'
+       + '<i data-lucide="clipboard-check" class="lucide" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"></i>'
+       + 'История работ (' + acts.length + ')</div>';
     h += '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">';
-    acts.slice(0, 5).forEach(function(r, i) {
-      var borderB = i < Math.min(acts.length, 5) - 1 ? 'border-bottom:1px solid var(--border);' : '';
+    acts.forEach(function(r, i) {
+      var borderB = i < acts.length - 1 ? 'border-bottom:1px solid var(--border);' : '';
       h += '<div style="' + borderB + 'padding:8px 14px;display:flex;align-items:center;gap:10px">';
-      h += '<i data-lucide="clipboard-check" class="lucide" style="width:14px;height:14px;color:var(--text-muted);flex-shrink:0"></i>';
       h += '<a href="#" data-eid="' + r.to_entity_id + '" onclick="showEntity(parseInt(this.dataset.eid));return false"'
-         + ' style="font-size:13px;color:var(--accent);text-decoration:none">'
+         + ' style="font-size:13px;color:var(--accent);text-decoration:none;flex:1">'
          + escapeHtml(r.to_name) + '</a>';
       h += '</div>';
     });
-    if (acts.length > 5) {
-      h += '<div style="padding:8px 14px;font-size:12px;color:var(--text-muted)">...ещё ' + (acts.length - 5) + '</div>';
-    }
-    h += '</div>';
-    h += '</div>';
+    h += '</div></div>';
   }
 
   // ── Note ───────────────────────────────────────────────────────────────────
@@ -175,7 +168,59 @@ function renderEquipmentCard(e) {
     h += '</div>';
   }
 
-  h += '</div>'; // max-width wrapper
+  h += '</div>';
+  return h;
+}
+
+// Helper: render a contract-group section
+function _renderEqContractSection(label, icon, items) {
+  var h = '<div style="margin-bottom:20px">';
+  h += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">'
+     + '<i data-lucide="' + icon + '" class="lucide" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"></i>'
+     + escapeHtml(label) + '</div>';
+  h += '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+
+  items.forEach(function(c, i) {
+    var borderB = i < items.length - 1 ? 'border-bottom:1px solid var(--border);' : '';
+    h += '<div style="' + borderB + 'padding:10px 14px">';
+
+    // Row 1: contractor name (big) + contract type badge
+    var company = c.contractor_name || c.our_entity_name || '';
+    if (company) {
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+      if (c.contractor_id) {
+        h += '<a href="#" data-eid="' + c.contractor_id + '" onclick="showEntity(parseInt(this.dataset.eid));return false"'
+           + ' style="font-size:14px;font-weight:600;color:var(--accent);text-decoration:none">'
+           + escapeHtml(company) + '</a>';
+      } else {
+        h += '<span style="font-size:14px;font-weight:600">' + escapeHtml(company) + '</span>';
+      }
+      if (c.contract_type) {
+        h += '<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--bg-secondary);color:var(--text-muted);border:1px solid var(--border)">'
+           + escapeHtml(c.contract_type) + '</span>';
+      }
+      h += '</div>';
+    }
+
+    // Row 2: contract link + date + status
+    h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+    h += '<a href="#" data-eid="' + c.contract_id + '" onclick="showEntity(parseInt(this.dataset.eid));return false"'
+       + ' style="font-size:13px;color:var(--accent);text-decoration:none">'
+       + escapeHtml(c.contract_name) + '</a>';
+    if (c.contract_date) {
+      h += '<span style="font-size:12px;color:var(--text-muted)">' + _ccFmtDate(c.contract_date) + '</span>';
+    }
+    if (c.doc_status) {
+      h += _docStatusBadge(c.doc_status);
+    }
+    if (c.rent_cost) {
+      h += '<span style="font-size:12px;font-weight:600;color:var(--text-primary)">' + _fmtNum(Number(c.rent_cost)) + ' \\u20bd</span>';
+    }
+    h += '</div>';
+    h += '</div>';
+  });
+
+  h += '</div></div>';
   return h;
 }
 `;

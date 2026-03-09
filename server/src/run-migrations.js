@@ -52,6 +52,7 @@ const migrations = {
   '048':         require('./migrations/048_backfill_part_of'),
   '049':         require('./migrations/049_charge_type'),
   '050':         require('./migrations/050_contract_payments'),
+  '051':         require('./migrations/051_unify_equipment_contracts'),
 };
 
 async function initMigrationTracker(pool) {
