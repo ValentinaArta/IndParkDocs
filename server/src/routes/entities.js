@@ -56,6 +56,14 @@ async function loadLineItems(pool, entityId, typeName) {
        ORDER BY ce.sort_order`, [entityId]
     );
     if (ceq.length) result.equipment_list = ceq;
+
+    // Payments from 1C (only for contracts, not supplements)
+    if (typeName === 'contract') {
+      const { rows: pay } = await pool.query(
+        'SELECT id, payment_date, amount, payment_number, purpose FROM contract_payments WHERE contract_id=$1 ORDER BY payment_date DESC', [entityId]
+      );
+      if (pay.length) result.payments = pay;
+    }
   }
 
   if (typeName === 'act') {
@@ -568,6 +576,25 @@ router.get('/:id/equipment', authenticate, asyncHandler(async (req, res) => {
     kind: (r.properties || {}).equipment_kind || '',
     status: (r.properties || {}).status || '',
   })));
+}));
+
+// GET /api/entities/:id/payments — история оплат из 1С
+router.get('/:id/payments', authenticate, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id || id < 1) return res.status(400).json({ error: 'Неверный ID' });
+
+  const { rows } = await pool.query(`
+    SELECT id, payment_date, amount, payment_number, purpose
+    FROM contract_payments
+    WHERE contract_id = $1
+    ORDER BY payment_date DESC
+  `, [id]);
+
+  const { rows: [{ total }] } = await pool.query(
+    'SELECT COALESCE(SUM(amount), 0) as total FROM contract_payments WHERE contract_id = $1', [id]
+  );
+
+  res.json({ payments: rows, total: parseFloat(total) });
 }));
 
 // POST /api/entities

@@ -349,6 +349,16 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     equipment_rent_items: enrichedRentItems,
     equipment_rent_source_name: eqRentSrc.fromSupp ? eqRentSrc.suppName : '',
     equipment_rent_monthly: rentItemsMonthly,
+    payments: await (async () => {
+      const { rows } = await pool.query(
+        'SELECT payment_date, amount, payment_number, purpose FROM contract_payments WHERE contract_id=$1 ORDER BY payment_date DESC', [contractId]);
+      return rows;
+    })(),
+    payments_total: await (async () => {
+      const { rows: [{ total }] } = await pool.query(
+        'SELECT COALESCE(SUM(amount), 0) as total FROM contract_payments WHERE contract_id=$1', [contractId]);
+      return parseFloat(total);
+    })(),
   });
 }));
 

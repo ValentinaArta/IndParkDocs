@@ -51,6 +51,7 @@ const migrations = {
   '047':         require('./migrations/047_equipment_relations'),
   '048':         require('./migrations/048_backfill_part_of'),
   '049':         require('./migrations/049_charge_type'),
+  '050':         require('./migrations/050_contract_payments'),
 };
 
 async function initMigrationTracker(pool) {

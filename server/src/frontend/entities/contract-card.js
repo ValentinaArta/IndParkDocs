@@ -354,6 +354,35 @@ function renderContractCard(data) {
     h += '</div></div>';
   }
 
+  // ── История оплат из 1С (collapsible) ─────────────────────────────────────
+  var _payments = data.payments || [];
+  if (_payments.length) {
+    var _payTotal = data.payments_total || 0;
+    h += '<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+    h += '<button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\\'none\\'?\\'\\':(\\'none\\')" style="width:100%;text-align:left;padding:10px 14px;background:var(--bg-secondary);border:none;cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between">';
+    h += '<span>История оплат · ' + _payments.length + ' платеж(ей) · ' + _ccFmtNum(_payTotal) + ' \\u20BD</span><span>▼</span>';
+    h += '</button>';
+    h += '<div style="display:none;padding:0">';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    h += '<thead><tr style="background:var(--bg-secondary)">';
+    h += '<th style="padding:6px 10px;text-align:left">Дата</th>';
+    h += '<th style="padding:6px 10px;text-align:left">№ п/п</th>';
+    h += '<th style="padding:6px 10px;text-align:right">Сумма</th>';
+    h += '<th style="padding:6px 10px;text-align:left">Назначение</th>';
+    h += '</tr></thead><tbody>';
+    _payments.forEach(function(p, i) {
+      var bg = i % 2 ? 'background:var(--bg-secondary)' : '';
+      h += '<tr style="' + bg + '">';
+      h += '<td style="padding:5px 10px;border-bottom:1px solid var(--border);white-space:nowrap">' + (p.payment_date ? _ccFmtDate(p.payment_date) : '—') + '</td>';
+      h += '<td style="padding:5px 10px;border-bottom:1px solid var(--border)">' + escapeHtml(p.payment_number || '') + '</td>';
+      h += '<td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:500;white-space:nowrap">' + _ccFmtNum(parseFloat(p.amount) || 0) + ' \\u20BD</td>';
+      h += '<td style="padding:5px 10px;border-bottom:1px solid var(--border);color:var(--text-secondary);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(p.purpose || '') + '">' + escapeHtml((p.purpose || '').substring(0, 80)) + '</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    h += '</div></div>';
+  }
+
   // Кнопки
   h += '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">';
   h += '<button class="btn btn-sm btn-primary" onclick="openCreateSupplementModal(' + data.id + ')">+ Доп. соглашение</button>';
