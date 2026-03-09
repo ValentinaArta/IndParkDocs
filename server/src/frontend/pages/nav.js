@@ -142,6 +142,7 @@ function _routeFromHash(hash) {
   if (hash === '#zachety')      { showLegalZachety(); return; }
   if (hash === '#letters')      { showLetters();       return; }
   if (hash === '#fire-safety')  { showFireSafety();    return; }
+  if (hash === '#project-2vvod') { showProject2Vvod(); return; }
   if (hash === '#ai-sandbox')   { showAISandbox();     return; }
   if (hash === '#meters')       { showMetersPage();    return; }
   if (hash === '#contract-types') { showSettings('contract-types'); return; }

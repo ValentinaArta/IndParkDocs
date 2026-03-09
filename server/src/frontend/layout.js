@@ -46,7 +46,10 @@ module.exports = `</head>
       <div class="nav-item" data-type="ai-sandbox" onclick="showAISandbox()">
         <i data-lucide="sparkles" class="lucide"></i> AI Песочница
       </div>
-      <div class="nav-section" style="margin-top:12px">Суды и пр.</div>
+      <div class="nav-section" style="margin-top:12px">Проекты</div>
+      <div class="nav-item" data-type="project-2vvod" onclick="showProject2Vvod()">
+        <i data-lucide="zap" class="lucide"></i> 2й ввод
+      </div>
       <div class="nav-item" onclick="showLegalZachety()">
         <i data-lucide="scale" class="lucide"></i> Зачёты с ПАО
       </div>
