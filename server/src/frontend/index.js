@@ -55,6 +55,7 @@ const buildingFloorPlan = require('./pages/building-floor-plan');
 const lettersPage       = require('./pages/letters-page');
 const equipmentTreePage = require('./pages/equipment-tree');
 const fireSafetyPage    = require('./pages/fire-safety-page');
+const contractTypesPage = require('./pages/contract-types-page');
 const aiSandboxPage     = require('./pages/ai-sandbox-page');
 const rentObjectsShared = require('./rent-objects/shared');
 const rentObjectsRoom = require('./rent-objects/room-block');
@@ -150,6 +151,7 @@ const FRONTEND_HTML =
   equipmentTreePage +
   '\n' +
   fireSafetyPage +
+  contractTypesPage +
   '\n' +
   aiSandboxPage +
   '\n' +
