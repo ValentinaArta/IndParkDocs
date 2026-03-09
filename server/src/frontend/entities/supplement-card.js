@@ -90,12 +90,13 @@ function renderSupplementCard(supp) {
   }
 
   // ── Предмет / корпус (Подряда, Услуг, Обслуживания, Купли-продажи) ─────────
-  var subject = sp.subject || sp.service_subject || '';
+  var subject = sp.subject || sp.service_subject || pp.subject || pp.service_subject || '';
   if (subject) {
     h += '<div style="margin-bottom:12px;font-size:14px"><span style="color:var(--text-secondary)">Предмет:</span> ' + escapeHtml(subject) + '</div>';
   }
-  if (sp.building) {
-    h += '<div style="margin-bottom:12px;font-size:14px"><span style="color:var(--text-secondary)">Корпус:</span> ' + escapeHtml(sp.building) + '</div>';
+  var _building = sp.building || pp.building || '';
+  if (_building) {
+    h += '<div style="margin-bottom:12px;font-size:14px"><span style="color:var(--text-secondary)">Корпус:</span> ' + escapeHtml(_building) + '</div>';
   }
 
   // ── Перечень работ / услуг / товаров (из ДС или из родительского договора) ──

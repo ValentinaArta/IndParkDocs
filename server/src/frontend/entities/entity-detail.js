@@ -69,6 +69,16 @@ async function showEntity(id, _forceDetail) {
     if (e.parent_id && !e.parent) {
       try { e.parent = await api('/entities/' + e.parent_id); } catch(ex) {}
     }
+    // Load equipment (from ДС or parent contract)
+    try {
+      var eqRes = await api('/entities/' + id + '/equipment');
+      e._equipment = (eqRes && eqRes.equipment) ? eqRes.equipment : [];
+      if (!e._equipment.length && e.parent_id) {
+        var peqRes = await api('/entities/' + e.parent_id + '/equipment');
+        e._equipment = (peqRes && peqRes.equipment) ? peqRes.equipment : [];
+        e._equipmentFromParent = true;
+      }
+    } catch(ex) { e._equipment = []; }
     suppContentEl.innerHTML = '<div style="max-width:860px;padding:8px 0">' + renderSupplementCard(e) + renderFilesSection(id) + '</div>';
     loadEntityFiles(id);
     return;
