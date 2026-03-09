@@ -203,6 +203,79 @@ async function saveLineItems(pool, entityId, typeName, props) {
   }
 }
 
+/**
+ * For supplements: if no rows exist in a normalized table after save,
+ * inherit (copy) rows from the effective source (latest earlier supplement with rows, or parent contract).
+ */
+async function inheritLineItemsIfEmpty(pool, entityId, parentContractId) {
+  const tables = [
+    { table: 'contract_line_items', fk: 'contract_id',
+      cols: 'name,unit,quantity,price,amount,sort_order,charge_type,payment_date,frequency', hasEqLinks: true },
+    { table: 'rent_items', fk: 'contract_id',
+      cols: 'entity_id,object_type,area,rent_rate,net_rate,utility_rate,calc_mode,comment,sort_order' },
+    { table: 'contract_equipment', fk: 'contract_id',
+      cols: 'equipment_id,rent_cost,sort_order' },
+  ];
+
+  for (const tbl of tables) {
+    const { rows: [cnt] } = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM ${tbl.table} WHERE ${tbl.fk} = $1`, [entityId]
+    );
+    if (cnt.c > 0) continue; // has own rows, skip
+
+    // Find effective source: latest supplement (before this one) with rows, or contract
+    const { rows: srcRows } = await pool.query(`
+      WITH eff AS (
+        SELECT s.id FROM entities s
+        JOIN entity_types et ON et.id = s.entity_type_id AND et.name = 'supplement'
+        WHERE s.parent_id = $1 AND s.deleted_at IS NULL AND s.id != $2
+          AND EXISTS (SELECT 1 FROM ${tbl.table} t WHERE t.${tbl.fk} = s.id)
+        ORDER BY s.properties->>'contract_date' DESC NULLS LAST, s.id DESC
+        LIMIT 1
+      )
+      SELECT ${tbl.cols} FROM ${tbl.table}
+      WHERE ${tbl.fk} = COALESCE((SELECT id FROM eff), $1)
+      ORDER BY sort_order
+    `, [parentContractId, entityId]);
+
+    if (srcRows.length === 0) continue;
+
+    const colArr = tbl.cols.split(',');
+    for (const row of srcRows) {
+      const vals = colArr.map(c => row[c]);
+      const placeholders = colArr.map((_, i) => `$${i + 2}`).join(',');
+      const { rows: [inserted] } = await pool.query(
+        `INSERT INTO ${tbl.table} (${tbl.fk},${tbl.cols}) VALUES ($1,${placeholders}) RETURNING id`,
+        [entityId, ...vals]
+      );
+
+      // Copy cli_equipment_links for contract_line_items
+      if (tbl.hasEqLinks && inserted) {
+        const effSrcId = await pool.query(`
+          SELECT COALESCE(
+            (SELECT s.id FROM entities s JOIN entity_types et ON et.id = s.entity_type_id AND et.name = 'supplement'
+             WHERE s.parent_id = $1 AND s.deleted_at IS NULL AND s.id != $2
+               AND EXISTS (SELECT 1 FROM contract_line_items t WHERE t.contract_id = s.id)
+             ORDER BY s.properties->>'contract_date' DESC NULLS LAST, s.id DESC LIMIT 1),
+            $1) AS src_id
+        `, [parentContractId, entityId]);
+        const srcId = effSrcId.rows[0].src_id;
+        const { rows: eqLinks } = await pool.query(`
+          SELECT cel.equipment_id FROM cli_equipment_links cel
+          JOIN contract_line_items src ON src.id = cel.cli_id
+          WHERE src.contract_id = $1 AND src.name = $2 AND src.sort_order = $3
+        `, [srcId, row.name, row.sort_order]);
+        for (const sl of eqLinks) {
+          await pool.query(
+            `INSERT INTO cli_equipment_links (cli_id, equipment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [inserted.id, sl.equipment_id]
+          );
+        }
+      }
+    }
+  }
+}
+
 // GET /api/entities
 router.get('/', authenticate, asyncHandler(async (req, res) => {
   const { type, parent_id, search, limit = 50, offset = 0 } = req.query;
@@ -661,6 +734,10 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
     await autoLinkEntities(rows[0].id, typeInfo.name, cleanProps);
     if (typeInfo.name === 'contract') await computeAndSaveVgo(rows[0].id, cleanProps, pool);
     await saveLineItems(pool, rows[0].id, typeInfo.name, cleanProps);
+    // Supplements: inherit line items from effective source if none were saved
+    if (typeInfo.name === 'supplement' && parent_id) {
+      await inheritLineItemsIfEmpty(pool, rows[0].id, parent_id);
+    }
   }
 
   res.status(201).json(rows[0]);
@@ -717,6 +794,11 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
       await autoLinkEntities(id, typeInfo.name, cleanProps);
       if (typeInfo.name === 'contract') await computeAndSaveVgo(id, cleanProps, pool);
       await saveLineItems(pool, id, typeInfo.name, cleanProps);
+      // Supplements: inherit line items from effective source if none were saved
+      if (typeInfo.name === 'supplement') {
+        const parentId = rows[0].parent_id || parent_id;
+        if (parentId) await inheritLineItemsIfEmpty(pool, id, parentId);
+      }
       // Sync part_of relation when parent_equipment_id changes
       if (typeInfo.name === 'equipment') {
         const newParentEqId = parseInt(cleanProps.parent_equipment_id) || null;
