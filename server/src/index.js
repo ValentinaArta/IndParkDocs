@@ -65,7 +65,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Frontend SPA
 const FRONTEND_HTML = require('./frontend/index');
-app.get('/', (req, res) => { res.type('html').send(FRONTEND_HTML); });
+app.get('/', (req, res) => { res.set('Cache-Control', 'no-cache, no-store, must-revalidate').type('html').send(FRONTEND_HTML); });
 app.get('/finance', (req, res) => { res.sendFile(path.join(__dirname, 'finance-dashboard.html')); });
 app.get('/budget',  (req, res) => { res.sendFile(path.join(__dirname, 'budget-dashboard.html')); });
 app.get('/chart.min.js', (req, res) => { res.type('application/javascript').sendFile(path.join(__dirname, 'chart.min.js')); });
@@ -89,7 +89,7 @@ app.use('/api/buildings',       require('./routes/floorplan'));
 app.use('/api',                 require('./routes/letters'));
 
 // SPA fallback
-app.get('*', (req, res) => { res.type('html').send(FRONTEND_HTML); });
+app.get('*', (req, res) => { res.set('Cache-Control', 'no-cache, no-store, must-revalidate').type('html').send(FRONTEND_HTML); });
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
