@@ -124,7 +124,7 @@ function renderContractCard(data) {
     var _ciExtra = data.contract_items.filter(function(it) { return it.charge_type === 'Доп. услуги'; });
     var _hasQty = data.contract_items[0].qty !== undefined;
 
-    function _ccRenderItemsTable(items, label, extraCols) {
+    function _ccRenderItemsTable(items, label, extraCols, showTotal) {
       if (!items.length) return '';
       var hh = '<div style="margin-bottom:12px">';
       var _srcLabel = data.cli_source_name ? ' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(из ' + escapeHtml(data.cli_source_name) + ')</span>' : '';

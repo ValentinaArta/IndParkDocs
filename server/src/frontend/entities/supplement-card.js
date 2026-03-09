@@ -113,7 +113,7 @@ function renderSupplementCard(supp) {
       var _scExtra = contractItems.filter(function(ci) { return ci.charge_type === 'Доп. услуги'; });
       var _srcTxt = _ciSource ? ' <span style="font-weight:400;font-size:12px;text-transform:none">(из ' + escapeHtml(_ciSource) + ')</span>' : '';
 
-      function _scTable(items, label, extraCol) {
+      function _scTable(items, label, extraCol, showTotal) {
         if (!items.length) return '';
         var hh = '<div style="margin-bottom:12px">';
         hh += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:6px;text-transform:uppercase">' + label + _srcTxt + '</div>';
@@ -132,7 +132,7 @@ function renderSupplementCard(supp) {
           if (ci._extraTd) hh += ci._extraTd;
           hh += '</tr>';
         });
-        if (total > 0) {
+        if (showTotal !== false && total > 0) {
           var cs = extraCol ? 2 : 1;
           hh += '<tr style="font-weight:600"><td style="padding:6px 10px">Итого</td><td colspan="' + cs + '" style="padding:6px 10px;text-align:right">' + _ccFmtNum(total) + ' руб.</td></tr>';
         }
@@ -149,7 +149,7 @@ function renderSupplementCard(supp) {
         var pd = ci.payment_date || '';
         ci._extraTd = '<td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;color:' + (pd ? 'var(--text-secondary)' : '#dc2626') + '">' + (pd ? escapeHtml(pd) : '\\u2014') + '</td>';
       });
-      h += _scTable(_scOneTime, 'Разовые работы/услуги', '<th style="padding:7px 10px;text-align:left;border-radius:0 4px 0 0">Дата оплаты</th>');
+      h += _scTable(_scOneTime, 'Разовые работы/услуги', '<th style="padding:7px 10px;text-align:left;border-radius:0 4px 0 0">Дата оплаты</th>', false);
 
       if (_scExtra.length) {
         h += '<div style="margin-bottom:12px"><div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">ДОП. УСЛУГИ <span style="font-size:11px;font-weight:400">(справочно)</span></div>';
