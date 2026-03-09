@@ -287,11 +287,13 @@ async function _doSubmitCreateSupplement(parentContractId) {
   delete properties.our_legal_entity_id;
   delete properties.our_role_label;
   delete properties.contractor_role_label;
-  // Keep contractor_name/id for display in lists and name generation
+  // Keep contractor_name for name generation — resolve from parent's typed relations
   if (!properties.contractor_name) {
     var _parentE = await api('/entities/' + parentContractId);
-    var _pp = _parentE.properties || {};
-    if (_pp.contractor_name) { properties.contractor_name = _pp.contractor_name; properties.contractor_id = _pp.contractor_id || ''; }
+    var _ppRels = _parentE.relations || [];
+    _ppRels.forEach(function(r) {
+      if (r.relation_type === 'contractor') { properties.contractor_name = r.to_name || ''; properties.contractor_id = String(r.to_entity_id); }
+    });
   }
 
   const num = properties.number || '?';

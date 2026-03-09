@@ -531,6 +531,23 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
     { prop: 'subtenant_id', relType: 'subtenant' },
   ];
 
+  // For supplements: if no company IDs in properties, inherit from parent contract
+  if (entityTypeName === 'supplement') {
+    const { rows: [suppMeta] } = await pool.query('SELECT parent_id FROM entities WHERE id = $1', [entityId]);
+    if (suppMeta && suppMeta.parent_id) {
+      for (const link of linkMap) {
+        if (!parseInt(properties[link.prop])) {
+          const { rows: [parentRel] } = await pool.query(
+            `SELECT to_entity_id FROM relations WHERE from_entity_id = $1 AND relation_type = $2 AND deleted_at IS NULL LIMIT 1`,
+            [suppMeta.parent_id, link.relType]);
+          if (parentRel) {
+            properties[link.prop] = String(parentRel.to_entity_id);
+          }
+        }
+      }
+    }
+  }
+
   for (const link of linkMap) {
     const targetId = parseInt(properties[link.prop]);
     if (!targetId) continue;

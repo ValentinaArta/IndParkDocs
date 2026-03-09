@@ -58,6 +58,7 @@ const migrations = {
   '053':         require('./migrations/053_cli_equipment_id'),
   '054':         require('./migrations/054_cli_equipment_links'),
   '055':         require('./migrations/055_supplement_inherit_lines'),
+  '056':         require('./migrations/056_supplement_inherit_relations'),
   '053':         require('./migrations/053_line_item_charge_types'),
 };
 
