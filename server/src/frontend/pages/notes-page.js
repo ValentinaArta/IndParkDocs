@@ -59,7 +59,7 @@ function _noteRenderList() {
 
 async function _noteCreate() {
   try {
-    var note = await api("/notes", "POST", { title: "Новая заметка", content_json: [{ type: "text", value: "" }] });
+    var note = await api("/notes", { method: "POST", body: JSON.stringify({ title: "Новая заметка", content_json: [{ type: "text", value: "" }] }) });
     _notesListCache.unshift({ id: note.id, title: note.title, updated_at: note.updated_at });
     _noteRenderList();
     _noteOpen(note.id);
@@ -319,7 +319,7 @@ async function _noteSaveNow() {
   var ind = document.getElementById("noteSaveIndicator");
   if (ind) { ind.textContent = "Сохранение..."; ind.style.display = "block"; }
   try {
-    await api("/notes/" + _currentNoteId, "PUT", { title: title, content_json: _noteBlocks });
+    await api("/notes/" + _currentNoteId, { method: "PUT", body: JSON.stringify({ title: title, content_json: _noteBlocks }) });
     // Update cache
     var cached = _notesListCache.find(function(n) { return n.id === _currentNoteId; });
     if (cached) { cached.title = title; cached.updated_at = new Date().toISOString(); }
@@ -335,7 +335,7 @@ async function _noteDelete() {
   if (!_currentNoteId) return;
   if (!confirm("Удалить заметку?")) return;
   try {
-    await api("/notes/" + _currentNoteId, "DELETE");
+    await api("/notes/" + _currentNoteId, { method: "DELETE" });
     _notesListCache = _notesListCache.filter(function(n) { return n.id !== _currentNoteId; });
     _currentNoteId = null;
     _noteBlocks = [];
