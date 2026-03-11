@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, ArrowLeft, Trash2, Loader2 } from 'lucide-react';
+import { Save, ArrowLeft, Trash2, Loader2, ArrowRightLeft } from 'lucide-react';
 import {
   useEntity, useEntityTypes, useFieldDefinitions,
   useCreateEntity, useUpdateEntity, useDeleteEntity,
@@ -8,6 +8,7 @@ import {
 import { FieldInput } from '../components/form/FieldInput';
 import { EntitySearch } from '../components/form/EntitySearch';
 import { TYPE_TITLES } from '../utils/entities';
+import type { FieldDefinition } from '../api/types';
 
 export function EntityFormPage() {
   const { type, id } = useParams<{ type: string; id?: string }>();
@@ -178,15 +179,19 @@ export function EntityFormPage() {
           </div>
         )}
 
-        {/* Dynamic fields */}
-        {fields.map((f) => (
-          <FieldInput
-            key={f.id}
-            field={f}
-            value={properties[f.name]}
-            onChange={handleFieldChange}
-          />
-        ))}
+        {/* Dynamic fields — contract/supplement get grouped layout */}
+        {(type === 'contract' || type === 'supplement') ? (
+          <ContractFieldsLayout fields={fields} properties={properties} onChange={handleFieldChange} />
+        ) : (
+          fields.map((f) => (
+            <FieldInput
+              key={f.id}
+              field={f}
+              value={properties[f.name]}
+              onChange={handleFieldChange}
+            />
+          ))
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-3 pt-4 border-t">
@@ -243,5 +248,113 @@ export function EntityFormPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+/* ---- Section wrapper ---- */
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+/* ---- Two-column row ---- */
+function Row2({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-2 gap-4">{children}</div>;
+}
+
+/* ---- Contract-specific grouped layout ---- */
+function ContractFieldsLayout({
+  fields, properties, onChange,
+}: {
+  fields: FieldDefinition[];
+  properties: Record<string, unknown>;
+  onChange: (name: string, value: unknown) => void;
+}) {
+  const byName = Object.fromEntries(fields.map((f) => [f.name, f]));
+  const renderField = (name: string) => {
+    const f = byName[name];
+    if (!f) return null;
+    return <FieldInput key={f.id} field={f} value={properties[f.name]} onChange={onChange} />;
+  };
+
+  // Swap our/contractor roles + entities
+  function handleSwap() {
+    const ourRole = properties.our_role_label;
+    const ourEntity = properties.our_legal_entity;
+    const contrRole = properties.contractor_role_label;
+    const contrEntity = properties.contractor_name;
+    onChange('our_role_label', contrRole || '');
+    onChange('our_legal_entity', contrEntity || '');
+    onChange('contractor_role_label', ourRole || '');
+    onChange('contractor_name', ourEntity || '');
+  }
+
+  // Collect remaining fields not in any section
+  const sectionFields = new Set([
+    'contract_type', 'number', 'contract_date', 'doc_status',
+    'our_role_label', 'our_legal_entity', 'contractor_role_label', 'contractor_name', 'subtenant_name',
+    'vat_rate',
+  ]);
+  const otherFields = fields.filter((f) => !sectionFields.has(f.name));
+
+  return (
+    <>
+      {/* РЕКВИЗИТЫ */}
+      <FormSection title="Реквизиты договора">
+        {renderField('contract_type')}
+        <Row2>
+          {renderField('number')}
+          {renderField('contract_date')}
+        </Row2>
+        {renderField('doc_status')}
+      </FormSection>
+
+      {/* СТОРОНЫ */}
+      <FormSection title="Стороны">
+        <div className="space-y-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Row2>
+                {renderField('our_role_label')}
+                {renderField('our_legal_entity')}
+              </Row2>
+            </div>
+            <button
+              type="button"
+              onClick={handleSwap}
+              title="Поменять местами"
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-gray-600 mb-0.5"
+            >
+              <ArrowRightLeft size={16} />
+            </button>
+          </div>
+          <Row2>
+            {renderField('contractor_role_label')}
+            {renderField('contractor_name')}
+          </Row2>
+          {renderField('subtenant_name')}
+        </div>
+      </FormSection>
+
+      {/* УСЛОВИЯ ОПЛАТЫ */}
+      {byName['vat_rate'] && (
+        <FormSection title="Условия оплаты">
+          {renderField('vat_rate')}
+        </FormSection>
+      )}
+
+      {/* Остальные поля (если есть) */}
+      {otherFields.length > 0 && (
+        <FormSection title="Дополнительно">
+          {otherFields.map((f) => (
+            <FieldInput key={f.id} field={f} value={properties[f.name]} onChange={onChange} />
+          ))}
+        </FormSection>
+      )}
+    </>
   );
 }
