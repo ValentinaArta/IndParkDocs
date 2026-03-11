@@ -144,7 +144,7 @@ function NavGroupDynamic({ icon, label, basePath, type, allLabel }: { icon: Reac
                 className={`w-full text-left text-xs px-3 py-1.5 pl-7 rounded-lg transition-colors truncate
                   ${active ? 'text-white font-medium' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
               >
-                · {e.properties?.short_name || e.name}
+                · {e.name}
               </button>
             );
           })}
