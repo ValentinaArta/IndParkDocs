@@ -80,6 +80,38 @@ export function EntityFormPage() {
         const val = pc[cardKey] || pp[propKey];
         if (val && !properties[propKey]) inherited[propKey] = val;
       }
+      // Inherit effective rent_objects from rent_rows
+      const rentRows = pc.rent_rows as Array<Record<string, unknown>> | undefined;
+      if (rentRows?.length && !properties.rent_objects) {
+        inherited.rent_objects = rentRows.map((r, i) => ({
+          entity_id: r.entity_id || null,
+          entity_name: r.room_name || '',
+          object_type: r.object_type || 'room',
+          area: String(r.area || ''),
+          rent_rate: String(r.rate || ''),
+          net_rate: '', utility_rate: '',
+          calc_mode: 'area_rate',
+          comment: '', sort_order: i,
+        }));
+      }
+
+      // Inherit equipment_list
+      const eqList = pc.equipment_list as Array<Record<string, unknown>> | undefined;
+      if (eqList?.length && !properties.equipment_list) {
+        inherited.equipment_list = eqList.map((eq) => ({
+          equipment_id: eq.id || eq.equipment_id,
+          equipment_name: eq.name || eq.equipment_name || '',
+          inv_number: eq.inv_number || '',
+          equipment_category: eq.category || eq.equipment_category || '',
+        }));
+      }
+
+      // Inherit contract_items
+      const cItems = pc.contract_items as Array<Record<string, unknown>> | undefined;
+      if (cItems?.length && !properties.contract_items) {
+        inherited.contract_items = cItems;
+      }
+
       if (Object.keys(inherited).length > 0) {
         setProperties(prev => ({ ...inherited, ...prev }));
       }

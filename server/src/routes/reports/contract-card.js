@@ -160,10 +160,11 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     const rate = parseFloat(ri.rent_rate) || 0;
     const isLandPlot = ri.object_type === 'land_plot' || ri.object_type === 'land_plot_part';
     return {
+      entity_id: ri.entity_id || null,
       room_name: ri.entity_name || '',
       description: '',
       area, rate, monthly: area * rate,
-      object_type: ri.ent_object_type || (isLandPlot ? 'Земельный участок' : '') || '',
+      object_type: ri.object_type || (isLandPlot ? 'land_plot' : 'room'),
     };
   });
   const totalMonthly = rentRows.reduce((s, r) => s + r.monthly, 0);

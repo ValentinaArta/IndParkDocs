@@ -337,10 +337,24 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
           />
         </FormSection>
 
-      {/* Остальные поля (changes_description etc.) — не для аренды/субаренды */}
-      {!isRental && otherFields.length > 0 && (
+      {/* changes_description — always show for supplements */}
+      {otherFields.filter(f => f.name === 'changes_description').map((f) => (
+        <div key={f.id}>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{f.name_ru || f.name}</label>
+          <textarea
+            value={(properties[f.name] as string) || ''}
+            onChange={(e) => onChange(f.name, e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2 border rounded-lg text-sm"
+            placeholder="Что изменилось..."
+          />
+        </div>
+      ))}
+
+      {/* Остальные поля — не для аренды/субаренды */}
+      {!isRental && otherFields.filter(f => f.name !== 'changes_description').length > 0 && (
         <FormSection title="Дополнительно">
-          {otherFields.map((f) => (
+          {otherFields.filter(f => f.name !== 'changes_description').map((f) => (
             <FieldInput key={f.id} field={f} value={properties[f.name]} onChange={onChange} />
           ))}
         </FormSection>
