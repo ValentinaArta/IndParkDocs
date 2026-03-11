@@ -4,6 +4,8 @@ import { useAuthStore } from './stores/authStore';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { NotesPage } from './pages/NotesPage';
+import { EntitiesPage } from './pages/EntitiesPage';
+import { EntityDetailPage } from './pages/EntityDetailPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -33,7 +35,9 @@ export default function App() {
           >
             <Route index element={<PlaceholderPage title="Карта" />} />
             <Route path="notes" element={<NotesPage />} />
-            <Route path="entities/:type" element={<PlaceholderPage title="Сущности" />} />
+            <Route path="entities/:type" element={<EntitiesPage />} />
+            <Route path="entities/:type/:id" element={<EntityDetailPage />} />
+            <Route path="entities/_/:id" element={<EntityDetailPage />} />
             <Route path="reports" element={<PlaceholderPage title="Отчёты" />} />
             <Route path="budget" element={<PlaceholderPage title="Бюджеты" />} />
             <Route path="settings" element={<PlaceholderPage title="Настройки" />} />
