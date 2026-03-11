@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import {
@@ -5,6 +6,7 @@ import {
   Building2, Landmark, MapPin, Settings as SettingsIcon,
   BarChart2, PieChart, TrendingUp, Box, Sparkles,
   Zap, Scale, Flame, NotebookPen, LogOut, Shield,
+  ChevronDown, ChevronRight,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -45,6 +47,60 @@ function NavSection({ label }: { label: string }) {
   );
 }
 
+function NavGroup({ icon, label, basePath, children }: { icon: ReactNode; label: string; basePath: string; children: ReactNode }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isActive = location.pathname.startsWith(basePath);
+  const [open, setOpen] = useState(isActive);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`
+          w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left
+          ${isActive ? 'bg-white/10 text-white font-medium' : 'text-white/70 hover:bg-white/5 hover:text-white'}
+        `}
+      >
+        <span className="w-4 h-4 flex-shrink-0 [&>svg]:w-4 [&>svg]:h-4">{icon}</span>
+        {label}
+        <span className="ml-auto w-3.5 h-3.5 [&>svg]:w-3.5 [&>svg]:h-3.5 text-white/40">
+          {open ? <ChevronDown /> : <ChevronRight />}
+        </span>
+      </button>
+      {open && (
+        <div className="ml-2 space-y-0.5 mt-0.5">
+          <button
+            onClick={() => navigate(basePath)}
+            className={`w-full text-left text-xs px-3 py-1.5 pl-7 rounded-lg transition-colors
+              ${location.pathname === basePath && !location.search
+                ? 'text-white font-medium' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+          >
+            · все договоры
+          </button>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NavSubItem({ label, path }: { label: string; path: string }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const active = location.pathname + location.search === path;
+
+  return (
+    <button
+      onClick={() => navigate(path)}
+      className={`w-full text-left text-xs px-3 py-1.5 pl-7 rounded-lg transition-colors
+        ${active ? 'text-white font-medium' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+    >
+      · {label}
+    </button>
+  );
+}
+
 export function Sidebar() {
   const { logout } = useAuthStore();
 
@@ -59,7 +115,16 @@ export function Sidebar() {
         <NavItem icon={<Map />} label="Карта" path="/" />
 
         <NavSection label="Документы" />
-        <NavItem icon={<FileText />} label="Договоры" path="/entities/contract" />
+        <NavGroup icon={<FileText />} label="Договоры" basePath="/entities/contract">
+          <NavSubItem label="Аренды" path="/entities/contract?ct=Аренды" />
+          <NavSubItem label="Субаренды" path="/entities/contract?ct=Субаренды" />
+          <NavSubItem label="Аренда оборудования" path="/entities/contract?ct=Аренда оборудования" />
+          <NavSubItem label="Подряда" path="/entities/contract?ct=Подряда" />
+          <NavSubItem label="Услуг" path="/entities/contract?ct=Услуг" />
+          <NavSubItem label="Купли-продажи" path="/entities/contract?ct=Купли-продажи" />
+          <NavSubItem label="Обслуживания" path="/entities/contract?ct=Обслуживания" />
+          <NavSubItem label="Эксплуатации" path="/entities/contract?ct=Электроснабжения" />
+        </NavGroup>
         <NavItem icon={<Paperclip />} label="Доп. соглашение" path="/entities/supplement" />
         <NavItem icon={<FileCheck />} label="Акт" path="/entities/act" />
         <NavItem icon={<FileSignature />} label="Приказ" path="/entities/order" />

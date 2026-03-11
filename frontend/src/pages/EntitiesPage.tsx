@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Topbar } from '../components/Topbar';
 import { useEntities } from '../api/hooks';
 import { Search, Loader2, ChevronUp, ChevronDown, Plus } from 'lucide-react';
@@ -15,9 +15,14 @@ type SortDir = 'asc' | 'desc';
 export function EntitiesPage() {
   const { type = 'contract' } = useParams<{ type: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const ctParam = searchParams.get('ct') || '';
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterType, setFilterType] = useState('');
+  const [filterType, setFilterType] = useState(ctParam);
+
+  // Sync filterType with URL param
+  useEffect(() => { setFilterType(ctParam); }, [ctParam]);
   const [filterStatus, setFilterStatus] = useState('');
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
