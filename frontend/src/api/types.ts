@@ -1,12 +1,26 @@
 export interface Entity {
   id: number;
   entity_type_id: number;
-  entity_type_name: string;
+  entity_type_name?: string;
   name: string;
   properties: Record<string, unknown>;
-  parent_id?: number;
+  parent_id?: number | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
+  type_name: string;
+  type_name_ru: string;
+  icon?: string;
+  color?: string;
+  parent_name?: string | null;
+  effective_amount?: string | null;
+  effective_our_legal_entity?: string | null;
+  effective_contractor_name?: string | null;
+  effective_contract_type?: string | null;
+  located_in_names?: string | null;
+  land_plot_name?: string | null;
+  buildings_on_plot?: string | null;
+  equipment_tenant?: string | null;
 }
 
 export interface EntityType {
@@ -14,6 +28,8 @@ export interface EntityType {
   name: string;
   name_ru: string;
   icon: string;
+  color?: string;
+  sort_order?: number;
 }
 
 export interface Note {
