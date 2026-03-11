@@ -105,7 +105,7 @@ function ContractDetailView({ data, type, navigate, entityId }: {
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
               <Pencil className="w-4 h-4" /> Редактировать
             </button>
-            <button onClick={() => navigate(`/entities/${type}`)}
+            <button onClick={() => navigate(-1 as unknown as string)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
               <ArrowLeft className="w-4 h-4" /> Назад
             </button>
@@ -559,7 +559,7 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
               <Pencil className="w-4 h-4" /> Редактировать
             </button>
-            <button onClick={() => navigate('/entities/equipment')}
+            <button onClick={() => navigate(-1 as unknown as string)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
               <ArrowLeft className="w-4 h-4" /> Назад
             </button>
@@ -823,7 +823,7 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
               <Pencil className="w-4 h-4" /> Редактировать
             </button>
-            <button onClick={() => navigate(`/entities/${type}`)}
+            <button onClick={() => navigate(-1 as unknown as string)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
               <ArrowLeft className="w-4 h-4" /> Назад
             </button>
@@ -992,7 +992,7 @@ function GenericDetailView({ entity, type, navigate }: { entity: DetailEntity; t
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
               <Pencil className="w-4 h-4" /> Редактировать
             </button>
-            <button onClick={() => navigate(`/entities/${type}`)}
+            <button onClick={() => navigate(-1 as unknown as string)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
               <ArrowLeft className="w-4 h-4" /> Назад
             </button>
