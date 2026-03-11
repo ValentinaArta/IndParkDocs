@@ -118,12 +118,16 @@ function ContractDetailView({ data, type, navigate, entityId }: {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1000px] mx-auto px-6 py-5 space-y-4">
 
-          {/* ── Parent contract link (for supplements) ── */}
+          {/* ── Breadcrumb (for supplements) ── */}
           {d.parent_id && d.parent_name && (
-            <button onClick={() => navigate(`/entities/contract/${d.parent_id}`)}
-              className="flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline mb-1">
-              <ArrowLeft className="w-3.5 h-3.5" /> {d.parent_name as string}
-            </button>
+            <nav className="flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+              <button onClick={() => navigate(`/entities/contract/${d.parent_id}`)}
+                className="text-[var(--primary)] hover:underline">
+                {d.parent_name as string}
+              </button>
+              <span className="text-gray-400">/</span>
+              <span className="font-medium text-[var(--text-primary)]">{str('contract_name') || str('name')}</span>
+            </nav>
           )}
 
           {/* ── Original mode banner ── */}
@@ -200,8 +204,18 @@ function ContractDetailView({ data, type, navigate, entityId }: {
             )}
           </div>
 
-          {/* ── Rent conditions (for rental contracts) ── */}
-          <RentSection data={d} />
+          {/* ── Rent conditions (for rental contracts only) ── */}
+          {['Аренды', 'Субаренды', 'Аренда оборудования'].includes(str('contract_type')) && (
+            <RentSection data={d} />
+          )}
+
+          {/* ── Subject (for non-rental contracts) ── */}
+          {!['Аренды', 'Субаренды', 'Аренда оборудования'].includes(str('contract_type')) && str('subject') && (
+            <div className="bg-white rounded-xl border border-[var(--border)] p-5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Предмет договора</span>
+              <p className="mt-2 text-sm">{str('subject')}</p>
+            </div>
+          )}
 
           {/* ── Amount ── */}
           {num('contract_amount') > 0 && (
