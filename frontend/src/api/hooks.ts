@@ -111,10 +111,10 @@ export function usePayments(entityId: number | null) {
 }
 
 // ---- Contract Card (full report) ----
-export function useContractCard(entityId: number | null) {
+export function useContractCard(entityId: number | null, original?: boolean) {
   return useQuery({
-    queryKey: ['contract-card', entityId],
-    queryFn: () => apiGet<Record<string, unknown>>(`/reports/contract-card/${entityId}`),
+    queryKey: ['contract-card', entityId, original ? 'original' : 'current'],
+    queryFn: () => apiGet<Record<string, unknown>>(`/reports/contract-card/${entityId}${original ? '?original=1' : ''}`),
     enabled: !!entityId,
   });
 }

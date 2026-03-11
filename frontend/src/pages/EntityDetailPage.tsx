@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Topbar } from '../components/Topbar';
 import { useEntity, useContractCard, useAdvanceStatus, useWorkHistory } from '../api/hooks';
 import { apiGet } from '../api/client';
@@ -22,12 +22,14 @@ interface DetailRel { id: number; from_entity_id: number; to_entity_id: number; 
 
 export function EntityDetailPage() {
   const { type = 'contract', id } = useParams<{ type: string; id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const entityId = id ? parseInt(id) : null;
   const isContract = type === 'contract' || type === 'supplement';
+  const isOriginal = searchParams.get('original') === '1';
 
   // For contracts: use contract-card API (full data)
-  const { data: cardData, isLoading: cardLoading } = useContractCard(isContract ? entityId : null);
+  const { data: cardData, isLoading: cardLoading } = useContractCard(isContract ? entityId : null, isOriginal);
   // For non-contracts: use entity API
   const { data: entityData, isLoading: entityLoading } = useEntity(!isContract ? entityId : null) as { data: DetailEntity | undefined; isLoading: boolean };
 
@@ -122,6 +124,17 @@ function ContractDetailView({ data, type, navigate, entityId }: {
               className="flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline mb-1">
               <ArrowLeft className="w-3.5 h-3.5" /> {d.parent_name as string}
             </button>
+          )}
+
+          {/* ── Original mode banner ── */}
+          {d.is_original && (
+            <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+              <span className="text-amber-800 font-medium">Условия на момент подписания договора</span>
+              <button onClick={() => navigate(`/entities/contract/${entityId}`)}
+                className="text-amber-700 hover:text-amber-900 underline text-xs">
+                Текущие условия →
+              </button>
+            </div>
           )}
 
           {/* ── Header ── */}
@@ -228,7 +241,7 @@ function ContractDetailView({ data, type, navigate, entityId }: {
             <CollapsibleSection title={`История ДС · ${supplements.length} ДС`} icon={<Paperclip className="w-4 h-4" />} count={supplements.length} defaultOpen>
               {mainContract && (
                 <div key={mainContract.id}
-                  onClick={() => mainContract.id !== entityId && navigate(`/entities/contract/${mainContract.id}`)}
+                  onClick={() => mainContract.id !== entityId ? navigate(`/entities/contract/${mainContract.id}?original=1`) : navigate(`/entities/contract/${mainContract.id}?original=1`)}
                   className={`w-full text-left px-5 py-3 border-t border-[var(--border)] text-sm flex justify-between items-center bg-gray-50 font-medium ${mainContract.id !== entityId ? 'hover:bg-[var(--bg-hover)] cursor-pointer' : ''}`}>
                   <span className="shrink-0">
                     {mainContract.name}

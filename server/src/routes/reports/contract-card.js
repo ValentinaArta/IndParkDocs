@@ -11,6 +11,12 @@ const router = express.Router();
 // GET /api/reports/contract-card/:id — full card for any contract type
 router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => {
   const contractId = parseInt(req.params.id);
+  const isOriginal = req.query.original === '1';
+
+  // Helper: when original mode, always use contract itself (no supplement override)
+  const effectiveSrc = isOriginal
+    ? async () => ({ id: contractId, fromSupp: false, suppName: '' })
+    : (tbl, fk) => getEffectiveSrc(pool, contractId, tbl, fk);
 
   // 1. Load contract
   const cRes = await pool.query(
@@ -58,7 +64,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const supplements = sRes.rows;
 
   // 3. Rent objects from rent_items table (effective source: latest supp with rows, else contract)
-  const rentSrc = await getEffectiveSrc(pool, contractId, 'rent_items', 'contract_id');
+  const rentSrc = await effectiveSrc( 'rent_items', 'contract_id');
   const riRes = await pool.query(`
     SELECT ri.*,
            ent.name                        AS entity_name,
@@ -74,7 +80,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   // 4. Transfer equipment: supplement with transfer_equipment=true flag (still in properties)
   let transferEquipment = [];
   let transferSourceName = '';
-  for (let i = supplements.length - 1; i >= 0; i--) {
+  for (let i = isOriginal ? -1 : supplements.length - 1; i >= 0; i--) {
     const sp = supplements[i];
     const p = sp.properties || {};
     if (p.transfer_equipment === 'true' || p.transfer_equipment === true) {
@@ -101,7 +107,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
 
   // 4b. Equipment rent items from contract_equipment (rows with rent_cost > 0)
   //     Effective source: latest supp with such rows, else contract itself
-  const eqRentSrc = await getEffectiveSrc(pool, contractId, 'contract_equipment', 'contract_id');
+  const eqRentSrc = await effectiveSrc( 'contract_equipment', 'contract_id');
   const eqRentRes = await pool.query(`
     SELECT ce.equipment_id,
            ce.rent_cost,
@@ -259,7 +265,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   history.push(...histItems);
 
   // 11. contract_line_items (effective source: latest supp with rows, else contract)
-  const cliSrc = await getEffectiveSrc(pool, contractId, 'contract_line_items', 'contract_id');
+  const cliSrc = await effectiveSrc( 'contract_line_items', 'contract_id');
   const cliRes = await pool.query(
     'SELECT * FROM contract_line_items WHERE contract_id=$1 ORDER BY sort_order', [cliSrc.id]);
   const contractItems = cliRes.rows;
@@ -298,7 +304,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
 
   // For non-rental: also try direct equipment_list from contract_equipment (no rent_cost filter)
   if (eqList.length === 0) {
-    const directSrc = await getEffectiveSrc(pool, contractId, 'contract_equipment', 'contract_id');
+    const directSrc = await effectiveSrc( 'contract_equipment', 'contract_id');
     const directRes = await pool.query(`
       SELECT ce.equipment_id,
              eq.name                               AS equipment_name,
@@ -324,7 +330,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   }
 
   // Advances from contract_advances table (effective source)
-  const advEffSrc = await getEffectiveSrc(pool, contractId, 'contract_advances', 'contract_id');
+  const advEffSrc = await effectiveSrc( 'contract_advances', 'contract_id');
   const contractAdvancesRes = await pool.query(
     'SELECT amount, date FROM contract_advances WHERE contract_id=$1 ORDER BY sort_order', [advEffSrc.id]);
   const contractAdvances = contractAdvancesRes.rows.map(r => ({
@@ -333,25 +339,26 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   }));
 
   // Effective scalar values: latest supplement overrides contract
-  const effAmount   = latestSuppValue(supplements, 'contract_amount')    || cProps.contract_amount    || '';
-  const effSubject  = latestSuppValue(supplements, 'subject')             || latestSuppValue(supplements, 'service_subject') || cProps.subject || cProps.service_subject || '';
-  const effDurType  = latestSuppValue(supplements, 'duration_type')       || cProps.duration_type      || '';
-  const effDurDate  = latestSuppValue(supplements, 'duration_date')       || latestSuppValue(supplements, 'contract_end_date') || cProps.duration_date || cProps.contract_end_date || '';
-  const effDurText  = latestSuppValue(supplements, 'duration_text')       || cProps.duration_text      || '';
-  const effVat      = latestSuppValue(supplements, 'vat_rate')            || cProps.vat_rate           || '';
-  const effDeadline = latestSuppValue(supplements, 'completion_deadline') || cProps.completion_deadline || '';
-  const effComment  = latestSuppValue(supplements, 'service_comment')     || cProps.service_comment    || '';
+  const _lsv = isOriginal ? () => null : (s, k) => latestSuppValue(s, k);
+  const effAmount   = _lsv(supplements, 'contract_amount')    || cProps.contract_amount    || '';
+  const effSubject  = _lsv(supplements, 'subject')             || _lsv(supplements, 'service_subject') || cProps.subject || cProps.service_subject || '';
+  const effDurType  = _lsv(supplements, 'duration_type')       || cProps.duration_type      || '';
+  const effDurDate  = _lsv(supplements, 'duration_date')       || _lsv(supplements, 'contract_end_date') || cProps.duration_date || cProps.contract_end_date || '';
+  const effDurText  = _lsv(supplements, 'duration_text')       || cProps.duration_text      || '';
+  const effVat      = _lsv(supplements, 'vat_rate')            || cProps.vat_rate           || '';
+  const effDeadline = _lsv(supplements, 'completion_deadline') || cProps.completion_deadline || '';
+  const effComment  = _lsv(supplements, 'service_comment')     || cProps.service_comment    || '';
   // charge_type now lives on individual contract_line_items rows, not contract-level
 
   let effSubjectBuildings = subjectBuildings;
   let effSubjectRooms     = subjectRooms;
   let effSubjectLandPlots = subjectLandPlots;
   const _parseSubjArr = raw => { try { const a = JSON.parse(raw); return Array.isArray(a) && a.length ? a : null; } catch(e) { return null; } };
-  const suppSbRaw = latestSuppValue(supplements, 'subject_buildings');
+  const suppSbRaw = _lsv(supplements, 'subject_buildings');
   if (suppSbRaw) { const a = _parseSubjArr(suppSbRaw); if (a) effSubjectBuildings = a; }
-  const suppSrRaw = latestSuppValue(supplements, 'subject_rooms');
+  const suppSrRaw = _lsv(supplements, 'subject_rooms');
   if (suppSrRaw) { const a = _parseSubjArr(suppSrRaw); if (a) effSubjectRooms = a; }
-  const suppSlRaw = latestSuppValue(supplements, 'subject_land_plots');
+  const suppSlRaw = _lsv(supplements, 'subject_land_plots');
   if (suppSlRaw) { const a = _parseSubjArr(suppSlRaw); if (a) effSubjectLandPlots = a; }
 
   // Resolve company names from typed relations
@@ -365,6 +372,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
 
   res.json({
     id: contract.id, name: contract.name,
+    is_original: isOriginal,
     parent_id: contract.parent_id || null,
     parent_name: parentContractName,
     type_name: contract.type_name || '',
@@ -389,8 +397,8 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     advances: contractAdvances,
     completion_deadline: effDeadline,
     service_comment: effComment,
-    has_power_allocation: latestSuppValue(supplements, 'has_power_allocation') || cProps.has_power_allocation || '',
-    power_allocation_kw: latestSuppValue(supplements, 'power_allocation_kw')  || cProps.power_allocation_kw  || '',
+    has_power_allocation: _lsv(supplements, 'has_power_allocation') || cProps.has_power_allocation || '',
+    power_allocation_kw: _lsv(supplements, 'power_allocation_kw')  || cProps.power_allocation_kw  || '',
     contract_items: contractItems,
     all_one_time_items: allOneTimeItems,
     cli_source_name: cliSrc.fromSupp ? cliSrc.suppName : '',
@@ -429,7 +437,7 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
   const cProps = cRes.rows[0].properties || {};
 
   // Advances from contract_advances table (effective source: latest supp or contract)
-  const advSrc = await getEffectiveSrc(pool, contractId, 'contract_advances', 'contract_id');
+  const advSrc = await effectiveSrc( 'contract_advances', 'contract_id');
   const advRes = await pool.query(
     'SELECT amount, date FROM contract_advances WHERE contract_id=$1 ORDER BY sort_order',
     [advSrc.id]);
