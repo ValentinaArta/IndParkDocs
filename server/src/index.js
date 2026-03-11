@@ -92,7 +92,14 @@ app.use('/api/equipment',       require('./routes/equipment'));
 app.use('/api/notes',           require('./routes/notes'));
 app.use('/api',                 require('./routes/letters'));
 
-// SPA fallback
+// React frontend (/app/)
+const reactDistPath = path.join(__dirname, '../../frontend/dist');
+app.use('/app', express.static(reactDistPath));
+app.get('/app/*', (req, res) => {
+  res.sendFile(path.join(reactDistPath, 'index.html'));
+});
+
+// SPA fallback (old frontend)
 app.get('*', (req, res) => { res.set('Cache-Control', 'no-cache, no-store, must-revalidate').type('html').send(FRONTEND_HTML); });
 app.use(errorHandler);
 
