@@ -245,11 +245,18 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     ...acts,
   ].sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.id - b.id);
 
-  const history = [
-    { id: contract.id, name: contract.name, number: cProps.number || '',
-      date: cProps.contract_date || '', changes: 'Основной договор', is_contract: true },
-    ...histItems,
-  ];
+  const history = [];
+  // If this is a supplement, add parent contract first
+  if (contract.parent_id && parentContractName) {
+    const pRes2 = await pool.query('SELECT properties FROM entities WHERE id=$1', [contract.parent_id]);
+    const pProps = pRes2.rows[0]?.properties || {};
+    history.push({ id: contract.parent_id, name: parentContractName, number: pProps.number || '',
+      date: pProps.contract_date || '', changes: 'Основной договор', is_contract: true });
+  } else {
+    history.push({ id: contract.id, name: contract.name, number: cProps.number || '',
+      date: cProps.contract_date || '', changes: 'Основной договор', is_contract: true });
+  }
+  history.push(...histItems);
 
   // 11. contract_line_items (effective source: latest supp with rows, else contract)
   const cliSrc = await getEffectiveSrc(pool, contractId, 'contract_line_items', 'contract_id');
