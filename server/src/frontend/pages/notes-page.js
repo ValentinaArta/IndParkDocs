@@ -3,13 +3,11 @@ module.exports = `
 // ========== NOTES PAGE ==========
 var _notesListCache = [];
 var _currentNoteId = null;
-var _noteBlocks = [];     // [{type:'text',value:''}, {type:'drawing',dataUrl:''}, {type:'image',dataUrl:''}]
+var _noteBlocks = [];
 var _noteSaveTimer = null;
-var _noteDrawing = null;   // {canvas, ctx, active, color, size, eraser, lastPt}
 var _noteDirty = false;
 
 function showNotesPage() {
-  // Exit fullscreen if was on from before
   document.body.classList.remove('notes-fullscreen');
   _setNavHash('notes');
   setActive('[data-type="notes"]');
@@ -17,16 +15,16 @@ function showNotesPage() {
   document.getElementById('topActions').innerHTML = '';
   var content = document.getElementById('content');
   content.innerHTML =
-    '<div style="display:flex;height:calc(100vh - 56px);overflow:hidden">' +
-      '<div id="notesSidebar" style="width:260px;min-width:260px;border-right:1px solid var(--border);background:var(--bg);overflow-y:auto;display:flex;flex-direction:column">' +
+    '<div class="notes-layout">' +
+      '<div class="notes-list-panel" id="notesSidebar">' +
         '<div style="padding:12px">' +
-          '<button class="btn btn-primary" style="width:100%" onclick="_noteCreate()"><i data-lucide="plus" class="lucide" style="width:14px;height:14px"></i> Новая заметка</button>' +
+          '<button class="btn btn-primary" style="width:100%;border-radius:10px" onclick="_noteCreate()"><i data-lucide="plus" class="lucide" style="width:14px;height:14px"></i> Новая заметка</button>' +
         '</div>' +
-        '<div id="notesList" style="flex:1;overflow-y:auto"></div>' +
+        '<div id="notesList"></div>' +
       '</div>' +
-      '<div id="notesEditor" style="flex:1;overflow-y:auto;padding:0;position:relative">' +
-        '<div id="noteEmpty" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-secondary)">Выберите заметку или создайте новую</div>' +
-        '<div id="noteContent" style="display:none;padding:16px 24px 80px 24px;max-width:900px;margin:0 auto"></div>' +
+      '<div class="notes-editor-panel" id="notesEditor">' +
+        '<div id="noteEmpty" class="notes-empty-state"><i data-lucide="notebook-pen" class="lucide" style="width:48px;height:48px;opacity:0.3"></i><div style="margin-top:12px">Выберите заметку или создайте новую</div></div>' +
+        '<div id="noteContent" style="display:none"></div>' +
       '</div>' +
     '</div>';
   renderIcons();
@@ -44,16 +42,16 @@ function _noteRenderList() {
   var el = document.getElementById("notesList");
   if (!el) return;
   if (!_notesListCache.length) {
-    el.innerHTML = '<div style="padding:16px;color:var(--text-secondary);font-size:13px;text-align:center">Нет заметок</div>';
+    el.innerHTML = '<div style="padding:24px 16px;color:var(--text-secondary);font-size:13px;text-align:center">Пока нет заметок</div>';
     return;
   }
   var html = "";
   _notesListCache.forEach(function(n) {
-    var active = n.id === _currentNoteId ? "background:var(--bg-secondary);" : "";
-    var dt = _fmtDate(n.updated_at ? n.updated_at.substring(0, 10) : '');
-    html += '<div class="note-list-item" style="' + active + 'padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="_noteOpen(' + n.id + ')" data-note-id="' + n.id + '">' +
-      '<div style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(n.title) + '</div>' +
-      '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">' + escapeHtml(dt) + '</div>' +
+    var active = n.id === _currentNoteId ? " notes-list-active" : "";
+    var dt = _fmtDate(n.updated_at ? n.updated_at.substring(0, 10) : "");
+    html += '<div class="notes-list-item' + active + '" onclick="_noteOpen(' + n.id + ')" data-note-id="' + n.id + '">' +
+      '<div class="notes-list-title">' + escapeHtml(n.title || "Без названия") + '</div>' +
+      '<div class="notes-list-date">' + escapeHtml(dt) + '</div>' +
     '</div>';
   });
   el.innerHTML = html;
@@ -69,12 +67,12 @@ async function _noteCreate() {
 }
 
 async function _noteOpen(id) {
-  // save current note first
   if (_currentNoteId && _noteDirty) await _noteSaveNow();
   _currentNoteId = id;
   _noteRenderList();
   document.getElementById("noteEmpty").style.display = "none";
-  document.getElementById("noteContent").style.display = "block";
+  var nc = document.getElementById("noteContent");
+  nc.style.display = "block";
   try {
     var note = await api("/notes/" + id);
     _noteBlocks = note.content_json || [{ type: "text", value: "" }];
@@ -86,62 +84,56 @@ async function _noteOpen(id) {
 function _noteRenderBlocks() {
   var wrap = document.getElementById("noteContent");
   if (!wrap) return;
-  // Title
-  var html = '<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">' +
-    '<input id="noteTitleInput" value="' + escapeHtml(_noteGetTitle()) + '" ' +
-      'style="flex:1;font-size:20px;font-weight:600;border:none;border-bottom:2px solid var(--border);padding:4px 0;background:transparent;outline:none" ' +
-      'oninput="_noteMarkDirty()" placeholder="Название">' +
-    '<button class="btn btn-sm" onclick="_noteToggleFullscreen()" title="Полный экран" style="flex-shrink:0;border:1px solid var(--border);padding:4px 10px"><i data-lucide="maximize-2" class="lucide" style="width:16px;height:16px"></i> <span style="font-size:12px">Полный экран</span></button>' +
-    '<button class="btn btn-sm" onclick="_noteDelete()" title="Удалить" style="color:var(--red);flex-shrink:0"><i data-lucide="trash-2" class="lucide" style="width:16px;height:16px"></i></button>' +
+
+  var html = '<div class="note-header">' +
+    '<input id="noteTitleInput" class="note-title-input" value="' + escapeHtml(_noteGetTitle()) + '" oninput="_noteMarkDirty()" placeholder="Название заметки">' +
+    '<div class="note-header-actions">' +
+      '<button class="note-action-btn" onclick="_noteToggleFullscreen()" title="Полный экран"><i data-lucide="maximize-2" class="lucide" style="width:18px;height:18px"></i></button>' +
+      '<button class="note-action-btn note-action-danger" onclick="_noteDelete()" title="Удалить"><i data-lucide="trash-2" class="lucide" style="width:18px;height:18px"></i></button>' +
+    '</div>' +
   '</div>';
 
-  // Blocks
   _noteBlocks.forEach(function(block, i) {
-    html += '<div class="note-block" data-block-idx="' + i + '" style="margin-bottom:12px;position:relative">';
+    html += '<div class="note-block" data-block-idx="' + i + '">';
+
     if (block.type === "text") {
       html += '<div contenteditable="true" class="note-text-block" data-idx="' + i + '" ' +
-        'style="min-height:40px;padding:8px;border:1px solid var(--border);border-radius:6px;outline:none;font-size:14px;line-height:1.6;white-space:pre-wrap" ' +
-        'oninput="_noteTextChanged(' + i + ', this)" onpaste="_noteHandlePaste(event, ' + i + ')">' +
-        escapeHtml(block.value || "") + '</div>';
+        'oninput="_noteTextChanged(' + i + ', this)" onpaste="_noteHandlePaste(event, ' + i + ')" ' +
+        'placeholder="Начните писать...">' + escapeHtml(block.value || "") + '</div>';
     } else if (block.type === "drawing") {
-      html += '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative">' +
-        '<div id="noteDrawToolbar' + i + '" style="display:flex;gap:4px;padding:6px 8px;background:var(--bg-secondary);border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center">' +
-          '<button class="btn btn-sm note-draw-tool" data-idx="' + i + '" data-tool="pen" onclick="_noteSetDrawTool(' + i + ',\\'pen\\')" style="background:var(--primary);color:white"><i data-lucide="pen" class="lucide" style="width:14px;height:14px"></i></button>' +
-          '<button class="btn btn-sm note-draw-tool" data-idx="' + i + '" data-tool="eraser" onclick="_noteSetDrawTool(' + i + ',\\'eraser\\')"><i data-lucide="eraser" class="lucide" style="width:14px;height:14px"></i></button>' +
-          '<span style="width:1px;height:20px;background:var(--border);margin:0 4px"></span>' +
-          '<input type="color" value="#000000" onchange="_noteSetDrawColor(' + i + ', this.value)" style="width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer">' +
-          '<select onchange="_noteSetDrawSize(' + i + ', +this.value)" style="padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px">' +
-            '<option value="2">Тонкая</option><option value="4" selected>Средняя</option><option value="8">Толстая</option><option value="16">Жирная</option>' +
+      html += '<div class="note-canvas-wrap">' +
+        '<canvas id="noteCanvas' + i + '" width="800" height="400" class="note-canvas" data-idx="' + i + '"></canvas>' +
+        '<div class="note-canvas-toolbar" id="noteDrawToolbar' + i + '">' +
+          '<button class="note-tool-btn note-tool-active" data-idx="' + i + '" data-tool="pen" onclick="_noteSetDrawTool(' + i + ',\\'pen\\')" title="Ручка"><i data-lucide="pen" class="lucide" style="width:16px;height:16px"></i></button>' +
+          '<button class="note-tool-btn" data-idx="' + i + '" data-tool="eraser" onclick="_noteSetDrawTool(' + i + ',\\'eraser\\')" title="Ластик"><i data-lucide="eraser" class="lucide" style="width:16px;height:16px"></i></button>' +
+          '<span class="note-tool-sep"></span>' +
+          '<input type="color" value="#000000" onchange="_noteSetDrawColor(' + i + ', this.value)" class="note-color-pick" title="Цвет">' +
+          '<select onchange="_noteSetDrawSize(' + i + ', +this.value)" class="note-size-pick">' +
+            '<option value="2">1</option><option value="4" selected>2</option><option value="8">4</option><option value="16">8</option>' +
           '</select>' +
-          '<button class="btn btn-sm" onclick="_noteDrawClear(' + i + ')" title="Очистить" style="margin-left:auto"><i data-lucide="trash" class="lucide" style="width:14px;height:14px"></i></button>' +
+          '<button class="note-tool-btn" onclick="_noteDrawClear(' + i + ')" title="Очистить холст" style="margin-left:auto"><i data-lucide="rotate-ccw" class="lucide" style="width:14px;height:14px"></i></button>' +
         '</div>' +
-        '<canvas id="noteCanvas' + i + '" width="800" height="400" style="width:100%;cursor:crosshair;touch-action:none;display:block" data-idx="' + i + '"></canvas>' +
       '</div>';
     } else if (block.type === "image") {
-      html += '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative">' +
-        '<img src="' + block.dataUrl + '" style="max-width:100%;display:block">' +
+      html += '<div class="note-image-wrap">' +
+        '<img src="' + block.dataUrl + '" class="note-image">' +
       '</div>';
     }
-    // block remove button
-    html += '<button class="btn btn-sm" onclick="_noteRemoveBlock(' + i + ')" ' +
-      'style="position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;background:var(--red);color:white;padding:0;display:flex;align-items:center;justify-content:center;font-size:12px;opacity:0.7" ' +
-      'title="Удалить блок">&times;</button>';
+
+    html += '<button class="note-block-remove" onclick="_noteRemoveBlock(' + i + ')" title="Удалить блок">&times;</button>';
     html += '</div>';
   });
 
-  // Add block buttons
-  html += '<div style="display:flex;gap:8px;margin-top:8px">' +
-    '<button class="btn btn-sm" onclick="_noteAddBlock(\\'text\\')"><i data-lucide="type" class="lucide" style="width:14px;height:14px"></i> Текст</button>' +
-    '<button class="btn btn-sm" onclick="_noteAddBlock(\\'drawing\\')"><i data-lucide="pen-tool" class="lucide" style="width:14px;height:14px"></i> Рисунок</button>' +
+  html += '<div class="note-add-bar">' +
+    '<button class="note-add-btn" onclick="_noteAddBlock(\\'text\\')"><i data-lucide="type" class="lucide" style="width:15px;height:15px"></i> Текст</button>' +
+    '<button class="note-add-btn" onclick="_noteAddBlock(\\'drawing\\')"><i data-lucide="pen-tool" class="lucide" style="width:15px;height:15px"></i> Рисунок</button>' +
   '</div>';
 
-  // Autosave indicator
-  html += '<div id="noteSaveIndicator" style="position:fixed;bottom:16px;right:16px;font-size:12px;color:var(--text-secondary);background:white;padding:4px 10px;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.1);display:none"></div>';
+  html += '<div id="noteSaveIndicator" class="note-save-indicator"></div>';
 
   wrap.innerHTML = html;
   renderIcons();
 
-  // Init canvases
   _noteBlocks.forEach(function(block, i) {
     if (block.type === "drawing") _noteInitCanvas(i, block.dataUrl);
   });
@@ -181,16 +173,12 @@ function _noteHandlePaste(ev, idx) {
       return;
     }
   }
-  // text paste — allow default contenteditable behavior
   setTimeout(function() { _noteTextChanged(idx, ev.target); }, 0);
 }
 
 function _noteAddBlock(type) {
-  if (type === "text") {
-    _noteBlocks.push({ type: "text", value: "" });
-  } else if (type === "drawing") {
-    _noteBlocks.push({ type: "drawing", dataUrl: "" });
-  }
+  if (type === "text") _noteBlocks.push({ type: "text", value: "" });
+  else if (type === "drawing") _noteBlocks.push({ type: "drawing", dataUrl: "" });
   _noteRenderBlocks();
   _noteMarkDirty();
 }
@@ -207,8 +195,6 @@ function _noteInitCanvas(idx, existingDataUrl) {
   var canvas = document.getElementById("noteCanvas" + idx);
   if (!canvas) return;
   var ctx = canvas.getContext("2d");
-
-  // High DPI
   var rect = canvas.getBoundingClientRect();
   var dpr = window.devicePixelRatio || 1;
   canvas.width = rect.width * dpr;
@@ -218,7 +204,6 @@ function _noteInitCanvas(idx, existingDataUrl) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, rect.width, 400);
 
-  // Load existing drawing
   if (existingDataUrl) {
     var img = new Image();
     img.onload = function() { ctx.drawImage(img, 0, 0, rect.width, 400); };
@@ -226,11 +211,9 @@ function _noteInitCanvas(idx, existingDataUrl) {
   }
 
   var state = { canvas: canvas, ctx: ctx, active: false, color: "#000000", size: 4, eraser: false, lastPt: null };
-  canvas.dataset.drawState = idx;
   if (!window._noteDrawStates) window._noteDrawStates = {};
   window._noteDrawStates[idx] = state;
 
-  // Pointer events (works with stylus, touch, mouse)
   canvas.addEventListener("pointerdown", function(e) { _noteDrawStart(e, idx); });
   canvas.addEventListener("pointermove", function(e) { _noteDrawMove(e, idx); });
   canvas.addEventListener("pointerup", function(e) { _noteDrawEnd(e, idx); });
@@ -275,7 +258,6 @@ function _noteDrawEnd(e, idx) {
   var st = window._noteDrawStates[idx]; if (!st) return;
   if (st.active) {
     st.active = false;
-    // Save canvas to block
     _noteBlocks[idx].dataUrl = st.canvas.toDataURL("image/png");
     _noteMarkDirty();
   }
@@ -284,12 +266,11 @@ function _noteDrawEnd(e, idx) {
 function _noteSetDrawTool(idx, tool) {
   var st = window._noteDrawStates[idx]; if (!st) return;
   st.eraser = (tool === "eraser");
-  // Update toolbar active state
   var toolbar = document.getElementById("noteDrawToolbar" + idx);
   if (toolbar) {
-    toolbar.querySelectorAll(".note-draw-tool").forEach(function(btn) {
-      btn.style.background = (btn.dataset.tool === tool) ? "var(--primary)" : "";
-      btn.style.color = (btn.dataset.tool === tool) ? "white" : "";
+    toolbar.querySelectorAll(".note-tool-btn[data-tool]").forEach(function(btn) {
+      if (btn.dataset.tool === tool) btn.classList.add("note-tool-active");
+      else btn.classList.remove("note-tool-active");
     });
   }
 }
@@ -314,37 +295,16 @@ function _noteDrawClear(idx) {
   _noteMarkDirty();
 }
 
-// ========== SAVE/DELETE ==========
-async function _noteSaveNow() {
-  if (!_currentNoteId || !_noteDirty) return;
-  _noteDirty = false;
-  var title = _noteGetTitle();
-  var ind = document.getElementById("noteSaveIndicator");
-  if (ind) { ind.textContent = "Сохранение..."; ind.style.display = "block"; }
-  try {
-    await api("/notes/" + _currentNoteId, { method: "PUT", body: JSON.stringify({ title: title, content_json: _noteBlocks }) });
-    // Update cache
-    var cached = _notesListCache.find(function(n) { return n.id === _currentNoteId; });
-    if (cached) { cached.title = title; cached.updated_at = new Date().toISOString(); }
-    _noteRenderList();
-    if (ind) { ind.textContent = "Сохранено"; setTimeout(function() { ind.style.display = "none"; }, 1500); }
-  } catch(e) {
-    console.error("save note error", e);
-    if (ind) { ind.textContent = "Ошибка сохранения"; ind.style.color = "var(--red)"; }
-  }
-}
-
 // ========== FULLSCREEN ==========
 function _noteToggleFullscreen() {
   var isFs = document.body.classList.toggle('notes-fullscreen');
-  // Show/hide floating exit button
   var existing = document.getElementById('noteFsExit');
   if (isFs && !existing) {
     var btn = document.createElement('button');
     btn.id = 'noteFsExit';
     btn.className = 'notes-fs-exit';
     btn.onclick = _noteToggleFullscreen;
-    btn.innerHTML = '<i data-lucide="minimize-2" class="lucide" style="width:16px;height:16px"></i> Выйти';
+    btn.innerHTML = '<i data-lucide="minimize-2" class="lucide" style="width:16px;height:16px"></i> Свернуть';
     document.body.appendChild(btn);
     renderIcons();
   } else if (!isFs && existing) {
@@ -357,6 +317,25 @@ document.addEventListener('keydown', function(e) {
     _noteToggleFullscreen();
   }
 });
+
+// ========== SAVE/DELETE ==========
+async function _noteSaveNow() {
+  if (!_currentNoteId || !_noteDirty) return;
+  _noteDirty = false;
+  var title = _noteGetTitle();
+  var ind = document.getElementById("noteSaveIndicator");
+  if (ind) { ind.textContent = "Сохранение..."; ind.classList.add("visible"); }
+  try {
+    await api("/notes/" + _currentNoteId, { method: "PUT", body: JSON.stringify({ title: title, content_json: _noteBlocks }) });
+    var cached = _notesListCache.find(function(n) { return n.id === _currentNoteId; });
+    if (cached) { cached.title = title; cached.updated_at = new Date().toISOString(); }
+    _noteRenderList();
+    if (ind) { ind.textContent = "Сохранено"; setTimeout(function() { ind.classList.remove("visible"); }, 1500); }
+  } catch(e) {
+    console.error("save note error", e);
+    if (ind) { ind.textContent = "Ошибка"; ind.style.color = "var(--red)"; }
+  }
+}
 
 async function _noteDelete() {
   if (!_currentNoteId) return;
