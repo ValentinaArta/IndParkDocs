@@ -118,9 +118,18 @@ export function EntityFormPage() {
     }
   }, [!isEdit, type, parentCard]);
 
-  // Auto-generate name for supplements and contracts
+  // Auto-generate name for contracts and supplements
   useEffect(() => {
-    if (type === 'supplement') {
+    if (type === 'contract') {
+      const num = (properties.number as string) || '';
+      const contractor = (properties.contractor_name as string) || '';
+      if (num || contractor) {
+        const parts = ['Договор'];
+        if (num) parts[0] = `Договор №${num}`;
+        if (contractor) parts.push(`— ${contractor}`);
+        setName(parts.join(' '));
+      }
+    } else if (type === 'supplement') {
       const num = (properties.number as string) || '';
       const contractor = (properties.contractor_name as string) || '';
       if (num || contractor) {
@@ -226,7 +235,7 @@ export function EntityFormPage() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Name — hidden for supplements (auto-generated) */}
-        {type !== 'supplement' && (
+        {type !== 'supplement' && type !== 'contract' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Название<span className="text-red-500 ml-0.5">*</span>
