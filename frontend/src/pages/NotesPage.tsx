@@ -1,9 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Topbar } from '../components/Topbar';
 import { apiGet, apiPost, apiPut, apiDelete } from '../api/client';
-import { Plus, Trash2, Maximize2, Minimize2, NotebookPen } from 'lucide-react';
+import {
+  Plus, Trash2, Maximize2, Minimize2, NotebookPen, Type, PenTool, Loader2,
+} from 'lucide-react';
 import { fmtDate } from '../utils/format';
 import type { Note, NoteListItem, NoteBlock } from '../api/types';
+import { TextBlock } from '../features/notes/TextBlock';
+
+// Lazy-load Excalidraw (heavy ~1.5MB)
+const DrawingBlock = lazy(() =>
+  import('../features/notes/DrawingBlock').then((m) => ({ default: m.DrawingBlock })),
+);
 
 export function NotesPage() {
   const [notes, setNotes] = useState<NoteListItem[]>([]);
@@ -12,18 +20,19 @@ export function NotesPage() {
   const [title, setTitle] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     loadList();
   }, []);
 
-  // Autosave
+  // Autosave on dirty
   useEffect(() => {
-    if (!currentId) return;
-    const timer = setTimeout(() => save(), 3000);
+    if (!currentId || !dirty) return;
+    const timer = setTimeout(() => save(), 2000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, blocks]);
+  }, [title, blocks, dirty]);
 
   // ESC exits fullscreen
   useEffect(() => {
@@ -44,30 +53,38 @@ export function NotesPage() {
       title: 'Новая заметка',
       content_json: [{ type: 'text', value: '' }],
     });
-    setNotes((prev) => [{ id: note.id, title: note.title, updated_at: note.updated_at, created_at: note.created_at }, ...prev]);
+    setNotes((prev) => [
+      { id: note.id, title: note.title, updated_at: note.updated_at, created_at: note.created_at },
+      ...prev,
+    ]);
     openNote(note.id);
   }
 
   async function openNote(id: number) {
-    if (currentId) await save();
+    if (currentId && dirty) await save();
     const note = await apiGet<Note>(`/notes/${id}`);
     setCurrentId(note.id);
     setTitle(note.title);
     setBlocks(note.content_json?.length ? note.content_json : [{ type: 'text', value: '' }]);
+    setDirty(false);
   }
 
   async function save() {
     if (!currentId) return;
     setSaveStatus('Сохранение...');
+    setDirty(false);
     try {
       await apiPut(`/notes/${currentId}`, { title, content_json: blocks });
       setNotes((prev) =>
-        prev.map((n) => (n.id === currentId ? { ...n, title, updated_at: new Date().toISOString() } : n)),
+        prev.map((n) =>
+          n.id === currentId ? { ...n, title, updated_at: new Date().toISOString() } : n,
+        ),
       );
       setSaveStatus('Сохранено');
       setTimeout(() => setSaveStatus(null), 1500);
     } catch {
       setSaveStatus('Ошибка');
+      setDirty(true);
     }
   }
 
@@ -78,30 +95,44 @@ export function NotesPage() {
     setCurrentId(null);
     setBlocks([]);
     setTitle('');
+    setDirty(false);
   }
 
-  function updateBlock(idx: number, patch: Partial<NoteBlock>) {
+  const updateBlock = useCallback((idx: number, patch: Partial<NoteBlock>) => {
     setBlocks((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } : b)) as NoteBlock[]);
-  }
+    setDirty(true);
+  }, []);
 
   function removeBlock(idx: number) {
     if (blocks.length <= 1) return;
     setBlocks((prev) => prev.filter((_, i) => i !== idx));
+    setDirty(true);
   }
 
   function addBlock(type: 'text' | 'drawing') {
-    const block: NoteBlock = type === 'text' ? { type: 'text', value: '' } : { type: 'drawing', dataUrl: '' };
+    const block: NoteBlock =
+      type === 'text' ? { type: 'text', value: '' } : { type: 'drawing', dataUrl: '' };
     setBlocks((prev) => [...prev, block]);
+    setDirty(true);
+  }
+
+  function handlePasteImage(afterIdx: number, dataUrl: string) {
+    setBlocks((prev) => {
+      const next = [...prev];
+      next.splice(afterIdx + 1, 0, { type: 'image', dataUrl });
+      return next;
+    });
+    setDirty(true);
   }
 
   return (
-    <div className={fullscreen ? 'fixed inset-0 z-50 bg-white flex' : 'flex flex-col h-full'}>
+    <div className={fullscreen ? 'fixed inset-0 z-50 bg-white flex flex-col' : 'flex flex-col h-full'}>
       {!fullscreen && <Topbar title="Заметки" />}
 
       <div className="flex flex-1 overflow-hidden">
-        {/* List panel */}
+        {/* ===== List panel ===== */}
         {!fullscreen && (
-          <div className="w-[280px] min-w-[280px] border-r border-[var(--border)] bg-[var(--bg)] flex flex-col overflow-y-auto">
+          <div className="w-[280px] min-w-[280px] border-r border-[var(--border)] bg-[var(--bg)] flex flex-col">
             <div className="p-3">
               <button
                 onClick={create}
@@ -110,43 +141,47 @@ export function NotesPage() {
                 <Plus className="w-4 h-4" /> Новая заметка
               </button>
             </div>
-            {notes.length === 0 && (
-              <p className="text-center text-sm text-[var(--text-secondary)] py-6">Пока нет заметок</p>
-            )}
-            {notes.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => openNote(n.id)}
-                className={`
-                  w-full text-left px-4 py-3 border-b border-[var(--border)] transition-colors
-                  ${n.id === currentId ? 'bg-[var(--bg-secondary)] border-l-3 border-l-[var(--primary)]' : 'hover:bg-[var(--bg-hover)]'}
-                `}
-              >
-                <div className="text-sm font-medium truncate">{n.title || 'Без названия'}</div>
-                <div className="text-xs text-[var(--text-secondary)] mt-0.5">
-                  {fmtDate(n.updated_at)}
-                </div>
-              </button>
-            ))}
+            <div className="flex-1 overflow-y-auto">
+              {notes.length === 0 && (
+                <p className="text-center text-sm text-[var(--text-secondary)] py-8">Пока нет заметок</p>
+              )}
+              {notes.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => openNote(n.id)}
+                  className={`w-full text-left px-4 py-3 border-b border-[var(--border)] transition-colors ${
+                    n.id === currentId
+                      ? 'bg-[var(--bg-secondary)] border-l-[3px] border-l-[var(--primary)]'
+                      : 'hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  <div className="text-sm font-medium truncate">{n.title || 'Без названия'}</div>
+                  <div className="text-xs text-[var(--text-secondary)] mt-0.5">{fmtDate(n.updated_at)}</div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Editor panel */}
+        {/* ===== Editor panel ===== */}
         <div className="flex-1 overflow-y-auto bg-white relative">
           {!currentId ? (
             <div className="flex flex-col items-center justify-center h-full text-[var(--text-secondary)]">
-              <NotebookPen className="w-12 h-12 opacity-30" />
+              <NotebookPen className="w-12 h-12 opacity-20" />
               <p className="mt-3 text-sm">Выберите заметку или создайте новую</p>
             </div>
           ) : (
-            <div className="max-w-[900px] mx-auto px-6 py-5 pb-20">
-              {/* Title */}
-              <div className="flex items-center gap-3 mb-4">
+            <div className="max-w-[900px] mx-auto px-6 py-5 pb-24">
+              {/* Title bar */}
+              <div className="flex items-center gap-3 mb-5">
                 <input
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setDirty(true);
+                  }}
                   placeholder="Название заметки"
-                  className="flex-1 text-xl font-semibold border-none outline-none bg-transparent border-b-2 border-transparent focus:border-[var(--primary)] transition pb-1"
+                  className="flex-1 text-2xl font-semibold border-none outline-none bg-transparent border-b-2 border-transparent focus:border-[var(--primary)] transition-colors pb-1"
                 />
                 <button
                   onClick={() => setFullscreen(!fullscreen)}
@@ -166,57 +201,61 @@ export function NotesPage() {
 
               {/* Blocks */}
               {blocks.map((block, idx) => (
-                <div key={idx} className="group relative mb-4">
+                <div key={`${currentId}-${idx}`} className="group relative mb-4">
                   {block.type === 'text' && (
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      className="min-h-[44px] px-3.5 py-3 rounded-xl bg-[var(--bg)] border border-transparent focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10 outline-none text-[15px] leading-7 whitespace-pre-wrap transition"
-                      onInput={(e) => updateBlock(idx, { value: (e.target as HTMLDivElement).innerText })}
-                      dangerouslySetInnerHTML={{ __html: block.value || '' }}
+                    <TextBlock
+                      initialContent={block.value}
+                      onChange={(html) => updateBlock(idx, { value: html })}
+                      onPasteImage={(dataUrl) => handlePasteImage(idx, dataUrl)}
+                      autoFocus={idx === blocks.length - 1 && !block.value}
                     />
                   )}
+
                   {block.type === 'drawing' && (
-                    <div className="rounded-xl border border-[var(--border)] overflow-hidden bg-white">
-                      <canvas
-                        id={`noteCanvas${idx}`}
-                        width={800}
-                        height={400}
-                        className="w-full block cursor-crosshair"
-                        style={{ touchAction: 'none', height: 400 }}
+                    <Suspense
+                      fallback={
+                        <div className="flex items-center justify-center h-[450px] rounded-xl border border-[var(--border)] bg-[var(--bg)]">
+                          <Loader2 className="w-6 h-6 animate-spin text-[var(--text-secondary)]" />
+                          <span className="ml-2 text-sm text-[var(--text-secondary)]">Загрузка холста...</span>
+                        </div>
+                      }
+                    >
+                      <DrawingBlock
+                        initialData={block.dataUrl}
+                        onChange={(data) => updateBlock(idx, { dataUrl: data })}
                       />
-                      <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg)] border-t border-[var(--border)] text-xs">
-                        <span className="text-[var(--text-secondary)]">Рисование (будет Excalidraw)</span>
-                      </div>
-                    </div>
+                    </Suspense>
                   )}
+
                   {block.type === 'image' && (
                     <div className="rounded-xl border border-[var(--border)] overflow-hidden">
-                      <img src={block.dataUrl} className="max-w-full block" />
+                      <img src={block.dataUrl} className="max-w-full block" alt="" />
                     </div>
                   )}
+
+                  {/* Remove block button */}
                   <button
                     onClick={() => removeBlock(idx)}
-                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[var(--text-secondary)] text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[var(--red)] transition"
+                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[var(--text-secondary)] text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[var(--red)] transition z-10"
                   >
                     ×
                   </button>
                 </div>
               ))}
 
-              {/* Add block */}
-              <div className="flex gap-2 mt-2">
+              {/* Add block buttons */}
+              <div className="flex gap-2 mt-3">
                 <button
                   onClick={() => addBlock('text')}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition"
                 >
-                  + Текст
+                  <Type className="w-4 h-4" /> Текст
                 </button>
                 <button
                   onClick={() => addBlock('drawing')}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition"
                 >
-                  + Рисунок
+                  <PenTool className="w-4 h-4" /> Рисунок
                 </button>
               </div>
             </div>
@@ -224,18 +263,18 @@ export function NotesPage() {
 
           {/* Save indicator */}
           {saveStatus && (
-            <div className="fixed bottom-5 right-5 bg-white px-4 py-2 rounded-full shadow-lg text-xs text-[var(--text-secondary)] border border-[var(--border)] animate-fade-in">
+            <div className="fixed bottom-5 right-5 bg-white px-4 py-2 rounded-full shadow-lg text-xs text-[var(--text-secondary)] border border-[var(--border)]">
               {saveStatus}
             </div>
           )}
         </div>
       </div>
 
-      {/* Fullscreen exit button */}
+      {/* Fullscreen exit */}
       {fullscreen && (
         <button
           onClick={() => setFullscreen(false)}
-          className="fixed top-4 right-4 z-[201] flex items-center gap-2 px-3 py-2 bg-white border border-[var(--border)] rounded-xl shadow-lg text-sm hover:shadow-xl transition"
+          className="fixed top-4 right-4 z-[201] flex items-center gap-2 px-4 py-2 bg-white border border-[var(--border)] rounded-xl shadow-lg text-sm hover:shadow-xl transition"
         >
           <Minimize2 className="w-4 h-4" /> Свернуть
         </button>
