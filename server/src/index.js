@@ -45,6 +45,7 @@ app.use(cors({
 }));
 
 // Body parsing & middleware
+app.use('/api/notes', express.json({ limit: '10mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(xssClean);
 app.use('/api', apiLimiter);
@@ -88,6 +89,7 @@ app.use('/api/cube',            require('./routes/cube'));
 app.use('/api/contract-type-fields', require('./routes/contract-type-fields'));
 app.use('/api/buildings',       require('./routes/floorplan'));
 app.use('/api/equipment',       require('./routes/equipment'));
+app.use('/api/notes',           require('./routes/notes'));
 app.use('/api',                 require('./routes/letters'));
 
 // SPA fallback

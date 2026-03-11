@@ -56,6 +56,9 @@ module.exports = `</head>
       <div class="nav-item" data-type="fire-safety" onclick="showFireSafety()">
         <i data-lucide="flame" class="lucide"></i> Пожарка
       </div>
+      <div class="nav-item" data-type="notes" onclick="showNotesPage()">
+        <i data-lucide="notebook-pen" class="lucide"></i> Заметки
+      </div>
       <div class="nav-section" style="margin-top:12px">Настройки</div>
       <div class="nav-item" onclick="showSettings()">
         <i data-lucide="settings" class="lucide"></i> Типы и поля
