@@ -9,6 +9,11 @@ import { EntityDetailPage } from './pages/EntityDetailPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { MapPage } from './pages/MapPage';
 import { EntityFormPage } from './pages/EntityFormPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { FinancePage } from './pages/FinancePage';
+import { DebtorsPage } from './pages/DebtorsPage';
+import { ExpensesPage } from './pages/ExpensesPage';
+import { RentAnalysisPage } from './pages/RentAnalysisPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,12 +41,17 @@ export default function App() {
             }
           >
             <Route index element={<MapPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
             <Route path="notes" element={<NotesPage />} />
             <Route path="entities/:type" element={<EntitiesPage />} />
             <Route path="entities/:type/new" element={<EntityFormPage />} />
             <Route path="entities/:type/:id" element={<EntityDetailPage />} />
             <Route path="entities/:type/:id/edit" element={<EntityFormPage />} />
             <Route path="entities/_/:id" element={<EntityDetailPage />} />
+            <Route path="finance" element={<FinancePage />} />
+            <Route path="debtors" element={<DebtorsPage />} />
+            <Route path="expenses" element={<ExpensesPage />} />
+            <Route path="rent-analysis" element={<RentAnalysisPage />} />
             <Route path="reports" element={<PlaceholderPage title="Отчёты" />} />
             <Route path="budget" element={<PlaceholderPage title="Бюджеты" />} />
             <Route path="settings" element={<PlaceholderPage title="Настройки" />} />

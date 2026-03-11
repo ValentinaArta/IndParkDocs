@@ -5,7 +5,7 @@ import { useEntities } from '../api/hooks';
 import {
   Map, FileText, Paperclip, FileCheck, FileSignature, Mail,
   Building2, Landmark, MapPin, Settings as SettingsIcon,
-  BarChart2, PieChart, TrendingUp, Box, Sparkles,
+  BarChart2, PieChart, TrendingUp, Box, Sparkles, AlertTriangle, Receipt,
   Zap, Scale, Flame, NotebookPen, LogOut, Shield,
   ChevronDown, ChevronRight,
 } from 'lucide-react';
@@ -189,10 +189,15 @@ export function Sidebar() {
         <NavItem icon={<MapPin />} label="Земельные участки" path="/entities/land_plot" />
         <NavItem icon={<SettingsIcon />} label="Оборудование" path="/entities/equipment" />
 
-        <NavSection label="Аналитика" />
-        <NavItem icon={<BarChart2 />} label="Отчёты" path="/reports" />
-        <NavItem icon={<PieChart />} label="BI-дашборды" path="/bi" />
+        <NavSection label="Финансы" />
+        <NavItem icon={<TrendingUp />} label="Сводка 1С" path="/finance" />
+        <NavItem icon={<AlertTriangle />} label="Должники" path="/debtors" />
+        <NavItem icon={<Receipt />} label="Расходы" path="/expenses" />
         <NavItem icon={<TrendingUp />} label="Бюджеты" path="/budget" />
+
+        <NavSection label="Аналитика" />
+        <NavItem icon={<BarChart2 />} label="Анализ аренды" path="/rent-analysis" />
+        <NavItem icon={<PieChart />} label="Обзор" path="/dashboard" />
         <NavItem icon={<Box />} label="Куб" path="/cube" />
         <NavItem icon={<Sparkles />} label="AI Песочница" path="/ai" />
 
