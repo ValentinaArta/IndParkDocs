@@ -264,10 +264,12 @@ function ContractDetailView({ data, type, navigate, entityId }: {
 
           {/* ── Action buttons ── */}
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
+            <button onClick={() => navigate(`/entities/supplement/new?parent_id=${entityId}&parent_name=${encodeURIComponent(entity.name)}`)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
               <Plus className="w-3.5 h-3.5" /> Доп. соглашение
             </button>
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
+            <button onClick={() => navigate(`/entities/act/new?parent_id=${entityId}&parent_name=${encodeURIComponent(entity.name)}`)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
               <Plus className="w-3.5 h-3.5" /> Акт
             </button>
           </div>
