@@ -92,10 +92,14 @@ app.use('/api/equipment',       require('./routes/equipment'));
 app.use('/api/notes',           require('./routes/notes'));
 app.use('/api',                 require('./routes/letters'));
 
-// React frontend (/app/)
+// React frontend (/app/) — no CSP restrictions (Excalidraw needs broad permissions)
 const reactDistPath = path.join(__dirname, '../../frontend/dist');
-app.use('/app', express.static(reactDistPath));
+app.use('/app', (req, res, next) => {
+  res.removeHeader('Content-Security-Policy');
+  next();
+}, express.static(reactDistPath));
 app.get('/app/*', (req, res) => {
+  res.removeHeader('Content-Security-Policy');
   res.sendFile(path.join(reactDistPath, 'index.html'));
 });
 
