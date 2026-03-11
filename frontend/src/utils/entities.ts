@@ -74,13 +74,14 @@ export interface ColumnDef {
 }
 
 const contractColumns: ColumnDef[] = [
-  { key: 'number', label: '№', width: '120px', prop: 'number' },
-  { key: 'contractor', label: 'Контрагент', width: '1fr' },
-  { key: 'contract_type', label: 'Тип', width: '120px' },
-  { key: 'our_legal', label: 'Юрлицо', width: '180px' },
   { key: 'status', label: 'Статус', width: '120px', render: 'status' },
-  { key: 'amount', label: 'Сумма', width: '130px', align: 'right', render: 'money' },
-  { key: 'date', label: 'Дата', width: '100px', render: 'date', prop: 'contract_date' },
+  { key: 'number', label: '№', width: '100px', prop: 'number' },
+  { key: 'contract_type', label: 'Тип договора', width: '120px' },
+  { key: 'subject', label: 'Предмет договора', width: '1fr' },
+  { key: 'our_legal', label: 'Наше юр. лицо', width: '160px' },
+  { key: 'contractor', label: 'Контрагент', width: '180px' },
+  { key: 'date', label: 'Дата', width: '90px', render: 'date', prop: 'contract_date' },
+  { key: 'amount', label: 'Сумма', width: '120px', align: 'right', render: 'money' },
 ];
 
 const companyColumns: ColumnDef[] = [
