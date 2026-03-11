@@ -9,6 +9,8 @@ var _noteDrawing = null;   // {canvas, ctx, active, color, size, eraser, lastPt}
 var _noteDirty = false;
 
 function showNotesPage() {
+  // Exit fullscreen if was on from before
+  document.body.classList.remove('notes-fullscreen');
   _setNavHash('notes');
   setActive('[data-type="notes"]');
   document.getElementById('pageTitle').textContent = 'Заметки';
@@ -89,6 +91,7 @@ function _noteRenderBlocks() {
     '<input id="noteTitleInput" value="' + escapeHtml(_noteGetTitle()) + '" ' +
       'style="flex:1;font-size:20px;font-weight:600;border:none;border-bottom:2px solid var(--border);padding:4px 0;background:transparent;outline:none" ' +
       'oninput="_noteMarkDirty()" placeholder="Название">' +
+    '<button class="btn btn-sm" onclick="_noteToggleFullscreen()" title="Полный экран" style="flex-shrink:0"><i data-lucide="maximize-2" class="lucide" style="width:16px;height:16px"></i></button>' +
     '<button class="btn btn-sm" onclick="_noteDelete()" title="Удалить" style="color:var(--red);flex-shrink:0"><i data-lucide="trash-2" class="lucide" style="width:16px;height:16px"></i></button>' +
   '</div>';
 
@@ -330,6 +333,30 @@ async function _noteSaveNow() {
     if (ind) { ind.textContent = "Ошибка сохранения"; ind.style.color = "var(--red)"; }
   }
 }
+
+// ========== FULLSCREEN ==========
+function _noteToggleFullscreen() {
+  var isFs = document.body.classList.toggle('notes-fullscreen');
+  // Show/hide floating exit button
+  var existing = document.getElementById('noteFsExit');
+  if (isFs && !existing) {
+    var btn = document.createElement('button');
+    btn.id = 'noteFsExit';
+    btn.className = 'notes-fs-exit';
+    btn.onclick = _noteToggleFullscreen;
+    btn.innerHTML = '<i data-lucide="minimize-2" class="lucide" style="width:16px;height:16px"></i> Выйти';
+    document.body.appendChild(btn);
+    renderIcons();
+  } else if (!isFs && existing) {
+    existing.remove();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.body.classList.contains('notes-fullscreen')) {
+    _noteToggleFullscreen();
+  }
+});
 
 async function _noteDelete() {
   if (!_currentNoteId) return;
