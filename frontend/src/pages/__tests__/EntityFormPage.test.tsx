@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/test-utils';
 import { setupFetchMock, mockApiResponses } from '../../test/mocks/api';
@@ -15,6 +15,9 @@ const MOCK_FIELDS_COMPANY = [
   { id: 2, name: 'is_own', name_ru: 'Наше юр. лицо', field_type: 'boolean', required: false, options: [] },
   { id: 3, name: 'phone', name_ru: 'Телефон', field_type: 'text', required: false, options: [] },
 ];
+
+const ROUTE_NEW = 'entities/:type/new';
+const ROUTE_EDIT = 'entities/:type/:id/edit';
 
 describe('EntityFormPage — создание', () => {
   let cleanup: () => void;
@@ -33,7 +36,10 @@ describe('EntityFormPage — создание', () => {
   });
 
   it('показывает поле "Название" обязательное', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/new'] });
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/new'],
+      route: ROUTE_NEW,
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Название/)).toBeInTheDocument();
@@ -41,7 +47,10 @@ describe('EntityFormPage — создание', () => {
   });
 
   it('рендерит динамические поля из field_definitions', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/new'] });
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/new'],
+      route: ROUTE_NEW,
+    });
 
     await waitFor(() => {
       expect(screen.getByText('ИНН')).toBeInTheDocument();
@@ -51,24 +60,30 @@ describe('EntityFormPage — создание', () => {
   });
 
   it('показывает кнопку "Создать" в режиме создания', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/new'] });
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/new'],
+      route: ROUTE_NEW,
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Создать')).toBeInTheDocument();
     });
-    // Не должно быть кнопки удаления
     expect(screen.queryByText('Удалить')).not.toBeInTheDocument();
   });
 
   it('показывает ошибку при пустом названии', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/new'] });
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/new'],
+      route: ROUTE_NEW,
+    });
     const user = userEvent.setup();
 
     await waitFor(() => {
       expect(screen.getByText('Создать')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText('Создать'));
+    const form = screen.getByText('Создать').closest('form')!;
+    fireEvent.submit(form);
 
     await waitFor(() => {
       expect(screen.getByText('Введите название')).toBeInTheDocument();
@@ -76,7 +91,10 @@ describe('EntityFormPage — создание', () => {
   });
 
   it('чекбокс boolean-поля переключается', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/new'] });
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/new'],
+      route: ROUTE_NEW,
+    });
     const user = userEvent.setup();
 
     await waitFor(() => {
@@ -112,7 +130,10 @@ describe('EntityFormPage — редактирование', () => {
   });
 
   it('предзаполняет название из существующей сущности', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/42/edit'] });
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/42/edit'],
+      route: ROUTE_EDIT,
+    });
 
     await waitFor(() => {
       const nameInput = screen.getByDisplayValue('ООО Тест');
@@ -121,7 +142,10 @@ describe('EntityFormPage — редактирование', () => {
   });
 
   it('показывает кнопку "Сохранить" и "Удалить" в режиме редактирования', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/42/edit'] });
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/42/edit'],
+      route: ROUTE_EDIT,
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Сохранить')).toBeInTheDocument();
@@ -130,19 +154,24 @@ describe('EntityFormPage — редактирование', () => {
   });
 
   it('удаление требует подтверждения', async () => {
-    renderWithProviders(<EntityFormPage />, { initialEntries: ['/entities/company/42/edit'] });
-    const user = userEvent.setup();
+    renderWithProviders(<EntityFormPage />, {
+      initialEntries: ['/entities/company/42/edit'],
+      route: ROUTE_EDIT,
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Удалить')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText('Удалить'));
+    fireEvent.click(screen.getByText('Удалить'));
 
     await waitFor(() => {
       expect(screen.getByText('Удалить?')).toBeInTheDocument();
-      expect(screen.getByText('Да')).toBeInTheDocument();
-      expect(screen.getByText('Нет')).toBeInTheDocument();
+      // "Да" button in the confirmation (not the boolean label)
+      const daBtn = screen.getByRole('button', { name: 'Да' });
+      expect(daBtn).toBeInTheDocument();
+      const netBtn = screen.getByRole('button', { name: 'Нет' });
+      expect(netBtn).toBeInTheDocument();
     });
   });
 });

@@ -17,8 +17,9 @@ export function setupFetchMock() {
       });
     }
 
-    // Check mock responses
-    for (const [pattern, data] of Object.entries(mockApiResponses)) {
+    // Check mock responses (longest match first to avoid prefix collisions)
+    const sorted = Object.entries(mockApiResponses).sort((a, b) => b[0].length - a[0].length);
+    for (const [pattern, data] of sorted) {
       if (url.includes(pattern)) {
         return new Response(JSON.stringify(data), {
           status: 200, headers: { 'Content-Type': 'application/json' },

@@ -1,6 +1,6 @@
 import { render, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { ReactElement, ReactNode } from 'react';
 
 function createTestQueryClient() {
@@ -30,10 +30,16 @@ function TestWrapper({ children, initialEntries = ['/'] }: WrapperProps) {
 
 export function renderWithProviders(
   ui: ReactElement,
-  options?: RenderOptions & { initialEntries?: string[] },
+  options?: RenderOptions & { initialEntries?: string[]; route?: string },
 ) {
-  const { initialEntries, ...renderOpts } = options || {};
-  return render(ui, {
+  const { initialEntries, route, ...renderOpts } = options || {};
+  const element = route ? (
+    <Routes>
+      <Route path={route} element={ui} />
+    </Routes>
+  ) : ui;
+
+  return render(element, {
     wrapper: ({ children }) => (
       <TestWrapper initialEntries={initialEntries}>{children}</TestWrapper>
     ),

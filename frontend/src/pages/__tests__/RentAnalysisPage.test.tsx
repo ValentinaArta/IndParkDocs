@@ -58,13 +58,12 @@ describe('RentAnalysisPage', () => {
     });
   });
 
-  it('показывает итоговую сумму', async () => {
+  it('показывает итоговую строку', async () => {
     mockApiResponses['/api/reports/rent-analysis'] = MOCK_ROWS;
     renderWithProviders(<RentAnalysisPage />);
 
     await waitFor(() => {
-      // 72000 + 100000 = 172 000
-      expect(screen.getByText('2 строк, итого:')).toBeTruthy;
+      expect(screen.getByText(/2 строк, итого/)).toBeInTheDocument();
     });
   });
 
@@ -77,7 +76,7 @@ describe('RentAnalysisPage', () => {
       expect(screen.getByText('ООО Альфа')).toBeInTheDocument();
     });
 
-    const input = screen.getByPlaceholderText(/поиск/i);
+    const input = screen.getByPlaceholderText(/Поиск/i);
     await user.type(input, 'Бета');
 
     await waitFor(() => {
