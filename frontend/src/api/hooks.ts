@@ -163,3 +163,75 @@ export function useDeleteRelation() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['relations'] }); },
   });
 }
+
+// ---- Stats (Dashboard) ----
+export function useStats() {
+  return useQuery({
+    queryKey: ['stats'],
+    queryFn: () => apiGet<{ types: Array<{ name: string; name_ru: string; icon: string; color: string; count: number }>; totalRelations: number }>('/stats'),
+    staleTime: 60_000,
+  });
+}
+
+// ---- Finance ----
+export function useFinanceSummary(from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ['finance-summary', from, to],
+    queryFn: () => apiGet<Record<string, unknown>>(`/finance/summary${qs ? '?' + qs : ''}`),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+export function useFinanceOverdue(org?: string) {
+  const qs = org ? `?org=${org}` : '';
+  return useQuery({
+    queryKey: ['finance-overdue', org],
+    queryFn: () => apiGet<Record<string, unknown>>(`/finance/overdue${qs}`),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+export function useFinanceExpenses() {
+  return useQuery({
+    queryKey: ['finance-expenses'],
+    queryFn: () => apiGet<Record<string, unknown>>('/finance/expenses'),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+export function useFinanceBudget(cfo?: string, type?: string) {
+  const params = new URLSearchParams();
+  if (cfo) params.set('cfo', cfo);
+  if (type) params.set('type', type);
+  return useQuery({
+    queryKey: ['finance-budget', cfo, type],
+    queryFn: () => apiGet<Record<string, unknown>>(`/finance/budget?${params}`),
+    enabled: !!cfo,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+// ---- Reports ----
+export function useRentAnalysis() {
+  return useQuery({
+    queryKey: ['rent-analysis'],
+    queryFn: () => apiGet<Array<Record<string, unknown>>>('/reports/rent-analysis'),
+    staleTime: 60_000,
+  });
+}
+
+export function useAreaStats() {
+  return useQuery({
+    queryKey: ['area-stats'],
+    queryFn: () => apiGet<Record<string, unknown>>('/reports/area-stats'),
+    staleTime: 60_000,
+  });
+}
