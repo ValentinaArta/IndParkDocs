@@ -35,9 +35,10 @@ function emptyRentObject(objectType: RentObjectType = 'room'): RentObject {
 interface Props {
   value: RentObject[];
   onChange: (items: RentObject[]) => void;
+  types?: RentObjectType[];
 }
 
-export function RentObjectsEditor({ value, onChange }: Props) {
+export function RentObjectsEditor({ value, onChange, types }: Props) {
   const items = value.length > 0 ? value : [emptyRentObject()];
 
   function update(idx: number, patch: Partial<RentObject>) {
@@ -67,7 +68,7 @@ export function RentObjectsEditor({ value, onChange }: Props) {
         />
       ))}
 
-      <RentObjectButtons onAdd={addItem} />
+      <RentObjectButtons onAdd={addItem} types={types} />
     </div>
   );
 }
@@ -81,7 +82,7 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
 }) {
   const def = getRentObjectDef(item.object_type);
   const Icon = def.icon;
-  const isEquipment = item.object_type === 'equipment';
+  const isEquipment = item.object_type === 'equipment' || item.object_type === 'meter';
 
   // Calculate monthly from area * rate
   const area = parseFloat(item.area) || 0;

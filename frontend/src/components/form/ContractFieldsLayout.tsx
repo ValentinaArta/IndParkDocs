@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ArrowRightLeft } from 'lucide-react';
 import { FieldInput } from './FieldInput';
 import { RentObjectsEditor, type RentObject } from './RentObjectsEditor';
+import { ALL_OBJECT_TYPES } from './RentObjectButtons';
 import { ContractItemsEditor, type ContractItem } from './ContractItemsEditor';
 import { DurationSection } from './DurationSection';
 import { EntitySearch } from './EntitySearch';
@@ -251,6 +252,15 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
                 value={contractItems}
                 onChange={(items) => onChange('contract_items', items)}
               />
+
+              {/* Object buttons for non-rental contracts (with meter) */}
+              <div className="mt-3">
+                <RentObjectsEditor
+                  value={rentObjects}
+                  onChange={(items) => onChange('rent_objects', items)}
+                  types={ALL_OBJECT_TYPES}
+                />
+              </div>
             </>
           )}
         </FormSection>

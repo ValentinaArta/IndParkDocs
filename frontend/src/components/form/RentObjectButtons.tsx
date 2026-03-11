@@ -1,6 +1,6 @@
-import { Plus, Building2, DoorOpen, MapPin, MapPinned, Settings } from 'lucide-react';
+import { Plus, Building2, DoorOpen, MapPin, MapPinned, Settings, Gauge } from 'lucide-react';
 
-export type RentObjectType = 'building' | 'room' | 'land_plot' | 'land_plot_part' | 'equipment';
+export type RentObjectType = 'building' | 'room' | 'land_plot' | 'land_plot_part' | 'equipment' | 'meter';
 
 export interface RentObjectTypeDef {
   type: RentObjectType;
@@ -15,20 +15,32 @@ export const RENT_OBJECT_TYPES: RentObjectTypeDef[] = [
   { type: 'land_plot', label: 'ЗУ', icon: MapPin, entityType: 'land_plot' },
   { type: 'land_plot_part', label: 'Часть ЗУ', icon: MapPinned, entityType: 'land_plot_part' },
   { type: 'equipment', label: 'Оборудование', icon: Settings, entityType: 'equipment' },
+  { type: 'meter', label: 'Счётчик', icon: Gauge, entityType: 'meter' },
 ];
 
+/** Default 5 types (without meter) */
+export const DEFAULT_OBJECT_TYPES: RentObjectType[] = ['building', 'room', 'land_plot', 'land_plot_part', 'equipment'];
+
+/** All 6 types (with meter) */
+export const ALL_OBJECT_TYPES: RentObjectType[] = ['building', 'room', 'land_plot', 'land_plot_part', 'equipment', 'meter'];
+
 export function getRentObjectDef(type: RentObjectType): RentObjectTypeDef {
-  return RENT_OBJECT_TYPES.find(t => t.type === type) || RENT_OBJECT_TYPES[1]; // fallback to room
+  return RENT_OBJECT_TYPES.find(t => t.type === type) || RENT_OBJECT_TYPES[1];
 }
 
 interface Props {
   onAdd: (type: RentObjectType) => void;
+  types?: RentObjectType[];
 }
 
-export function RentObjectButtons({ onAdd }: Props) {
+export function RentObjectButtons({ onAdd, types }: Props) {
+  const visibleTypes = types
+    ? RENT_OBJECT_TYPES.filter(t => types.includes(t.type))
+    : RENT_OBJECT_TYPES.filter(t => DEFAULT_OBJECT_TYPES.includes(t.type));
+
   return (
     <div className="flex gap-2 flex-wrap">
-      {RENT_OBJECT_TYPES.map(({ type, label, icon: Icon }) => (
+      {visibleTypes.map(({ type, label }) => (
         <button
           key={type}
           type="button"
