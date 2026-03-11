@@ -7,6 +7,7 @@ export interface Column<T> {
   key: string;
   label: string;
   align?: 'left' | 'right' | 'center';
+  wrap?: boolean;
   minWidth?: number;
   defaultWidth?: number;
   getValue: (row: T) => string;
@@ -99,7 +100,7 @@ export function ResizableTable<T>({
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap ${
+                    className={`px-4 py-3 ${col.wrap ? '' : 'overflow-hidden text-ellipsis whitespace-nowrap '}${
                       col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''
                     }`}
                     style={colWidths[col.key] ? { width: colWidths[col.key] } : undefined}

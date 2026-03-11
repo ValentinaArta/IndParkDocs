@@ -81,6 +81,7 @@ export function EntitiesPage() {
       key: col.key,
       label: col.label,
       align: col.align as 'left' | 'right' | undefined,
+      wrap: col.wrap,
       minWidth: 60,
       defaultWidth: getDefaultWidth(col),
       getValue: (entity: Entity) => getCellValue(entity, col),

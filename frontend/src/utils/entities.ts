@@ -70,6 +70,7 @@ export interface ColumnDef {
   width?: string;
   align?: 'left' | 'right' | 'center';
   render?: 'date' | 'money' | 'status' | 'text';
+  wrap?: boolean;
   prop?: string; // properties key
 }
 
@@ -77,8 +78,8 @@ const contractColumns: ColumnDef[] = [
   { key: 'status', label: 'Статус', width: '120px', render: 'status' },
   { key: 'number', label: '№', width: '100px', prop: 'number' },
   { key: 'contract_type', label: 'Тип договора', width: '120px' },
-  { key: 'subject', label: 'Предмет договора', width: '1fr' },
-  { key: 'our_legal', label: 'Наше юр. лицо', width: '160px' },
+  { key: 'subject', label: 'Предмет договора', width: '1fr', wrap: true },
+  { key: 'our_legal', label: 'Наше юр. лицо', width: '160px', wrap: true },
   { key: 'contractor', label: 'Контрагент', width: '180px' },
   { key: 'date', label: 'Дата', width: '90px', render: 'date', prop: 'contract_date' },
   { key: 'amount', label: 'Сумма', width: '120px', align: 'right', render: 'money' },
