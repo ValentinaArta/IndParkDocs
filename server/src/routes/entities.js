@@ -421,8 +421,8 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 
   const { rows: relations } = await pool.query(
     `SELECT r.*,
-      fe.name as from_name, fet.icon as from_icon, fet.name_ru as from_type_ru, fet.name as from_type_name,
-      te.name as to_name, tet.icon as to_icon, tet.name_ru as to_type_ru, tet.name as to_type_name,
+      fe.name as from_name, fe.parent_id as from_parent_id, fet.icon as from_icon, fet.name_ru as from_type_ru, fet.name as from_type_name,
+      te.name as to_name, te.parent_id as to_parent_id, tet.icon as to_icon, tet.name_ru as to_type_ru, tet.name as to_type_name,
       rt.name_ru as relation_name_ru, rt.color as relation_color
     FROM relations r
     JOIN entities fe ON r.from_entity_id = fe.id

@@ -713,16 +713,62 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
   add('Кадастровый номер', props.cadastral_number);
   if (props.cadastral_value) {
     const cv = Number(props.cadastral_value);
-    const cvDate = props.cadastral_value_date ? ` (на ${fmtDate(String(props.cadastral_value_date))})` : '';
-    infoRows.push(['Кадастровая стоимость', `${fmtMoney(cv)} ₽${cvDate}`]);
+    infoRows.push(['Кадастровая стоимость', `${fmtMoney(cv)} ₽`]);
+  }
+  if (props.cadastral_value_date) {
+    infoRows.push(['Дата определения кад. стоимости', fmtDate(String(props.cadastral_value_date))]);
   }
   add('Примечание', props.note);
 
-  // Relation groups
+  // Separate special relation types for buildings
+  const locatedOnRels = rels.filter((r) => r.relation_type === 'located_on');
+  const locatedInRels = rels.filter((r) => r.relation_type === 'located_in');
+  const otherRels = rels.filter((r) => r.relation_type !== 'located_on' && r.relation_type !== 'located_in');
+
+  // Build "Передан по договору аренды" groups from located_in
+  // Group supplements by their parent contract; show contract name + (ДС) in parentheses
+  const contractTransfers: { contractId: number; contractName: string; supplements: { id: number; name: string }[] }[] = [];
+  if (type === 'building' || type === 'room') {
+    const contracts: DetailRel[] = [];
+    const supplements: DetailRel[] = [];
+    locatedInRels.forEach((r) => {
+      const isFrom = r.from_entity_id === entity.id;
+      const typeName = isFrom ? r.to_type_name : r.from_type_name;
+      if (typeName === 'contract') contracts.push(r);
+      else if (typeName === 'supplement') supplements.push(r);
+    });
+    // Index contracts by id
+    const contractMap = new Map<number, { id: number; name: string; supplements: { id: number; name: string }[] }>();
+    contracts.forEach((r) => {
+      const isFrom = r.from_entity_id === entity.id;
+      const cId = isFrom ? r.to_entity_id : r.from_entity_id;
+      const cName = (isFrom ? r.to_name : r.from_name) || `#${cId}`;
+      contractMap.set(cId, { id: cId, name: cName, supplements: [] });
+    });
+    // Attach supplements to their parent contracts
+    supplements.forEach((r) => {
+      const isFrom = r.from_entity_id === entity.id;
+      const sId = isFrom ? r.to_entity_id : r.from_entity_id;
+      const sName = (isFrom ? r.to_name : r.from_name) || `#${sId}`;
+      const parentId = isFrom ? r.to_parent_id : r.from_parent_id;
+      if (parentId && contractMap.has(parentId)) {
+        contractMap.get(parentId)!.supplements.push({ id: sId, name: sName });
+      } else if (parentId) {
+        // Contract not in located_in directly — create entry for it
+        contractMap.set(parentId, { id: parentId, name: `Договор #${parentId}`, supplements: [{ id: sId, name: sName }] });
+      } else {
+        // Standalone supplement without parent — show as-is
+        contractMap.set(sId, { id: sId, name: sName, supplements: [] });
+      }
+    });
+    contractTransfers.push(...contractMap.values());
+  }
+
+  // Other relation groups
   const relGroups: Record<string, DetailRel[]> = {};
-  rels.forEach((r) => { (relGroups[r.relation_type] ||= []).push(r); });
+  otherRels.forEach((r) => { (relGroups[r.relation_type] ||= []).push(r); });
   const relLabels: Record<string, string> = {
-    located_on: 'Земельный участок', located_in: 'Расположение', on_balance: 'На балансе',
+    on_balance: 'На балансе',
     our_entity: 'Наше юрлицо', party_to: 'Сторона', subject_of: 'Договоры',
   };
 
@@ -780,7 +826,53 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
             </div>
           )}
 
-          {/* Relations */}
+          {/* Land plot (located_on) */}
+          {locatedOnRels.length > 0 && (
+            <CollapsibleSection title="Земельный участок" icon={null} count={locatedOnRels.length} defaultOpen>
+              {locatedOnRels.map((r) => {
+                const isFrom = r.from_entity_id === entity.id;
+                const linkedId = isFrom ? r.to_entity_id : r.from_entity_id;
+                const linkedName = isFrom ? r.to_name : r.from_name;
+                return (
+                  <button key={r.id} onClick={() => navigate(`/entities/_/${linkedId}`)}
+                    className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm text-[var(--primary)] font-medium">
+                    {linkedName || `#${linkedId}`}
+                  </button>
+                );
+              })}
+            </CollapsibleSection>
+          )}
+
+          {/* Contracts transfer (located_in) */}
+          {contractTransfers.length > 0 && (
+            <CollapsibleSection title="Передан по договору аренды" icon={null} count={contractTransfers.length} defaultOpen>
+              {contractTransfers.map((ct) => (
+                <div key={ct.id} className="border-t border-[var(--border)] px-5 py-3">
+                  <button onClick={() => navigate(`/entities/_/${ct.id}`)}
+                    className="text-sm text-[var(--primary)] font-medium hover:underline text-left">
+                    {ct.name}
+                  </button>
+                  {ct.supplements.length > 0 && (
+                    <span className="text-sm text-[var(--text-secondary)]">
+                      {' ('}
+                      {ct.supplements.map((s, i) => (
+                        <span key={s.id}>
+                          {i > 0 && ', '}
+                          <button onClick={() => navigate(`/entities/_/${s.id}`)}
+                            className="text-[var(--primary)] hover:underline">
+                            {s.name}
+                          </button>
+                        </span>
+                      ))}
+                      {')'}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </CollapsibleSection>
+          )}
+
+          {/* Other relations */}
           {Object.entries(relGroups).map(([relType, rels2]) => (
             <CollapsibleSection key={relType} title={relLabels[relType] || relType} icon={null} count={rels2.length} defaultOpen>
               {rels2.map((r) => {

@@ -82,10 +82,12 @@ export interface FieldDefinition {
 export interface DetailRel {
   id: number;
   relation_type: string;
-  source_id: number;
-  target_id: number;
-  source_name?: string;
-  target_name?: string;
-  to_type_name?: string;
+  from_entity_id: number;
+  to_entity_id: number;
+  from_name?: string;
+  to_name?: string;
   from_type_name?: string;
+  to_type_name?: string;
+  from_parent_id?: number | null;
+  to_parent_id?: number | null;
 }
