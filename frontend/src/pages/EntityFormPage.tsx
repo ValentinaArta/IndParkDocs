@@ -27,6 +27,7 @@ export function EntityFormPage() {
   const entityTypeId = entityType?.id ?? null;
 
   const { data: existingEntity, isLoading: loadingEntity } = useEntity(isEdit ? entityId : null);
+  const { data: parentData } = useEntity(!isEdit && parentIdParam ? parseInt(parentIdParam) : null);
   const { data: fields = [], isLoading: loadingFields } = useFieldDefinitions(entityTypeId);
 
   const createMutation = useCreateEntity();
@@ -56,6 +57,24 @@ export function EntityFormPage() {
       setParentEntity({ id: parseInt(parentIdParam), name: parentNameParam || `#${parentIdParam}` });
     }
   }, [isEdit, parentIdParam, parentNameParam]);
+
+  // Inherit party fields from parent contract when creating supplement
+  useEffect(() => {
+    if (!isEdit && type === 'supplement' && parentData?.properties) {
+      const pp = parentData.properties as Record<string, unknown>;
+      const inherited: Record<string, unknown> = {};
+      const partyFields = [
+        'our_role_label', 'our_legal_entity', 'contractor_role_label',
+        'contractor_name', 'subtenant_name', 'contract_type', 'vat_rate',
+      ];
+      for (const key of partyFields) {
+        if (pp[key] && !properties[key]) inherited[key] = pp[key];
+      }
+      if (Object.keys(inherited).length > 0) {
+        setProperties(prev => ({ ...inherited, ...prev }));
+      }
+    }
+  }, [!isEdit, type, parentData]);
 
   // Determine if this type needs a parent selector
   const needsParent = useMemo(() => {
