@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useEntities } from '../api/hooks';
 import {
   Map, FileText, Paperclip, FileCheck, FileSignature, Mail,
   Building2, Landmark, MapPin, Settings as SettingsIcon,
@@ -101,6 +102,58 @@ function NavSubItem({ label, path }: { label: string; path: string }) {
   );
 }
 
+function NavGroupDynamic({ icon, label, basePath, type, allLabel }: { icon: ReactNode; label: string; basePath: string; type: string; allLabel: string }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isActive = location.pathname.startsWith(basePath);
+  const [open, setOpen] = useState(isActive);
+  const { data: entities = [] } = useEntities({ type, enabled: open });
+
+  const sorted = [...entities].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`
+          w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left
+          ${isActive ? 'bg-white/10 text-white font-medium' : 'text-white/70 hover:bg-white/5 hover:text-white'}
+        `}
+      >
+        <span className="w-4 h-4 flex-shrink-0 [&>svg]:w-4 [&>svg]:h-4">{icon}</span>
+        {label}
+        <span className="ml-auto w-3.5 h-3.5 [&>svg]:w-3.5 [&>svg]:h-3.5 text-white/40">
+          {open ? <ChevronDown /> : <ChevronRight />}
+        </span>
+      </button>
+      {open && (
+        <div className="ml-2 space-y-0.5 mt-0.5 max-h-[400px] overflow-y-auto">
+          <button
+            onClick={() => navigate(basePath)}
+            className={`w-full text-left text-xs px-3 py-1.5 pl-7 rounded-lg transition-colors
+              ${location.pathname === basePath && !location.pathname.match(/\/\d+$/)
+                ? 'text-white font-medium' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+          >
+            · {allLabel}
+          </button>
+          {sorted.map((e) => {
+            const ePath = `${basePath}/${e.id}`;
+            const active = location.pathname === ePath || location.pathname === `/entities/_/${e.id}`;
+            return (
+              <button key={e.id} onClick={() => navigate(ePath)}
+                className={`w-full text-left text-xs px-3 py-1.5 pl-7 rounded-lg transition-colors truncate
+                  ${active ? 'text-white font-medium' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+              >
+                · {e.properties?.short_name || e.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const { logout } = useAuthStore();
 
@@ -131,7 +184,7 @@ export function Sidebar() {
         <NavItem icon={<Mail />} label="Письма" path="/letters" />
 
         <NavSection label="Реестры" />
-        <NavItem icon={<Building2 />} label="Корпуса" path="/entities/building" />
+        <NavGroupDynamic icon={<Building2 />} label="Корпуса" basePath="/entities/building" type="building" allLabel="все помещения" />
         <NavItem icon={<Landmark />} label="Компании" path="/entities/company" />
         <NavItem icon={<MapPin />} label="Земельные участки" path="/entities/land_plot" />
         <NavItem icon={<SettingsIcon />} label="Оборудование" path="/entities/equipment" />
