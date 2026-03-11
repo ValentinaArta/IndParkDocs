@@ -8,6 +8,7 @@ import { EntitiesPage } from './pages/EntitiesPage';
 import { EntityDetailPage } from './pages/EntityDetailPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { MapPage } from './pages/MapPage';
+import { EntityFormPage } from './pages/EntityFormPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,7 +38,9 @@ export default function App() {
             <Route index element={<MapPage />} />
             <Route path="notes" element={<NotesPage />} />
             <Route path="entities/:type" element={<EntitiesPage />} />
+            <Route path="entities/:type/new" element={<EntityFormPage />} />
             <Route path="entities/:type/:id" element={<EntityDetailPage />} />
+            <Route path="entities/:type/:id/edit" element={<EntityFormPage />} />
             <Route path="entities/_/:id" element={<EntityDetailPage />} />
             <Route path="reports" element={<PlaceholderPage title="Отчёты" />} />
             <Route path="budget" element={<PlaceholderPage title="Бюджеты" />} />

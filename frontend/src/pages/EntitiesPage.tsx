@@ -106,6 +106,7 @@ export function EntitiesPage() {
         title={title}
         actions={
           <button
+            onClick={() => navigate(`/entities/${type}/new`)}
             className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-dark)] transition"
           >
             <Plus className="w-4 h-4" /> Создать

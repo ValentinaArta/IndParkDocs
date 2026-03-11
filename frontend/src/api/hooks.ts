@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { apiGet } from './client';
-import type { Entity, EntityType, Relation } from './types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiGet, apiPost, apiPut, apiDelete } from './client';
+import type { Entity, EntityType, Relation, FieldDefinition } from './types';
 
 // ---- Entity Types ----
 export function useEntityTypes() {
@@ -100,5 +100,66 @@ export function useAdvanceStatus(entityId: number | null, hasAdvances: boolean) 
     queryFn: () => apiGet<Record<string, unknown>>(`/reports/contract-card/${entityId}/advance-status`),
     enabled: !!entityId && hasAdvances,
     retry: false,
+  });
+}
+
+// ---- Field definitions for entity type ----
+export function useFieldDefinitions(entityTypeId: number | null) {
+  return useQuery({
+    queryKey: ['field-definitions', entityTypeId],
+    queryFn: () => apiGet<FieldDefinition[]>(`/entity-types/${entityTypeId}/fields`),
+    enabled: !!entityTypeId,
+    staleTime: 5 * 60_000,
+  });
+}
+
+// ---- Mutations ----
+export function useCreateEntity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { entity_type_id: number; name: string; properties: Record<string, unknown>; parent_id?: number | null }) =>
+      apiPost<Entity>('/entities', data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['entities'] }); },
+  });
+}
+
+export function useUpdateEntity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: number; name?: string; properties?: Record<string, unknown>; parent_id?: number | null }) =>
+      apiPut<Entity>(`/entities/${id}`, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['entities'] });
+      qc.invalidateQueries({ queryKey: ['entity', vars.id] });
+      qc.invalidateQueries({ queryKey: ['contract-card', vars.id] });
+    },
+  });
+}
+
+export function useDeleteEntity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/entities/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['entities'] }); },
+  });
+}
+
+export function useCreateRelation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { from_entity_id: number; to_entity_id: number; relation_type: string; properties?: Record<string, unknown> }) =>
+      apiPost<Relation>('/relations', data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['relations', vars.from_entity_id] });
+      qc.invalidateQueries({ queryKey: ['relations', vars.to_entity_id] });
+    },
+  });
+}
+
+export function useDeleteRelation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/relations/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['relations'] }); },
   });
 }
