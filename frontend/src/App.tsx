@@ -7,6 +7,7 @@ import { NotesPage } from './pages/NotesPage';
 import { EntitiesPage } from './pages/EntitiesPage';
 import { EntityDetailPage } from './pages/EntityDetailPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { MapPage } from './pages/MapPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +34,7 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<PlaceholderPage title="Карта" />} />
+            <Route index element={<MapPage />} />
             <Route path="notes" element={<NotesPage />} />
             <Route path="entities/:type" element={<EntitiesPage />} />
             <Route path="entities/:type/:id" element={<EntityDetailPage />} />

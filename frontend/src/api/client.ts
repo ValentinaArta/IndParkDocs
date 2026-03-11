@@ -95,3 +95,5 @@ export const apiPut = <T>(url: string, body: unknown) =>
   api<T>(url, { method: 'PUT', body: JSON.stringify(body) });
 export const apiDelete = <T>(url: string) =>
   api<T>(url, { method: 'DELETE' });
+export const apiPatch = <T>(url: string, body: unknown) =>
+  api<T>(url, { method: 'PATCH', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
