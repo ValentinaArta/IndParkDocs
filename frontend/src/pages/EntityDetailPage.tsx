@@ -18,7 +18,7 @@ interface Payment { id: number; payment_date: string; amount: string; payment_nu
 interface EquipmentItem { id: number; equipment_id?: number; equipment_name?: string; name?: string; inv_number?: string; equipment_category?: string; category?: string }
 interface HistoryItem { id: number; name: string; type_name: string; properties?: Record<string, unknown> }
 type DetailEntity = Entity & { relations?: DetailRel[]; children?: HistoryItem[]; fields?: unknown[] };
-interface DetailRel { id: number; from_entity_id: number; to_entity_id: number; relation_type: string; from_name?: string; to_name?: string }
+interface DetailRel { id: number; from_entity_id: number; to_entity_id: number; relation_type: string; from_name?: string; to_name?: string; to_type_name?: string; from_type_name?: string }
 
 export function EntityDetailPage() {
   const { type = 'contract', id } = useParams<{ type: string; id: string }>();
@@ -463,7 +463,7 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
   // Components (part_of this equipment)
   const components = rels.filter((r) => r.relation_type === 'part_of' && r.to_entity_id === entity.id);
   // Acts (subject_of → act)
-  const acts = rels.filter((r) => r.relation_type === 'subject_of' && r.from_entity_id === entity.id && (r as Record<string, unknown>).to_type_name === 'act');
+  const acts = rels.filter((r) => r.relation_type === 'subject_of' && r.from_entity_id === entity.id && r.to_type_name === 'act');
   // Located in
   const locatedIn = rels.filter((r) => r.relation_type === 'located_in' && r.from_entity_id === entity.id);
 
