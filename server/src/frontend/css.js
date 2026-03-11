@@ -160,6 +160,19 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .child-card:hover { background: var(--bg-hover); }
 
 #menuBtn { display: none; min-width:44px; min-height:44px; }
+/* Sidebar toggle (desktop) */
+@media (min-width: 769px) {
+  .app.sidebar-hidden .sidebar { display: none; }
+  .app.sidebar-hidden .sidebar-overlay { display: none; }
+}
+/* Notes fullscreen */
+.notes-fullscreen .sidebar { display: none !important; }
+.notes-fullscreen .sidebar-overlay { display: none !important; }
+.notes-fullscreen .topbar { display: none !important; }
+.notes-fullscreen #notesSidebar { display: none !important; }
+.notes-fullscreen #notesEditor { padding: 0; }
+.notes-fullscreen #noteContent { max-width: 1200px; padding: 24px 48px 80px 48px; }
+.notes-fs-exit { position:fixed; top:16px; right:16px; z-index:200; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.15); display:flex; align-items:center; gap:6px; font-size:13px; }
 .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:49; }
 .sidebar-overlay.open { display:block; }
 /* Responsive */

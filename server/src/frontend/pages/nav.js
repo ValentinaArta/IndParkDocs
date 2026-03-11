@@ -80,6 +80,7 @@ async function startApp() {
     });
   } catch(e) { console.warn('Failed to load справочники on startup:', e.message); }
   renderTypeNav();
+  _restoreSidebarState();
   // URL routing — restore last page on reload
   _routeFromHash(window.location.hash);
   // menuBtn visibility now handled by CSS media query
@@ -324,7 +325,23 @@ function setActive(selector) {
 }
 
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebarOverlay').classList.toggle('open');
+  if (window.innerWidth > 768) {
+    // Desktop: toggle sidebar-hidden class
+    var app = document.querySelector('.app');
+    if (!app) return;
+    app.classList.toggle('sidebar-hidden');
+    localStorage.setItem('sidebarHidden', app.classList.contains('sidebar-hidden') ? 'true' : 'false');
+  } else {
+    // Mobile: overlay menu
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('open');
+  }
+}
+
+function _restoreSidebarState() {
+  if (window.innerWidth > 768 && localStorage.getItem('sidebarHidden') === 'true') {
+    var app = document.querySelector('.app');
+    if (app) app.classList.add('sidebar-hidden');
+  }
 }
 `;
