@@ -4,6 +4,7 @@ import { Save, ArrowLeft, Trash2, Loader2 } from 'lucide-react';
 import {
   useEntity, useEntityTypes, useFieldDefinitions,
   useCreateEntity, useUpdateEntity, useDeleteEntity,
+  useContractCard,
 } from '../api/hooks';
 import { FieldInput } from '../components/form/FieldInput';
 import { EntitySearch } from '../components/form/EntitySearch';
@@ -27,7 +28,8 @@ export function EntityFormPage() {
   const entityTypeId = entityType?.id ?? null;
 
   const { data: existingEntity, isLoading: loadingEntity } = useEntity(isEdit ? entityId : null);
-  const { data: parentData } = useEntity(!isEdit && parentIdParam ? parseInt(parentIdParam) : null);
+  const parentIdForInherit = !isEdit && type === 'supplement' && parentIdParam ? parseInt(parentIdParam) : null;
+  const { data: parentCard } = useContractCard(parentIdForInherit);
   const { data: fields = [], isLoading: loadingFields } = useFieldDefinitions(entityTypeId);
 
   const createMutation = useCreateEntity();
@@ -58,23 +60,31 @@ export function EntityFormPage() {
     }
   }, [isEdit, parentIdParam, parentNameParam]);
 
-  // Inherit party fields from parent contract when creating supplement
+  // Inherit party fields from parent contract-card when creating supplement
   useEffect(() => {
-    if (!isEdit && type === 'supplement' && parentData?.properties) {
-      const pp = parentData.properties as Record<string, unknown>;
+    if (!isEdit && type === 'supplement' && parentCard) {
+      const pc = parentCard as Record<string, unknown>;
+      const pp = (pc.properties || {}) as Record<string, unknown>;
       const inherited: Record<string, unknown> = {};
-      const partyFields = [
-        'our_role_label', 'our_legal_entity', 'contractor_role_label',
-        'contractor_name', 'subtenant_name', 'contract_type', 'vat_rate',
-      ];
-      for (const key of partyFields) {
-        if (pp[key] && !properties[key]) inherited[key] = pp[key];
+      // contract-card returns top-level fields for parties
+      const mapping: Record<string, string> = {
+        our_role_label: 'our_role_label',
+        our_legal_entity: 'our_legal_entity',
+        contractor_role_label: 'contractor_role_label',
+        contractor_name: 'contractor_name',
+        subtenant_name: 'subtenant_name',
+        contract_type: 'contract_type',
+        vat_rate: 'vat_rate',
+      };
+      for (const [propKey, cardKey] of Object.entries(mapping)) {
+        const val = pc[cardKey] || pp[propKey];
+        if (val && !properties[propKey]) inherited[propKey] = val;
       }
       if (Object.keys(inherited).length > 0) {
         setProperties(prev => ({ ...inherited, ...prev }));
       }
     }
-  }, [!isEdit, type, parentData]);
+  }, [!isEdit, type, parentCard]);
 
   // Auto-generate name for supplements and contracts
   useEffect(() => {
