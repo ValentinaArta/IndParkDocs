@@ -156,12 +156,27 @@ function ContractDetailView({ data, type, navigate, entityId }: {
             )}
           </div>
 
+          {/* ── Rent conditions (for rental contracts) ── */}
+          <RentSection data={d} />
+
           {/* ── Amount ── */}
           {num('contract_amount') > 0 && (
             <div className="bg-[var(--primary)] text-white rounded-xl px-6 py-4 text-center">
               <span className="text-lg font-semibold">
                 Сумма договора: {fmtMoney(num('contract_amount'))} ₽
               </span>
+            </div>
+          )}
+          {num('total_monthly') > 0 && !num('contract_amount') && (
+            <div className="bg-[var(--primary)] text-white rounded-xl px-6 py-4 text-center">
+              <span className="text-lg font-semibold">
+                Ежемесячный платёж: {fmtMoney(num('total_monthly'))} руб.
+              </span>
+              {str('power_allocation_kw') && str('power_allocation_kw') !== '0' && (
+                <div className="mt-1 text-sm text-white/80">
+                  ⚡ Эл. мощность: {str('power_allocation_kw')} кВт
+                </div>
+              )}
             </div>
           )}
 
@@ -239,6 +254,81 @@ function ContractDetailView({ data, type, navigate, entityId }: {
 
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---- Rent conditions table ----
+interface RentRow { room_name: string; area: number; rate: number; monthly: number; description?: string }
+interface EquipmentRentItem { equipment_name: string; rent_cost: number }
+
+function RentSection({ data }: { data: Record<string, unknown> }) {
+  const rentRows = (Array.isArray(data.rent_rows) ? data.rent_rows : []) as RentRow[];
+  const equipRent = (Array.isArray(data.equipment_rent_items) ? data.equipment_rent_items : []) as EquipmentRentItem[];
+  const sourceName = (data.rent_source_name as string) || '';
+  const totalMonthly = parseFloat(String(data.total_monthly || '0')) || 0;
+
+  if (rentRows.length === 0 && equipRent.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-[var(--border)]">
+      <div className="px-5 py-3 bg-[var(--bg)] rounded-t-xl">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+          Текущие условия
+        </span>
+        {sourceName && (
+          <span className="text-xs text-[var(--text-secondary)] ml-2">(из {sourceName})</span>
+        )}
+      </div>
+
+      {/* Rent rows table */}
+      {rentRows.length > 0 && (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[var(--border)] bg-[var(--primary)] text-white">
+              <th className="px-5 py-2.5 text-left font-medium">Объект аренды</th>
+              <th className="px-5 py-2.5 text-right font-medium">Площадь, м²</th>
+              <th className="px-5 py-2.5 text-right font-medium">Ставка (руб/м²/мес)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rentRows.map((row, i) => (
+              <tr key={i} className="border-b border-[var(--border)]">
+                <td className="px-5 py-2.5">{row.room_name || '—'}</td>
+                <td className="px-5 py-2.5 text-right tabular-nums">{row.area ? fmtMoney(row.area) : '—'}</td>
+                <td className="px-5 py-2.5 text-right tabular-nums">{row.rate ? fmtMoney(row.rate) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Equipment rent rows */}
+      {equipRent.length > 0 && (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[var(--border)] bg-[var(--primary)] text-white">
+              <th className="px-5 py-2.5 text-left font-medium">Оборудование</th>
+              <th className="px-5 py-2.5 text-right font-medium">Стоимость/мес</th>
+            </tr>
+          </thead>
+          <tbody>
+            {equipRent.map((eq, i) => (
+              <tr key={i} className="border-b border-[var(--border)]">
+                <td className="px-5 py-2.5">{eq.equipment_name}</td>
+                <td className="px-5 py-2.5 text-right tabular-nums">{fmtMoney(eq.rent_cost)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Monthly total */}
+      {totalMonthly > 0 && (
+        <div className="px-5 py-3 text-right text-sm font-semibold">
+          Ежемесячный платёж: {fmtMoney(totalMonthly)} руб.
+        </div>
+      )}
     </div>
   );
 }
