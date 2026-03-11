@@ -50,7 +50,7 @@ function _noteRenderList() {
   var html = "";
   _notesListCache.forEach(function(n) {
     var active = n.id === _currentNoteId ? "background:var(--bg-secondary);" : "";
-    var dt = _fmtDate(n.updated_at);
+    var dt = _fmtDate(n.updated_at ? n.updated_at.substring(0, 10) : '');
     html += '<div class="note-list-item" style="' + active + 'padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="_noteOpen(' + n.id + ')" data-note-id="' + n.id + '">' +
       '<div style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(n.title) + '</div>' +
       '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">' + escapeHtml(dt) + '</div>' +
