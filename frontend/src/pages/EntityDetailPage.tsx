@@ -73,9 +73,10 @@ function ContractDetailView({ data, type, navigate, entityId }: {
   const advances = arr('advances') as unknown as Advance[];
   const payments = arr('payments') as unknown as Payment[];
   const equipmentList = arr('equipment_list') as unknown as EquipmentItem[];
-  const history = arr('history') as unknown as HistoryItem[];
+  const history = arr('history') as unknown as (HistoryItem & { is_contract?: boolean })[];
   const children = (d as Record<string, unknown>)['children'] as HistoryItem[] | undefined;
-  const supplements = history.filter((h) => h.type_name === 'supplement');
+  // In history: is_contract=true is the main contract, rest are supplements
+  const supplements = history.filter((h) => !h.is_contract);
   const acts = (children || []).filter((c) => c.type_name === 'act');
   const direction = str('direction');
   const docStatus = str('doc_status');
@@ -194,11 +195,16 @@ function ContractDetailView({ data, type, navigate, entityId }: {
 
           {/* ── Supplements (history) ── */}
           {supplements.length > 0 && (
-            <CollapsibleSection title="История ДС" icon={<Paperclip className="w-4 h-4" />} count={supplements.length} defaultOpen>
+            <CollapsibleSection title={`История ДС · ${supplements.length} ДС`} icon={<Paperclip className="w-4 h-4" />} count={supplements.length} defaultOpen>
               {supplements.map((s) => (
                 <button key={s.id} onClick={() => navigate(`/entities/supplement/${s.id}`)}
-                  className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm">
-                  {s.name}
+                  className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm flex justify-between items-center">
+                  <span>{s.name}</span>
+                  {(s as Record<string, unknown>).changes && (
+                    <span className="text-xs text-[var(--text-secondary)] ml-2 truncate max-w-[300px]">
+                      {String((s as Record<string, unknown>).changes)}
+                    </span>
+                  )}
                 </button>
               ))}
             </CollapsibleSection>
