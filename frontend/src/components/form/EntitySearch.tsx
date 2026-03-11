@@ -2,9 +2,15 @@ import { useState, useRef, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { useEntities } from '../../api/hooks';
 
+export interface EntitySearchResult {
+  id: number;
+  name: string;
+  properties?: Record<string, unknown>;
+}
+
 interface Props {
-  value: { id: number; name: string } | null;
-  onChange: (val: { id: number; name: string } | null) => void;
+  value: EntitySearchResult | null;
+  onChange: (val: EntitySearchResult | null) => void;
   entityType?: string;
   placeholder?: string;
   filter?: (e: { id: number; name: string; properties: Record<string, unknown> }) => boolean;
@@ -62,7 +68,7 @@ export function EntitySearch({ value, onChange, entityType, placeholder = 'По�
               key={e.id as number}
               type="button"
               className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 truncate"
-              onClick={() => { onChange({ id: e.id as number, name: e.name as string }); setOpen(false); setQuery(''); }}
+              onClick={() => { onChange({ id: e.id as number, name: e.name as string, properties: (e.properties || {}) as Record<string, unknown> }); setOpen(false); setQuery(''); }}
             >
               {e.name as string}
             </button>

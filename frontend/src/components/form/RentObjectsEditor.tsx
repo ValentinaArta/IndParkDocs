@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { EntitySearch } from './EntitySearch';
+import { EntitySearch, type EntitySearchResult } from './EntitySearch';
 import { RentObjectButtons, getRentObjectDef, type RentObjectType } from './RentObjectButtons';
+
+/** Extract area from entity properties based on object type */
+function extractArea(props: Record<string, unknown> | undefined, objectType: RentObjectType): string {
+  if (!props) return '';
+  // buildings and land_plots use total_area; rooms use area; land_plot_parts use area
+  const val = (props.total_area as string) || (props.area as string) || (props.cadastral_area as string) || '';
+  return val ? String(val) : '';
+}
 
 export interface RentObject {
   entity_id: number | null;
@@ -102,10 +110,14 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
         <label className="block text-xs text-gray-500 mb-1">{def.label}</label>
         <EntitySearch
           value={item.entity_id ? { id: item.entity_id, name: item.entity_name } : null}
-          onChange={(val) => onUpdate({
-            entity_id: val?.id ?? null,
-            entity_name: val?.name ?? '',
-          })}
+          onChange={(val: EntitySearchResult | null) => {
+            const areaVal = val ? extractArea(val.properties, item.object_type) : '';
+            onUpdate({
+              entity_id: val?.id ?? null,
+              entity_name: val?.name ?? '',
+              ...(areaVal ? { area: areaVal } : {}),
+            });
+          }}
           entityType={def.entityType}
           placeholder="начните вводить..."
         />
@@ -130,6 +142,14 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
             </label>
           </div>
 
+          {/* Area field */}
+          <div className="mb-2">
+            <label className="block text-xs text-gray-500 mb-1">Площадь, м²</label>
+            <input type="number" step="0.01" value={item.area}
+              onChange={(e) => onUpdate({ area: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50" />
+          </div>
+
           {isFixed ? (
             <div>
               <label className="block text-xs text-gray-500 mb-1">Фикс. арендная плата (руб/мес)</label>
@@ -145,13 +165,13 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
                   onChange={(e) => onUpdate({ rent_rate: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-sm" />
               </div>
-
-              {monthly > 0 && (
-                <div className="text-xs text-gray-500 mb-2">
-                  = {monthly.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} руб/мес
-                </div>
-              )}
             </>
+          )}
+
+          {monthly > 0 && (
+            <div className="mt-2 py-1.5 px-3 bg-blue-50 rounded-lg text-sm font-medium text-blue-800">
+              = {monthly.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} руб/мес
+            </div>
           )}
         </>
       )}
