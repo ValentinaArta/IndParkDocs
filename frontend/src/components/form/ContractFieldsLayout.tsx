@@ -4,6 +4,7 @@ import { FieldInput } from './FieldInput';
 import { RentObjectsEditor, type RentObject } from './RentObjectsEditor';
 import { ContractItemsEditor, type ContractItem } from './ContractItemsEditor';
 import { DurationSection } from './DurationSection';
+import { EntitySearch } from './EntitySearch';
 import { useContractTypeFields, useLookup, type ContractTypeField } from '../../api/hooks';
 import type { FieldDefinition } from '../../api/types';
 
@@ -192,7 +193,16 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
             <div className="flex-1">
               <Row2>
                 {renderField('our_role_label')}
-                {renderField('our_legal_entity')}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Наше юр. лицо</label>
+                  <EntitySearch
+                    value={properties.our_legal_entity ? { id: 0, name: String(properties.our_legal_entity) } : null}
+                    onChange={(val) => onChange('our_legal_entity', val?.name || '')}
+                    entityType="company"
+                    filter={(e) => e.properties?.is_own === true || e.properties?.is_own === 'true'}
+                    placeholder="Выберите юрлицо..."
+                  />
+                </div>
               </Row2>
             </div>
             <button type="button" onClick={handleSwap} title="Поменять местами"
@@ -202,7 +212,15 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
           </div>
           <Row2>
             {renderField('contractor_role_label')}
-            {renderField('contractor_name')}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Контрагент</label>
+              <EntitySearch
+                value={properties.contractor_name ? { id: 0, name: String(properties.contractor_name) } : null}
+                onChange={(val) => onChange('contractor_name', val?.name || '')}
+                entityType="company"
+                placeholder="Выберите контрагента..."
+              />
+            </div>
           </Row2>
           {showSubtenant && renderField('subtenant_name')}
         </div>
