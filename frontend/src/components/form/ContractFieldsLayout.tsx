@@ -23,6 +23,17 @@ function Row2({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-4">{children}</div>;
 }
 
+function InheritedField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-400 mb-1">{label}</label>
+      <div className="px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-gray-100 rounded-lg">
+        {value || '—'} <span className="text-xs italic">(наследуется)</span>
+      </div>
+    </div>
+  );
+}
+
 /* ---- VAT options loaded from DB ---- */
 
 interface Props {
@@ -189,42 +200,58 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
 
       {/* СТОРОНЫ */}
       <FormSection title="Стороны">
-        <div className="space-y-3">
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Row2>
-                {renderField('our_role_label')}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Наше юр. лицо</label>
-                  <EntitySearch
-                    value={properties.our_legal_entity ? { id: 0, name: String(properties.our_legal_entity) } : null}
-                    onChange={(val) => onChange('our_legal_entity', val?.name || '')}
-                    entityType="company"
-                    filter={(e) => e.properties?.is_own === true || e.properties?.is_own === 'true'}
-                    placeholder="Выберите юрлицо..."
-                  />
-                </div>
-              </Row2>
-            </div>
-            <button type="button" onClick={handleSwap} title="Поменять местами"
-              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-gray-600 mb-0.5">
-              <ArrowRightLeft size={16} />
-            </button>
+        {isSupp ? (
+          <div className="space-y-3">
+            <Row2>
+              <InheritedField label="Роль нашей стороны" value={String(properties.our_role_label || '')} />
+              <InheritedField label="Наше юр. лицо" value={String(properties.our_legal_entity || '')} />
+            </Row2>
+            <Row2>
+              <InheritedField label="Роль контрагента" value={String(properties.contractor_role_label || '')} />
+              <InheritedField label="Контрагент" value={String(properties.contractor_name || '')} />
+            </Row2>
+            {showSubtenant && properties.subtenant_name && (
+              <InheritedField label="Субарендатор" value={String(properties.subtenant_name)} />
+            )}
           </div>
-          <Row2>
-            {renderField('contractor_role_label')}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Контрагент</label>
-              <EntitySearch
-                value={properties.contractor_name ? { id: 0, name: String(properties.contractor_name) } : null}
-                onChange={(val) => onChange('contractor_name', val?.name || '')}
-                entityType="company"
-                placeholder="Выберите контрагента..."
-              />
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <Row2>
+                  {renderField('our_role_label')}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Наше юр. лицо</label>
+                    <EntitySearch
+                      value={properties.our_legal_entity ? { id: 0, name: String(properties.our_legal_entity) } : null}
+                      onChange={(val) => onChange('our_legal_entity', val?.name || '')}
+                      entityType="company"
+                      filter={(e) => e.properties?.is_own === true || e.properties?.is_own === 'true'}
+                      placeholder="Выберите юрлицо..."
+                    />
+                  </div>
+                </Row2>
+              </div>
+              <button type="button" onClick={handleSwap} title="Поменять местами"
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-gray-600 mb-0.5">
+                <ArrowRightLeft size={16} />
+              </button>
             </div>
-          </Row2>
-          {showSubtenant && renderField('subtenant_name')}
-        </div>
+            <Row2>
+              {renderField('contractor_role_label')}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Контрагент</label>
+                <EntitySearch
+                  value={properties.contractor_name ? { id: 0, name: String(properties.contractor_name) } : null}
+                  onChange={(val) => onChange('contractor_name', val?.name || '')}
+                  entityType="company"
+                  placeholder="Выберите контрагента..."
+                />
+              </div>
+            </Row2>
+            {showSubtenant && renderField('subtenant_name')}
+          </div>
+        )}
       </FormSection>
 
       {/* ПРЕДМЕТ ДОГОВОРА — always show, even if contractType not yet set */}
