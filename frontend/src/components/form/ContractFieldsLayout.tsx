@@ -4,7 +4,7 @@ import { FieldInput } from './FieldInput';
 import { RentObjectsEditor, type RentObject } from './RentObjectsEditor';
 import { ContractItemsEditor, type ContractItem } from './ContractItemsEditor';
 import { DurationSection } from './DurationSection';
-import { useContractTypeFields, type ContractTypeField } from '../../api/hooks';
+import { useContractTypeFields, useLookup, type ContractTypeField } from '../../api/hooks';
 import type { FieldDefinition } from '../../api/types';
 
 /* ---- Section wrapper ---- */
@@ -21,13 +21,7 @@ function Row2({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-4">{children}</div>;
 }
 
-/* ---- VAT helpers ---- */
-const VAT_OPTIONS = [
-  { value: '22', label: '22% (по умолчанию)' },
-  { value: '20', label: '20%' },
-  { value: '10', label: '10%' },
-  { value: '0', label: '0% (без НДС)' },
-];
+/* ---- VAT options loaded from DB ---- */
 
 interface Props {
   fields: FieldDefinition[];
@@ -40,6 +34,7 @@ interface Props {
 export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isSupp }: Props) {
   const byName = Object.fromEntries(fields.map((f) => [f.name, f]));
   const { data: ctfMap = {} } = useContractTypeFields();
+  const { data: vatOptions = ['22', '20', '10', '0'] } = useLookup('vat_rate');
 
   const contractType = String(properties.contract_type || '');
   const ctFields = ctfMap[contractType] || [];
@@ -265,10 +260,15 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
           <div>
             <label className="block text-xs text-gray-500 mb-1">НДС</label>
             <div className="flex items-center gap-3">
-              <select value={String(properties.vat_rate || '22')}
+              <select value={String(properties.vat_rate || vatOptions[0] || '22')}
                 onChange={(e) => onChange('vat_rate', e.target.value)}
                 className="px-3 py-2 border rounded-lg text-sm">
-                {VAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {vatOptions.map((v) => (
+                  <option key={v} value={v}>
+                    {v === '0' ? '0% (без НДС)' : `${v}%`}
+                    {v === vatOptions[0] ? ' (по умолчанию)' : ''}
+                  </option>
+                ))}
               </select>
               {vatAmount > 0 && baseAmount > 0 && (
                 <span className="text-xs text-gray-500">

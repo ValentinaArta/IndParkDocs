@@ -61,6 +61,7 @@ const migrations = {
   '056':         require('./migrations/056_supplement_inherit_relations'),
   '053':         require('./migrations/053_line_item_charge_types'),
   '057':         require('./migrations/057_notes'),
+  '058':         require('./migrations/058_vat_charge_frequency_lookups'),
 };
 
 async function initMigrationTracker(pool) {

@@ -1,8 +1,5 @@
-import { useState } from 'react';
-import { Plus, X, GripVertical } from 'lucide-react';
-
-const CHARGE_TYPES = ['Повторяющийся', 'Разовый', 'Доп. услуги'] as const;
-const FREQUENCIES = ['Ежемесячно', 'Ежеквартально', 'Раз в полгода', 'Ежегодно'] as const;
+import { Plus, X } from 'lucide-react';
+import { useLookup } from '../../api/hooks';
 
 export interface ContractItem {
   name: string;
@@ -32,6 +29,8 @@ interface Props {
 }
 
 export function ContractItemsEditor({ value, onChange, showChargeType = true }: Props) {
+  const { data: chargeTypes = ['Повторяющийся', 'Разовый', 'Доп. услуги'] } = useLookup('charge_type');
+  const { data: frequencies = ['Ежемесячно', 'Ежеквартально', 'Раз в полгода', 'Ежегодно'] } = useLookup('frequency');
   const items = value.length > 0 ? value : [emptyItem()];
 
   function update(idx: number, patch: Partial<ContractItem>) {
@@ -65,6 +64,8 @@ export function ContractItemsEditor({ value, onChange, showChargeType = true }: 
           item={item}
           total={items.length}
           showChargeType={showChargeType}
+          chargeTypes={chargeTypes}
+          frequencies={frequencies}
           onUpdate={(patch) => update(idx, patch)}
           onRemove={() => remove(idx)}
         />
@@ -85,11 +86,13 @@ export function ContractItemsEditor({ value, onChange, showChargeType = true }: 
   );
 }
 
-function ContractItemRow({ index, item, total, showChargeType, onUpdate, onRemove }: {
+function ContractItemRow({ index, item, total, showChargeType, chargeTypes, frequencies, onUpdate, onRemove }: {
   index: number;
   item: ContractItem;
   total: number;
   showChargeType: boolean;
+  chargeTypes: string[];
+  frequencies: string[];
   onUpdate: (patch: Partial<ContractItem>) => void;
   onRemove: () => void;
 }) {
@@ -117,13 +120,13 @@ function ContractItemRow({ index, item, total, showChargeType, onUpdate, onRemov
               <select value={item.charge_type}
                 onChange={(e) => onUpdate({ charge_type: e.target.value })}
                 className="px-2 py-1 border rounded text-xs text-gray-600">
-                {CHARGE_TYPES.map((ct) => <option key={ct} value={ct}>{ct}</option>)}
+                {chargeTypes.map((ct) => <option key={ct} value={ct}>{ct}</option>)}
               </select>
-              {item.charge_type === 'Повторяющийся' && (
+              {item.charge_type === (chargeTypes[0] || 'Повторяющийся') && (
                 <select value={item.frequency}
                   onChange={(e) => onUpdate({ frequency: e.target.value })}
                   className="px-2 py-1 border rounded text-xs text-gray-600">
-                  {FREQUENCIES.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {frequencies.map((f) => <option key={f} value={f}>{f}</option>)}
                 </select>
               )}
               {isOneTime && (
