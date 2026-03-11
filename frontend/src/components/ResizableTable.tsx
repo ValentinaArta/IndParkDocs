@@ -159,7 +159,7 @@ function ResizableTh<T>({ col, width, sortKey, sortDir, onSort, onResize }: {
   return (
     <th
       ref={thRef}
-      className={`relative px-4 py-3 font-medium text-[var(--text-secondary)] select-none group ${
+      className={`relative px-4 py-3 font-medium text-[var(--text-secondary)] whitespace-nowrap select-none group ${
         col.align === 'right' ? 'text-right' : ''
       }`}
       style={width ? { width } : col.defaultWidth ? { width: col.defaultWidth } : undefined}

@@ -1,38 +1,34 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Tldraw, type Editor, getSnapshot, loadSnapshot } from 'tldraw';
+import 'tldraw/tldraw.css';
 import { Topbar } from '../components/Topbar';
 import { apiGet, apiPost, apiPut, apiDelete } from '../api/client';
-import {
-  Plus, Trash2, Maximize2, Minimize2, NotebookPen, Type, PenTool, Loader2,
-} from 'lucide-react';
+import { Plus, Trash2, Maximize2, Minimize2, NotebookPen } from 'lucide-react';
 import { fmtDate } from '../utils/format';
-import type { Note, NoteListItem, NoteBlock } from '../api/types';
-import { TextBlock } from '../features/notes/TextBlock';
-
-// Lazy-load Excalidraw (heavy ~1.5MB)
-const DrawingBlock = lazy(() =>
-  import('../features/notes/DrawingBlock').then((m) => ({ default: m.DrawingBlock })),
-);
+import type { NoteListItem } from '../api/types';
 
 export function NotesPage() {
   const [notes, setNotes] = useState<NoteListItem[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(null);
-  const [blocks, setBlocks] = useState<NoteBlock[]>([]);
   const [title, setTitle] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const editorRef = useRef<Editor | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const currentIdRef = useRef<number | null>(null);
+  const titleRef = useRef('');
+  const [editorKey, setEditorKey] = useState(0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snapshotRef = useRef<any>(null);
+
+  // Keep refs in sync
+  useEffect(() => { currentIdRef.current = currentId; }, [currentId]);
+  useEffect(() => { titleRef.current = title; }, [title]);
 
   useEffect(() => {
     loadList();
   }, []);
-
-  // Autosave on dirty
-  useEffect(() => {
-    if (!currentId || !dirty) return;
-    const timer = setTimeout(() => save(), 2000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, blocks, dirty]);
 
   // ESC exits fullscreen
   useEffect(() => {
@@ -49,9 +45,9 @@ export function NotesPage() {
   }
 
   async function create() {
-    const note = await apiPost<Note>('/notes', {
+    const note = await apiPost<{ id: number; title: string; updated_at: string; created_at: string }>('/notes', {
       title: 'Новая заметка',
-      content_json: [{ type: 'text', value: '' }],
+      content_json: null,
     });
     setNotes((prev) => [
       { id: note.id, title: note.title, updated_at: note.updated_at, created_at: note.created_at },
@@ -60,31 +56,50 @@ export function NotesPage() {
     openNote(note.id);
   }
 
-  async function openNote(id: number) {
-    if (currentId && dirty) await save();
-    const note = await apiGet<Note>(`/notes/${id}`);
-    setCurrentId(note.id);
-    setTitle(note.title);
-    setBlocks(note.content_json?.length ? note.content_json : [{ type: 'text', value: '' }]);
-    setDirty(false);
-  }
-
-  async function save() {
-    if (!currentId) return;
+  const save = useCallback(async () => {
+    const id = currentIdRef.current;
+    if (!id || !editorRef.current) return;
     setSaveStatus('Сохранение...');
-    setDirty(false);
     try {
-      await apiPut(`/notes/${currentId}`, { title, content_json: blocks });
+      const snapshot = getSnapshot(editorRef.current.store);
+      await apiPut(`/notes/${id}`, {
+        title: titleRef.current,
+        content_json: snapshot,
+      });
       setNotes((prev) =>
         prev.map((n) =>
-          n.id === currentId ? { ...n, title, updated_at: new Date().toISOString() } : n,
+          n.id === id ? { ...n, title: titleRef.current, updated_at: new Date().toISOString() } : n,
         ),
       );
       setSaveStatus('Сохранено');
       setTimeout(() => setSaveStatus(null), 1500);
     } catch {
-      setSaveStatus('Ошибка');
-      setDirty(true);
+      setSaveStatus('Ошибка сохранения');
+    }
+  }, []);
+
+  const scheduleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => save(), 3000);
+  }, [save]);
+
+  async function openNote(id: number) {
+    // Save current note before switching
+    if (currentIdRef.current && editorRef.current) {
+      await save();
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const note = await apiGet<any>(`/notes/${id}`);
+      setCurrentId(note.id);
+      setTitle(note.title);
+      snapshotRef.current = note.content_json;
+      // Force remount of Tldraw by changing key
+      setEditorKey((k) => k + 1);
+      // On mobile, collapse sidebar
+      if (window.innerWidth < 768) setSidebarOpen(false);
+    } catch (e) {
+      console.error('open note error', e);
     }
   }
 
@@ -93,36 +108,27 @@ export function NotesPage() {
     await apiDelete(`/notes/${currentId}`);
     setNotes((prev) => prev.filter((n) => n.id !== currentId));
     setCurrentId(null);
-    setBlocks([]);
     setTitle('');
-    setDirty(false);
+    editorRef.current = null;
+    snapshotRef.current = null;
   }
 
-  const updateBlock = useCallback((idx: number, patch: Partial<NoteBlock>) => {
-    setBlocks((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } : b)) as NoteBlock[]);
-    setDirty(true);
-  }, []);
-
-  function removeBlock(idx: number) {
-    if (blocks.length <= 1) return;
-    setBlocks((prev) => prev.filter((_, i) => i !== idx));
-    setDirty(true);
-  }
-
-  function addBlock(type: 'text' | 'drawing') {
-    const block: NoteBlock =
-      type === 'text' ? { type: 'text', value: '' } : { type: 'drawing', dataUrl: '' };
-    setBlocks((prev) => [...prev, block]);
-    setDirty(true);
-  }
-
-  function handlePasteImage(afterIdx: number, dataUrl: string) {
-    setBlocks((prev) => {
-      const next = [...prev];
-      next.splice(afterIdx + 1, 0, { type: 'image', dataUrl });
-      return next;
-    });
-    setDirty(true);
+  function handleMount(editor: Editor) {
+    editorRef.current = editor;
+    // Load snapshot if exists
+    if (snapshotRef.current && typeof snapshotRef.current === 'object' && snapshotRef.current.store) {
+      try {
+        loadSnapshot(editorRef.current.store, snapshotRef.current);
+      } catch (e) {
+        console.warn('Failed to load snapshot, starting blank:', e);
+      }
+    }
+    // Listen for changes to auto-save
+    const unsub = editor.store.listen(() => {
+      scheduleSave();
+    }, { scope: 'document', source: 'user' });
+    // Cleanup on unmount
+    return () => unsub();
   }
 
   return (
@@ -131,8 +137,8 @@ export function NotesPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ===== List panel ===== */}
-        {!fullscreen && (
-          <div className="w-[280px] min-w-[280px] border-r border-[var(--border)] bg-[var(--bg)] flex flex-col">
+        {!fullscreen && sidebarOpen && (
+          <div className="w-[280px] min-w-[280px] max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-[300px] max-md:shadow-2xl border-r border-[var(--border)] bg-[var(--bg)] flex flex-col">
             <div className="p-3">
               <button
                 onClick={create}
@@ -149,7 +155,7 @@ export function NotesPage() {
                 <button
                   key={n.id}
                   onClick={() => openNote(n.id)}
-                  className={`w-full text-left px-4 py-3 border-b border-[var(--border)] transition-colors ${
+                  className={`w-full text-left px-4 py-3.5 border-b border-[var(--border)] transition-colors min-h-[52px] ${
                     n.id === currentId
                       ? 'bg-[var(--bg-secondary)] border-l-[3px] border-l-[var(--primary)]'
                       : 'hover:bg-[var(--bg-hover)]'
@@ -164,24 +170,31 @@ export function NotesPage() {
         )}
 
         {/* ===== Editor panel ===== */}
-        <div className="flex-1 overflow-y-auto bg-white relative">
+        <div className="flex-1 flex flex-col bg-white relative">
           {!currentId ? (
             <div className="flex flex-col items-center justify-center h-full text-[var(--text-secondary)]">
               <NotebookPen className="w-12 h-12 opacity-20" />
               <p className="mt-3 text-sm">Выберите заметку или создайте новую</p>
             </div>
           ) : (
-            <div className="max-w-[900px] mx-auto px-6 py-5 pb-24">
+            <>
               {/* Title bar */}
-              <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--border)] bg-white shrink-0">
+                {/* Mobile: show sidebar toggle */}
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="md:hidden p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                >
+                  ☰
+                </button>
                 <input
                   value={title}
                   onChange={(e) => {
                     setTitle(e.target.value);
-                    setDirty(true);
+                    scheduleSave();
                   }}
                   placeholder="Название заметки"
-                  className="flex-1 text-2xl font-semibold border-none outline-none bg-transparent border-b-2 border-transparent focus:border-[var(--primary)] transition-colors pb-1"
+                  className="flex-1 text-lg font-semibold border-none outline-none bg-transparent"
                 />
                 <button
                   onClick={() => setFullscreen(!fullscreen)}
@@ -199,71 +212,19 @@ export function NotesPage() {
                 </button>
               </div>
 
-              {/* Blocks */}
-              {blocks.map((block, idx) => (
-                <div key={`${currentId}-${idx}`} className="group relative mb-4">
-                  {block.type === 'text' && (
-                    <TextBlock
-                      initialContent={block.value}
-                      onChange={(html) => updateBlock(idx, { value: html })}
-                      onPasteImage={(dataUrl) => handlePasteImage(idx, dataUrl)}
-                      autoFocus={idx === blocks.length - 1 && !block.value}
-                    />
-                  )}
-
-                  {block.type === 'drawing' && (
-                    <Suspense
-                      fallback={
-                        <div className="flex items-center justify-center h-[450px] rounded-xl border border-[var(--border)] bg-[var(--bg)]">
-                          <Loader2 className="w-6 h-6 animate-spin text-[var(--text-secondary)]" />
-                          <span className="ml-2 text-sm text-[var(--text-secondary)]">Загрузка холста...</span>
-                        </div>
-                      }
-                    >
-                      <DrawingBlock
-                        initialData={block.dataUrl}
-                        onChange={(data) => updateBlock(idx, { dataUrl: data })}
-                      />
-                    </Suspense>
-                  )}
-
-                  {block.type === 'image' && (
-                    <div className="rounded-xl border border-[var(--border)] overflow-hidden">
-                      <img src={block.dataUrl} className="max-w-full block" alt="" />
-                    </div>
-                  )}
-
-                  {/* Remove block button */}
-                  <button
-                    onClick={() => removeBlock(idx)}
-                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[var(--text-secondary)] text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[var(--red)] transition z-10"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-
-              {/* Add block buttons */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => addBlock('text')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition"
-                >
-                  <Type className="w-4 h-4" /> Текст
-                </button>
-                <button
-                  onClick={() => addBlock('drawing')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition"
-                >
-                  <PenTool className="w-4 h-4" /> Рисунок
-                </button>
+              {/* tldraw canvas — fills remaining space */}
+              <div className="flex-1 relative">
+                <Tldraw
+                  key={editorKey}
+                  onMount={handleMount}
+                />
               </div>
-            </div>
+            </>
           )}
 
           {/* Save indicator */}
           {saveStatus && (
-            <div className="fixed bottom-5 right-5 bg-white px-4 py-2 rounded-full shadow-lg text-xs text-[var(--text-secondary)] border border-[var(--border)]">
+            <div className="absolute bottom-4 right-4 bg-white px-4 py-2 rounded-full shadow-lg text-xs text-[var(--text-secondary)] border border-[var(--border)] z-[100]">
               {saveStatus}
             </div>
           )}
@@ -271,13 +232,21 @@ export function NotesPage() {
       </div>
 
       {/* Fullscreen exit */}
-      {fullscreen && (
+      {fullscreen && currentId && (
         <button
           onClick={() => setFullscreen(false)}
           className="fixed top-4 right-4 z-[201] flex items-center gap-2 px-4 py-2 bg-white border border-[var(--border)] rounded-xl shadow-lg text-sm hover:shadow-xl transition"
         >
           <Minimize2 className="w-4 h-4" /> Свернуть
         </button>
+      )}
+
+      {/* Mobile overlay to close sidebar */}
+      {sidebarOpen && !fullscreen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/20 z-30"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
     </div>
   );

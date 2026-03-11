@@ -35,7 +35,8 @@ export interface EntityType {
 export interface Note {
   id: number;
   title: string;
-  content_json: NoteBlock[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  content_json: any; // tldraw store snapshot
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -47,11 +48,6 @@ export interface NoteListItem {
   updated_at: string;
   created_at: string;
 }
-
-export type NoteBlock =
-  | { type: 'text'; value: string }
-  | { type: 'drawing'; dataUrl: string }
-  | { type: 'image'; dataUrl: string };
 
 export interface Relation {
   id: number;
