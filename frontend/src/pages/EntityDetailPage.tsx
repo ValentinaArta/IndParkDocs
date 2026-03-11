@@ -52,6 +52,10 @@ export function EntityDetailPage() {
     return <EquipmentDetailView entity={entityData} navigate={navigate} />;
   }
 
+  if (!isContract && entityData && (type === 'building' || type === 'land_plot' || type === 'room')) {
+    return <PropertyDetailView entity={entityData} type={type} navigate={navigate} />;
+  }
+
   if (!isContract && entityData) {
     return <GenericDetailView entity={entityData} type={type} navigate={navigate} />;
   }
@@ -665,6 +669,127 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
               <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{note}</div>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Property Detail (Building / Land Plot / Room) ──
+function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; type: string; navigate: (p: string) => void }) {
+  const props = entity.properties || {};
+  const rels = entity.relations || [];
+  const children = entity.children || [];
+  const typeLabels: Record<string, string> = { building: 'Корпус', land_plot: 'Земельный участок', room: 'Помещение' };
+
+  const infoRows: [string, string | React.ReactNode][] = [];
+  const add = (label: string, value: unknown) => { if (value != null && value !== '' && value !== 'null') infoRows.push([label, String(value)]); };
+
+  // Common
+  add('Адрес', props.address);
+  if (type === 'building' || type === 'room') {
+    add('Общая площадь', props.total_area ? `${Number(props.total_area).toLocaleString('ru-RU')} м²` : null);
+    add('Площадь', props.area ? `${Number(props.area).toLocaleString('ru-RU')} м²` : null);
+    add('Этаж', props.floor);
+  }
+  if (type === 'land_plot') {
+    add('Площадь', props.area ? `${Number(props.area).toLocaleString('ru-RU')} м²` : null);
+    add('Назначение', props.purpose);
+    add('Собственник', props.owner_name);
+    add('Балансодержатель', props.balance_owner_name);
+  }
+  add('Кадастровый номер', props.cadastral_number);
+  if (props.cadastral_value) {
+    const cv = Number(props.cadastral_value);
+    const cvDate = props.cadastral_value_date ? ` (на ${fmtDate(String(props.cadastral_value_date))})` : '';
+    infoRows.push(['Кадастровая стоимость', `${fmtMoney(cv)} ₽${cvDate}`]);
+  }
+  add('Примечание', props.note);
+
+  // Relation groups
+  const relGroups: Record<string, DetailRel[]> = {};
+  rels.forEach((r) => { (relGroups[r.relation_type] ||= []).push(r); });
+  const relLabels: Record<string, string> = {
+    located_on: 'Земельный участок', located_in: 'Расположение', on_balance: 'На балансе',
+    our_entity: 'Наше юрлицо', party_to: 'Сторона', subject_of: 'Договоры',
+  };
+
+  // Children grouped by type
+  const childGroups: Record<string, { label: string; items: typeof children }> = {};
+  children.forEach((c) => {
+    const key = c.type_name;
+    if (!childGroups[key]) {
+      const labels: Record<string, string> = { room: 'Помещения', equipment: 'Оборудование', building: 'Корпуса' };
+      childGroups[key] = { label: labels[key] || key, items: [] };
+    }
+    childGroups[key].items.push(c);
+  });
+
+  return (
+    <div className="flex flex-col h-full">
+      <Topbar title={typeLabels[type] || 'Объект'}
+        actions={
+          <button onClick={() => navigate(`/entities/${type}`)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
+            <ArrowLeft className="w-4 h-4" /> Назад
+          </button>
+        }
+      />
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-[900px] mx-auto px-6 py-5 space-y-4">
+          {/* Header */}
+          <div className="bg-white rounded-xl border border-[var(--border)] p-6">
+            <h1 className="text-xl font-bold mb-1 leading-tight">{entity.name}</h1>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-sm text-[var(--text-secondary)]">{typeLabels[type]}</span>
+              {(props.short_name as string) && (
+                <span className="text-xs px-2.5 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
+                  {String(props.short_name)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Info */}
+          {infoRows.length > 0 && (
+            <div className="bg-white rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]">
+              {infoRows.map(([label, value], i) => (
+                <div key={i} className="flex px-5 py-3">
+                  <span className="w-[180px] text-xs text-[var(--text-muted)] flex-shrink-0 pt-0.5">{label}</span>
+                  <span className="text-sm font-medium flex-1">{value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Relations */}
+          {Object.entries(relGroups).map(([relType, rels2]) => (
+            <CollapsibleSection key={relType} title={relLabels[relType] || relType} icon={null} count={rels2.length} defaultOpen>
+              {rels2.map((r) => {
+                const isFrom = r.from_entity_id === entity.id;
+                const linkedId = isFrom ? r.to_entity_id : r.from_entity_id;
+                const linkedName = isFrom ? r.to_name : r.from_name;
+                return (
+                  <button key={r.id} onClick={() => navigate(`/entities/_/${linkedId}`)}
+                    className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm">
+                    {linkedName || `#${linkedId}`}
+                  </button>
+                );
+              })}
+            </CollapsibleSection>
+          ))}
+
+          {/* Children by type */}
+          {Object.entries(childGroups).map(([key, group]) => (
+            <CollapsibleSection key={key} title={group.label} icon={null} count={group.items.length} defaultOpen>
+              {group.items.map((c) => (
+                <button key={c.id} onClick={() => navigate(`/entities/${c.type_name}/${c.id}`)}
+                  className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm">
+                  {c.name}
+                </button>
+              ))}
+            </CollapsibleSection>
+          ))}
         </div>
       </div>
     </div>
