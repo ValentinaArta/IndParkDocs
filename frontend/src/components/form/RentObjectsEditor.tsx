@@ -39,7 +39,7 @@ interface Props {
 }
 
 export function RentObjectsEditor({ value, onChange, types }: Props) {
-  const items = value.length > 0 ? value : [emptyRentObject()];
+  const items = value;
 
   function update(idx: number, patch: Partial<RentObject>) {
     const next = items.map((it, i) => i === idx ? { ...it, ...patch } : it);
@@ -48,7 +48,7 @@ export function RentObjectsEditor({ value, onChange, types }: Props) {
 
   function remove(idx: number) {
     const next = items.filter((_, i) => i !== idx);
-    onChange(next.length ? next : [emptyRentObject()]);
+    onChange(next);
   }
 
   function addItem(objectType: RentObjectType) {
@@ -98,12 +98,10 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
           <Icon size={14} className="text-gray-400" />
           <span className="text-sm font-semibold text-gray-700">{def.label} {index + 1}</span>
         </div>
-        {total > 1 && (
-          <button type="button" onClick={onRemove}
-            className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600">
-            <X size={16} />
-          </button>
-        )}
+        <button type="button" onClick={onRemove}
+          className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600">
+          <X size={16} />
+        </button>
       </div>
 
       {/* Entity search */}
