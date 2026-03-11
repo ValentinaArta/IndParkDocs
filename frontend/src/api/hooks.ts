@@ -67,3 +67,22 @@ export function usePayments(entityId: number | null) {
     retry: false,
   });
 }
+
+// ---- Contract Card (full report) ----
+export function useContractCard(entityId: number | null) {
+  return useQuery({
+    queryKey: ['contract-card', entityId],
+    queryFn: () => apiGet<Record<string, unknown>>(`/reports/contract-card/${entityId}`),
+    enabled: !!entityId,
+  });
+}
+
+// ---- Advance status ----
+export function useAdvanceStatus(entityId: number | null, hasAdvances: boolean) {
+  return useQuery({
+    queryKey: ['advance-status', entityId],
+    queryFn: () => apiGet<Record<string, unknown>>(`/reports/contract-card/${entityId}/advance-status`),
+    enabled: !!entityId && hasAdvances,
+    retry: false,
+  });
+}
