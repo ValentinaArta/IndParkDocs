@@ -71,6 +71,11 @@ export function EntitySearch({ value, onChange, entityType, placeholder = 'По�
               onClick={() => { onChange({ id: e.id as number, name: e.name as string, properties: (e.properties || {}) as Record<string, unknown> }); setOpen(false); setQuery(''); }}
             >
               {e.name as string}
+              {(() => {
+                const p = (e.properties || {}) as Record<string, unknown>;
+                const num = (p.meter_number || p.inv_number || '') as string;
+                return num ? <span className="ml-2 text-xs text-gray-400">№{num}</span> : null;
+              })()}
             </button>
           ))}
         </div>
