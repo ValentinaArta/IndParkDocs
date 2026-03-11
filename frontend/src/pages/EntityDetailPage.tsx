@@ -226,9 +226,10 @@ function ContractDetailView({ data, type, navigate, entityId }: {
           {/* ── Supplements (history) ── */}
           {(mainContract || supplements.length > 0) && (
             <CollapsibleSection title={`История ДС · ${supplements.length} ДС`} icon={<Paperclip className="w-4 h-4" />} count={supplements.length} defaultOpen>
-              {mainContract && mainContract.id !== entityId && (
-                <button key={mainContract.id} onClick={() => navigate(`/entities/contract/${mainContract.id}`)}
-                  className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm flex justify-between items-center bg-gray-50 font-medium cursor-pointer">
+              {mainContract && (
+                <div key={mainContract.id}
+                  onClick={() => mainContract.id !== entityId && navigate(`/entities/contract/${mainContract.id}`)}
+                  className={`w-full text-left px-5 py-3 border-t border-[var(--border)] text-sm flex justify-between items-center bg-gray-50 font-medium ${mainContract.id !== entityId ? 'hover:bg-[var(--bg-hover)] cursor-pointer' : ''}`}>
                   <span className="shrink-0">
                     {mainContract.name}
                     {(mainContract as Record<string, unknown>).date && (
@@ -236,7 +237,7 @@ function ContractDetailView({ data, type, navigate, entityId }: {
                     )}
                   </span>
                   <span className="text-xs text-[var(--text-secondary)] font-normal">Основной договор</span>
-                </button>
+                </div>
               )}
               {supplements.map((s) => (
                 <button key={s.id} onClick={() => navigate(`/entities/supplement/${s.id}`)}
