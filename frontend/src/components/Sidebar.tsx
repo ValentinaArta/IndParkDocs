@@ -8,7 +8,7 @@ import {
   Building2, Landmark, MapPin, Settings as SettingsIcon,
   BarChart2, PieChart, TrendingUp, Box, Sparkles, AlertTriangle, Receipt,
   Zap, Scale, Flame, NotebookPen, LogOut, Shield,
-  ChevronDown, ChevronRight, PanelLeftClose,
+  ChevronDown, ChevronRight, PanelLeftClose, Gauge,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -196,6 +196,7 @@ export function Sidebar() {
         <NavItem icon={<Landmark />} label="Компании" path="/entities/company" />
         <NavItem icon={<MapPin />} label="Земельные участки" path="/entities/land_plot" />
         <NavItem icon={<SettingsIcon />} label="Оборудование" path="/entities/equipment" />
+        <NavItem icon={<Gauge />} label="Счётчики" path="/entities/meter" />
 
         <NavSection label="Финансы" />
         <NavItem icon={<TrendingUp />} label="Сводка 1С" path="/finance" />
