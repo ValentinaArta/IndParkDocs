@@ -75,6 +75,7 @@ export function EntityFormPage() {
         subtenant_name: 'subtenant_name',
         contract_type: 'contract_type',
         vat_rate: 'vat_rate',
+        subject: 'subject',
       };
       for (const [propKey, cardKey] of Object.entries(mapping)) {
         const val = pc[cardKey] || pp[propKey];
