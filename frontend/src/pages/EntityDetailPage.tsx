@@ -525,13 +525,11 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
           <div className="bg-white rounded-xl border border-[var(--border)] p-6">
             <h1 className="text-xl font-bold mb-2 leading-tight">{entity.name}</h1>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {status && (
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5"
-                  style={{ backgroundColor: st.bg, color: st.color }}>
-                  <span className="w-[7px] h-[7px] rounded-full inline-block" style={{ backgroundColor: st.color }} />
-                  {status}
-                </span>
-              )}
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5"
+                style={{ backgroundColor: status ? st.bg : '#f3f4f6', color: status ? st.color : '#9ca3af' }}>
+                <span className="w-[7px] h-[7px] rounded-full inline-block" style={{ backgroundColor: status ? st.color : '#d1d5db' }} />
+                {status || 'Не указан'}
+              </span>
               {category && (
                 <span className="text-xs px-2.5 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
                   {category}
