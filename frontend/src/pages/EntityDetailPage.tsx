@@ -128,20 +128,27 @@ function ContractDetailView({ data, type, navigate, entityId }: {
             <h1 className="text-xl font-semibold mb-2">
               {str('contractor_name')}, №{str('number')}, {fmtDate(str('date'))}
             </h1>
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-[var(--text-secondary)]">{str('contract_type')}</span>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
+              <span>{str('contract_type')}</span>
               {direction === 'income' && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700">Доход</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />Доход
+                </span>
               )}
               {direction === 'expense' && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">Расход</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />Расход
+                </span>
               )}
               {d.is_vgo && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">ВГО</span>
+                <span className="flex items-center gap-1.5 font-medium text-blue-600">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />ВГО
+                </span>
               )}
-              {docStatus && statusColors && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium"
-                  style={{ backgroundColor: statusColors.bg, color: statusColors.text }}>
+              {docStatus && (
+                <span className="flex items-center gap-1.5"
+                  style={{ color: statusColors?.text || 'inherit' }}>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors?.text || '#9CA3AF' }} />
                   {docStatus}
                 </span>
               )}
