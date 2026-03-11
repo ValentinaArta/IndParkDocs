@@ -58,6 +58,7 @@ const fireSafetyPage    = require('./pages/fire-safety-page');
 const project2Vvod      = require('./pages/project-2vvod');
 const contractTypesPage = require('./pages/contract-types-page');
 const aiSandboxPage     = require('./pages/ai-sandbox-page');
+const notesPage         = require('./pages/notes-page');
 const rentObjectsShared = require('./rent-objects/shared');
 const rentObjectsRoom = require('./rent-objects/room-block');
 const rentObjectsEquipment = require('./rent-objects/equipment-block');
@@ -156,6 +157,7 @@ const FRONTEND_HTML =
   contractTypesPage +
   '\n' +
   aiSandboxPage +
+  notesPage +
   '\n' +
   contractForm +
   '\n' +

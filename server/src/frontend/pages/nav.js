@@ -138,6 +138,7 @@ function _routeFromHash(hash) {
   if (hash === '#bi')       { showBIPage();       return; }
   if (hash === '#budget')   { showBudgetPage();   return; }
   if (hash === '#finance')  { showFinancePage();  return; }
+  if (hash === '#notes')    { showNotesPage();    return; }
   if (hash === '#settings') { showSettings();     return; }
   if (hash === '#zachety')      { showLegalZachety(); return; }
   if (hash === '#letters')      { showLetters();       return; }
