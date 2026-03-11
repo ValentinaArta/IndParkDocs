@@ -427,8 +427,13 @@ router.get('/contract-card/:id/advance-status', authenticate, asyncHandler(async
     ? 'Document_ПоступлениеНаРасчетныйСчет'
     : 'Document_СписаниеСРасчетногоСчета';
 
+  // Load contractor relation
+  const _relAdvRes = await pool.query(
+    `SELECT r.to_entity_id FROM relations r
+     WHERE r.from_entity_id = $1 AND r.relation_type = 'contractor' AND r.deleted_at IS NULL LIMIT 1`, [contractId]);
+  const contractorId = _relAdvRes.rows.length ? _relAdvRes.rows[0].to_entity_id : 0;
+
   let contractorRefKey = null;
-  const contractorId = _relIdMap.contractor || 0;
   if (contractorId) {
     const compRes = await pool.query(
       `SELECT properties->>'odata_ref_key' AS ref_key
