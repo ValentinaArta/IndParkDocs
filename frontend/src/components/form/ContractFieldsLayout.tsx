@@ -213,9 +213,8 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
         </div>
       </FormSection>
 
-      {/* ПРЕДМЕТ ДОГОВОРА */}
-      {contractType && (
-        <FormSection title="Предмет договора">
+      {/* ПРЕДМЕТ ДОГОВОРА — always show, even if contractType not yet set */}
+      <FormSection title="Предмет договора">
           {hasRentObjects && (
             <RentObjectsEditor
               value={rentObjects}
@@ -242,11 +241,9 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
             </>
           )}
         </FormSection>
-      )}
 
       {/* УСЛОВИЯ ОПЛАТЫ */}
-      {contractType && (
-        <FormSection title="Условия оплаты">
+      <FormSection title="Условия оплаты">
           {/* Auto-calculated total */}
           {isRental ? (
             <div>
@@ -339,7 +336,6 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
             }}
           />
         </FormSection>
-      )}
 
       {/* Остальные поля (changes_description etc.) */}
       {otherFields.length > 0 && (
