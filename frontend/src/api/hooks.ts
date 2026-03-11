@@ -33,6 +33,23 @@ export function useEntities({ type, search, enabled = true }: UseEntitiesOpts = 
 }
 
 // ---- Single entity ----
+// ---- Contract type fields (per contract_type dynamic fields config) ----
+export interface ContractTypeField {
+  name: string;
+  name_ru: string;
+  field_type: string;
+  options?: string[];
+  _group?: string;
+  _readonly?: boolean;
+}
+export function useContractTypeFields() {
+  return useQuery({
+    queryKey: ['contract-type-fields'],
+    queryFn: () => apiGet<Record<string, ContractTypeField[]>>('/contract-type-fields'),
+    staleTime: 10 * 60_000,
+  });
+}
+
 export function useEntity(id: number | null) {
   return useQuery({
     queryKey: ['entity', id],
