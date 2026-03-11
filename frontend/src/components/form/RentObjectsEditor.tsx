@@ -1,11 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Plus, X, Building2, TreePine } from 'lucide-react';
+import { useState } from 'react';
+import { X } from 'lucide-react';
 import { EntitySearch } from './EntitySearch';
+import { RentObjectButtons, getRentObjectDef, type RentObjectType } from './RentObjectButtons';
 
 export interface RentObject {
   entity_id: number | null;
   entity_name: string;
-  object_type: 'room' | 'land_plot' | 'land_plot_part';
+  object_type: RentObjectType;
   area: string;
   rent_rate: string;
   net_rate: string;
@@ -15,7 +16,7 @@ export interface RentObject {
   fixed_rent?: string;
 }
 
-function emptyRentObject(objectType: RentObject['object_type'] = 'room'): RentObject {
+function emptyRentObject(objectType: RentObjectType = 'room'): RentObject {
   return {
     entity_id: null, entity_name: '', object_type: objectType,
     area: '', rent_rate: '', net_rate: '', utility_rate: '',
@@ -41,7 +42,7 @@ export function RentObjectsEditor({ value, onChange }: Props) {
     onChange(next.length ? next : [emptyRentObject()]);
   }
 
-  function addItem(objectType: RentObject['object_type']) {
+  function addItem(objectType: RentObjectType) {
     onChange([...items, emptyRentObject(objectType)]);
   }
 
@@ -58,17 +59,7 @@ export function RentObjectsEditor({ value, onChange }: Props) {
         />
       ))}
 
-      {/* Add buttons */}
-      <div className="flex gap-2 flex-wrap">
-        <button type="button" onClick={() => addItem('room')}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
-          <Plus size={14} /> Помещение
-        </button>
-        <button type="button" onClick={() => addItem('land_plot')}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
-          <Plus size={14} /> Земельный участок
-        </button>
-      </div>
+      <RentObjectButtons onAdd={addItem} />
     </div>
   );
 }
@@ -80,10 +71,9 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
   onUpdate: (patch: Partial<RentObject>) => void;
   onRemove: () => void;
 }) {
-  const isRoom = item.object_type === 'room';
-  const isLand = item.object_type === 'land_plot' || item.object_type === 'land_plot_part';
-  const typeLabel = isRoom ? 'Помещение' : 'Земельный участок';
-  const entityType = isRoom ? 'room' : 'land_plot';
+  const def = getRentObjectDef(item.object_type);
+  const Icon = def.icon;
+  const isEquipment = item.object_type === 'equipment';
 
   // Calculate monthly from area * rate
   const area = parseFloat(item.area) || 0;
@@ -96,8 +86,8 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {isRoom ? <Building2 size={14} className="text-gray-400" /> : <TreePine size={14} className="text-gray-400" />}
-          <span className="text-sm font-semibold text-gray-700">{typeLabel} {index + 1}</span>
+          <Icon size={14} className="text-gray-400" />
+          <span className="text-sm font-semibold text-gray-700">{def.label} {index + 1}</span>
         </div>
         {total > 1 && (
           <button type="button" onClick={onRemove}
@@ -109,56 +99,59 @@ function RentObjectBlock({ index, item, total, onUpdate, onRemove }: {
 
       {/* Entity search */}
       <div className="mb-3">
-        <label className="block text-xs text-gray-500 mb-1">{typeLabel}</label>
+        <label className="block text-xs text-gray-500 mb-1">{def.label}</label>
         <EntitySearch
           value={item.entity_id ? { id: item.entity_id, name: item.entity_name } : null}
           onChange={(val) => onUpdate({
             entity_id: val?.id ?? null,
             entity_name: val?.name ?? '',
           })}
-          entityType={entityType}
+          entityType={def.entityType}
           placeholder="начните вводить..."
         />
       </div>
 
-      {/* Calc mode toggle */}
-      <div className="flex gap-4 mb-3">
-        <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-          <input type="radio" name={`calc_mode_${index}`} checked={!isFixed}
-            onChange={() => onUpdate({ calc_mode: 'area_rate' })}
-            className="w-3.5 h-3.5" />
-          По ставке
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-          <input type="radio" name={`calc_mode_${index}`} checked={isFixed}
-            onChange={() => onUpdate({ calc_mode: 'fixed' })}
-            className="w-3.5 h-3.5" />
-          Фиксированная
-        </label>
-      </div>
-
-      {isFixed ? (
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Фикс. арендная плата (руб/мес)</label>
-          <input type="number" step="0.01" value={item.fixed_rent || ''}
-            onChange={(e) => onUpdate({ fixed_rent: e.target.value })}
-            className="w-full px-3 py-2 border rounded-lg text-sm" />
-        </div>
-      ) : (
+      {/* Equipment doesn't need area/rate fields */}
+      {!isEquipment && (
         <>
-          {/* Rate */}
-          <div className="mb-2">
-            <label className="block text-xs text-gray-500 mb-1">Ставка (руб/м²/мес)</label>
-            <input type="number" step="0.01" value={item.rent_rate}
-              onChange={(e) => onUpdate({ rent_rate: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          {/* Calc mode toggle */}
+          <div className="flex gap-4 mb-3">
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input type="radio" name={`calc_mode_${index}`} checked={!isFixed}
+                onChange={() => onUpdate({ calc_mode: 'area_rate' })}
+                className="w-3.5 h-3.5" />
+              По ставке
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input type="radio" name={`calc_mode_${index}`} checked={isFixed}
+                onChange={() => onUpdate({ calc_mode: 'fixed' })}
+                className="w-3.5 h-3.5" />
+              Фиксированная
+            </label>
           </div>
 
-          {/* Monthly display */}
-          {monthly > 0 && (
-            <div className="text-xs text-gray-500 mb-2">
-              = {monthly.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} руб/мес
+          {isFixed ? (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Фикс. арендная плата (руб/мес)</label>
+              <input type="number" step="0.01" value={item.fixed_rent || ''}
+                onChange={(e) => onUpdate({ fixed_rent: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
+          ) : (
+            <>
+              <div className="mb-2">
+                <label className="block text-xs text-gray-500 mb-1">Ставка (руб/м²/мес)</label>
+                <input type="number" step="0.01" value={item.rent_rate}
+                  onChange={(e) => onUpdate({ rent_rate: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+
+              {monthly > 0 && (
+                <div className="text-xs text-gray-500 mb-2">
+                  = {monthly.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} руб/мес
+                </div>
+              )}
+            </>
           )}
         </>
       )}
