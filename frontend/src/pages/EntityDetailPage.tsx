@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Topbar } from '../components/Topbar';
 import { useEntity } from '../api/hooks';
+import { apiGet } from '../api/client';
 import {
   ArrowLeft, Loader2, FileText, Paperclip, FileCheck,
   CreditCard, Settings, Building2, MapPin, ChevronDown, ChevronRight,
@@ -199,12 +200,70 @@ export function EntityDetailPage() {
   );
 }
 
+// ---- Advance Status Component ----
+interface AdvanceStatusResult {
+  advances: { idx: number; amount: string; paid: boolean; matchDoc?: string | null }[];
+  checkedAt: string;
+}
+
+function AdvanceStatusRow({ entityId, paymentStatus }: { entityId: number; paymentStatus: string }) {
+  const [result, setResult] = useState<AdvanceStatusResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!paymentStatus || !paymentStatus.toLowerCase().includes('аванс')) return;
+    setLoading(true);
+    apiGet<AdvanceStatusResult>(`/reports/contract-card/${entityId}/advance-status`)
+      .then((data) => { setResult(data); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
+  }, [entityId, paymentStatus]);
+
+  if (!paymentStatus) return null;
+
+  const checkedAt = result?.checkedAt
+    ? new Date(result.checkedAt).toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : '';
+
+  return (
+    <div className="flex px-5 py-3">
+      <span className="w-[200px] text-sm text-[var(--text-secondary)] flex-shrink-0">
+        Статус оплаты
+      </span>
+      <div className="text-sm flex-1">
+        <span>{paymentStatus}</span>
+        {loading && (
+          <span className="ml-2 text-xs text-[var(--text-secondary)]">проверяю в 1С...</span>
+        )}
+        {error && (
+          <span className="ml-2 text-xs text-[var(--text-secondary)]">— не удалось проверить</span>
+        )}
+        {result && checkedAt && (
+          <div className="mt-1 text-xs text-[var(--text-secondary)]">
+            по состоянию на {checkedAt}
+            {result.advances?.map((adv, i) => (
+              <span key={i} className={`ml-2 ${adv.paid ? 'text-green-600' : 'text-red-600'}`}>
+                {adv.paid ? '✅ оплачено' : '❌ не оплачено'}
+                {adv.amount && ` (${fmtMoney(parseFloat(adv.amount))} ₽)`}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---- Info Tab ----
 function InfoTab({ entity }: { entity: DetailEntity }) {
   const props = entity.properties || {};
+  const paymentStatus = (props.payment_status as string) || '';
 
   // Build field list from known properties
-  const fields: { label: string; value: string }[] = [];
+  const fields: { label: string; value: string; isPaymentStatus?: boolean }[] = [];
 
   const addField = (label: string, value: unknown) => {
     if (value != null && value !== '' && value !== 'null') {
@@ -220,9 +279,9 @@ function InfoTab({ entity }: { entity: DetailEntity }) {
   addField('Наша роль', props.our_role_label);
   addField('Роль контрагента', props.contractor_role_label);
   addField('Статус', props.doc_status || props.status);
-  addField('Статус оплаты', props.payment_status);
+  // payment_status handled separately below
   addField('Сумма', entity.effective_amount ? fmtMoney(parseFloat(entity.effective_amount)) + ' ₽' : null);
-  addField('НДС', props.vat_rate ? props.vat_rate + '%' : null);
+  addField('НДС', props.vat_rate ? (props.vat_rate === 'exempt' ? 'не облагается' : props.vat_rate + '%') : null);
   addField('Дата окончания', fmtDate(props.contract_end_date as string));
   addField('Предмет', props.subject || props.service_subject);
   addField('Комментарий', props.service_comment);
@@ -242,7 +301,7 @@ function InfoTab({ entity }: { entity: DetailEntity }) {
   addField('Производитель', props.manufacturer);
   addField('Примечание', props.note);
 
-  if (fields.length === 0) {
+  if (fields.length === 0 && !paymentStatus) {
     return (
       <div className="bg-white rounded-xl border border-[var(--border)] p-6 text-center text-[var(--text-secondary)] text-sm">
         Нет данных
@@ -250,13 +309,24 @@ function InfoTab({ entity }: { entity: DetailEntity }) {
     );
   }
 
+  // Find where to insert payment_status (after "Статус" row)
+  const statusIdx = fields.findIndex((f) => f.label === 'Статус');
+  const insertIdx = statusIdx >= 0 ? statusIdx + 1 : fields.length;
+
   return (
     <div className="bg-white rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]">
-      {fields.map((f, i) => (
+      {fields.slice(0, insertIdx).map((f, i) => (
         <div key={i} className="flex px-5 py-3">
-          <span className="w-[200px] text-sm text-[var(--text-secondary)] flex-shrink-0">
-            {f.label}
-          </span>
+          <span className="w-[200px] text-sm text-[var(--text-secondary)] flex-shrink-0">{f.label}</span>
+          <span className="text-sm flex-1">{f.value}</span>
+        </div>
+      ))}
+      {paymentStatus && (
+        <AdvanceStatusRow entityId={entity.id} paymentStatus={paymentStatus} />
+      )}
+      {fields.slice(insertIdx).map((f, i) => (
+        <div key={`after-${i}`} className="flex px-5 py-3">
+          <span className="w-[200px] text-sm text-[var(--text-secondary)] flex-shrink-0">{f.label}</span>
           <span className="text-sm flex-1">{f.value}</span>
         </div>
       ))}
