@@ -84,6 +84,7 @@ function ContractDetailView({ data, type, navigate, entityId }: {
   const history = arr('history') as unknown as (HistoryItem & { is_contract?: boolean })[];
   const children = (d as Record<string, unknown>)['children'] as HistoryItem[] | undefined;
   // In history: is_contract=true is the main contract, rest are supplements
+  const mainContract = history.find((h) => h.is_contract);
   const supplements = history.filter((h) => !h.is_contract);
   const acts = (children || []).filter((c) => c.type_name === 'act');
   const direction = str('direction');
@@ -223,8 +224,20 @@ function ContractDetailView({ data, type, navigate, entityId }: {
           )}
 
           {/* ── Supplements (history) ── */}
-          {supplements.length > 0 && (
+          {(mainContract || supplements.length > 0) && (
             <CollapsibleSection title={`История ДС · ${supplements.length} ДС`} icon={<Paperclip className="w-4 h-4" />} count={supplements.length} defaultOpen>
+              {mainContract && (
+                <button key={mainContract.id} onClick={() => navigate(`/entities/contract/${mainContract.id}`)}
+                  className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm flex justify-between items-center bg-gray-50 font-medium">
+                  <span className="shrink-0">
+                    {mainContract.name}
+                    {(mainContract as Record<string, unknown>).date && (
+                      <span className="text-xs text-[var(--text-secondary)] ml-2 font-normal">{fmtDate(String((mainContract as Record<string, unknown>).date))}</span>
+                    )}
+                  </span>
+                  <span className="text-xs text-[var(--text-secondary)] font-normal">Основной договор</span>
+                </button>
+              )}
               {supplements.map((s) => (
                 <button key={s.id} onClick={() => navigate(`/entities/supplement/${s.id}`)}
                   className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm flex justify-between items-center">
