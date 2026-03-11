@@ -22,6 +22,7 @@ export function useEntities({ type, search, enabled = true }: UseEntitiesOpts = 
   const params = new URLSearchParams();
   if (type) params.set('type', type);
   if (search) params.set('search', search);
+  params.set('limit', '2000');
   const qs = params.toString();
 
   return useQuery({
