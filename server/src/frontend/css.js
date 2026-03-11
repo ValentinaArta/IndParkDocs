@@ -159,7 +159,7 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: v
 .child-card { display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; }
 .child-card:hover { background: var(--bg-hover); }
 
-#menuBtn { display: none; min-width:44px; min-height:44px; }
+#menuBtn { display: inline-flex; min-width:44px; min-height:44px; }
 /* Sidebar toggle (desktop) */
 @media (min-width: 769px) {
   .app.sidebar-hidden .sidebar { display: none; }
