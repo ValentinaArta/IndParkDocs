@@ -337,8 +337,8 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
           />
         </FormSection>
 
-      {/* Остальные поля (changes_description etc.) */}
-      {otherFields.length > 0 && (
+      {/* Остальные поля (changes_description etc.) — не для аренды/субаренды */}
+      {!isRental && otherFields.length > 0 && (
         <FormSection title="Дополнительно">
           {otherFields.map((f) => (
             <FieldInput key={f.id} field={f} value={properties[f.name]} onChange={onChange} />
