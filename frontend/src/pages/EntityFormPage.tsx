@@ -149,23 +149,25 @@ export function EntityFormPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Название<span className="text-red-500 ml-0.5">*</span>
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
-            placeholder="Введите название"
-            autoFocus
-          />
-        </div>
+        {/* Name — hidden for supplements (auto-generated) */}
+        {type !== 'supplement' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Название<span className="text-red-500 ml-0.5">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+              placeholder="Введите название"
+              autoFocus
+            />
+          </div>
+        )}
 
-        {/* Parent entity */}
-        {needsParent && (
+        {/* Parent entity — hidden for supplements (inherited from context) */}
+        {needsParent && type !== 'supplement' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {type === 'room' ? 'Корпус' : 'Договор-основание'}
