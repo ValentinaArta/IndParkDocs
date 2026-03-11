@@ -222,16 +222,24 @@ function getCellValue(entity: Entity, key: string, columns: ColumnDef[]): string
   const col = columns.find((c) => c.key === key);
   if (!col) return '';
 
+  const props = entity.properties || {};
   switch (key) {
-    case 'number': return (entity.properties.number as string) || entity.name;
+    case 'number': return (props.number as string) || entity.name;
     case 'contractor': return entity.effective_contractor_name || '';
-    case 'contract_type': return entity.effective_contract_type || '';
+    case 'contract_type': return entity.effective_contract_type || (props.contract_type as string) || '';
     case 'our_legal': return entity.effective_our_legal_entity || '';
-    case 'status': return (entity.properties.doc_status as string) || (entity.properties.status as string) || '';
+    case 'status': return (props.doc_status as string) || (props.status as string) || '';
     case 'amount': return entity.effective_amount || '';
-    case 'date': return col.prop ? (entity.properties[col.prop] as string) || '' : '';
+    case 'date': return col.prop ? (props[col.prop] as string) || '' : '';
     case 'name': return entity.name;
-    default: return col.prop ? (entity.properties[col.prop] as string) || '' : '';
+    case 'subject': {
+      // For rent/sublease — use located_in_names; for others — subject/service_subject
+      const rentTypes = ['Аренды', 'Субаренды', 'Аренда оборудования'];
+      const ct = (props.contract_type as string) || '';
+      if (rentTypes.includes(ct)) return entity.located_in_names || '';
+      return (props.service_subject as string) || (props.subject as string) || '';
+    }
+    default: return col.prop ? (props[col.prop] as string) || '' : '';
   }
 }
 
@@ -249,19 +257,27 @@ function CellValue({ entity, col }: { entity: Entity; col: ColumnDef }) {
     }
 
     case 'status': {
-      if (!value) return <span className="text-[var(--text-secondary)]">—</span>;
-      const colors = STATUS_COLORS[value];
-      if (colors) {
-        return (
-          <span
-            className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
-            style={{ backgroundColor: colors.bg, color: colors.text }}
-          >
-            {value}
-          </span>
-        );
-      }
-      return <span className="text-xs">{value}</span>;
+      const isVgo = entity.properties.is_vgo === true || entity.properties.is_vgo === 'true';
+      return (
+        <span className="inline-flex items-center gap-1 flex-wrap">
+          {isVgo && (
+            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700">
+              ВГО
+            </span>
+          )}
+          {value ? (() => {
+            const colors = STATUS_COLORS[value];
+            return colors ? (
+              <span
+                className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
+                style={{ backgroundColor: colors.bg, color: colors.text }}
+              >
+                {value}
+              </span>
+            ) : <span className="text-xs">{value}</span>;
+          })() : <span className="text-[var(--text-secondary)]">—</span>}
+        </span>
+      );
     }
 
     default: {
@@ -285,6 +301,16 @@ function CellValue({ entity, col }: { entity: Entity; col: ColumnDef }) {
         return (
           <span className="font-medium">
             {entity.effective_contractor_name || '—'}
+          </span>
+        );
+      }
+
+      if (col.key === 'subject') {
+        if (!value) return <span className="text-[var(--text-secondary)]">—</span>;
+        const short = value.length > 55 ? value.slice(0, 55) + '…' : value;
+        return (
+          <span className="text-xs text-[var(--text-secondary)]" title={value}>
+            {short}
           </span>
         );
       }
