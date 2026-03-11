@@ -826,9 +826,12 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
             </div>
           )}
 
-          {/* Land plot (located_on) */}
+          {/* Land plot (located_on) — for buildings: "Земельный участок", for land_plots: "Корпуса на участке" */}
           {locatedOnRels.length > 0 && (
-            <CollapsibleSection title="Земельный участок" icon={null} count={locatedOnRels.length} defaultOpen>
+            <CollapsibleSection
+              title={type === 'land_plot' ? 'Корпуса на участке' : 'Земельный участок'}
+              icon={null} count={locatedOnRels.length} defaultOpen
+            >
               {locatedOnRels.map((r) => {
                 const isFrom = r.from_entity_id === entity.id;
                 const linkedId = isFrom ? r.to_entity_id : r.from_entity_id;
