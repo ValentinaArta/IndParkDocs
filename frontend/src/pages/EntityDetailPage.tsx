@@ -221,7 +221,12 @@ function ContractDetailView({ data, type, navigate, entityId }: {
               {supplements.map((s) => (
                 <button key={s.id} onClick={() => navigate(`/entities/supplement/${s.id}`)}
                   className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm flex justify-between items-center">
-                  <span className="shrink-0">{s.name}</span>
+                  <span className="shrink-0">
+                    {s.name}
+                    {(s as Record<string, unknown>).date && (
+                      <span className="text-xs text-[var(--text-secondary)] ml-2">{fmtDate(String((s as Record<string, unknown>).date))}</span>
+                    )}
+                  </span>
                   {(s as Record<string, unknown>).changes && (
                     <span className="text-xs text-[var(--text-secondary)] ml-4 text-right">
                       {String((s as Record<string, unknown>).changes)}
