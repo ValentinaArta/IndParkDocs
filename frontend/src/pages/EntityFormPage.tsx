@@ -76,6 +76,20 @@ export function EntityFormPage() {
     }
   }, [!isEdit, type, parentData]);
 
+  // Auto-generate name for supplements and contracts
+  useEffect(() => {
+    if (type === 'supplement') {
+      const num = (properties.number as string) || '';
+      const contractor = (properties.contractor_name as string) || '';
+      if (num || contractor) {
+        const parts = ['ДС'];
+        if (num) parts[0] = `ДС №${num}`;
+        if (contractor) parts.push(`— ${contractor}`);
+        setName(parts.join(' '));
+      }
+    }
+  }, [type, properties.number, properties.contractor_name]);
+
   // Determine if this type needs a parent selector
   const needsParent = useMemo(() => {
     return ['supplement', 'act', 'room'].includes(type || '');
