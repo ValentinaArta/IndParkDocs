@@ -115,6 +115,14 @@ function ContractDetailView({ data, type, navigate, entityId }: {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1000px] mx-auto px-6 py-5 space-y-4">
 
+          {/* ── Parent contract link (for supplements) ── */}
+          {d.parent_id && d.parent_name && (
+            <button onClick={() => navigate(`/entities/contract/${d.parent_id}`)}
+              className="flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline mb-1">
+              <ArrowLeft className="w-3.5 h-3.5" /> {d.parent_name as string}
+            </button>
+          )}
+
           {/* ── Header ── */}
           <div className="bg-white rounded-xl border border-[var(--border)] p-6">
             <h1 className="text-xl font-semibold mb-2">

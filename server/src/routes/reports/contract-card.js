@@ -21,6 +21,13 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const contract = cRes.rows[0];
   const cProps = contract.properties || {};
 
+  // 1a2. Parent contract name (for supplements)
+  let parentContractName = '';
+  if (contract.parent_id) {
+    const pRes = await pool.query('SELECT name FROM entities WHERE id=$1 AND deleted_at IS NULL', [contract.parent_id]);
+    if (pRes.rows.length) parentContractName = pRes.rows[0].name;
+  }
+
   // 1b. Subject objects via located_in relations
   const subjectObjRes = await pool.query(
     `SELECT e.id, e.name, et.name as type_name
@@ -350,7 +357,11 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   _relRes.rows.forEach(r => { _relMap[r.relation_type] = r.name; _relIdMap[r.relation_type] = r.to_entity_id; });
 
   res.json({
-    id: contract.id, name: contract.name, contract_type: cProps.contract_type || '',
+    id: contract.id, name: contract.name,
+    parent_id: contract.parent_id || null,
+    parent_name: parentContractName,
+    type_name: contract.type_name || '',
+    contract_type: cProps.contract_type || '',
     doc_status: cProps.doc_status || '',
     number: cProps.number || '', date: cProps.contract_date || '',
     our_legal_entity: _relMap.our_entity || '',
