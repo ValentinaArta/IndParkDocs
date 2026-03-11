@@ -282,7 +282,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   }
 
   // For non-rental: also try direct equipment_list from contract_equipment (no rent_cost filter)
-  if (eqList.length === 0 && cProps.contract_type !== 'Аренды' && cProps.contract_type !== 'Субаренды') {
+  if (eqList.length === 0) {
     const directSrc = await getEffectiveSrc(pool, contractId, 'contract_equipment', 'contract_id');
     const directRes = await pool.query(`
       SELECT ce.equipment_id,
