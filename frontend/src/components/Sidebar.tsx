@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useUiStore } from '../stores/uiStore';
 import { useEntities } from '../api/hooks';
 import {
   Map, FileText, Paperclip, FileCheck, FileSignature, Mail,
   Building2, Landmark, MapPin, Settings as SettingsIcon,
   BarChart2, PieChart, TrendingUp, Box, Sparkles, AlertTriangle, Receipt,
   Zap, Scale, Flame, NotebookPen, LogOut, Shield,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, PanelLeftClose,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -157,11 +158,18 @@ function NavGroupDynamic({ icon, label, basePath, type, allLabel }: { icon: Reac
 export function Sidebar() {
   const { logout } = useAuthStore();
 
+  const { toggleSidebar } = useUiStore();
+
   return (
     <aside className="w-[260px] min-w-[260px] bg-[var(--bg-sidebar)] text-white flex flex-col h-full">
-      <div className="p-5 border-b border-white/10">
-        <h1 className="text-lg font-bold">IndParkDocs</h1>
-        <p className="text-xs text-white/50 mt-1">Документы и связи</p>
+      <div className="p-5 border-b border-white/10 flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold">IndParkDocs</h1>
+          <p className="text-xs text-white/50 mt-1">Документы и связи</p>
+        </div>
+        <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-white/10 transition-colors" title="Свернуть меню">
+          <PanelLeftClose className="w-5 h-5 text-white/60" />
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
