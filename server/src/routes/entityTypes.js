@@ -135,4 +135,18 @@ router.patch('/settings/lists/:fieldId', authenticate, authorize('admin'), async
   res.json({ ...rows[0], options });
 }));
 
+// GET /api/entity-types/lookups/:fieldName — get options for a field by name (first match)
+router.get('/lookups/:fieldName', authenticate, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT fov.value FROM field_option_values fov
+     JOIN field_definitions fd ON fd.id = fov.field_definition_id
+     WHERE fd.name = $1
+     ORDER BY fov.sort_order
+     LIMIT 100`, [req.params.fieldName]
+  );
+  // Deduplicate (same field_name may exist in multiple entity_types)
+  const unique = [...new Set(rows.map(r => r.value))];
+  res.json(unique);
+}));
+
 module.exports = router;

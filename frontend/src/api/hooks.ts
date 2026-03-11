@@ -50,6 +50,15 @@ export function useContractTypeFields() {
   });
 }
 
+// ---- System lookups (field options by name) ----
+export function useLookup(fieldName: string) {
+  return useQuery({
+    queryKey: ['lookup', fieldName],
+    queryFn: () => apiGet<string[]>(`/entity-types/lookups/${fieldName}`),
+    staleTime: 10 * 60_000,
+  });
+}
+
 export function useEntity(id: number | null) {
   return useQuery({
     queryKey: ['entity', id],
