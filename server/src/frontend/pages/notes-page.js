@@ -91,7 +91,7 @@ function _noteRenderBlocks() {
     '<input id="noteTitleInput" value="' + escapeHtml(_noteGetTitle()) + '" ' +
       'style="flex:1;font-size:20px;font-weight:600;border:none;border-bottom:2px solid var(--border);padding:4px 0;background:transparent;outline:none" ' +
       'oninput="_noteMarkDirty()" placeholder="Название">' +
-    '<button class="btn btn-sm" onclick="_noteToggleFullscreen()" title="Полный экран" style="flex-shrink:0"><i data-lucide="maximize-2" class="lucide" style="width:16px;height:16px"></i></button>' +
+    '<button class="btn btn-sm" onclick="_noteToggleFullscreen()" title="Полный экран" style="flex-shrink:0;border:1px solid var(--border);padding:4px 10px"><i data-lucide="maximize-2" class="lucide" style="width:16px;height:16px"></i> <span style="font-size:12px">Полный экран</span></button>' +
     '<button class="btn btn-sm" onclick="_noteDelete()" title="Удалить" style="color:var(--red);flex-shrink:0"><i data-lucide="trash-2" class="lucide" style="width:16px;height:16px"></i></button>' +
   '</div>';
 
