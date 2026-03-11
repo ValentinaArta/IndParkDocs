@@ -59,6 +59,21 @@ export function useContractLineItems(entityId: number | null) {
   });
 }
 
+// ---- Work history (for equipment) ----
+export function useWorkHistory(entityId: number | null) {
+  return useQuery({
+    queryKey: ['work-history', entityId],
+    queryFn: () => apiGet<WorkHistoryItem[]>(`/entities/${entityId}/work-history`),
+    enabled: !!entityId,
+  });
+}
+
+export interface WorkHistoryItem {
+  id: number; name: string; act_date?: string; act_number?: string;
+  doc_status?: string; contract_id?: number; contract_name?: string;
+  item_description?: string; item_amount?: string; item_broken?: boolean;
+}
+
 // ---- Payments (1C) ----
 export function usePayments(entityId: number | null) {
   return useQuery({

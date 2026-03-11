@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Topbar } from '../components/Topbar';
-import { useEntity, useContractCard, useAdvanceStatus } from '../api/hooks';
+import { useEntity, useContractCard, useAdvanceStatus, useWorkHistory } from '../api/hooks';
 import { apiGet } from '../api/client';
 import {
   ArrowLeft, Loader2, Paperclip, FileCheck,
@@ -446,6 +446,7 @@ interface EqContract {
 function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navigate: (p: string) => void }) {
   const props = entity.properties || {};
   const rels = entity.relations || [];
+  const { data: workHistory = [] } = useWorkHistory(entity.id);
   const eqContracts = ((entity as Record<string, unknown>).equipment_contracts || []) as EqContract[];
 
   const status = (props.status as string) || '';
@@ -463,7 +464,6 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
   // Components (part_of this equipment)
   const components = rels.filter((r) => r.relation_type === 'part_of' && r.to_entity_id === entity.id);
   // Acts (subject_of → act)
-  const acts = rels.filter((r) => r.relation_type === 'subject_of' && r.from_entity_id === entity.id && r.to_type_name === 'act');
   // Located in
   const locatedIn = rels.filter((r) => r.relation_type === 'located_in' && r.from_entity_id === entity.id);
 
@@ -622,15 +622,41 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
             </CollapsibleSection>
           )}
 
-          {/* Work history (acts) */}
-          {acts.length > 0 && (
-            <CollapsibleSection title="История работ" icon={<FileCheck className="w-4 h-4" />} count={acts.length} defaultOpen>
-              {acts.map((r) => (
-                <button key={r.id} onClick={() => navigate(`/entities/act/${r.to_entity_id}`)}
-                  className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm">
-                  {r.to_name || `#${r.to_entity_id}`}
-                </button>
-              ))}
+          {/* Work history (from API) */}
+          {workHistory.length > 0 && (
+            <CollapsibleSection title="История работ" icon={<FileCheck className="w-4 h-4" />} count={workHistory.length} defaultOpen>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-t border-[var(--border)] text-[var(--text-secondary)] bg-[var(--bg-secondary)]">
+                      <th className="px-4 py-2 text-left font-medium">Дата</th>
+                      <th className="px-4 py-2 text-left font-medium">Акт</th>
+                      <th className="px-4 py-2 text-left font-medium">Описание работ</th>
+                      <th className="px-4 py-2 text-right font-medium">Сумма</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workHistory.map((wh) => (
+                      <tr key={wh.id} className="border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors">
+                        <td className="px-4 py-2.5 text-[var(--text-secondary)] whitespace-nowrap">{fmtDate(wh.act_date)}</td>
+                        <td className="px-4 py-2.5">
+                          <button onClick={() => navigate(`/entities/act/${wh.id}`)}
+                            className="text-[var(--primary)] hover:underline text-left">
+                            {wh.name}
+                          </button>
+                        </td>
+                        <td className="px-4 py-2.5 max-w-[400px]">
+                          {wh.item_broken && <span className="inline-block text-xs font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded mr-1">Неисправность</span>}
+                          <span className="text-[var(--text-secondary)] whitespace-pre-wrap text-xs leading-relaxed">{wh.item_description}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">
+                          {parseFloat(wh.item_amount || '0') > 0 ? fmtMoney(parseFloat(wh.item_amount!)) + ' ₽' : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </CollapsibleSection>
           )}
 
