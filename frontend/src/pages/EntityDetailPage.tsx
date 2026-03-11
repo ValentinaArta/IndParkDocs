@@ -15,7 +15,7 @@ import type { Entity } from '../api/types';
 interface Advance { amount: string; date: string; description?: string }
 interface AdvResult { idx: number; amount: string; paid: boolean }
 interface Payment { id: number; payment_date: string; amount: string; payment_number?: string; purpose?: string }
-interface EquipmentItem { id: number; equipment_id: number; equipment_name: string; inv_number?: string; equipment_category?: string }
+interface EquipmentItem { id: number; equipment_id?: number; equipment_name?: string; name?: string; inv_number?: string; equipment_category?: string; category?: string }
 interface HistoryItem { id: number; name: string; type_name: string; properties?: Record<string, unknown> }
 type DetailEntity = Entity & { relations?: DetailRel[]; children?: HistoryItem[]; fields?: unknown[] };
 interface DetailRel { id: number; from_entity_id: number; to_entity_id: number; relation_type: string; from_name?: string; to_name?: string }
@@ -214,9 +214,9 @@ function ContractDetailView({ data, type, navigate, entityId }: {
           {equipmentList.length > 0 && (
             <CollapsibleSection title="Оборудование" icon={<Settings className="w-4 h-4" />} count={equipmentList.length}>
               {equipmentList.map((eq) => (
-                <button key={eq.id} onClick={() => eq.equipment_id && navigate(`/entities/equipment/${eq.equipment_id}`)}
+                <button key={eq.id} onClick={() => navigate(`/entities/equipment/${eq.equipment_id || eq.id}`)}
                   className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm flex justify-between">
-                  <span>{eq.equipment_name}</span>
+                  <span>{eq.equipment_name || eq.name}</span>
                   {eq.inv_number && <span className="text-xs text-[var(--text-secondary)]">Инв. {eq.inv_number}</span>}
                 </button>
               ))}
