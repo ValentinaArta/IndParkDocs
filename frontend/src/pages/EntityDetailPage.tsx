@@ -4,7 +4,7 @@ import { Topbar } from '../components/Topbar';
 import { useEntity, useContractCard, useAdvanceStatus, useWorkHistory } from '../api/hooks';
 import { apiGet } from '../api/client';
 import {
-  ArrowLeft, Loader2, Paperclip, FileCheck,
+  ArrowLeft, Loader2, Paperclip, FileCheck, Pencil,
   CreditCard, Settings, ChevronDown, ChevronRight, Plus,
 } from 'lucide-react';
 import { fmtDate, fmtMoney } from '../utils/format';
@@ -100,10 +100,16 @@ function ContractDetailView({ data, type, navigate, entityId }: {
       <Topbar
         title={TYPE_TITLES[type] || 'Договор'}
         actions={
-          <button onClick={() => navigate(`/entities/${type}`)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
-            <ArrowLeft className="w-4 h-4" /> Назад
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/entities/${type}/${entityId}/edit`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
+              <Pencil className="w-4 h-4" /> Редактировать
+            </button>
+            <button onClick={() => navigate(`/entities/${type}`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
+              <ArrowLeft className="w-4 h-4" /> Назад
+            </button>
+          </div>
         }
       />
       <div className="flex-1 overflow-y-auto">
@@ -517,10 +523,16 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
     <div className="flex flex-col h-full">
       <Topbar title="Оборудование"
         actions={
-          <button onClick={() => navigate('/entities/equipment')}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
-            <ArrowLeft className="w-4 h-4" /> Назад
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/entities/equipment/${entity.id}/edit`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
+              <Pencil className="w-4 h-4" /> Редактировать
+            </button>
+            <button onClick={() => navigate('/entities/equipment')}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
+              <ArrowLeft className="w-4 h-4" /> Назад
+            </button>
+          </div>
         }
       />
       <div className="flex-1 overflow-y-auto">
@@ -729,10 +741,16 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
     <div className="flex flex-col h-full">
       <Topbar title={typeLabels[type] || 'Объект'}
         actions={
-          <button onClick={() => navigate(`/entities/${type}`)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
-            <ArrowLeft className="w-4 h-4" /> Назад
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/entities/${type}/${entity.id}/edit`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
+              <Pencil className="w-4 h-4" /> Редактировать
+            </button>
+            <button onClick={() => navigate(`/entities/${type}`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
+              <ArrowLeft className="w-4 h-4" /> Назад
+            </button>
+          </div>
         }
       />
       <div className="flex-1 overflow-y-auto">
@@ -843,10 +861,16 @@ function GenericDetailView({ entity, type, navigate }: { entity: DetailEntity; t
     <div className="flex flex-col h-full">
       <Topbar title={TYPE_TITLES[type] || 'Сущность'}
         actions={
-          <button onClick={() => navigate(`/entities/${type}`)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
-            <ArrowLeft className="w-4 h-4" /> Назад
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/entities/${type}/${entity.id}/edit`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm hover:bg-[var(--primary-dark)] transition">
+              <Pencil className="w-4 h-4" /> Редактировать
+            </button>
+            <button onClick={() => navigate(`/entities/${type}`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition">
+              <ArrowLeft className="w-4 h-4" /> Назад
+            </button>
+          </div>
         }
       />
       <div className="flex-1 overflow-y-auto">

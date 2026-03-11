@@ -68,3 +68,24 @@ export interface User {
   role: string;
   display_name: string;
 }
+
+export interface FieldDefinition {
+  id: number;
+  name: string;
+  name_ru: string;
+  field_type: string;
+  required: boolean;
+  options: string[];
+  sort_order?: number;
+}
+
+export interface DetailRel {
+  id: number;
+  relation_type: string;
+  source_id: number;
+  target_id: number;
+  source_name?: string;
+  target_name?: string;
+  to_type_name?: string;
+  from_type_name?: string;
+}
