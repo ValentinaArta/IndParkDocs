@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Save, ArrowLeft, Trash2, Loader2 } from 'lucide-react';
 import {
   useEntity, useEntityTypes, useFieldDefinitions,
   useCreateEntity, useUpdateEntity, useDeleteEntity,
   useContractCard,
+  useContractTypeRoles,
 } from '../api/hooks';
 import { FieldInput } from '../components/form/FieldInput';
 import { EntitySearch } from '../components/form/EntitySearch';
@@ -16,6 +18,7 @@ export function EntityFormPage() {
   const { type, id } = useParams<{ type: string; id?: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isEdit = !!id;
   const entityId = id ? parseInt(id) : null;
 
@@ -28,9 +31,12 @@ export function EntityFormPage() {
   const entityTypeId = entityType?.id ?? null;
 
   const { data: existingEntity, isLoading: loadingEntity } = useEntity(isEdit ? entityId : null);
-  const parentIdForInherit = !isEdit && type === 'supplement' && parentIdParam ? parseInt(parentIdParam) : null;
-  const { data: parentCard } = useContractCard(parentIdForInherit);
+  const parentIdForCard = type === 'supplement'
+    ? (!isEdit && parentIdParam ? parseInt(parentIdParam) : (existingEntity?.parent_id ?? null))
+    : null;
+  const { data: parentCard } = useContractCard(parentIdForCard);
   const { data: fields = [], isLoading: loadingFields } = useFieldDefinitions(entityTypeId);
+  const { data: roleDefaults } = useContractTypeRoles();
 
   const createMutation = useCreateEntity();
   const updateMutation = useUpdateEntity();
@@ -46,9 +52,29 @@ export function EntityFormPage() {
   useEffect(() => {
     if (isEdit && existingEntity) {
       setName(existingEntity.name);
-      setProperties(existingEntity.properties || {});
-      if (existingEntity.parent_id && existingEntity.parent_name) {
-        setParentEntity({ id: existingEntity.parent_id, name: existingEntity.parent_name });
+      const props = { ...(existingEntity.properties || {}) };
+      // Hydrate party fields from typed relations (backend cleans them from properties)
+      const rels = (existingEntity as Record<string, unknown>).relations as Array<{ relation_type: string; to_entity_id: number; to_name: string }> | undefined;
+      if (rels) {
+        const ourRel = rels.find(r => r.relation_type === 'our_entity');
+        const contrRel = rels.find(r => r.relation_type === 'contractor');
+        const subRel = rels.find(r => r.relation_type === 'subtenant');
+        if (ourRel && !props.our_legal_entity_id) {
+          props.our_legal_entity_id = String(ourRel.to_entity_id);
+          props.our_legal_entity = ourRel.to_name;
+        }
+        if (contrRel && !props.contractor_id) {
+          props.contractor_id = String(contrRel.to_entity_id);
+          props.contractor_name = contrRel.to_name;
+        }
+        if (subRel && !props.subtenant_id) {
+          props.subtenant_id = String(subRel.to_entity_id);
+          props.subtenant_name = subRel.to_name;
+        }
+      }
+      setProperties(props);
+      if (existingEntity.parent_id) {
+        setParentEntity({ id: existingEntity.parent_id, name: existingEntity.parent_name || `#${existingEntity.parent_id}` });
       }
     }
   }, [isEdit, existingEntity]);
@@ -66,6 +92,16 @@ export function EntityFormPage() {
       const pc = parentCard as Record<string, unknown>;
       const pp = (pc.properties || {}) as Record<string, unknown>;
       const inherited: Record<string, unknown> = {};
+      // Auto-generate next supplement number from history
+      if (!properties.number) {
+        const history = (pc.history || []) as Array<Record<string, unknown>>;
+        const suppNumbers = history
+          .filter((h) => !h.is_contract)
+          .map((h) => parseInt(String(h.number || '0'), 10))
+          .filter((n) => !isNaN(n));
+        const maxNum = suppNumbers.length > 0 ? Math.max(...suppNumbers) : 0;
+        inherited.number = String(maxNum + 1);
+      }
       // contract-card returns top-level fields for parties
       const mapping: Record<string, string> = {
         our_role_label: 'our_role_label',
@@ -90,20 +126,21 @@ export function EntityFormPage() {
           object_type: r.object_type || 'room',
           area: String(r.area || ''),
           rent_rate: String(r.rate || ''),
+          heating_rate: r.heating_rate ? String(r.heating_rate) : '',
           net_rate: '', utility_rate: '',
           calc_mode: 'area_rate',
           comment: '', sort_order: i,
         }));
       }
 
-      // Inherit equipment_list
-      const eqList = pc.equipment_list as Array<Record<string, unknown>> | undefined;
+      // Inherit equipment_list from parent's own_equipment_list
+      const eqList = (pc.own_equipment_list || pc.equipment_list) as Array<Record<string, unknown>> | undefined;
       if (eqList?.length && !properties.equipment_list) {
         inherited.equipment_list = eqList.map((eq) => ({
-          equipment_id: eq.id || eq.equipment_id,
-          equipment_name: eq.name || eq.equipment_name || '',
+          equipment_id: eq.equipment_id || eq.id,
+          equipment_name: eq.equipment_name || eq.name || '',
           inv_number: eq.inv_number || '',
-          equipment_category: eq.category || eq.equipment_category || '',
+          equipment_category: eq.equipment_category || eq.category || '',
         }));
       }
 
@@ -153,6 +190,24 @@ export function EntityFormPage() {
     return undefined;
   }, [type]);
 
+  // Prefill role labels when contract_type changes (new contracts only, not supplements)
+  const prevCtRef = useRef('');
+  useEffect(() => {
+    if (isEdit || type === 'supplement') return;
+    if (type !== 'contract' || !roleDefaults) return;
+    const ct = properties.contract_type as string;
+    if (!ct || ct === prevCtRef.current) return;
+    prevCtRef.current = ct;
+    const roles = roleDefaults[ct];
+    if (!roles) return;
+    setProperties((prev) => ({
+      ...prev,
+      our_role_label: roles.our,
+      contractor_role_label: roles.contractor,
+      ...(roles.subtenant ? { subtenant_role_label: roles.subtenant } : {}),
+    }));
+  }, [properties.contract_type, roleDefaults, isEdit, type]);
+
   function handleFieldChange(fieldName: string, value: unknown) {
     setProperties((prev) => ({ ...prev, [fieldName]: value }));
   }
@@ -172,6 +227,9 @@ export function EntityFormPage() {
           properties,
           parent_id: parentEntity?.id ?? null,
         });
+        // Remove stale cache so detail page loads fresh data
+        queryClient.removeQueries({ queryKey: ['entity', result.id] });
+        queryClient.removeQueries({ queryKey: ['contract-card', result.id] });
         navigate(`/entities/${type}/${result.id}`);
       } else {
         const result = await createMutation.mutateAsync({
@@ -180,6 +238,8 @@ export function EntityFormPage() {
           properties,
           parent_id: parentEntity?.id ?? null,
         });
+        queryClient.removeQueries({ queryKey: ['entity', result.id] });
+        queryClient.removeQueries({ queryKey: ['contract-card', result.id] });
         navigate(`/entities/${type}/${result.id}`);
       }
     } catch (err: unknown) {
@@ -205,6 +265,14 @@ export function EntityFormPage() {
 
   const loading = loadingFields || (isEdit && loadingEntity);
   const saving = createMutation.isPending || updateMutation.isPending;
+
+  // Debug: catch render issues
+  if (!type) {
+    return <div className="p-8 text-red-600">Ошибка: тип сущности не определён (type={String(type)})</div>;
+  }
+  if (!entityTypeId && !loading) {
+    return <div className="p-8 text-amber-600">Загрузка типа «{type}»...</div>;
+  }
 
   if (loading) {
     return (
@@ -269,9 +337,11 @@ export function EntityFormPage() {
 
         {/* Dynamic fields — contract/supplement get grouped layout */}
         {(type === 'contract' || type === 'supplement') ? (
-          <ContractFieldsLayout fields={fields} properties={properties} onChange={handleFieldChange} isEdit={isEdit} isSupp={type === 'supplement'} />
+          <ContractFieldsLayout fields={fields} properties={properties} onChange={handleFieldChange} isEdit={isEdit} isSupp={type === 'supplement'} parentCard={parentCard as Record<string, unknown> | null | undefined} contractId={isEdit ? entityId : null} />
         ) : (
-          fields.map((f) => (
+          fields
+            .filter((f) => !(type === 'act' && (f.name === 'parent_contract_id' || f.name === 'parent_contract_name')))
+            .map((f) => (
             <FieldInput
               key={f.id}
               field={f}

@@ -105,7 +105,8 @@ async function openCreateSupplementModal(parentContractId) {
   }
   // Check if it has normalized data; if not, try parent contract
   var _effP = effSourceEntity ? (effSourceEntity.properties || {}) : {};
-  var _effHasData = (Array.isArray(_effP.equipment_list) && _effP.equipment_list.length > 0) ||
+  var _effHasData = (Array.isArray(_effP.rent_objects) && _effP.rent_objects.length > 0) ||
+                    (Array.isArray(_effP.equipment_list) && _effP.equipment_list.length > 0) ||
                     (Array.isArray(_effP.contract_items) && _effP.contract_items.length > 0);
   if (!_effHasData) {
     // parentEntity is already loaded above
@@ -126,16 +127,9 @@ async function openCreateSupplementModal(parentContractId) {
   if (effPowerKw) { prefillProps.power_allocation_kw = effPowerKw; prefillProps.has_power_allocation = 'true'; }
 
   // equipment_list from normalized table (contract_equipment via API)
+  // Note: equipment is now managed in React (/app/) — keep minimal inheritance for old SPA
   if (Array.isArray(_effP.equipment_list) && _effP.equipment_list.length) {
     prefillProps.equipment_list = _effP.equipment_list;
-    prefillProps.transfer_equipment = 'true';
-  } else {
-    var effEqList = _effSuppProp('equipment_list') || parentProps.equipment_list || '';
-    var effTransferEq = _effSuppProp('transfer_equipment') || parentProps.transfer_equipment || '';
-    if (effEqList && effEqList !== '[]') {
-      prefillProps.equipment_list = effEqList;
-      if (effTransferEq === 'true' || effTransferEq === true) prefillProps.transfer_equipment = 'true';
-    }
   }
 
   // contract_items from normalized table (contract_line_items via API)

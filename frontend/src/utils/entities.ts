@@ -40,6 +40,7 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   'На согласовании': { bg: '#FEF9C3', text: '#854D0E' },
   'Проект': { bg: '#DBEAFE', text: '#1E40AF' },
   'Расторгнут': { bg: '#FEE2E2', text: '#991B1B' },
+  'Архив': { bg: '#F3F4F6', text: '#6B7280' },
   'Истёк': { bg: '#F3F4F6', text: '#6B7280' },
 };
 
@@ -49,6 +50,7 @@ export const CONTRACT_TYPES = [
   'Субаренды',
   'Услуг',
   'Обслуживания',
+  'ТО и ППР',
   'Работ',
   'Подряда',
   'Поставки',
@@ -97,6 +99,14 @@ const buildingColumns: ColumnDef[] = [
   { key: 'area', label: 'Площадь', width: '120px', align: 'right', prop: 'area' },
 ];
 
+const roomColumns: ColumnDef[] = [
+  { key: 'name', label: 'Название', width: '1fr' },
+  { key: 'parent', label: 'Корпус', width: '200px', prop: '_parent_name' },
+  { key: 'area', label: 'Площадь, м²', width: '120px', align: 'right', prop: 'area' },
+  { key: 'floor', label: 'Этаж', width: '80px', prop: 'floor' },
+  { key: 'room_type', label: 'Тип', width: '180px', prop: 'room_type' },
+];
+
 const equipmentColumns: ColumnDef[] = [
   { key: 'name', label: 'Название', width: '1fr' },
   { key: 'category', label: 'Категория', width: '180px', prop: 'equipment_category' },
@@ -115,6 +125,7 @@ export function getColumnsForType(type: string): ColumnDef[] {
     case 'contract': return contractColumns;
     case 'company': return companyColumns;
     case 'building': return buildingColumns;
+    case 'room': return roomColumns;
     case 'equipment': return equipmentColumns;
     default: return defaultColumns;
   }

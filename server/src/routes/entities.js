@@ -121,11 +121,29 @@ async function saveLineItems(pool, entityId, typeName, props) {
         }
         function sn(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
         await pool.query(
-          `INSERT INTO rent_items (contract_id,entity_id,object_type,area,rent_rate,net_rate,utility_rate,calc_mode,comment,sort_order)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          `INSERT INTO rent_items (contract_id,entity_id,object_type,area,rent_rate,net_rate,utility_rate,calc_mode,comment,sort_order,heating_rate)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [entityId, entityRef, objectType, sn(it.area), sn(it.rent_rate), sn(it.net_rate), sn(it.utility_rate),
-           it.calc_mode || 'area_rate', it.comment || '', i]
+           it.calc_mode || 'area_rate', it.comment || '', i, sn(it.heating_rate)]
         );
+      }
+    }
+
+    // Auto-compute rent_monthly from rent_items
+    if (ro !== null && ro.length > 0) {
+      const { rows: riRows } = await pool.query(
+        'SELECT area, rent_rate, calc_mode FROM rent_items WHERE contract_id=$1', [entityId]);
+      let total = 0;
+      for (const r of riRows) {
+        if (r.calc_mode === 'fixed') continue; // fixed items have their own field
+        const a = parseFloat(r.area) || 0;
+        const rate = parseFloat(r.rent_rate) || 0;
+        total += a * rate;
+      }
+      if (total > 0) {
+        await pool.query(
+          `UPDATE entities SET properties = properties || jsonb_build_object('rent_monthly', $1::text) WHERE id = $2`,
+          [total.toFixed(2), entityId]);
       }
     }
 
@@ -168,19 +186,53 @@ async function saveLineItems(pool, entityId, typeName, props) {
       }
     }
 
-    // equipment_list → contract_equipment
-    const el = parseArr(props.equipment_list);
-    if (el !== null) {
+    // equipment_list → contract_equipment (accept empty array to clear all)
+    const elRaw = props.equipment_list;
+    const el = Array.isArray(elRaw) ? elRaw : parseArr(elRaw);
+    if (el !== null || Array.isArray(elRaw)) {
+      // Get current equipment IDs before update (for cascade removal)
+      const { rows: prevEq } = await pool.query('SELECT equipment_id FROM contract_equipment WHERE contract_id=$1', [entityId]);
+      const prevIds = new Set(prevEq.map(r => r.equipment_id));
+
       await pool.query('DELETE FROM contract_equipment WHERE contract_id=$1', [entityId]);
+      const newIds = new Set();
       for (let i = 0; i < el.length; i++) {
         const it = el[i];
         const eqId = parseInt(it.equipment_id || it.id || 0); if (!eqId) continue;
+        newIds.add(eqId);
         function sn4(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
         await pool.query(
           `INSERT INTO contract_equipment (contract_id,equipment_id,rent_cost,sort_order) VALUES ($1,$2,$3,$4)
            ON CONFLICT (contract_id,equipment_id) DO UPDATE SET rent_cost=EXCLUDED.rent_cost, sort_order=EXCLUDED.sort_order`,
           [entityId, eqId, sn4(it.rent_cost), i]
         );
+      }
+
+      // Cascade changes to LATER supplements only (not backwards, not parent)
+      const removedIds = [...prevIds].filter(id => !newIds.has(id));
+      const addedIds = [...newIds].filter(id => !prevIds.has(id));
+      if (removedIds.length > 0 || addedIds.length > 0) {
+        const { rows: [meta] } = await pool.query('SELECT parent_id FROM entities WHERE id=$1', [entityId]);
+        const parentContractId = meta?.parent_id || entityId;
+        const { rows: laterSupps } = await pool.query(
+          `SELECT id FROM entities WHERE parent_id=$1 AND id > $2 AND deleted_at IS NULL ORDER BY id`,
+          [parentContractId, entityId]
+        );
+        for (const supp of laterSupps) {
+          for (const removedId of removedIds) {
+            await pool.query(
+              'DELETE FROM contract_equipment WHERE contract_id=$1 AND equipment_id=$2',
+              [supp.id, removedId]
+            );
+          }
+          for (const addedId of addedIds) {
+            await pool.query(
+              `INSERT INTO contract_equipment (contract_id,equipment_id,sort_order) VALUES ($1,$2,0)
+               ON CONFLICT (contract_id,equipment_id) DO NOTHING`,
+              [supp.id, addedId]
+            );
+          }
+        }
       }
     }
   }
@@ -207,12 +259,12 @@ async function saveLineItems(pool, entityId, typeName, props) {
  * For supplements: if no rows exist in a normalized table after save,
  * inherit (copy) rows from the effective source (latest earlier supplement with rows, or parent contract).
  */
-async function inheritLineItemsIfEmpty(pool, entityId, parentContractId) {
+async function inheritLineItemsIfEmpty(pool, entityId, parentContractId, skipTables = []) {
   const tables = [
     { table: 'contract_line_items', fk: 'contract_id',
       cols: 'name,unit,quantity,price,amount,sort_order,charge_type,payment_date,frequency', hasEqLinks: true },
     { table: 'rent_items', fk: 'contract_id',
-      cols: 'entity_id,object_type,area,rent_rate,net_rate,utility_rate,calc_mode,comment,sort_order' },
+      cols: 'entity_id,object_type,area,rent_rate,net_rate,utility_rate,calc_mode,comment,sort_order,heating_rate' },
     { table: 'contract_equipment', fk: 'contract_id',
       cols: 'equipment_id,rent_cost,sort_order' },
   ];
@@ -222,6 +274,7 @@ async function inheritLineItemsIfEmpty(pool, entityId, parentContractId) {
       `SELECT COUNT(*)::int AS c FROM ${tbl.table} WHERE ${tbl.fk} = $1`, [entityId]
     );
     if (cnt.c > 0) continue; // has own rows, skip
+    if (skipTables.includes(tbl.table)) continue; // explicitly cleared by user
 
     // Find effective source: latest supplement (before this one) with rows, or contract
     const { rows: srcRows } = await pool.query(`
@@ -401,8 +454,10 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
   if (!id || id < 1) return res.status(400).json({ error: 'Неверный ID' });
 
   const { rows: [entity] } = await pool.query(
-    `SELECT e.*, et.name as type_name, et.name_ru as type_name_ru, et.icon, et.color
+    `SELECT e.*, et.name as type_name, et.name_ru as type_name_ru, et.icon, et.color,
+     p.name as parent_name
     FROM entities e JOIN entity_types et ON e.entity_type_id = et.id
+    LEFT JOIN entities p ON p.id = e.parent_id
     WHERE e.id=$1 AND e.deleted_at IS NULL`, [id]
   );
   if (!entity) return res.status(404).json({ error: 'Не найдено' });
@@ -491,7 +546,17 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
     equipment_contracts = eqContracts;
   }
 
-  res.json({ ...entity, children, relations, parent, ancestry, fields, part_of_id, part_of_name, equipment_contracts });
+  // Equipment accounting data from 1C
+  let accounting = null;
+  if (entity.type_name === 'equipment') {
+    const { rows: [acc] } = await pool.query(
+      'SELECT initial_cost, commissioning_date, residual_value, residual_value_date FROM equipment_accounting WHERE entity_id = $1',
+      [id]
+    );
+    if (acc) accounting = acc;
+  }
+
+  res.json({ ...entity, children, relations, parent, ancestry, fields, part_of_id, part_of_name, equipment_contracts, accounting });
 }));
 
 // Auto-create relations from entity properties (contract → company, building, etc.)
@@ -582,42 +647,40 @@ async function autoLinkEntities(entityId, entityTypeName, properties) {
     try { objs = typeof properties.rent_objects === 'string' ? JSON.parse(properties.rent_objects) : properties.rent_objects; } catch(e) {}
     if (Array.isArray(objs)) {
       for (const obj of objs) {
-        if (obj.building_id) {
+        // New format: entity_id + object_type
+        if (obj.entity_id && parseInt(obj.entity_id)) {
+          await pool.query(
+            'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+            [entityId, parseInt(obj.entity_id), 'located_in']
+          ).catch(() => {});
+        }
+        // Legacy format: building_id / room_id
+        if (obj.building_id && parseInt(obj.building_id)) {
           await pool.query(
             'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
             [entityId, parseInt(obj.building_id), 'located_in']
           ).catch(() => {});
         }
-        if (obj.room_id) {
+        if (obj.room_id && parseInt(obj.room_id)) {
           await pool.query(
             'INSERT INTO relations (from_entity_id, to_entity_id, relation_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
             [entityId, parseInt(obj.room_id), 'located_in']
           ).catch(() => {});
         }
-        // equipment↔contract now tracked via contract_equipment table only
       }
     }
   }
 
-  // Link equipment_list (from Подряда and other non-rental contracts)
-  if (properties.equipment_list) {
-    let eqItems = [];
-    try { eqItems = typeof properties.equipment_list === 'string' ? JSON.parse(properties.equipment_list) : properties.equipment_list; } catch(e) {}
-    if (Array.isArray(eqItems)) {
-      const isSaleContract = (properties.contract_type === 'Купли-продажи');
-      for (const item of eqItems) {
-        if (item.equipment_id) {
-          const eqId = parseInt(item.equipment_id);
-          // equipment↔contract tracked via contract_equipment table (no subject_of)
-          // Write back purchase_price to equipment card from sale contract
-          if (isSaleContract && item.price != null && item.price !== '') {
-            await pool.query(
-              `UPDATE entities SET properties = properties || jsonb_build_object('purchase_price', $1::text)
-               WHERE id = $2 AND deleted_at IS NULL`,
-              [String(item.price), eqId]
-            ).catch(() => {});
-          }
-        }
+  // Write back purchase_price to equipment for sale contracts
+  if (properties.contract_type === 'Купли-продажи' && Array.isArray(properties.equipment_list)) {
+    for (const item of properties.equipment_list) {
+      const eqId = parseInt(item.equipment_id);
+      if (eqId && item.price != null && item.price !== '') {
+        await pool.query(
+          `UPDATE entities SET properties = properties || jsonb_build_object('purchase_price', $1::text)
+           WHERE id = $2 AND deleted_at IS NULL`,
+          [String(item.price), eqId]
+        ).catch(() => {});
       }
     }
   }
@@ -654,8 +717,10 @@ router.get('/:id/work-history', authenticate, asyncHandler(async (req, res) => {
       e.parent_id                 AS contract_id,
       p.name                      AS contract_name,
       item->>'description'        AS item_description,
+      item->>'comment'            AS item_comment,
       item->>'amount'             AS item_amount,
-      (item->>'broken')::boolean  AS item_broken
+      (item->>'broken')::boolean  AS item_broken,
+      e.properties->>'conclusion' AS conclusion
     FROM entities e
     JOIN entity_types et ON et.id = e.entity_type_id AND et.name = 'act'
     LEFT JOIN entities p ON p.id = e.parent_id AND p.deleted_at IS NULL
@@ -723,7 +788,7 @@ router.get('/:id/payments', authenticate, asyncHandler(async (req, res) => {
 
 // POST /api/entities
 router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.entity), asyncHandler(async (req, res) => {
-  const { entity_type_id, name, properties, parent_id } = req.body;
+  let { entity_type_id, name, properties, parent_id } = req.body;
   const cleanProps = properties;
   const cleanName = name;
 
@@ -735,6 +800,24 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
   const dupCheck = await pool.query(dupQuery, dupParams);
   if (dupCheck.rows.length > 0) {
     return res.status(409).json({ error: 'duplicate', existing: dupCheck.rows[0], message: 'Запись с таким именем уже существует' });
+  }
+
+  // For supplements/acts: parent must be a contract, not another supplement
+  if (parent_id) {
+    const { rows: [myType] } = await pool.query('SELECT name FROM entity_types WHERE id=$1', [entity_type_id]);
+    if (myType && (myType.name === 'supplement' || myType.name === 'act')) {
+      const { rows: [parentEntity] } = await pool.query(
+        `SELECT et.name as type_name, e.parent_id as grandparent_id FROM entities e
+         JOIN entity_types et ON et.id = e.entity_type_id WHERE e.id = $1`, [parent_id]);
+      if (parentEntity && parentEntity.type_name === 'supplement') {
+        // Auto-fix: redirect to the grandparent contract
+        if (parentEntity.grandparent_id) {
+          parent_id = parentEntity.grandparent_id;
+        } else {
+          return res.status(400).json({ error: 'ДС/Акт может быть привязан только к договору, не к другому ДС' });
+        }
+      }
+    }
   }
 
   // For supplements: inherit contract_type from parent if missing
@@ -759,7 +842,17 @@ router.post('/', authenticate, authorize('admin', 'editor'), validate(schemas.en
     await saveLineItems(pool, rows[0].id, typeInfo.name, cleanProps);
     // Supplements: inherit line items from effective source if none were saved
     if (typeInfo.name === 'supplement' && parent_id) {
-      await inheritLineItemsIfEmpty(pool, rows[0].id, parent_id);
+      const skip = [];
+      if (Array.isArray(cleanProps.equipment_list)) skip.push('contract_equipment');
+      if (Array.isArray(cleanProps.rent_objects)) skip.push('rent_items');
+      if (Array.isArray(cleanProps.contract_items)) skip.push('contract_line_items');
+      await inheritLineItemsIfEmpty(pool, rows[0].id, parent_id, skip);
+    }
+    // Termination act: set parent contract status to 'Архив'
+    if (typeInfo.name === 'act' && parent_id && cleanProps.act_type === 'Расторжение') {
+      await pool.query(
+        `UPDATE entities SET properties = jsonb_set(properties, '{doc_status}', '"Архив"')
+         WHERE id = $1 AND deleted_at IS NULL`, [parent_id]);
     }
   }
 
@@ -820,7 +913,21 @@ router.put('/:id', authenticate, authorize('admin', 'editor'), validate(schemas.
       // Supplements: inherit line items from effective source if none were saved
       if (typeInfo.name === 'supplement') {
         const parentId = rows[0].parent_id || parent_id;
-        if (parentId) await inheritLineItemsIfEmpty(pool, id, parentId);
+        // Skip inheritance for tables that were explicitly set (even if empty)
+        const skip = [];
+        if (Array.isArray(cleanProps.equipment_list)) skip.push('contract_equipment');
+        if (Array.isArray(cleanProps.rent_objects)) skip.push('rent_items');
+        if (Array.isArray(cleanProps.contract_items)) skip.push('contract_line_items');
+        if (parentId) await inheritLineItemsIfEmpty(pool, id, parentId, skip);
+      }
+      // Termination act: set parent contract status to 'Архив'
+      if (typeInfo.name === 'act' && cleanProps.act_type === 'Расторжение') {
+        const parentId = rows[0].parent_id;
+        if (parentId) {
+          await pool.query(
+            `UPDATE entities SET properties = jsonb_set(properties, '{doc_status}', '"Архив"')
+             WHERE id = $1 AND deleted_at IS NULL`, [parentId]);
+        }
       }
       // Sync part_of relation when parent_equipment_id changes
       if (typeInfo.name === 'equipment') {
