@@ -399,12 +399,9 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     rent_source_name: rentSrc.fromSupp ? rentSrc.suppName : '',
     transfer_source_name: transferSourceName,
     rent_rows: rentRows, total_monthly: totalMonthly,
-    equipment_list: eqList,
+    equipment_list: eqList, // legacy: used by old SPA contract-card.js
     own_equipment_list: await (async () => {
-      // Determine source:
-      // - supplement → this supplement's own data
-      // - contract + original=1 → contract's own data
-      // - contract (current) → latest ДС by date (or contract itself if no ДС)
+      // Source: supplement → own data; contract+original → own; contract(current) → latest ДС
       let srcId = contract.id;
       if (contract.type_name === 'contract' && !isOriginal) {
         const { rows: latestSupp } = await pool.query(`
