@@ -16,7 +16,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   // Helper: when original mode, always use contract itself (no supplement override)
   const effectiveSrc = isOriginal
     ? async () => ({ id: contractId, fromSupp: false, suppName: '' })
-    : (tbl, fk) => getEffectiveSrc(pool, contractId, tbl, fk);
+    : (tbl, fk) => getEffectiveSrc(pool, suppParentId, tbl, fk);
 
   // 1. Load contract
   const cRes = await pool.query(
@@ -56,11 +56,13 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   const direction = getContractDirection(cProps.our_role_label || '');
 
   // 2. All supplements sorted by date asc
+  // For supplements, look up siblings (same parent); for contracts, look up children
+  const suppParentId = contract.parent_id || contractId;
   const sRes = await pool.query(
     `SELECT e.id, e.name, e.properties
      FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'supplement'
      WHERE e.parent_id = $1 AND e.deleted_at IS NULL
-     ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`, [contractId]);
+     ORDER BY e.properties->>'contract_date' ASC NULLS LAST, e.id ASC`, [suppParentId]);
   const supplements = sRes.rows;
 
   // 3. Rent objects from rent_items table (effective source: latest supp with rows, else contract)
@@ -77,33 +79,22 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     WHERE ri.contract_id = $1
     ORDER BY ri.sort_order`, [rentSrc.id]);
 
-  // 4. Transfer equipment: supplement with transfer_equipment=true flag (still in properties)
-  let transferEquipment = [];
-  let transferSourceName = '';
-  for (let i = isOriginal ? -1 : supplements.length - 1; i >= 0; i--) {
-    const sp = supplements[i];
-    const p = sp.properties || {};
-    if (p.transfer_equipment === 'true' || p.transfer_equipment === true) {
-      // Read from contract_equipment for this supplement
-      const teRes = await pool.query(`
-        SELECT ce.equipment_id,
-               eq.name                               AS equipment_name,
-               eq.properties->>'inv_number'          AS inv_number,
-               eq.properties->>'equipment_category'  AS equipment_category,
-               eq.properties->>'equipment_kind'      AS equipment_kind,
-               eq.properties->>'status'              AS status,
-               eq.properties->>'manufacturer'        AS manufacturer
-        FROM contract_equipment ce
-        JOIN entities eq ON eq.id = ce.equipment_id AND eq.deleted_at IS NULL
-        WHERE ce.contract_id = $1
-        ORDER BY ce.sort_order`, [sp.id]);
-      if (teRes.rows.length) {
-        transferEquipment = teRes.rows;
-        transferSourceName = sp.name;
-        break;
-      }
-    }
-  }
+  // 4. Equipment list from contract_equipment via effectiveSrc
+  const eqSrc = await effectiveSrc('contract_equipment', 'contract_id');
+  const teRes = await pool.query(`
+    SELECT ce.equipment_id,
+           eq.name                               AS equipment_name,
+           eq.properties->>'inv_number'          AS inv_number,
+           eq.properties->>'equipment_category'  AS equipment_category,
+           eq.properties->>'equipment_kind'      AS equipment_kind,
+           eq.properties->>'status'              AS status,
+           eq.properties->>'manufacturer'        AS manufacturer
+    FROM contract_equipment ce
+    JOIN entities eq ON eq.id = ce.equipment_id AND eq.deleted_at IS NULL
+    WHERE ce.contract_id = $1
+    ORDER BY ce.sort_order`, [eqSrc.id]);
+  const transferEquipment = teRes.rows;
+  const transferSourceName = eqSrc.fromSupp ? eqSrc.suppName : '';
 
   // 4b. Equipment rent items from contract_equipment (rows with rent_cost > 0)
   //     Effective source: latest supp with such rows, else contract itself
@@ -176,11 +167,13 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
       entity_id: ri.entity_id || null,
       room_name: ri.entity_name || '',
       description: '',
-      area, rate, monthly: area * rate,
+      area, rate, monthly: Math.round(area * rate * 100) / 100,
+      heating_rate: ri.heating_rate ? parseFloat(ri.heating_rate) : null,
+      heating_delta: ri.heating_rate ? Math.round((parseFloat(ri.heating_rate) - rate) * area * 100) / 100 : null,
       object_type: ri.object_type || (isLandPlot ? 'land_plot' : 'room'),
     };
   });
-  const totalMonthly = rentRows.reduce((s, r) => s + r.monthly, 0);
+  const totalMonthly = Math.round(rentRows.reduce((s, r) => s + r.monthly, 0) * 100) / 100;
 
   // 8. Build equipment list (transferred/serviced equipment)
   const eqList = transferEquipment.map(eq => {
@@ -201,11 +194,12 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
   });
 
   // 9. Acts for this contract — line items from act_line_items table
+  // For supplements, show acts of the parent contract
   const aRes = await pool.query(
     `SELECT e.id, e.name, e.properties
      FROM entities e JOIN entity_types et ON e.entity_type_id = et.id AND et.name = 'act'
      WHERE e.parent_id = $1 AND e.deleted_at IS NULL
-     ORDER BY e.properties->>'act_date' ASC NULLS LAST, e.id ASC`, [contractId]);
+     ORDER BY e.properties->>'act_date' ASC NULLS LAST, e.id ASC`, [suppParentId]);
 
   const actIds = aRes.rows.map(a => a.id);
   const actLineItemsMap = {};
@@ -281,7 +275,7 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
          JOIN entity_types et ON et.id = s.entity_type_id AND et.name = 'supplement'
          WHERE s.parent_id = $1 AND s.deleted_at IS NULL
        ))
-     ORDER BY cli.payment_date NULLS LAST, cli.sort_order`, [contractId]
+     ORDER BY cli.payment_date NULLS LAST, cli.sort_order`, [suppParentId]
   );
   const allOneTimeItems = allOneTimeRes.rows;
   // Enrich with equipment names from junction table
@@ -405,7 +399,37 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     rent_source_name: rentSrc.fromSupp ? rentSrc.suppName : '',
     transfer_source_name: transferSourceName,
     rent_rows: rentRows, total_monthly: totalMonthly,
-    equipment_list: eqList, history,
+    equipment_list: eqList,
+    own_equipment_list: await (async () => {
+      // Determine source:
+      // - supplement → this supplement's own data
+      // - contract + original=1 → contract's own data
+      // - contract (current) → latest ДС by date (or contract itself if no ДС)
+      let srcId = contract.id;
+      if (contract.type_name === 'contract' && !isOriginal) {
+        const { rows: latestSupp } = await pool.query(`
+          SELECT s.id FROM entities s
+          JOIN entity_types et ON et.id = s.entity_type_id AND et.name = 'supplement'
+          WHERE s.parent_id = $1 AND s.deleted_at IS NULL
+          ORDER BY s.properties->>'contract_date' DESC NULLS LAST, s.id DESC
+          LIMIT 1`, [contract.id]);
+        if (latestSupp.length) srcId = latestSupp[0].id;
+      }
+      const { rows } = await pool.query(`
+        SELECT ce.equipment_id, eq.name AS equipment_name,
+               eq.properties->>'inv_number' AS inv_number,
+               eq.properties->>'equipment_category' AS equipment_category
+        FROM contract_equipment ce
+        JOIN entities eq ON eq.id = ce.equipment_id AND eq.deleted_at IS NULL
+        WHERE ce.contract_id = $1 ORDER BY ce.sort_order`, [srcId]);
+      return rows;
+    })(),
+    history,
+    termination_date: (() => {
+      const termAct = aRes.rows.find(a => (a.properties || {}).act_type === 'Расторжение');
+      return termAct ? (termAct.properties.termination_date || termAct.properties.act_date || '') : '';
+    })(),
+    changes_description: cProps.changes_description || '',
     direction, is_vgo: isVgo,
     subject_rooms: effSubjectRooms,
     subject_buildings: effSubjectBuildings,
@@ -415,13 +439,18 @@ router.get('/contract-card/:id', authenticate, asyncHandler(async (req, res) => 
     equipment_rent_monthly: rentItemsMonthly,
     payments: await (async () => {
       const { rows } = await pool.query(
-        'SELECT payment_date, amount, payment_number, purpose FROM contract_payments WHERE contract_id=$1 ORDER BY payment_date DESC', [contractId]);
+        'SELECT payment_date, amount, payment_number, purpose, created_at FROM contract_payments WHERE contract_id=$1 ORDER BY payment_date DESC', [contractId]);
       return rows;
     })(),
     payments_total: await (async () => {
       const { rows: [{ total }] } = await pool.query(
         'SELECT COALESCE(SUM(amount), 0) as total FROM contract_payments WHERE contract_id=$1', [contractId]);
       return parseFloat(total);
+    })(),
+    payments_last_sync: await (async () => {
+      const { rows: [r] } = await pool.query(
+        'SELECT MAX(created_at) as last_sync FROM contract_payments WHERE contract_id=$1', [contractId]);
+      return r?.last_sync ? r.last_sync : null;
     })(),
   });
 }));

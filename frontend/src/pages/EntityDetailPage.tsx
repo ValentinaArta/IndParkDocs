@@ -7,7 +7,7 @@ import {
   ArrowLeft, Loader2, Paperclip, FileCheck, Pencil,
   CreditCard, Settings, ChevronDown, ChevronRight, Plus,
 } from 'lucide-react';
-import { fmtDate, fmtMoney } from '../utils/format';
+import { fmtDate, fmtMoney, fmtNum } from '../utils/format';
 import { STATUS_COLORS, TYPE_TITLES } from '../utils/entities';
 import type { Entity } from '../api/types';
 
@@ -25,15 +25,18 @@ export function EntityDetailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const entityId = id ? parseInt(id) : null;
-  const isContract = type === 'contract' || type === 'supplement';
   const isOriginal = searchParams.get('original') === '1';
 
-  // For contracts: use contract-card API (full data)
-  const { data: cardData, isLoading: cardLoading } = useContractCard(isContract ? entityId : null, isOriginal);
-  // For non-contracts: use entity API
-  const { data: entityData, isLoading: entityLoading } = useEntity(!isContract ? entityId : null) as { data: DetailEntity | undefined; isLoading: boolean };
+  // Always load entity data (needed for wildcard _ route type detection + non-contract views)
+  const { data: entityData, isLoading: entityLoading } = useEntity(entityId) as { data: DetailEntity | undefined; isLoading: boolean };
+  // Resolve actual type from entity data (always prefer real type from API to handle mismatched URLs)
+  const resolvedType = entityData?.type_name || type;
+  const isContract = resolvedType === 'contract' || resolvedType === 'supplement';
 
-  const isLoading = isContract ? cardLoading : entityLoading;
+  // For contracts: also load contract-card API (full data)
+  const { data: cardData, isLoading: cardLoading } = useContractCard(isContract ? entityId : null, isOriginal);
+
+  const isLoading = entityLoading || (isContract && cardLoading);
 
   if (isLoading) {
     return (
@@ -47,19 +50,19 @@ export function EntityDetailPage() {
   }
 
   if (isContract && cardData) {
-    return <ContractDetailView data={cardData} type={type} navigate={navigate} entityId={entityId!} />;
+    return <ContractDetailView data={cardData} type={resolvedType} navigate={navigate} entityId={entityId!} />;
   }
 
-  if (!isContract && entityData && type === 'equipment') {
+  if (!isContract && entityData && resolvedType === 'equipment') {
     return <EquipmentDetailView entity={entityData} navigate={navigate} />;
   }
 
-  if (!isContract && entityData && (type === 'building' || type === 'land_plot' || type === 'room')) {
-    return <PropertyDetailView entity={entityData} type={type} navigate={navigate} />;
+  if (!isContract && entityData && (resolvedType === 'building' || resolvedType === 'land_plot' || resolvedType === 'room')) {
+    return <PropertyDetailView entity={entityData} type={resolvedType} navigate={navigate} />;
   }
 
   if (!isContract && entityData) {
-    return <GenericDetailView entity={entityData} type={type} navigate={navigate} />;
+    return <GenericDetailView entity={entityData} type={resolvedType} navigate={navigate} />;
   }
 
   return (
@@ -82,12 +85,13 @@ function ContractDetailView({ data, type, navigate, entityId }: {
   const arr = (k: string) => (Array.isArray(d[k]) ? d[k] : []) as Record<string, unknown>[];
   const advances = arr('advances') as unknown as Advance[];
   const payments = arr('payments') as unknown as Payment[];
-  const equipmentList = arr('equipment_list') as unknown as EquipmentItem[];
+  const equipmentList = arr('own_equipment_list') as unknown as EquipmentItem[];
   const history = arr('history') as unknown as (HistoryItem & { is_contract?: boolean })[];
   const children = (d as Record<string, unknown>)['children'] as HistoryItem[] | undefined;
-  // In history: is_contract=true is the main contract, rest are supplements
+  // In history: is_contract=true is the main contract, is_act=true is act, rest are supplements
   const mainContract = history.find((h) => h.is_contract);
-  const supplements = history.filter((h) => !h.is_contract);
+  const supplements = history.filter((h) => !h.is_contract && !h.is_act);
+  const historyActs = history.filter((h) => (h as Record<string, unknown>).is_act === true);
   const acts = (children || []).filter((c) => c.type_name === 'act');
   const direction = str('direction');
   const docStatus = str('doc_status');
@@ -173,6 +177,13 @@ function ContractDetailView({ data, type, navigate, entityId }: {
             </div>
           </div>
 
+          {/* ── Archive banner ── */}
+          {docStatus === 'Архив' && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 text-sm text-red-800 font-medium">
+              Договор расторгнут{str('termination_date') ? ` с ${fmtDate(str('termination_date'))}` : ''}
+            </div>
+          )}
+
           {/* ── Main info ── */}
           <div className="bg-white rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]">
             <InfoRow label={str('our_role_label') || 'Наше юр. лицо'} value={str('our_legal_entity')} bold />
@@ -204,6 +215,18 @@ function ContractDetailView({ data, type, navigate, entityId }: {
             )}
           </div>
 
+          {/* ── What changed (supplements only) ── */}
+          {type === 'supplement' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+              <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">Что изменилось</h3>
+              {str('changes_description') ? (
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{str('changes_description')}</p>
+              ) : (
+                <p className="text-sm text-amber-400 italic">Не заполнено</p>
+              )}
+            </div>
+          )}
+
           {/* ── Rent conditions (for rental contracts only) ── */}
           {['Аренды', 'Субаренды', 'Аренда оборудования'].includes(str('contract_type')) && (
             <RentSection data={d} />
@@ -214,6 +237,38 @@ function ContractDetailView({ data, type, navigate, entityId }: {
             <div className="bg-white rounded-xl border border-[var(--border)] p-5">
               <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Предмет договора</span>
               <p className="mt-2 text-sm">{str('subject')}</p>
+            </div>
+          )}
+
+          {/* ── Contract items (services/works) ── */}
+          {arr('contract_items').length > 0 && (
+            <div className="bg-white rounded-xl border border-[var(--border)]">
+              <div className="px-5 py-3 bg-[var(--bg)] rounded-t-xl">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                  Перечень услуг / работ
+                </span>
+                {str('cli_source_name') && (
+                  <span className="text-xs text-[var(--text-secondary)] ml-2">(из {str('cli_source_name')})</span>
+                )}
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-[var(--primary)] text-white">
+                    <th className="px-5 py-2.5 text-left font-medium">Наименование</th>
+                    <th className="px-5 py-2.5 text-right font-medium">Сумма</th>
+                    <th className="px-5 py-2.5 text-right font-medium">Периодичность</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(arr('contract_items') as Array<Record<string, unknown>>).map((ci, i) => (
+                    <tr key={i} className="border-b border-[var(--border)]">
+                      <td className="px-5 py-2.5">{String(ci.name || '—')}</td>
+                      <td className="px-5 py-2.5 text-right tabular-nums font-medium">{ci.amount ? fmtMoney(parseFloat(String(ci.amount))) : '—'}</td>
+                      <td className="px-5 py-2.5 text-right text-[var(--text-secondary)]">{String(ci.frequency || ci.charge_type || '—')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
 
@@ -239,19 +294,28 @@ function ContractDetailView({ data, type, navigate, entityId }: {
           )}
 
           {/* ── Acts ── */}
-          {acts.length > 0 && (
-            <CollapsibleSection title="Акты выполненных работ" icon={<FileCheck className="w-4 h-4" />} count={acts.length} defaultOpen>
-              {acts.map((act) => (
-                <button key={act.id} onClick={() => navigate(`/entities/act/${act.id}`)}
-                  className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm">
-                  {act.name}
-                </button>
-              ))}
+          {historyActs.length > 0 && (
+            <CollapsibleSection title="Акты" icon={<FileCheck className="w-4 h-4" />} count={historyActs.length} defaultOpen>
+              {historyActs.map((act) => {
+                const a = act as Record<string, unknown>;
+                return (
+                  <button key={act.id} onClick={() => navigate(`/entities/act/${act.id}`)}
+                    className="w-full text-left px-5 py-3 border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors text-sm flex justify-between items-center">
+                    <span>
+                      {act.name}
+                      {a.date && <span className="text-xs text-[var(--text-secondary)] ml-2">{fmtDate(String(a.date))}</span>}
+                    </span>
+                    {a.total && parseFloat(String(a.total)) > 0 && (
+                      <span className="text-xs font-medium text-green-600">{fmtMoney(parseFloat(String(a.total)))} ₽</span>
+                    )}
+                  </button>
+                );
+              })}
             </CollapsibleSection>
           )}
 
-          {/* ── Supplements (history) ── */}
-          {(mainContract || supplements.length > 0) && (
+          {/* ── Supplements (history) — only show on contract pages, not on supplement pages ── */}
+          {type === 'contract' && (mainContract || supplements.length > 0) && (
             <CollapsibleSection title={`История ДС · ${supplements.length} ДС`} icon={<Paperclip className="w-4 h-4" />} count={supplements.length} defaultOpen>
               {mainContract && (
                 <div key={mainContract.id}
@@ -308,41 +372,21 @@ function ContractDetailView({ data, type, navigate, entityId }: {
           )}
 
           {/* ── Payments ── */}
-          {payments.length > 0 && (
-            <CollapsibleSection title="Платежи из 1С" icon={<CreditCard className="w-4 h-4" />} count={payments.length}
-              rightLabel={fmtMoney(payments.reduce((s, p) => s + parseFloat(p.amount || '0'), 0)) + ' ₽'}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-t border-[var(--border)] text-[var(--text-secondary)]">
-                    <th className="px-5 py-2 text-left font-medium">Дата</th>
-                    <th className="px-5 py-2 text-left font-medium">Номер</th>
-                    <th className="px-5 py-2 text-right font-medium">Сумма</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((p) => (
-                    <tr key={p.id} className="border-t border-[var(--border)]">
-                      <td className="px-5 py-2.5 text-[var(--text-secondary)]">{fmtDate(p.payment_date)}</td>
-                      <td className="px-5 py-2.5">{p.payment_number || '—'}</td>
-                      <td className="px-5 py-2.5 text-right font-medium tabular-nums">{fmtMoney(parseFloat(p.amount))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CollapsibleSection>
-          )}
+          {payments.length > 0 && <PaymentsSection payments={payments} lastSync={str('payments_last_sync')} />}
 
           {/* ── Action buttons ── */}
-          <div className="flex gap-2">
-            <button onClick={() => navigate(`/entities/supplement/new?parent_id=${entityId}&parent_name=${encodeURIComponent(str('contract_name') || str('name'))}`)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
-              <Plus className="w-3.5 h-3.5" /> Доп. соглашение
-            </button>
-            <button onClick={() => navigate(`/entities/act/new?parent_id=${entityId}&parent_name=${encodeURIComponent(str('contract_name') || str('name'))}`)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
-              <Plus className="w-3.5 h-3.5" /> Акт
-            </button>
-          </div>
+          {type === 'contract' && (
+            <div className="flex gap-2">
+              <button onClick={() => navigate(`/entities/supplement/new?parent_id=${entityId}&parent_name=${encodeURIComponent(str('contract_name') || str('name'))}`)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
+                <Plus className="w-3.5 h-3.5" /> Доп. соглашение
+              </button>
+              <button onClick={() => navigate(`/entities/act/new?parent_id=${entityId}&parent_name=${encodeURIComponent(str('contract_name') || str('name'))}`)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-dark)] transition">
+                <Plus className="w-3.5 h-3.5" /> Акт
+              </button>
+            </div>
+          )}
 
         </div>
       </div>
@@ -355,10 +399,11 @@ interface RentRow { room_name: string; area: number; rate: number; monthly: numb
 interface EquipmentRentItem { equipment_name: string; rent_cost: number }
 
 function RentSection({ data }: { data: Record<string, unknown> }) {
-  const rentRows = (Array.isArray(data.rent_rows) ? data.rent_rows : []) as RentRow[];
+  const rentRows = (Array.isArray(data.rent_rows) ? data.rent_rows : []) as (RentRow & { heating_rate?: number | null; heating_delta?: number | null })[];
   const equipRent = (Array.isArray(data.equipment_rent_items) ? data.equipment_rent_items : []) as EquipmentRentItem[];
   const sourceName = (data.rent_source_name as string) || '';
   const totalMonthly = parseFloat(String(data.total_monthly || '0')) || 0;
+  const hasHeating = rentRows.some(r => r.heating_rate != null);
 
   if (rentRows.length === 0 && equipRent.length === 0) return null;
 
@@ -381,6 +426,8 @@ function RentSection({ data }: { data: Record<string, unknown> }) {
               <th className="px-5 py-2.5 text-left font-medium">Объект аренды</th>
               <th className="px-5 py-2.5 text-right font-medium">Площадь, м²</th>
               <th className="px-5 py-2.5 text-right font-medium">Ставка (руб/м²/мес)</th>
+              {hasHeating && <th className="px-5 py-2.5 text-right font-medium">Ставка отоп. (руб/м²/мес)</th>}
+              {hasHeating && <th className="px-5 py-2.5 text-right font-medium">Учтено тепло</th>}
             </tr>
           </thead>
           <tbody>
@@ -389,6 +436,8 @@ function RentSection({ data }: { data: Record<string, unknown> }) {
                 <td className="px-5 py-2.5">{row.room_name || '—'}</td>
                 <td className="px-5 py-2.5 text-right tabular-nums">{row.area ? fmtMoney(row.area) : '—'}</td>
                 <td className="px-5 py-2.5 text-right tabular-nums">{row.rate ? fmtMoney(row.rate) : '—'}</td>
+                {hasHeating && <td className="px-5 py-2.5 text-right tabular-nums">{row.heating_rate ? fmtMoney(row.heating_rate) : '—'}</td>}
+                {hasHeating && <td className="px-5 py-2.5 text-right tabular-nums">{row.heating_delta ? fmtMoney(row.heating_delta) : '—'}</td>}
               </tr>
             ))}
           </tbody>
@@ -525,6 +574,72 @@ interface EqContract {
   our_entity_name?: string; parent_contract_name?: string;
 }
 
+function PaymentsSection({ payments, lastSync }: { payments: Payment[]; lastSync?: string }) {
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const filtered = payments.filter((p) => {
+    if (dateFrom && p.payment_date < dateFrom) return false;
+    if (dateTo && p.payment_date > dateTo) return false;
+    return true;
+  });
+  const filteredTotal = filtered.reduce((s, p) => s + parseFloat(p.amount || '0'), 0);
+
+  return (
+    <CollapsibleSection
+      title="Платежи из 1С"
+      icon={<CreditCard className="w-4 h-4" />}
+      count={payments.length}
+      rightLabel={fmtMoney(payments.reduce((s, p) => s + parseFloat(p.amount || '0'), 0)) + ' ₽'}
+    >
+      {/* Sync date + period filter */}
+      <div className="px-5 py-2 flex flex-wrap items-center gap-3 border-t border-[var(--border)] bg-gray-50 text-xs">
+        {lastSync && (
+          <span className="text-[var(--text-secondary)]">
+            Данные из 1С на: <span className="font-medium">{fmtDate(lastSync.slice(0, 10))}</span>
+          </span>
+        )}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-[var(--text-secondary)]">Период:</span>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            className="px-2 py-1 border rounded text-xs" />
+          <span className="text-gray-400">—</span>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            className="px-2 py-1 border rounded text-xs" />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+              className="text-[var(--primary)] hover:underline ml-1">сбросить</button>
+          )}
+        </div>
+      </div>
+
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-t border-[var(--border)] text-[var(--text-secondary)]">
+            <th className="px-5 py-2 text-left font-medium">Дата</th>
+            <th className="px-5 py-2 text-left font-medium">Номер</th>
+            <th className="px-5 py-2 text-right font-medium">Сумма</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((p, i) => (
+            <tr key={i} className="border-t border-[var(--border)]">
+              <td className="px-5 py-2.5 text-[var(--text-secondary)]">{fmtDate(p.payment_date)}</td>
+              <td className="px-5 py-2.5">{p.payment_number || '—'}</td>
+              <td className="px-5 py-2.5 text-right font-medium tabular-nums">{fmtMoney(parseFloat(p.amount))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {(dateFrom || dateTo) && (
+        <div className="px-5 py-2 text-right text-sm font-semibold border-t border-[var(--border)]">
+          Итого за период: {fmtMoney(filteredTotal)} ₽ ({filtered.length} из {payments.length})
+        </div>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navigate: (p: string) => void }) {
   const props = entity.properties || {};
   const rels = entity.relations || [];
@@ -613,11 +728,13 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
           <div className="bg-white rounded-xl border border-[var(--border)] p-6">
             <h1 className="text-xl font-bold mb-2 leading-tight">{entity.name}</h1>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5"
-                style={{ backgroundColor: status ? st.bg : '#f3f4f6', color: status ? st.color : '#9ca3af' }}>
-                <span className="w-[7px] h-[7px] rounded-full inline-block" style={{ backgroundColor: status ? st.color : '#d1d5db' }} />
-                {status || 'Не указан'}
-              </span>
+              {status && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5"
+                  style={{ backgroundColor: st.bg, color: st.color }}>
+                  <span className="w-[7px] h-[7px] rounded-full inline-block" style={{ backgroundColor: st.color }} />
+                  {status}
+                </span>
+              )}
               {category && (
                 <span className="text-xs px-2.5 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
                   {category}
@@ -709,31 +826,47 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
           )}
 
           {/* Work history (from API) */}
-          {workHistory.length > 0 && (
-            <CollapsibleSection title="История работ" icon={<FileCheck className="w-4 h-4" />} count={workHistory.length} defaultOpen>
+          <CollapsibleSection title="История работ" icon={<FileCheck className="w-4 h-4" />} count={workHistory.length} defaultOpen>
+            {workHistory.length === 0 && (
+              <div className="px-5 py-4 text-sm text-[var(--text-muted)] border-t border-[var(--border)]">Нет записей</div>
+            )}
+            {workHistory.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-t border-[var(--border)] text-[var(--text-secondary)] bg-[var(--bg-secondary)]">
                       <th className="px-4 py-2 text-left font-medium">Дата</th>
                       <th className="px-4 py-2 text-left font-medium">Акт</th>
-                      <th className="px-4 py-2 text-left font-medium">Описание работ</th>
+                      <th className="px-4 py-2 text-center font-medium">Статус</th>
+                      <th className="px-4 py-2 text-left font-medium">Работы / Замечания</th>
                       <th className="px-4 py-2 text-right font-medium">Сумма</th>
                     </tr>
                   </thead>
                   <tbody>
                     {workHistory.map((wh) => (
-                      <tr key={wh.id} className="border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors">
+                      <tr key={wh.id} className="border-t border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors align-top">
                         <td className="px-4 py-2.5 text-[var(--text-secondary)] whitespace-nowrap">{fmtDate(wh.act_date)}</td>
                         <td className="px-4 py-2.5">
                           <button onClick={() => navigate(`/entities/act/${wh.id}`)}
-                            className="text-[var(--primary)] hover:underline text-left">
+                            className="text-[var(--primary)] hover:underline text-left text-xs">
                             {wh.name}
                           </button>
                         </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${wh.item_broken ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            {wh.item_broken ? '⚠ Аварийное' : '✓ Исправно'}
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5 max-w-[400px]">
-                          {wh.item_broken && <span className="inline-block text-xs font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded mr-1">Неисправность</span>}
-                          <span className="text-[var(--text-secondary)] whitespace-pre-wrap text-xs leading-relaxed">{wh.item_description}</span>
+                          {wh.item_description && (
+                            <div className="text-xs text-[var(--text-secondary)] leading-relaxed">{wh.item_description}</div>
+                          )}
+                          {wh.item_comment && (
+                            <div className="text-xs italic text-blue-700 mt-0.5">{wh.item_comment}</div>
+                          )}
+                          {wh.conclusion && (
+                            <div className="text-[10px] text-gray-500 mt-1 border-t border-dashed border-gray-200 pt-1">Заключение: {wh.conclusion}</div>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">
                           {parseFloat(wh.item_amount || '0') > 0 ? fmtMoney(parseFloat(wh.item_amount!)) + ' ₽' : '—'}
@@ -743,8 +876,8 @@ function EquipmentDetailView({ entity, navigate }: { entity: DetailEntity; navig
                   </tbody>
                 </table>
               </div>
-            </CollapsibleSection>
-          )}
+            )}
+          </CollapsibleSection>
 
           {/* Note */}
           {note && (
@@ -764,7 +897,7 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
   const props = entity.properties || {};
   const rels = entity.relations || [];
   const children = entity.children || [];
-  const typeLabels: Record<string, string> = { building: 'Корпус', land_plot: 'Земельный участок', room: 'Помещение' };
+  const typeLabels: Record<string, string> = { building: 'Корпус', land_plot: 'Земельный участок', land_plot_part: 'Часть ЗУ', room: 'Помещение' };
 
   const infoRows: [string, string | React.ReactNode][] = [];
   const add = (label: string, value: unknown) => { if (value != null && value !== '' && value !== 'null') infoRows.push([label, String(value)]); };
@@ -779,8 +912,7 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
   if (type === 'land_plot') {
     add('Площадь', props.area ? `${Number(props.area).toLocaleString('ru-RU')} м²` : null);
     add('Назначение', props.purpose);
-    add('Собственник', props.owner_name);
-    add('Балансодержатель', props.balance_owner_name);
+    add('Собственник', props.balance_owner_name);
   }
   add('Кадастровый номер', props.cadastral_number);
   if (props.cadastral_value) {
@@ -849,7 +981,7 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
   children.forEach((c) => {
     const key = c.type_name;
     if (!childGroups[key]) {
-      const labels: Record<string, string> = { room: 'Помещения', equipment: 'Оборудование', building: 'Корпуса' };
+      const labels: Record<string, string> = { room: 'Помещения', equipment: 'Оборудование', building: 'Корпуса', land_plot_part: 'Части ЗУ на участке' };
       childGroups[key] = { label: labels[key] || key, items: [] };
     }
     childGroups[key].items.push(c);
@@ -873,6 +1005,39 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
       />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[900px] mx-auto px-6 py-5 space-y-4">
+          {/* Breadcrumbs */}
+          <nav className="flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+            {(type === 'land_plot' || type === 'land_plot_part') && (
+              <button onClick={() => navigate('/entities/land_plot')}
+                className="text-[var(--primary)] hover:underline">
+                Земельные участки
+              </button>
+            )}
+            {type === 'building' && (
+              <button onClick={() => navigate('/entities/building')}
+                className="text-[var(--primary)] hover:underline">
+                Корпуса
+              </button>
+            )}
+            {type === 'room' && (
+              <button onClick={() => navigate('/entities/room')}
+                className="text-[var(--primary)] hover:underline">
+                Помещения
+              </button>
+            )}
+            {entity.parent_id && entity.parent_name && (
+              <>
+                <span className="text-gray-400">/</span>
+                <button onClick={() => navigate(`/entities/${type === 'land_plot_part' ? 'land_plot' : type === 'room' ? 'building' : '_'}/${entity.parent_id}`)}
+                  className="text-[var(--primary)] hover:underline">
+                  {entity.parent_name}
+                </button>
+              </>
+            )}
+            <span className="text-gray-400">/</span>
+            <span className="font-medium text-[var(--text-primary)]">{entity.name}</span>
+          </nav>
+
           {/* Header */}
           <div className="bg-white rounded-xl border border-[var(--border)] p-6">
             <h1 className="text-xl font-bold mb-1 leading-tight">{entity.name}</h1>
@@ -896,6 +1061,56 @@ function PropertyDetailView({ entity, type, navigate }: { entity: DetailEntity; 
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Act line items (works performed + equipment status) */}
+          {type === 'act' && Array.isArray(props.act_items) && (props.act_items as Array<Record<string, unknown>>).length > 0 && (
+            <>
+              {/* Conclusion */}
+              {props.conclusion && (
+                <div className="bg-white rounded-xl border border-[var(--border)] p-5">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-2">Заключение</h3>
+                  <p className="text-sm leading-relaxed">{String(props.conclusion)}</p>
+                </div>
+              )}
+
+              {/* Work items */}
+              <div className="bg-white rounded-xl border border-[var(--border)]">
+                <div className="px-5 py-3 bg-[var(--bg)] rounded-t-xl">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                    Проведённые работы · {(props.act_items as unknown[]).length} позиций
+                  </span>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  {(props.act_items as Array<Record<string, unknown>>).map((item, i) => (
+                    <div key={i} className="px-5 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${item.broken ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                              {item.broken ? '⚠ Аварийное' : '✓ Исправно'}
+                            </span>
+                            {item.equipment_category && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{String(item.equipment_category)}</span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium leading-snug">{String(item.equipment_name || item.name)}</p>
+                          {item.description && (
+                            <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">{String(item.description)}</p>
+                          )}
+                          {item.comment && (
+                            <p className="text-xs mt-1 italic text-blue-700">{String(item.comment)}</p>
+                          )}
+                        </div>
+                        {item.amount && parseFloat(String(item.amount)) > 0 && (
+                          <span className="text-sm font-medium tabular-nums whitespace-nowrap">{fmtMoney(parseFloat(String(item.amount)))} ₽</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
           {/* Land plot (located_on) — for buildings: "Земельный участок", for land_plots: "Корпуса на участке" */}
@@ -1012,6 +1227,12 @@ function GenericDetailView({ entity, type, navigate }: { entity: DetailEntity; t
   add('Серийный номер', props.serial_number);
   add('Год', props.year);
   add('Производитель', props.manufacturer);
+  // Act fields
+  add('Номер акта', props.act_number);
+  add('Дата акта', props.act_date ? fmtDate(String(props.act_date)) : undefined);
+  add('Тип акта', props.act_type);
+  add('Сумма', props.total_amount && Number(props.total_amount) ? fmtNum(Number(props.total_amount)) : undefined);
+  add('Заключение', props.conclusion);
   // Generic
   add('Примечание', props.note);
 
@@ -1019,7 +1240,7 @@ function GenericDetailView({ entity, type, navigate }: { entity: DetailEntity; t
   const relGroups: Record<string, DetailRel[]> = {};
   relations.forEach((r) => { (relGroups[r.relation_type] ||= []).push(r); });
   const relLabels: Record<string, string> = {
-    our_entity: 'Наше юрлицо', contractor: 'Контрагент', supplement_to: 'ДС к договору',
+    our_entity: 'Наше юрлицо', contractor: 'Контрагент', supplement_to: type === 'act' ? 'Акт договора' : 'ДС к договору',
     located_in: 'Расположение', on_balance: 'На балансе', party_to: 'Сторона',
     subject_of: 'Предмет', part_of: 'Часть',
   };
@@ -1042,6 +1263,18 @@ function GenericDetailView({ entity, type, navigate }: { entity: DetailEntity; t
       />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1000px] mx-auto px-6 py-5 space-y-4">
+          {/* Breadcrumb to parent contract (for acts) */}
+          {entity.parent_id && entity.parent_name && (
+            <nav className="flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+              <button onClick={() => navigate(`/entities/contract/${entity.parent_id}`)}
+                className="text-[var(--primary)] hover:underline">
+                {entity.parent_name}
+              </button>
+              <span className="text-gray-400">/</span>
+              <span className="font-medium text-[var(--text-primary)]">{entity.name}</span>
+            </nav>
+          )}
+
           {/* Header */}
           <div className="bg-white rounded-xl border border-[var(--border)] p-6">
             <h1 className="text-xl font-semibold mb-1">{entity.name}</h1>
@@ -1064,6 +1297,21 @@ function GenericDetailView({ entity, type, navigate }: { entity: DetailEntity; t
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Act items */}
+          {Array.isArray(props.act_items) && (props.act_items as Record<string, unknown>[]).length > 0 && (
+            <CollapsibleSection title="Позиции акта" icon={null} count={(props.act_items as Record<string, unknown>[]).length} defaultOpen>
+              {(props.act_items as Record<string, unknown>[]).map((item, i) => (
+                <div key={i} className="px-5 py-3 border-t border-[var(--border)] text-sm space-y-1">
+                  <div className="font-medium">{String(item.equipment_name || item.name || `Позиция ${i + 1}`)}</div>
+                  {item.equipment_category && <div className="text-[var(--text-secondary)]">{String(item.equipment_category)}</div>}
+                  {item.description && <div>{String(item.description)}</div>}
+                  {item.comment && <div className="text-[var(--text-secondary)] italic">{String(item.comment)}</div>}
+                  {item.amount && Number(item.amount) > 0 && <div>Сумма: {fmtNum(Number(item.amount))}</div>}
+                </div>
+              ))}
+            </CollapsibleSection>
           )}
 
           {/* Relations */}

@@ -72,6 +72,8 @@ async function getEffectiveSrc(pool, contractId, tableName, fkCol) {
     contract_advances: 'contract_id',
   };
   if (allowed[tableName] !== fkCol) throw new Error('Invalid table/fk combination: ' + tableName + '.' + fkCol);
+
+  // Find the latest supplement that HAS rows in this table
   const q = `
     SELECT s.id, s.name, s.properties->>'contract_date' AS supp_date
     FROM entities s

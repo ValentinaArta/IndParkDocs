@@ -62,6 +62,10 @@ const migrations = {
   '053':         require('./migrations/053_line_item_charge_types'),
   '057':         require('./migrations/057_notes'),
   '058':         require('./migrations/058_vat_charge_frequency_lookups'),
+  '059':         require('./migrations/059_contract_type_roles'),
+  '060':         require('./migrations/060_act_termination'),
+  '061':         require('./migrations/061_heating_rate'),
+  '062':         require('./migrations/062_remove_transfer_equipment'),
 };
 
 async function initMigrationTracker(pool) {

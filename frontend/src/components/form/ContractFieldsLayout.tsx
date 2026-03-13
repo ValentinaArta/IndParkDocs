@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ArrowRightLeft } from 'lucide-react';
+import { ArrowRightLeft, X, Plus, Settings } from 'lucide-react';
 import { FieldInput } from './FieldInput';
 import { RentObjectsEditor, type RentObject } from './RentObjectsEditor';
 import { ALL_OBJECT_TYPES } from './RentObjectButtons';
@@ -42,9 +42,11 @@ interface Props {
   onChange: (name: string, value: unknown) => void;
   isEdit?: boolean;
   isSupp?: boolean;
+  parentCard?: Record<string, unknown> | null;
+  contractId?: number | null;
 }
 
-export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isSupp }: Props) {
+export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isSupp, parentCard, contractId }: Props) {
   const byName = Object.fromEntries(fields.map((f) => [f.name, f]));
   const { data: ctfMap = {} } = useContractTypeFields();
   const { data: vatOptions = ['22', '20', '10', '0'] } = useLookup('vat_rate');
@@ -109,7 +111,7 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
       } else {
         const area = parseFloat(ro.area) || 0;
         const rate = parseFloat(ro.rent_rate) || 0;
-        total += area * rate;
+        total += Math.round(area * rate * 100) / 100;
       }
     }
     // Add extra services cost
@@ -149,18 +151,22 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
   function handleSwap() {
     const ourRole = properties.our_role_label;
     const ourEntity = properties.our_legal_entity;
+    const ourId = properties.our_legal_entity_id;
     const contrRole = properties.contractor_role_label;
     const contrEntity = properties.contractor_name;
+    const contrId = properties.contractor_id;
     onChange('our_role_label', contrRole || '');
     onChange('our_legal_entity', contrEntity || '');
+    onChange('our_legal_entity_id', contrId || '');
     onChange('contractor_role_label', ourRole || '');
     onChange('contractor_name', ourEntity || '');
+    onChange('contractor_id', ourId || '');
   }
 
   // Fields handled in explicit sections
   const sectionFields = new Set([
     'contract_type', 'number', 'contract_date', 'doc_status',
-    'our_role_label', 'our_legal_entity', 'contractor_role_label', 'contractor_name', 'subtenant_name',
+    'our_role_label', 'our_legal_entity', 'our_legal_entity_id', 'contractor_role_label', 'contractor_name', 'contractor_id', 'subtenant_name', 'subtenant_id',
     'vat_rate', 'rent_monthly', 'contract_amount',
     'duration_type', 'duration_date', 'duration_text', 'contract_end_date',
     'extra_services', 'extra_services_desc', 'extra_services_cost',
@@ -203,15 +209,15 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
         {isSupp ? (
           <div className="space-y-3">
             <Row2>
-              <InheritedField label="Роль нашей стороны" value={String(properties.our_role_label || '')} />
-              <InheritedField label="Наше юр. лицо" value={String(properties.our_legal_entity || '')} />
+              <InheritedField label="Роль нашей стороны" value={String(properties.our_role_label || parentCard?.our_role_label || '')} />
+              <InheritedField label="Наше юр. лицо" value={String(properties.our_legal_entity || parentCard?.our_legal_entity || '')} />
             </Row2>
             <Row2>
-              <InheritedField label="Роль контрагента" value={String(properties.contractor_role_label || '')} />
-              <InheritedField label="Контрагент" value={String(properties.contractor_name || '')} />
+              <InheritedField label="Роль контрагента" value={String(properties.contractor_role_label || parentCard?.contractor_role_label || '')} />
+              <InheritedField label="Контрагент" value={String(properties.contractor_name || parentCard?.contractor_name || '')} />
             </Row2>
-            {showSubtenant && properties.subtenant_name && (
-              <InheritedField label="Субарендатор" value={String(properties.subtenant_name)} />
+            {showSubtenant && (properties.subtenant_name || parentCard?.subtenant_name) && (
+              <InheritedField label="Субарендатор" value={String(properties.subtenant_name || parentCard?.subtenant_name || '')} />
             )}
           </div>
         ) : (
@@ -223,8 +229,15 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Наше юр. лицо</label>
                     <EntitySearch
-                      value={properties.our_legal_entity ? { id: 0, name: String(properties.our_legal_entity) } : null}
-                      onChange={(val) => onChange('our_legal_entity', val?.name || '')}
+                      value={properties.our_legal_entity_id
+                        ? { id: Number(properties.our_legal_entity_id), name: String(properties.our_legal_entity || '') }
+                        : properties.our_legal_entity
+                          ? { id: 0, name: String(properties.our_legal_entity) }
+                          : null}
+                      onChange={(val) => {
+                        onChange('our_legal_entity', val?.name || '');
+                        onChange('our_legal_entity_id', val?.id || '');
+                      }}
                       entityType="company"
                       filter={(e) => e.properties?.is_own === true || e.properties?.is_own === 'true'}
                       placeholder="Выберите юрлицо..."
@@ -242,8 +255,15 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Контрагент</label>
                 <EntitySearch
-                  value={properties.contractor_name ? { id: 0, name: String(properties.contractor_name) } : null}
-                  onChange={(val) => onChange('contractor_name', val?.name || '')}
+                  value={properties.contractor_id
+                    ? { id: Number(properties.contractor_id), name: String(properties.contractor_name || '') }
+                    : properties.contractor_name
+                      ? { id: 0, name: String(properties.contractor_name) }
+                      : null}
+                  onChange={(val) => {
+                    onChange('contractor_name', val?.name || '');
+                    onChange('contractor_id', val?.id || '');
+                  }}
                   entityType="company"
                   placeholder="Выберите контрагента..."
                 />
@@ -260,6 +280,11 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
             <RentObjectsEditor
               value={rentObjects}
               onChange={(items) => onChange('rent_objects', items)}
+              showHeatingRate={(() => {
+                const HEATING_CONTRACT_ID = 121; // Атика №040518
+                const cid = contractId || (parentCard?.id ? Number(parentCard.id) : null);
+                return cid === HEATING_CONTRACT_ID;
+              })()}
             />
           )}
           {hasContractItems && (
@@ -286,11 +311,18 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
                   value={rentObjects}
                   onChange={(items) => onChange('rent_objects', items)}
                   types={ALL_OBJECT_TYPES}
+                  showHeatingRate={false}
                 />
               </div>
             </>
           )}
         </FormSection>
+
+      {/* ОБОРУДОВАНИЕ */}
+      <EquipmentSection
+        value={(properties.equipment_list as Array<Record<string, unknown>>) || []}
+        onChange={(items) => onChange('equipment_list', items)}
+      />
 
       {/* УСЛОВИЯ ОПЛАТЫ */}
       <FormSection title="Условия оплаты">
@@ -393,18 +425,17 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
         </FormSection>
 
       {/* changes_description — always show for supplements */}
-      {otherFields.filter(f => f.name === 'changes_description').map((f) => (
-        <div key={f.id}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{f.name_ru || f.name}</label>
+      {otherFields.some(f => f.name === 'changes_description') && (
+        <FormSection title="Что изменилось">
           <textarea
-            value={(properties[f.name] as string) || ''}
-            onChange={(e) => onChange(f.name, e.target.value)}
-            rows={2}
+            value={(properties.changes_description as string) || ''}
+            onChange={(e) => onChange('changes_description', e.target.value)}
+            rows={3}
             className="w-full px-3 py-2 border rounded-lg text-sm"
-            placeholder="Что изменилось..."
+            placeholder="Опишите что изменилось в этом ДС..."
           />
-        </div>
-      ))}
+        </FormSection>
+      )}
 
       {/* Остальные поля — не для аренды/субаренды */}
       {!isRental && otherFields.filter(f => f.name !== 'changes_description').length > 0 && (
@@ -415,5 +446,78 @@ export function ContractFieldsLayout({ fields, properties, onChange, isEdit, isS
         </FormSection>
       )}
     </>
+  );
+}
+
+/* ---- Equipment Section ---- */
+function EquipmentSection({ value, onChange }: {
+  value: Array<Record<string, unknown>>;
+  onChange: (items: Array<Record<string, unknown>>) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+
+  const handleRemove = (idx: number) => {
+    onChange(value.filter((_, i) => i !== idx));
+  };
+
+  const handleAdd = (eq: { id: number; name: string; properties?: Record<string, unknown> }) => {
+    // Prevent duplicates
+    if (value.some((e) => Number(e.equipment_id || e.id) === eq.id)) {
+      setAdding(false);
+      return;
+    }
+    onChange([...value, {
+      equipment_id: eq.id,
+      equipment_name: eq.name,
+      inv_number: eq.properties?.inv_number || '',
+      equipment_category: eq.properties?.equipment_category || '',
+    }]);
+    setAdding(false);
+  };
+
+  return (
+    <FormSection title="Оборудование">
+      {value.length === 0 && !adding && (
+        <p className="text-sm text-gray-400">Нет оборудования</p>
+      )}
+      {value.length > 0 && (
+        <div className="space-y-2">
+          {value.map((eq, i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm group">
+              <Settings className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <span className="font-medium flex-1">{String(eq.equipment_name || eq.name || '—')}</span>
+              {(eq.inv_number || eq.inv) && (
+                <span className="text-gray-400 text-xs">Инв. {String(eq.inv_number || eq.inv)}</span>
+              )}
+              {(eq.equipment_category || eq.category) && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                  {String(eq.equipment_category || eq.category)}
+                </span>
+              )}
+              <button type="button" onClick={() => handleRemove(i)}
+                className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {adding ? (
+        <div className="mt-2">
+          <EntitySearch
+            entityType="equipment"
+            placeholder="Поиск оборудования..."
+            onChange={(eq) => { if (eq) handleAdd(eq as { id: number; name: string; properties?: Record<string, unknown> }); }}
+          />
+          <button type="button" onClick={() => setAdding(false)}
+            className="mt-1 text-xs text-gray-400 hover:text-gray-600">Отмена</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setAdding(true)}
+          className="mt-2 flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline">
+          <Plus className="w-4 h-4" /> Добавить оборудование
+        </button>
+      )}
+    </FormSection>
   );
 }

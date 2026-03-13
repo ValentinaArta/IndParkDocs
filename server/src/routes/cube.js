@@ -89,27 +89,15 @@ eq_via_rel AS (
   SELECT r.from_entity_id AS equipment_id, r.to_entity_id AS contract_id
   FROM relations r WHERE r.relation_type = 'subject_of'
 ),
-eq_via_transfer AS (
-  SELECT (te->>'equipment_id')::int AS equipment_id, c.id AS contract_id
-  FROM entities c
-  JOIN entity_types et ON et.id = c.entity_type_id AND et.name = 'contract'
-  LEFT JOIN LATERAL jsonb_array_elements(
-    CASE
-      WHEN c.properties->>'transfer_equipment' IS NOT NULL
-       AND c.properties->>'transfer_equipment' NOT IN ('','null')
-       AND c.properties->>'transfer_equipment' ~ '^\\s*\\['
-      THEN (c.properties->>'transfer_equipment')::jsonb
-      ELSE '[]'::jsonb
-    END
-  ) AS te ON true
-  WHERE c.deleted_at IS NULL
-    AND (te->>'equipment_id') IS NOT NULL
-    AND (te->>'equipment_id') <> ''
+eq_via_ce AS (
+  SELECT ce.equipment_id, ce.contract_id
+  FROM contract_equipment ce
+  JOIN entities c ON c.id = ce.contract_id AND c.deleted_at IS NULL
 ),
 eq_contracts AS (
   SELECT DISTINCT equipment_id, contract_id FROM eq_via_rel
   UNION
-  SELECT equipment_id, contract_id FROM eq_via_transfer WHERE equipment_id IS NOT NULL
+  SELECT DISTINCT equipment_id, contract_id FROM eq_via_ce
 ),
 eq_bld AS (
   SELECT DISTINCT ON (equipment_id) equipment_id, building_name FROM (

@@ -27,10 +27,11 @@ function recalcRentMonthly() {
         if (!area) area = parseFloat(obj.area) || 0;
       }
       var rate = parseFloat(obj.rent_rate) || 0;
-      total += area * rate;
+      var lineTotal = Math.round(area * rate * 100) / 100;
+      total += lineTotal;
       // Update monthly display (works for both rooms and land plots)
       var monthlyEl = document.getElementById('ro_monthly_' + idx);
-      if (monthlyEl) monthlyEl.textContent = (area * rate > 0) ? '= ' + _fmtNum(area * rate) + ' руб/мес' : '';
+      if (monthlyEl) monthlyEl.textContent = (lineTotal > 0) ? '= ' + _fmtNum(lineTotal) + ' руб/мес' : '';
     }
   });
   // Add extra services
@@ -97,15 +98,7 @@ function onRentFieldChange() {
   _srchInitAll();
 }
 
-function enableEquipmentTransfer() {
-  var cb = document.getElementById('f_transfer_equipment');
-  if (cb) { cb.checked = true; onRentFieldChange(); }
-}
-
-function disableEquipmentTransfer() {
-  var cb = document.getElementById('f_transfer_equipment');
-  if (cb) { cb.checked = false; onRentFieldChange(); }
-}
+// Legacy: enableEquipmentTransfer / disableEquipmentTransfer removed — equipment managed in React
 
 function updateVatDisplay() {
   var amountEl = document.getElementById('f_rent_monthly') || document.getElementById('f_contract_amount');
@@ -131,6 +124,7 @@ function updateVatDisplay() {
 
 // ============ CONTRACT PARTY ROLES ============
 
+// Default roles loaded from DB via /api/contract-type-roles; fallback hardcoded
 var CONTRACT_ROLES = {
   'Подряда':     { our: 'Заказчик',      contractor: 'Подрядчик' },
   'Аренды':      { our: 'Арендодатель',   contractor: 'Арендатор' },
@@ -139,10 +133,23 @@ var CONTRACT_ROLES = {
   'Услуг':       { our: 'Заказчик',      contractor: 'Исполнитель' },
   'Поставки':    { our: 'Покупатель',    contractor: 'Поставщик' },
   'Обслуживания': { our: 'Заказчик',      contractor: 'Исполнитель' },
-  'Эксплуатации': { our: 'Заказчик',      contractor: 'Исполнитель' },  // backward compat
+  'Эксплуатации': { our: 'Заказчик',      contractor: 'Исполнитель' },
   'Купли-продажи':{ our: 'Покупатель',   contractor: 'Продавец' },
   'Цессии':      { our: 'Цедент',        contractor: 'Цессионарий' },
 };
+// Load roles from DB (single source of truth)
+(async function() {
+  try {
+    var dbRoles = await api('/contract-type-roles');
+    if (dbRoles && typeof dbRoles === 'object') {
+      Object.keys(dbRoles).forEach(function(ct) {
+        var r = dbRoles[ct];
+        CONTRACT_ROLES[ct] = { our: r.our || '', contractor: r.contractor || '' };
+        if (r.subtenant) CONTRACT_ROLES[ct].hasSubtenant = true;
+      });
+    }
+  } catch(e) { /* use hardcoded fallback */ }
+})();
 
 var _contractFormTypeName = '';
 var _contractFormFields = [];

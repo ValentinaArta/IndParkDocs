@@ -87,6 +87,7 @@ app.use('/api/companies',       require('./routes/companies'));
 app.use('/api/entities/:id/files', require('./routes/files'));
 app.use('/api/cube',            require('./routes/cube'));
 app.use('/api/contract-type-fields', require('./routes/contract-type-fields'));
+app.use('/api/contract-type-roles', require('./routes/contract-type-roles'));
 app.use('/api/buildings',       require('./routes/floorplan'));
 app.use('/api/equipment',       require('./routes/equipment'));
 app.use('/api/notes',           require('./routes/notes'));
@@ -100,6 +101,7 @@ app.use('/app', (req, res, next) => {
 }, express.static(reactDistPath));
 app.get('/app/*', (req, res) => {
   res.removeHeader('Content-Security-Policy');
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(reactDistPath, 'index.html'));
 });
 

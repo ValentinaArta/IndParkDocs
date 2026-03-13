@@ -272,14 +272,13 @@ function renderSupplementCard(supp) {
   }
 
   // ── Передача оборудования (Аренды / Субаренды / Подряда / Обслуживания) ────
-  var hasTransfer = (sp.transfer_equipment === 'true' || sp.transfer_equipment === true);
   var eqList = [];
   if (sp.equipment_list) {
     if (Array.isArray(sp.equipment_list)) eqList = sp.equipment_list;
     else { try { eqList = JSON.parse(sp.equipment_list); } catch(ex) {} }
   }
   if (eqList.length > 0) {
-    var eqSectionLabel = hasTransfer ? 'Передаваемое оборудование' : 'Оборудование';
+    var eqSectionLabel = 'Оборудование';
     h += '<div style="margin-bottom:16px">';
     h += '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase">' + eqSectionLabel + '</div>';
     h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';

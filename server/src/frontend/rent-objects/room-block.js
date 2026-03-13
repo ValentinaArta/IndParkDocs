@@ -15,19 +15,7 @@ function renderRentSubjectOnly(container, allFields, props) {
   html += '<button type="button" class="btn btn-sm" onclick="addRentObjectLand()">+ Земельный участок</button>';
   html += '</div>';
 
-  var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
-  html += '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') + ' style="display:none">';
-  if (hasTransfer) {
-    var transferItems = [];
-    transferItems = Array.isArray(props.equipment_list) ? props.equipment_list : [];
-    html += '<div class="form-group" style="margin-top:8px;border-left:3px solid var(--accent);padding-left:12px">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><label style="font-weight:600">Передача оборудования</label>';
-    html += '<button type="button" onclick="disableEquipmentTransfer()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer">\\u2715 Убрать</button></div>';
-    html += renderEquipmentListField(transferItems);
-    html += '</div>';
-  } else {
-    html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">+ Передача оборудования по договору</button></div>';
-  }
+  // Equipment is now managed in React (/app/) — removed legacy transfer_equipment UI
 
   container.innerHTML = html;
   recalcRentMonthly();
@@ -86,20 +74,7 @@ function renderRentFields(container, allFields, props) {
     '<input type="number" id="f_power_allocation_kw" value="' + escapeHtml(props.power_allocation_kw || '') + '" step="0.1" placeholder="0"></div>';
   html += '</div>';
 
-  var hasTransfer = props.transfer_equipment === 'true' || props.transfer_equipment === true;
-  html += '<input type="checkbox" id="f_transfer_equipment"' + (hasTransfer ? ' checked' : '') + ' style="display:none">';
-  if (hasTransfer) {
-    var transferItems = Array.isArray(props.equipment_list) ? props.equipment_list : [];
-    html += '<div class="form-group" style="margin-top:8px;border-left:3px solid var(--accent);padding-left:12px">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
-    html += '<label style="font-weight:600">Передача оборудования</label>';
-    html += '<button type="button" onclick="disableEquipmentTransfer()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer">\\u2715 Убрать</button>';
-    html += '</div>';
-    html += renderEquipmentListField(transferItems);
-    html += '</div>';
-  } else {
-    html += '<div style="margin-top:10px"><button type="button" onclick="enableEquipmentTransfer()" class="btn btn-sm">+ Передача оборудования по договору</button></div>';
-  }
+  // Equipment is now managed in React (/app/) — removed legacy transfer_equipment UI
 
   if (_contractFormTypeName !== 'supplement') html += renderDurationSection(props);
   container.innerHTML = html;
@@ -228,7 +203,7 @@ function renderRentObjectBlock(index, obj) {
     h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="building_name" value="' + escapeHtml(obj.building_name || '') + '">';
     h += '<input type="hidden" class="ro-field" data-idx="' + index + '" data-name="room_type" value="' + escapeHtml(obj.room_type || '') + '">';
     h += '<div class="form-group"><label>\\u0421\\u0442\\u0430\\u0432\\u043a\\u0430 (\\u0440\\u0443\\u0431/\\u043c\\u00b2/\\u043c\\u0435\\u0441)</label><input type="number" class="ro-field" data-idx="' + index + '" data-name="rent_rate" value="' + (obj.rent_rate || '') + '" oninput="recalcRentMonthly()"></div>';
-    var legacyTotal = (parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0);
+    var legacyTotal = Math.round((parseFloat(obj.area) || 0) * (parseFloat(obj.rent_rate) || 0) * 100) / 100;
     if (legacyTotal > 0) h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">= ' + _fmtNum(legacyTotal) + ' \\u0440\\u0443\\u0431/\\u043c\\u0435\\u0441</div>';
     var hasCmt = !!(obj.comment && obj.comment.trim());
     h += '<div id="ro_cmt_wrap_' + index + '">';
