@@ -338,7 +338,7 @@ var SUBJECT_FIELDS = [
   { name: 'subject_rooms',           name_ru: 'Помещения',           field_type: 'subject_rooms' },
   { name: 'subject_land_plots',      name_ru: 'Земельные участки',   field_type: 'subject_land_plots' },
   { name: 'subject_land_plot_parts', name_ru: 'Части ЗУ',            field_type: 'subject_land_plot_parts' },
-  { name: 'equipment_list',          name_ru: 'Оборудование',        field_type: 'equipment_list' },
+  // equipment_list removed — managed via contract_equipment table + React EquipmentSection
 ];
 
 /**

@@ -66,6 +66,7 @@ const migrations = {
   '060':         require('./migrations/060_act_termination'),
   '061':         require('./migrations/061_heating_rate'),
   '062':         require('./migrations/062_remove_transfer_equipment'),
+  '063':         require('./migrations/063_cleanup_equipment_field_defs'),
 };
 
 async function initMigrationTracker(pool) {

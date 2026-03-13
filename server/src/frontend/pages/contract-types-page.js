@@ -149,7 +149,7 @@ async function _ctfDeleteType() {
 }
 
 // ── Field CRUD ───────────────────────────────────────────────────────────────
-var _FIELD_TYPES = ['text','number','date','select','select_or_custom','checkbox','contract_items','contract_items_sale','advances','equipment_list','equipment_rent_items','rent_objects','multi_comments','subject_buildings','subject_rooms','subject_land_plots','subject_land_plot_parts'];
+var _FIELD_TYPES = ['text','number','date','select','select_or_custom','checkbox','contract_items','contract_items_sale','advances','equipment_rent_items','rent_objects','multi_comments','subject_buildings','subject_rooms','subject_land_plots','subject_land_plot_parts'];
 
 function _ctfFieldForm(f) {
   f = f || {};
